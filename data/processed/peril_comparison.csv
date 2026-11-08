@@ -1,0 +1,5 @@
+peril,period,share_days_one_location,share_days_anywhere,share_of_locations_hit_on_event_days
+Heat: WBGT >= 32°C in work hours (7 core stations),Jan 2025 to Nov 2026,0.222,0.549,0.4
+Rain: an hour >= 20 mm in work hours,Jan 2025 to Nov 2026,0.048,0.355,0.14
+Haze: 24-hour PSI > 100,Jan 2025 to Nov 2026,0.042,0.061,0.7
+Haze: 24-hour PSI > 100,Mar 2016 to Nov 2026,0.009,0.015,0.66

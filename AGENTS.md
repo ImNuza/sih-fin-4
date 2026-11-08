@@ -7,9 +7,13 @@ This is an open-source project: strangers will read the code, so it must be plai
 ## Commands
 
 - `uv sync`: install dependencies.
-- `uv run scripts/fetch_wbgt.py`: download NEA WBGT readings to `data/wbgt/` (cached per day in `data/raw/wbgt/`). Rerun to add new days.
-- `uv run scripts/heat_stats.py`: work-hour heat stats to `data/processed/` and charts to `docs/figures/`.
-- `scripts/dgs.py`: shared data.gov.sg client (API key, User-Agent, retries, pagination). Reuse it for new feeds.
+- `uv run streamlit run app/app.py`: the local dashboard on http://localhost:8501 (heat, rain, haze, trigger and price explorer, live readings).
+- `uv run scripts/fetch_wbgt.py`: NEA WBGT readings to `data/wbgt/`. Rerun to add new days.
+- `uv run scripts/fetch_psi.py`: PSI and PM2.5 by region, from Mar 2016, to `data/psi/`.
+- `uv run scripts/fetch_rainfall.py`: rainfall summed per hour per gauge, from Jan 2025, to `data/rainfall/`. `--start 2016-12-02` gets the full history (slow).
+- `uv run scripts/heat_stats.py`, then `uv run scripts/hazard_stats.py`: stats to `data/processed/` and charts to `docs/figures/`.
+- `scripts/dgs.py`: shared data.gov.sg client (API keys, User-Agent, retries, pagination, cache). Reuse it for new feeds.
+- Raw API pages are cached per day in `data/raw/<feed>/`. A rerun only fetches missing days.
 
 Before saying a task is done, run every script the change touches and check its outputs changed as expected.
 
@@ -20,8 +24,10 @@ Before saying a task is done, run every script the change touches and check its 
 - `docs/notes/`: overview notes, meeting notes, transcripts.
 - `docs/reference/data-gov-sg-api.md`: **read before calling any data.gov.sg API.**
 - `data/raw/`: raw API downloads. Gitignored. Stays on the server.
-- `data/wbgt/`, `data/processed/`: small tables (Parquet or CSV) that are committed.
+- `data/wbgt/`, `data/psi/`, `data/rainfall/`, `data/processed/`: small tables (Parquet or CSV) that are committed.
 - `docs/figures/`: charts made by the scripts.
+- `docs/reports/`: HTML reports for the team (html-digest skill).
+- `app/`: Streamlit dashboard (`app.py` pages, `data.py` loaders).
 - A new data.gov.sg feed gets a `scripts/fetch_<feed>.py` that uses `DgsClient`. Never write a second HTTP client.
 - Shared helpers go in an existing module only when two scripts need them. No `utils.py`.
 - A new reference or research file gets a row in its folder's index.
@@ -29,7 +35,7 @@ Before saying a task is done, run every script the change touches and check its 
 ## Rules
 
 - **API key:** data.gov.sg calls send `x-api-key: $DATA_GOV_SG_API_KEY`. The key is in `.env` (gitignored). Load it with `set -a; . ./.env; set +a` or `python-dotenv`. Never print the key, put it in a URL or code, or commit it. Keys expire 08 Dec 2026.
-- **Rate limits:** limits reset every 10 seconds. Back off and retry on HTTP 429. Check the response `code` field (0 = success).
+- **Rate limits:** limits reset every 10 seconds, but heavy use can bring HTTP 429 on every call for minutes. The production and development keys have separate quotas. `dgs.py` switches key on 429, waits between calls and uses 2 workers. Run one download at a time. Check the response `code` field (0 = success).
 - **Git size:** GitHub rejects files over 100 MB. Commit scripts and small processed data only. Raw multi-year data goes in `data/raw/`.
 - **Personal data:** survey answers, photos or anything that identifies SME owners or workers goes in `survey/private/` (gitignored), never in git. PDPA applies.
 - **Real data first.** Data made by an LLM ("synthetic") must be stored separately and labelled as synthetic in file names and charts. Never mix it into real NEA data.
