@@ -1,0 +1,1880 @@
+AIG ASIA PACIFIC INSURANCE PTE LTD
+
+CyberEdge™
+Policy Wording
+CyberEdge
+CyberEdge Coverage
+
+Table of Contents
+Event Management Coverage                   2   Criminal Reward Fund Coverage                    28
+1.   Insurance Covers                       2   1. Insurance Covers                              28
+2.   Definitions                            2   2. Definitions                                   28
+3.   Exclusions                             5   3. Exclusions                                    28
+4.   Conditions                             6
+                                                Loss Prevention Services                         29
+Network Interruption Coverage               7   1. Services                                      29
+1.   Insurance Covers                       7   2. Definitions                                   29
+2.   Definitions                            7   3. Conditions                                    29
+3.   Exclusions                            10
+4.   Conditions                            11   General Terms and Conditions                     30
+                                                1. Application of General Terms and Conditions   30
+Security and Privacy Liability Coverage    12   2. Cover                                         30
+1. Insurance Covers                        12   3. Limits of Liability                           30
+2. Definitions                             12   4. Retentions                                    30
+3. Exclusions                              14   5. Subrogation                                   30
+                                                6. Recoveries                                    31
+Digital Media Content Liability Coverage   17   7. Claims                                        31
+1. Insurance Covers                        17   8. General Provisions                            33
+2. Definitions                             17   9. Definitions                                   34
+3. Exclusions                              18   10. Exclusions                                   36
+                                                11. Complaints and Privacy                       37
+Cyber Extortion Coverage                   21
+1. Insurance Covers                        21
+2. Definitions                             21
+3. Exclusions                              22
+
+Cyber Crime Coverage                       23
+1.   Insurance Covers                      23
+2.   Definitions                           23
+3.   Exclusions                            25
+4.   Conditions                            27
+CyberEdge Coverage
+Event Management Coverage
+
+1. Insurance Covers
+1.1 Event Management
+The Insurer will pay to or on behalf of each Company:
+(i)    Legal Expenses;
+(ii)   IT Expenses;
+(iii) Data Recovery Expenses;
+(iv) Reputation Protection Expenses;
+(v)    Notification Expenses;
+(vi) Credit Monitoring and ID Monitoring Expenses;
+(vii) (if Bricking Recovery Expenses Cover is Purchased) Bricking Recovery Expenses; and
+(viii) (if First Response Cover is Purchased) First Response Expenses,
+incurred solely as a result of an Insured Event which has occurred, or the Company’s Responsible Officer reasonably believes has
+occurred, before or during the Policy Period, and of which the Company’s Responsible Officer first becomes aware during the Policy
+Period.
+First Response Expenses will only be paid by the Insurer to the extent that they are incurred during the period commencing when the
+Company’s Responsible Officer first notifies the First Response Advisor of the Insured Event by contacting the Emergency Number
+specified in the schedule and continuing for the number of hours stated for the First Response Cover in the schedule.
+No Retention shall apply to First Response Expenses.
+
+2. Definitions
+The following definitions are specific to this Event Management Coverage Section. All other definitions set out within Section 9
+(Definitions) of the General Terms and Conditions shall apply as stated.
+
+ Term(s)                 Meaning
+
+ Breach of               Unauthorised access to or unauthorised disclosure of Confidential Information.
+ Confidential
+ Information
+
+ Bricking Recovery       The reasonable and necessary fees, costs and expenses incurred by a Company, with the Insurer’s prior
+ Expenses                written consent, on actions taken to replace any part of a Company Computer System on which lost,
+                         damaged, destroyed, encrypted or corrupted Data was stored that is no longer functional, but only:
+                         (i) where such actions are reasonable and are necessary to restore, recreate, repair or recollect such Data in
+                              accordance with subparagraph (iii) of the “Data Recovery Expenses” Definition; and
+                         (ii) to the extent that cover for such fees, costs and expenses are not available under the Network
+                              Interruption Coverage Section.
+ Company                 (i)    Any computer hardware, software or any components thereof that are linked together through a network
+ Computer System                of two or more devices accessible through the internet or an intranet or that are connected through data
+                                storage or other peripheral devices which are owned, operated, controlled or leased by a Company;
+                         (ii) any of the foregoing computer hardware, software or components thereof which is part of an industrial
+                              control system, including a supervisory control and data acquisition (SCADA) system; or
+                         (iii) any employee “Bring Your Own Device” but only to the extent such device is used to access any of the
+                               foregoing computer hardware, software or components thereof or Data contained therein.
+                         For the purposes of Bricking Recovery Expenses only, Company Computer System shall not include
+                         subparagraph (iii) above.
+
+ Confidential            Corporate Information and Personal Information in a Company’s or Information Holder’s care, custody
+ Information             or control or for which a Company is legally responsible.
+
+                                                                                                                CyberEdge 05-20 | Page 2
+Term(s)              Meaning
+
+Corporate            A Third Party’s items of information that are not available to the public (including trade secrets, data,
+Information          designs, forecasts, formulas, practices, processes, records, reports and documents) which are subject to
+                     contractual or legal protection.
+
+Credit Monitoring    The reasonable and necessary fees, costs and expenses incurred by a Company, with the Insurer’s prior
+and ID Monitoring    written consent, for Credit Monitoring and ID Monitoring Services provided to those Data Subjects
+Expenses             whose Personal Information is reasonably believed to have been disclosed or transmitted. Such fees,
+                     costs and expenses will only be paid by the Insurer for Data Subjects that request and/or activate the
+                     Credit Monitoring and ID Monitoring Services within ninety (90) days after receiving notification from the
+                     Company that their Personal Information is reasonably believed to have been disclosed or transmitted.
+                     In such a case, Credit Monitoring and ID Monitoring Services will only be provided to each such Data
+                     Subject for a period of two (2) years from the date of activation.
+
+Credit Monitoring    Credit or identity theft monitoring services to identify possible misuse of any Personal Information as a
+and ID Monitoring    result of an actual or suspected Breach of Confidential Information.
+Services
+
+Cyber Terrorism      The premeditated use of disruptive activities against a Company Computer System or network, or the
+                     explicit threat to use such activities, by an individual or group of individuals, whether acting alone or on
+                     behalf of or in connection with any entity or government, in each case with the intention to cause harm,
+                     further social, ideological, religious, political or similar objectives, or to intimidate any person(s)
+                     in furtherance of such objectives.
+                     Cyber Terrorism does not include any such activities which are part of or in support of any use of military
+                     force or war.
+
+Data Protection      The Personal Data Protection Act (Act 26 of 2012), and any subsequent legislation that alters, repeals
+Legislation          or replaces such legislation and all other equivalent laws and regulations relating to the regulation and
+                     enforcement of data protection or data privacy in any country.
+
+Data Recovery        The reasonable and necessary fees, costs and expenses incurred by a Company, with the Insurer’s prior
+Expenses             written consent, on actions taken to:
+                     (i)   identify lost, damaged, destroyed, encrypted or corrupted Data;
+                     (ii) determine whether any lost, damaged, destroyed, encrypted or corrupted Data can be restored,
+                          repaired, recollected or recreated; and
+                     (iii) restore, recreate, repair or recollect lost,damaged, destroyed, encrypted or corrupted Data to
+                           substantially the form in which it existed immediately prior to the Insured Event, including where
+                           necessary the cost to restore Data from backups or recreate Data from physical records.
+
+Data Subject         Any natural person whose Personal Information has been either collected, stored or processed by or on
+                     behalf of a Company.
+
+First Response       The law firm specified in the schedule, or other law firms instructed by such specified law firm, or any
+Advisor              replacement firm nominated by the Insurer in the event of a conflict of interest, with respect to whom a
+                     Company shall enter into a Relevant Engagement.
+
+First Response       The reasonable and necessary fees, costs and expenses (as determined by the Insurer at its sole discretion) of:
+Expenses             (i)   the First Response Advisor providing First Response Legal Services;
+                     (ii) the First Response IT Specialist providing IT Services; and
+                     (iii) the Public Relations Advisor, if its appointment is considered necessary by the First Response Advisor
+                           or the Insurer, providing Reputation Protection Services.
+
+First Response       The information technology services firm appointed by the Insurer or First Response Advisor.
+IT Specialist
+
+First Response       (i)   legal advice and support provided pursuant to a Relevant Engagement;
+Legal Services       (ii) coordinating the First Response IT Specialist, and, if considered necessary by the First Response
+                          Advisor or Insurer, the Public Relations Advisor; and
+                     (iii) preparation of notices and notification to any relevant Regulator.
+
+Information Holder   A Third Party that holds Personal Information or Corporate Information on behalf of a Company.
+
+                                                                                                              CyberEdge 05-20 | Page 3
+Term(s)               Meaning
+
+Insured               A Company.
+
+Insured Event         (i)   A Breach of Confidential Information;
+                      (ii) a Security Failure; or
+                      (iii) in respect of Data Recovery Expenses only, an Operational Failure.
+
+IT Expenses           The reasonable and necessary fees, costs and expenses (as determined by the Insurer at its sole discretion)
+                      of an IT Specialist providing IT Services.
+
+IT Services           The services of:
+                      (i)   substantiating whether an Insured Event has occurred, how it occurred and whether it is still occurring;
+                      (ii) identifying any compromised Data resulting from an Insured Event;
+                      (iii) establishing the extent to which Confidential Information may have been compromised resulting from
+                            an Insured Event; or
+                      (iv) containing and resolving an Insured Event and making recommendations to prevent or mitigate a
+                           future occurrence of the same or similar event.
+
+IT Specialist         An information technology services firm appointed by the Insurer, the Response Advisor or a Company
+                      where that firm has been approved by the Insurer in advance of such appointment.
+
+Legal Expenses        The reasonable and necessary fees, costs and expenses (as determined by the Insurer at its sole discretion)
+                      of a Response Advisor providing Legal Services.
+
+Legal Services        The services of:
+                      (i)   co–ordinating the IT Specialist or Public Relations Advisor;
+                      (ii) advising, notifying and corresponding on any notification requirements with any relevant Regulator; or
+                      (iii) monitoring complaints raised by Data Subjects and advising a Company on responses to an Insured
+                            Event for the purposes of minimising harm to the Company, including actions taken to maintain and
+                            restore public confidence in the Company,
+                      in dealing with any actual or suspected Breach of Confidential Information or Security Failure.
+
+Loss                  Legal Expenses, IT Expenses, Data Recovery Expenses, Reputation Protection Expenses, Notification
+                      Expenses, Credit Monitoring and ID Monitoring Expenses, Bricking Recovery Expenses and First
+                      Response Expenses.
+
+Notification          The reasonable and necessary fees, costs and expenses incurred by a Company, with the Insurer’s prior
+Expenses              written consent, of:
+                      (i)   investigating and collating information;
+                      (ii) preparing notices and notifying:
+                            (a) those Data Subjects whose Personal Information is reasonably believed to have been subject
+                                to unauthorised access or disclosure; and
+                            (b) any Third Party whose Corporate Information is reasonably believed to have been subject to
+                                unauthorised access or disclosure; and
+                            (c) any relevant Regulator; and
+                      (iii) setting up and operating call centres,
+                      with regard to any actual or suspected Breach of Confidential Information.
+
+Operational Failure   The loss or damage to Data caused by:
+                      (i)   a negligent or unintentional act or failure to act by:
+                            (a) an Insured;
+                            (b) an employee of an Insured; or
+                            (c) a third party service provider to an Insured;
+                      (ii) the loss or theft of electronic equipment; or
+                      (iii) a magnetic event other than:
+                            (a) the use of electromagnetic or directed-energy weapons; or
+                            (b) the natural deterioration of the storage media or data.
+
+                                                                                                            CyberEdge 05-20 | Page 4
+ Term(s)                  Meaning
+
+ Personal                 Any information relating to an identified or identifiable natural person.
+ Information              Personal Information includes a natural person’s name, national registration identification number,
+                          telephone number, credit card or debit card number, account and other banking information, medical
+                          information, or any other information about a natural person protected under any Data Protection Legislation.
+
+ Public Relations         A consultant appointed by the Insurer or the Response Advisor, or any other consultant appointed by a
+ Advisor                  Company that has been approved by the Insurer in advance of such appointment, to provide Reputation
+                          Protection Services.
+
+ Regulator                A regulator established pursuant to Data Protection Legislation in any jurisdiction and which is authorised
+                          to enforce statutory obligations in relation to the collection, disclosure, storage, processing or control of
+                          Confidential Information.
+                          Regulator includes any other government agency or authorised data protection authority who makes a
+                          demand on a Company in relation to Data Protection Legislation.
+
+ Relevant                 A written agreement between the First Response Advisor and a Company governing the provision of the
+ Engagement               First Response Legal Services to the Company.
+
+ Reputation          The reasonable and necessary fees, costs and expenses (as determined by the Insurer at its sole discretion)
+ Protection Expenses of a Public Relations Advisor providing Reputation Protection Services.
+
+ Reputation               Advice and support (including advice concerning media strategy and independent public relations services,
+ Protection Services      and the design and management of a communications strategy) in order to mitigate or prevent the potential
+                          adverse effect of, or reputational damage from, media reporting of an Insured Event.
+
+ Response Advisor         Any law firm appointed by the Insurer, or any other law firm appointed by a Company that has been
+                          approved by the Insurer in advance of such appointment.
+
+ Security Failure         (i)   Any intrusion of, unauthorised access (including an unauthorised person using authorised credentials)
+                                to, or unauthorised use of (including by a person with authorised access) a Company Computer
+                                System, including that which results in or fails to mitigate any:
+                                (a) denial of service attack or denial of access; or
+                                (b) receipt or transmission of a malicious code, malicious software or virus;
+                          (ii) The loss of Data arising from the physical theft or loss of hardware controlled by a Company; or
+                          (iii) the unauthorised reprogramming or corruption of software (including firmware) which renders a Company
+                                Computer System or any component thereof non-functional or useless for its intended purpose.
+
+3. Exclusions
+The following Exclusions are specific to this Event Management Coverage Section. They apply in addition to the Exclusions in Section 10
+(Exclusions) of the General Terms and Conditions.
+The Insurer shall not be liable for any Loss:
+
+3.1 Betterment
+Consisting of the costs of:
+(i)    updating, upgrading, enhancing or replacing a Company Computer System to a level beyond that which existed prior to the
+       occurrence of an Insured Event however, where Bricking Recovery Expenses Cover is Purchased, this Exclusion 3.1 (i) shall not
+       apply to:
+       a. the patching or updating of component of the Company Computer System required to resolve a Security Failure or Breach
+          of Confidential Information; or
+       b. the replacement of a component of the Company Computer System required to restore, recreate, repair or recollect
+          damaged, destroyed or corrupted Data which can only be reasonable replaced with an upgraded or enhanced components,
+          but in such circumstances, only for the cost of such upgraded or enhanced component that most closely matches the
+          functionality if the component to be replaced;
+(ii)   removing software program errors or vulnerabilities.
+
+3.2 Bodily Injury and Property Damage
+Arising out of, based upon or attributable to any:
+
+                                                                                                                CyberEdge 05-20 | Page 5
+(i)    physical injury, mental illness, sickness, disease or death; or
+(ii)   loss, damage or destruction of tangible property, however, where Bricking Recovery Expnses Cover is Purchased, this Exclusion
+       3.2 (ii) shall not apply to the loss of use of electronic equipment caused by the reprogramming of the software (including firmware)
+       of such electronic equipment rendering it useless for its intended purpose.
+
+3.3 Government Entity or Public Authority
+Arising out of, based upon or attributable to any seizure, confiscation or nationalisation of a Company Computer System by order
+of any government entity or public authority.
+
+3.4 Infrastructure
+Arising out of, based upon or attributable to any electrical or mechanical failure of infrastructure not under the control of a Company,
+including any electrical power interruption, surge, brownout or blackout, failure of telephone lines, data transmission lines, or other
+telecommunications or networking infrastructure.
+This Exclusion 3.4 shall not apply to Loss arising out of, based upon or attributable solely to a Security Failure or Breach of
+Confidential Information that is caused by such electrical or mechanical failure of infrastructure.
+
+3.5 Internal/Staff Costs
+Consisting of the costs of payroll, fees, benefits, overheads or internal charges of any kind incurred by a Company.
+
+3.6 Patent/Trade Secret
+Arising out of, based upon or attributable to any:
+(i)    infringement of patents;
+(ii)   loss of rights to secure registration of patents; or
+(iii) misappropriation of trade secrets by or for the benefit of a Company.
+
+3.7 War and Terrorism
+Arising out of, based upon or attributable to any war (whether war is declared or not), terrorism (except Cyber Terrorism), invasion, use
+of military force, civil war, popular or military rising, rebellion or revolution, or any action taken to hinder or defend against any of these
+events.
+
+4. Conditions
+The following conditions are specific to this Event Management Coverage Section and shall apply in addition to the conditions (including
+notice provisions) set out within the General Terms and Conditions.
+
+4.1 First Response Notification
+The cover provided for First Response Expenses is granted solely with respect to a Breach of Confidential Information or Security
+Failure first discovered during the Policy Period and a Company shall, as a condition precedent to the obligations of the Insurer in
+respect of such First Response Expenses, notify the Insurer by contacting the Emergency Number specified in the schedule as soon as
+reasonably practicable after the Breach of Confidential Information or Security Failure first occurs.
+
+                                                                                                                     CyberEdge 05-20 | Page 6
+CyberEdge Coverage
+Network Interruption Coverage
+
+1. Insurance Covers
+1.1 Network Interruption Loss
+The Insurer will, with regard to an Insured Event which first occurs during the Policy Period, pay to each Company:
+(i)    Network Loss which results from the Insured Event and which the Company incurs during the Insured Event (but, if the Insured
+       Event lasts longer than 120 days, only during the first 120 days of the Insured Event); and
+(ii)   Network Loss which results from the Insured Event and which the Company incurs during the 90 days following resolution of the
+       Insured Event.
+
+1.2 Interruption and Mitigation Costs
+The Insurer will pay, to or on behalf of each Company, Network Interruption Costs incurred in mitigating the impact of an Insured
+Event which first occurs during the Policy Period.
+
+1.3 Loss Preparation Costs
+If Loss Preparation Costs Cover is Purchased, the Insurer will pay, to or on behalf of each Company, Loss Preparation Costs incurred
+as a result of an Insured Event which first occurs during the Policy Period.
+
+2. Definitions
+The following definitions are specific to this Network Interruption Coverage Section. All other definitions set out within Section 9
+(Definitions) of the General Terms and Conditions shall apply as stated.
+
+ Term(s)                  Meaning
+
+ Company Computer         (i)   Any computer hardware, software or any other components thereof that are linked together through
+ System                         a network of two or more devices accessible through the internet or an intranet or that are connected
+                                through data storage or other peripheral devices which are owned, operated, controlled or leased by a
+                                Company; or
+                          (ii) any of the foregoing computer hardware, software or components thereof which is part of an industrial
+                               control system, including a supervisory control and data acquisition (SCADA) system.
+
+ Cyber Terrorism          The premeditated use of disruptive activities against a Company Computer System or network, or the
+                          explicit threat to use such activities, by an individual or group of individuals, whether acting alone or
+                          on behalf of or in connection with any entity or government, in each case with the intention to cause
+                          harm, further social, ideological, religious, political or similar objectives, or to intimidate any person(s) in
+                          furtherance of such objectives.
+                          Cyber Terrorism does not include any such activities which are part of or in support of any use of military
+                          force or war.
+
+ Increased Costs          Expenses (including overtime of Employees) incurred over and above normal operating expenses in order
+ of Working               to ensure continuation of the normal business operations of a Company and to reduce its loss of business
+                          income.
+
+ Insured                  a Company.
+
+                                                                                                                     CyberEdge 05-20 | Page 7
+Term(s)              Meaning
+
+Insured Event        (i)   If Security Failure Cover is Purchased, a Material Interruption to a Company Computer System that
+                           is caused by a Security Failure;
+                     (ii) if System Failure Cover is Purchased, a Material Interruption to a Company Computer System that
+                          is caused by a System Failure;
+                     (iii) if Voluntary Shutdown Cover is Purchased, a Material Interruption to a Company Computer System
+                           that is caused by a Voluntary Shutdown;
+                     (iv) if Regulatory Shutdown Cover is Purchased, a Material Interruption to a Company Computer
+                          System that is caused by a Regulatory Shutdown;
+                     (v) if OSP Security Failure Cover is Purchased, a Material Interruption to an OSP Computer System
+                         that is caused by an OSP Security Failure; and
+                     (vi) if OSP System Failure Cover is Purchased, a Material Interruption to an OSP Computer System that
+                          is caused by an OSP System Failure,
+                     and in each case, only where the duration of the Material Interruption exceeds the applicable Waiting Hours
+                     Period specified in the schedule.
+
+Loss                 (i)   For the purposes of Insurance Cover 1.1, Network Loss;
+                     (ii) for the purposes of Insurance Cover 1.2, Network Interruption Costs;
+                     (iii) for the purposes of Insurance Cover 1.3, Loss Preparation Costs.
+
+Loss Preparation     Reasonable and necessary professional fees and expenses incurred by a Company with the Insurer’s
+Costs                prior written consent, for the services of a third-party forensic accounting firm to establish, prove, verify or
+                     quantify Network Loss or Network Interruption Costs or prepare the proof of loss referred to in Condition
+                     4.1 of this Network Interruption Coverage Section.
+                     Loss Preparation Costs does not include any fees or expenses for consultation on coverage or negotiation
+                     of claims.
+
+Material             (i)   The suspension or degradation of a Company Computer System (for the purposes of Insured Event (i) –
+Interruption               (iv)) or an OSP Computer System (for the purposes of Insured Event (v) or (vi)) causing the Company to
+                           be unable to continue the normal business operations of the Company; or
+                     (ii) the deletion, damage, corruption, alteration or loss of or to Data on a Company Computer System (for
+                          the purposes of Insured Event (i) – (iv)) or an OSP Computer System (for the purposes of Insured Event
+                          (v) or (vi)) causing the Company to be unable to access that Data and unable to continue the normal
+                          business operations of the Company.
+
+Network              The reasonable and necessary costs and expenses that a Company incurs to minimise the Network Loss,
+Interruption Costs   or reduce the impact of a Material Interruption; provided however that the amount of Network Loss
+                     prevented or reduced must be greater than the costs and expenses incurred.
+
+Network Loss         (i)   A Company’s actual loss sustained resulting from the reduction in business income calculated by taking
+                           either Network Loss Option 1 or Network Loss Option 2; and
+                     (ii) the Company’s Increased Costs of Working (but only up to an amount equal to the reduction in the
+                          business income that would have been incurred had the Company been unable to continue its normal
+                          business operations).
+                     Network Loss Option 1 (Net Profit and Continuing Fixed Costs Calculation) is calculated as follows:
+                     Take the net profit or loss which would have been earned or incurred had the Material Interruption not
+                     occurred and add the costs (including ordinary payroll) which necessarily continue during the Material
+                     Interruption.
+                     Network Loss Option 2 (Gross Profits Calculation) is calculated as follows:
+                     Take the revenue which would have been derived from the operation of the business had the Material
+                     Interruption not occurred and subtract the variable costs, and any other costs, which do not necessarily
+                     continue during the Material Interruption.
+
+OSP Computer         Any computer hardware, software or any components thereof that are linked together through a network
+System               of two or more devices accessible through the internet or an intranet or that are connected through data
+                     storage or other peripheral devices which are owned, operated, controlled or leased by an Outsource
+                     Service Provider.
+
+                                                                                                             CyberEdge 05-20 | Page 8
+Term(s)                Meaning
+OSP Security Failure Any intrusion of, unauthorised access (including any unauthorised person using authorised credentials) to,
+                     or unauthorised use of (including by a person with authorised access) an OSP Computer System, including
+                     that which results in or fails to mitigate any:
+                       (i)   denial of service attack or denial of access; or
+                       (ii) receipt or transmission of a malicious code, malicious software or virus.
+
+OSP System Failure     Any unintentional and unplanned outage of an OSP Computer System such that the Outsource Service
+                       Provider is unable to provide to a Company the services described in a contract between a Company and
+                       an Outsource Service Provider pursuant to which an Outsource Service Provider provides services to a
+                       Company for a fee.
+
+Outsource Service      A Third Party that a Company has appointed to provide specified information technology services (such as
+Provider               the processing, hosting and storage of Data) to the Company based on an express contractual agreement,
+                       but only to the extent of the provision of such services.
+                       Outsource Service Provider does not include:
+                       (i)   a public utility (including a provider of electricity, gas, water or telecommunication services);
+                       (ii) an internet service provider (including any provider of internet connectivity); or,
+                       (iii) a securities exchange or market.
+
+Regulatory             An intentional shutdown or impairment of a Company Computer System by an Insured, necessary to
+Shutdown               comply with an enforceable legal or regulatory order pursuant to Data Protection Legislation resulting
+                       directly and solely from a Security Failure.
+
+Security Failure       (i)   Any intrusion of, unauthorised access (including an unauthorised person using authorised credentials)
+                             to, or unauthorised use of (including by a person with authorised access) a Company Computer
+                             System, including that which results in or fails to mitigate any:
+                             (a) denial of service attack or denial of access; or,
+                             (b) receipt or transmission of a malicious code, malicious software or virus; or
+                       (ii) the unauthorised reprogramming or corruption of software (including firmware) which renders a
+                            Company Computer System or any component thereof non-functional or useless for its intended
+                            purpose.
+
+System Failure         Any unintentional and unplanned outage of a Company Computer System.
+
+Voluntary              A voluntary and intentional shutdown or impairment of a Company Computer System by or at the direction
+Shutdown               of:
+                       (i)   the Chief Information officer or Chief Information Security Officer of a Company (or the equivalent
+                             position regardless of title) who has at least 5 years’ experience in an Information Security or Technology
+                             role; or
+                       (ii) an information technology services firm appointed by a Company that has been approved by the
+                            Insurer in advance of such appointment,
+                       after the discovery of a Security Failure, with the reasonable belief that such shutdown or impairment
+                       would limit the Loss that would otherwise be incurred as a result of that Security Failure.
+
+                                                                                                                  CyberEdge 05-20 | Page 9
+3. Exclusions
+The following Exclusions are specific to this Network Interruption Coverage Section. They apply in addition to the Exclusions in Section
+10 (Exclusions) of the General Terms and Conditions.
+The Insurer shall not be liable for Loss:
+
+3.1 Betterment
+Consisting of the costs of:
+(i)    updating, upgrading, enhancing or replacing any component of a Company Computer System or an OSP Computer System to
+       a level beyond that which existed prior to the occurrence of a Material Interruption; however, this exclusion shall not apply to the
+       extent that the replacement of a component of a Company Computer System is:
+       (a) required to end the Material Interruption; and
+       (b) no longer available and can only be reasonably replaced with an upgraded or enhanced version; or
+(ii)   removing software program errors or vulnerabilities.
+
+3.2 Bodily Injury and Property Damage
+Arising out of, based upon or attributable to any:
+(i)    physical injury, mental illness, sickness, disease or death; or
+(ii)   loss, damage or destruction of tangible property; however, where Bricking Recovery Expenses Cover is Purchased, this Exclusion
+       3.2 (ii) shall not apply to the loss of use of electronic equipment caused by the reprogramming of the software (inlcuding firmware)
+       of such electronic equipment rendering ituseless for its intended purpose.
+
+3.3 Business Conditions
+Consisting of Loss of earnings, or costs or expenses, attributable to unfavourable business conditions.
+
+3.4 Government Entity or Public Authority
+Arising out of, based upon or attributable to any seizure, confiscation or nationalisation of a Company Computer System by order
+of any government entity or public authority.
+
+3.5 Infrastructure
+Arising out of, based upon or attributable to any electrical or mechanical failure of infrastructure not under the control of a
+Company (or, where OSP Security Failure Cover or OSP System Failure Cover is Purchased, an Outsource Service Provider),
+including any electrical power interruption, surge, brownout or blackout, failure of telephone lines, data transmission lines, or other
+telecommunications or networking infrastructure.
+
+3.6 Liability
+Arising out of, based upon or attributable to any:
+(i)    written demand, civil, administrative or arbitral proceedings, made by any Third Parties seeking any legal remedy; or
+(ii)   penalties paid to Third Parties.
+
+3.7 Patent
+Arising out of, based upon or attributable to any infringement of patents.
+
+3.8 Trading Losses
+Consisting of trading losses, liabilities or changes in trading account value.
+
+3.9 War and Terrorism
+Arising out of, based upon or attributable to any war (whether war is declared or not), terrorism (except Cyber Terrorism), invasion, use
+of military force, civil war, popular or military rising, rebellion or revolution, or any action taken to hinder or defend against any of these
+events.
+
+                                                                                                                   CyberEdge 05-20 | Page 10
+4. Conditions
+The following conditions are specific to this Network Interruption Coverage Section and shall apply in addition to the conditions set out
+within the General Terms and Conditions.
+
+4.1 Proof of Loss
+In addition to the requirements to give notice to the Insurer under Section 7.1 (Notice and Reporting) of the General Terms and
+Conditions, and before coverage under this Network Interruption Coverage Section shall apply, a Company must also:
+(i)    complete and sign a written, detailed and affirmed proof of loss after the resolution of the Material Interruption, which will include:
+       (a) a full description of the Network Interruption Costs or Network Loss and the circumstances of such Network Interruption
+           Costs or Network Loss;
+       (b) a detailed calculation of any Network Loss;
+       (c) all underlying documents and materials that reasonably relate to or form a part of the basis of the proof of the Network
+           Interruption Costs or Network Loss; and
+(ii)   upon the Insurer’s request promptly respond to requests for information.
+All adjusted claims are due and payable 45 days after:
+(a)    the presentation of the satisfactory written proof of Network Loss and Network Interruption Costs as provided for in (i) and (ii)
+       above; and
+(b)    the subsequent written acceptance thereof by the Insurer.
+Network Loss shall be reduced by any amounts recovered by a Company (including the value of any service credits provided to a
+Company) from any party (including any Outsource Service Provider).
+The costs and expenses of establishing or proving Network Loss and/or Network Interruption Costs under this Network Interruption
+Coverage Section, including those associated with preparing the proof of loss, shall be the obligation of the Company and are not
+covered under this policy except as covered under 1.3 (Loss Preparation Costs) of this Network Interruption Coverage Section.
+
+4.2 Appraisal
+If a Company and the Insurer disagree on the extent of Network Loss or Network Interruption Costs, either may make a written
+demand for an appraisal of such Network Loss or Network Interruption Costs. If such demand is made, each party will select a
+competent and impartial appraiser. The appraisers will then jointly select an expert who has not less than 10 years’ standing and who
+is a partner in a major international accounting firm, experienced in assessing loss of this nature. Each appraiser will separately state
+the extent of Network Loss or Network Interruption Costs. If they fail to agree, they will submit their differences to the expert.
+Any decision by the expert will be final and binding.
+The Company and the Insurer will:
+(i)    pay their own costs, including the costs of their respective chosen appraiser, and
+(ii)   bear the expenses of the expert equally.
+
+                                                                                                                   CyberEdge 05-20 | Page 11
+CyberEdge Coverage
+Security and Privacy Liability Coverage
+
+1. Insurance Covers
+1.1 Data Protection Investigation and Data Protection Fines
+The Insurer will pay, to or on behalf of each Company, Loss resulting from a Regulatory Investigation first occurring during the
+Policy Period.
+
+1.2 Cyber Liability
+The Insurer will pay, to or on behalf of each Insured, Loss resulting from a Claim first made and notified during the Policy Period
+resulting from any:
+(i)    actual or alleged Breach of Confidential Information by an Insured or an Information Holder;
+(ii)   actual or alleged Security Failure; or
+(iii) actual or alleged failure by a Company to notify a Data Subject or any Regulator of an unauthorised access to or unauthorised
+      disclosure of Personal Information for which the Company is responsible in accordance with the requirements of any Data
+      Protection Legislation,
+which occurred or occurs prior to or during the Policy Period.
+
+2. Definitions
+The following definitions are specific to this Security and Privacy Liability Coverage Section. All other definitions set out within Section 9
+(Definitions) of the General Terms and Conditions shall apply as stated.
+
+ Term(s)                  Meaning
+
+ Breach of                The unauthorised access to or unauthorised disclosure of Confidential Information.
+ Confidential
+ Information
+ Claim                    (i)   A written demand against an Insured;
+                          (ii) civil, administrative or arbitral proceedings brought against an Insured; or
+                          (iii) a PCI-DSS Assessment, provided always that the specific Insured which is the subject of the PCI-DSS
+                                Assessment was validated as compliant with the generally accepted and published Payment Card
+                                Industry Data Security Standards prior to and at the time of any Breach of Confidential Information
+                                which gives rise to such PCI-DSS Assessment occurring.
+                          seeking any legal remedy.
+
+ Company Computer         (i)   Any computer hardware, software or any components thereof that are linked together through a network
+ System                         of two or more devices accessible through the internet or an intranet or that are connected through data
+                                storage or other peripheral devices which are owned, operated, controlled or leased by a Company;
+                          (ii) any of the foregoing computer hardware, software or components thereof which is part of an industrial
+                               control system, including a supervisory control and data acquisition (SCADA) system;
+                          (iii) any employee “Bring Your Own Device” but only to the extent such device is used to access any of the
+                                foregoing computer hardware, software or components thereof or Data contained therein; or
+                          (iv) any cloud service or other hosted computer resources, used by a Company and operated by a Third Party
+                               service provider under a written contract between such Third Party service provider and a Company.
+
+ Confidential             Corporate Information and Personal Information in a Company’s or Information Holder’s care, custody
+ Information              or control or for which a Company is legally responsible.
+
+ Corporate                A Third Party’s items of information that are not available to the public (including trade secrets, data,
+ Information              designs, forecasts, formulas, practices, processes, records, reports and documents) which are subject to
+                          contractual or legal protection.
+
+                                                                                                                  CyberEdge 05-20 | Page 12
+Term(s)              Meaning
+
+Cyber Terrorism      The premeditated use of disruptive activities against a Company Computer System or network, or the
+                     explicit threat to use such activities, by an individual or group of individuals, whether acting alone or
+                     on behalf of or in connection with any entity or government, in each case with the intention to cause
+                     harm, further social, ideological, religious, political or similar objectives, or to intimidate any person(s) in
+                     furtherance of such objectives.
+                     Cyber Terrorism does not include any such activities which are part of or in support of any use of military
+                     force or war.
+
+Damages              Damages that an Insured is legally liable to pay resulting from a Claim as ascertained by:
+                     (i)   judgments or arbitral awards rendered against that Insured; or
+                     (ii) a settlement agreement negotiated by that Insured and for which prior written consent has been
+                          obtained from the Insurer.
+                     Damages includes punitive or exemplary or multiple damages where lawfully insurable and any monetary
+                     amounts that an Insured is required by law or has agreed by settlement to deposit into a consumer redress
+                     fund.
+
+Data Protection      Any lawfully insurable fines or penalties which are adjudicated by a Regulator to be payable by a Company
+Fines                for a breach of Data Protection Legislation.
+                     Data Protection Fines does not include any other type of civil or criminal fines and penalties.
+
+Data Protection      The Personal Data Protection Act (Act 26 of 2012), and any subsequent legislation that alters, repeals
+Legislation          or replaces such legislation and all other equivalent laws and regulations relating to the regulation and
+                     enforcement of data protection or data privacy in any country.
+
+Data Subject         Any natural person whose Personal Information has been either collected, stored or processed by or on
+                     behalf of a Company.
+
+Defence Costs        Reasonable and necessary legal fees, costs and expenses which an Insured incurs with the prior written
+                     consent of the Insurer in relation to the investigation, response, defence, appeal or settlement of a Claim or
+                     Regulatory Investigation, including court attendance costs incurred by or on behalf of that Insured.
+                     Defence Costs does not include the remuneration of any Insured, cost of their time or any other costs or
+                     overheads of any Insured.
+
+Information Holder   A Third Party that holds Personal Information or Corporate Information on behalf of a Company.
+
+Insured              (i)   A Company;
+                     (ii) a natural person who was, is or during the Policy Period becomes a principal, partner, director, officer
+                          or Employee of a Company; or
+                     (iii) a natural person who is an independent contractor, temporary contract labourer, self–employed person,
+                           or labour–only sub–contractor, under the direction and direct supervision of a Company but only in
+                           relation to the services provided to that Company.
+                     Insured includes the estate, heirs or legal representatives of a deceased, legally incompetent or bankrupt
+                     Insured referred to in (ii) above to the extent that a Claim is brought against them solely by reason of them
+                     having an interest in property that is sought to be recovered in a Claim against such Insured referred to in
+                     (ii) above.
+
+Insured Event        A Claim or a Regulatory Investigation.
+
+Loss                 (i)   For the purposes of Insurance Cover 1.1, Defence Costs and Data Protection Fines;
+                     (ii) for the purposes of Insurance Cover 1.2, Damages, Defence Costs and any amounts payable in
+                          connection with a PCI-DSS Assessment.
+                     Loss does not include:
+                     (a) non–compensatory or multiple damages (except to the extent covered as Damages or as part of
+                         a PCI-DSS Assessment) or liquidated damages;
+                     (b) fines or penalties (except Data Protection Fines to the extent covered in 1.1. (Data Protection
+                         Investigation and Data Protection Fines));
+                     (c) the costs and expenses of complying with any order for, grant of or agreement to provide injunctive
+                         or other non–monetary relief; or
+                     (d) an Insured’s remuneration, cost of management or staff time or overheads.
+
+                                                                                                              CyberEdge 05-20 | Page 13
+ Term(s)                  Meaning
+ PCI–DSS                  Any written demand received by a Company from a payment card association (e.g., MasterCard, Visa,
+ Assessment               American Express) or bank or servicer processing payment card transactions (e.g., an “acquiring bank”
+                          or “payment processor”) for a monetary amount (including fraud recovery, operational reimbursement,
+                          reimbursement of card reissuance costs and contractual fines and penalties) where:
+                          (i)   a Company has contractually agreed to indemnify such Payment Card Association, bank or servicer
+                                processing payment card transactions for any monetary assessment made in connection with a
+                                Company’s obligations under the Payment Card Industry Data Security Standards, including such
+                                contractual obligations contained in a merchant services agreement or similar agreement; and
+                          (ii) such monetary assessment arises out of a Breach of Confidential Information.
+
+ Personal                 Any information relating to an identified or identifiable natural person.
+ Information              Personal Information includes a natural person’s name, national registration identification number,
+                          telephone number, credit card or debit card number, account and other banking information, medical
+                          information, or any other information about a natural person protected under any Data Protection
+                          Legislation.
+
+ Regulator                A regulator established pursuant to Data Protection Legislation in any jurisdiction and which is authorised
+                          to enforce statutory obligations in relation to the collecting, disclosing, storing, processing or control of
+                          Confidential Information.
+                          Regulator includes any other government agency or authorised data protection authority who makes a
+                          demand on the Insured in relation to Data Protection Legislation.
+
+ Regulatory               Any formal or official action, investigation, inquiry or audit by a Regulator against a Company once
+ Investigation            it is identified in writing by a Regulator, which arises out of the use or suspected misuse of Personal
+                          Information or any aspects of the control, collection, storage or processing of Personal Information or
+                          delegation of data processing to an Information Holder, which is regulated by Data Protection Legislation.
+                          Regulatory Investigation does not include any industry-wide, non-firm specific action, investigation,
+                          inquiry or audit.
+
+ Security Failure         (i)   Any intrusion of, unauthorised access (including an unauthorised person using authorised credentials)
+                                to, or unauthorised use of (including by a person with authorised access) a Company Computer
+                                System, including that which results in or fails to mitigate any:
+                                (a) denial of service attack or denial of access; or
+                                (b) receipt or transmission of a malicious code, malicious software or virus;
+                          (ii) the loss of Data arising from the physical theft or loss of hardware controlled by a Company; or
+                          (iii) the unauthorised reprogramming or corruption of software (including firmware) which renders a
+                                Company Computer System or any component thereof non-functional or useless for its intended
+                                purpose.
+
+3. Exclusions
+The following Exclusions are specific to this Security and Privacy Liability Coverage Section. They apply in addition to the Exclusions
+in Section 10 (Exclusions) of the General Terms and Conditions.
+The Insurer shall not be liable for Loss arising out of, based upon or attributable to:
+
+3.1 Anti–Trust
+Any actual or alleged antitrust violation, restraint of trade, unfair competition or unfair or deceptive business practices, including
+violation of any consumer protection law.
+This Exclusion 3.1 shall not apply to a Regulatory Investigation alleging such antitrust violation, restraint of trade, unfair competition
+or unfair or deceptive business practices, including violation of any consumer protection law, directly in connection with a Security
+Failure or Breach of Confidential Information.
+
+                                                                                                                  CyberEdge 05-20 | Page 14
+3.2 Assumed Liability, Guarantee, Warranty
+Any guarantee, warranty, contractual term or liability assumed or accepted by an Insured under any contract or agreement except
+to the extent such liability would have attached to the Insured in the absence of such contract or agreement.
+This Exclusion 3.2 shall not apply to:
+(i)    a contractual obligation to prevent a Security Failure or Breach of Confidential Information;
+(ii)   an obligation under a written confidentiality or disclosure agreement with a Third Party to prevent a Breach of Confidential
+       Information; or
+(iii) the obligation to comply with Payment Card Industry Data Security Standards.
+
+3.3 Bodily Injury and Property Damage
+Any:
+(i)    physical injury, mental illness, sickness, disease or death: however, this Exclusion 3.3 (i) shall not apply in respect of emotional
+       distress or mental anguish arising solely out of an Breach of Confidential Information; or
+(ii)   loss, damage or destruction of tangible property.
+
+3.4 Employment Practices Liability
+Any of a Company’s employment practices (including wrongful dismissal, discharge or termination, discrimination, harassment,
+retaliation or other employment–related claim).
+This Exclusion 3.4 shall not apply to any Claim by an individual to the extent such individual is alleging:
+(i)    a Breach of Confidential Information in connection with such individual’s employment or application for employment with
+       a Company; or
+(ii)   a failure to disclose a Security Failure or Breach of Confidential Information.
+
+3.5 Government Entity or Public Authority
+Any seizure, confiscation or nationalisation of a Company Computer System by order of any government entity or public authority.
+
+3.6 Infrastructure
+Any electrical or mechanical failure of infrastructure not under the control of a Company, including any electrical power interruption,
+surge, brownout or blackout, failure of telephone lines, data transmission lines, or other telecommunications or networking
+infrastructure.
+This Exclusion 3.6 shall not apply to Loss arising out of, based upon or attributable solely to a Security Failure or Breach of
+Confidential Information that is caused by such electrical or mechanical failure of infrastructure.
+
+3.7 Insured v Insured
+Any Claim brought by or on behalf of an Insured against another Insured.
+This Exclusion 3.7 shall not apply to an actual or alleged unauthorised access to or unauthorised disclosure of Personal Information
+of any Employee, director, principal, partner or officer.
+
+3.8 Patent/Trade Secret
+Any:
+(i)    infringement of patents;
+(ii)   loss of rights to secure registration of patents; or
+(iii) misappropriation of trade secrets by or for the benefit of a Company.
+
+3.9 Securities Claims
+Any:
+(i)    actual or alleged violation by an Insured of any law, regulation or rule relating to the ownership, purchase, sale or offer of,
+       or solicitation of an offer to purchase or sell, securities; or
+
+                                                                                                                   CyberEdge 05-20 | Page 15
+(ii)   any actual or alleged violation by an Insured of any provision of the Securities Act of 1933, the Securities Exchange Act of 1934
+       (each a United States of America statute) or any similar law of any jurisdiction.
+This Exclusion 3.10 shall not apply to any Damages or Defence Costs incurred in relation to a Claim solely alleging a failure to notify
+a Regulator of a Breach of Confidential Information where such failure to notify is in violation of any law.
+
+3.10 War and Terrorism
+Any war (whether war is declared or not), terrorism (except Cyber Terrorism), invasion, use of military force, civil war, popular or
+military rising, rebellion or revolution, or any action taken to hinder or defend against any of these events.
+
+                                                                                                                 CyberEdge 05-20 | Page 16
+CyberEdge Coverage
+Digital Media Content Liability Coverage
+
+1. Insurance Cover
+1.1 Digital Media Content Liability
+The Insurer will pay, on behalf of each Insured, Loss resulting from a Claim first made during the Policy Period arising from Digital
+Media Activities.
+
+2. Definitions
+The following definitions are specific to this Digital Media Content Liability Coverage Section. All other definitions set out within Section
+9 (Definitions) of the General Terms and Conditions shall apply as stated.
+
+ Term(s)                  Meaning
+
+ Claim                    (i)   A written demand against an Insured; or
+                          (ii) civil, administrative or arbitral proceedings brought against an Insured,
+                          seeking any legal remedy for a Wrongful Act.
+ Damages                  Damages that an Insured is legally liable to pay resulting from a Claim as ascertained by:
+                          (i)   judgments or arbitral awards rendered against that Insured;
+                          (ii) monies payable by that Insured pursuant to any settlement agreement negotiated by that Insured and
+                               for which prior written consent has been obtained from the Insurer.
+                          Damages includes punitive or exemplary or multiple damages where lawfully insurable.
+
+ Defence Costs            Reasonable and necessary fees, costs and expenses which an Insured incurs with the prior written consent
+                          of the Insurer, in relation to the investigation, response, defence, appeal or settlement of a Claim, including
+                          court attendance costs incurred by or on behalf of that Insured.
+                          Defence Costs does not include the renumeration of any Insured, cost of their time or any other costs or
+                          overheads of any Insured.
+
+ Digital Media            The posting on the Company’s website or social media outlets, of any Digital Media.
+ Activities
+
+ Digital Media            Any digitised content, including text, graphics, audio and video, that can be transmitted over the internet or
+                          computer networks.
+
+ Insured                  (i)   A Company;
+                          (ii) a natural person who was, is or during the Policy Period becomes a principal, partner, director, officer
+                               or Employee of a Company;
+                          (iii) an independent contractor, temporary contract labourer, self–employed person or labour–only sub–
+                                contractor, under the direction and direct supervision of a Company, but only in relation to the Digital
+                                Media Activities they undertake for that Company;
+                          (iv) a joint venture where a Company maintains operational control, but only to the extent of the
+                               Company’s interest in such joint venture; and
+                          (v) a natural person or entity which a Company is required by contract to add as an Insured under this
+                              policy, but only when and to the extent such natural person is acting on behalf of that Company;
+                          provided that such organisation or person shall only be covered under this Digital Media Content Liability
+                          Coverage Section in respect of Loss arising from a Wrongful Act when undertaking Digital Media Activities
+                          in the foregoing capacities.
+                          Insured includes the estate, heirs or legal representatives of a deceased, legally incompetent or bankrupt
+                          Insured referred to in (ii) above to the extent that a Claim is brought against them solely by reason of them
+                          having an interest in property that is sought to be recovered in a Claim against such Insured referred to in (ii)
+                          above.
+
+ Insured Event            a Claim
+
+ Intellectual             Copyright, trademark, service mark, design rights, know-how, database rights, registered domain or any
+ Property                 other intellectual property, but not including patents or trade secrets.
+
+                                                                                                                  CyberEdge 05-20 | Page 17
+ Term(s)                   Meaning
+
+ Loss                      Damages and Defence Costs;
+                           Loss does not include:
+                           (i)   non–compensatory or multiple damages (except to the extent covered as Damages) or liquidated
+                                 damages;
+                           (ii) fines or penalties;
+                           (iii) the costs and expenses of complying with any order for, grant of or agreement to provide injunctive
+                                 or other non–monetary relief;
+                           (iv) discounts, service credits, rebates, price reductions, coupons, prizes, awards or other contractual or
+                                non–contractual incentives, promotions or inducements offered to an Insured’s customers or clients;
+                           (v) production costs or the cost of recall, reproduction, reprinting, return or correction of Digital Media by
+                               any person or entity; or
+                           (vi) any Insured’s remuneration, cost of time or overheads.
+
+ Wrongful Act              Any actual or alleged:
+                           (i)   defamation, including libel, slander, disparagement of trade reputation or the character of any person
+                                 or organisation, or infliction of emotional distress or mental anguish arising from the foregoing;
+                           (ii) unintentional infringement of copyright, title, slogan, trade mark, trade name, trade dress, mark, service
+                                mark, service name, or domain name;
+                           (iii) plagiarism, piracy or misappropriation or theft of ideas or information;
+                           (iv) invasion, infringement or interference with rights of privacy, publicity, morals, false light, public
+                                disclosure of private facts, intrusion and commercial appropriation of name, persona or likeness; or
+                           (v) passing-off but only if alleged in conjunction with any of the acts listed in (i) – (iv) above,
+                           on or after the Retroactive Date and prior to the end of the Policy Period in the course of undertaking
+                           Digital Media Activities.
+
+3. Exclusions
+The following Exclusions are specific to this Digital Media Content Liability Coverage Section. They apply in addition to the Exclusions
+in Section 10 (Exclusions) of the General Terms and Conditions.
+The Insurer shall not be liable for Loss arising out of, based upon or attributable to:
+
+3.1 Anti –Trust
+Any actual or alleged antitrust violation, restraint of trade, unfair competition or unfair or deceptive business practices, including
+violation of any consumer protection law.
+
+3.2 Assumed Liability, Guarantee, Warranty
+Any:
+(i)    guarantee or express warranty made by an Insured; or
+(ii)   contractual liability or other obligation assumed or accepted by an Insured.
+
+3.3 Bodily Injury and Property Damage
+Any:
+(i)    physical injury, mental illness, sickness, disease or death; or
+(ii)   damage to or loss of or destruction of tangible property or loss of use thereof.
+
+3.4 Employment Practices Liability
+Any of a Company’s employment practices (including wrongful dismissal, discharge or termination, discrimination, harassment,
+retaliation or other employment-related claim).
+
+                                                                                                                     CyberEdge 05-20 | Page 18
+3.5 Financial Data
+Any:
+(i)    misleading, deceptive or fraudulent financial data; or
+(ii)   errors made in any financial data,
+that the Company publicises including the Company’s annual report and accounts and any communications to the stock market.
+
+3.6 Goods, Products or Services
+Any:
+(i)    false advertising or misrepresentation in advertising of a Company’s products or services;
+(ii)   any failure of goods, products or services to conform with an advertised quality or performance; or
+(iii) infringement of trademark, trade name, trade dress, mark, service mark or service name by any goods, products or services
+      displayed or contained in any Digital Media.
+
+3.7 Government/Regulatory Action
+Any:
+(i)    government, regulatory, licensing or commission action or investigation; or
+(ii)   Claim brought by or on behalf of:
+       a. ASCAP, Society of European Stage Authors and Composers, Broadcast Music,
+          Inc., Recording Industry Association of America or any other music licensing organisation, or any equivalent organisation in
+          any jurisdiction;
+       b. the Federal Trade Commission;
+       c. the Department of Health and Human Services or Office of Civil Rights;
+       d. the Federal Communications Commission;
+       e. any other government, agency or office in any jurisdiction.
+
+3.8 Infrastructure
+Any:
+(i)    mechanical failure;
+(ii)   electrical failure, including any electrical power interruption, surge, brownout or blackout; or
+(iii) telecommunications failure.
+
+3.9 Insured v Insured
+Any Claim brought by or on behalf of an Insured against another Insured except a Claim by an Insured which directly results from
+another Claim by a Third Party first made during the Policy Period and covered by this Digital Media Content Liability Coverage Section.
+
+3.10 Intentional Infringement of Intellectual Property
+Any intentional infringement of Intellectual Property.
+
+3.11 Internal Messaging Services
+Any publication or broadcast of Digital Media posted or transmitted on any of the Company’s internal instant message system,
+intranet, messaging boards, or chat rooms.
+
+3.12 Over-Redemption
+Any price discounts, prizes, awards or other consideration given in excess of the total contracted or expected amount.
+
+3.13 Ownership Rights
+Any Claim against the Company brought by or on behalf of any independent contractor, third-party distributor, licensee, sub-licensee,
+joint venture, venture partner, any employee of the foregoing, or any employee or agent of the Company arising out of, based upon or
+attributable to disputes over:
+(i)    the ownership or exercise of rights in Digital Media; or,
+(ii)   services supplied by such independent contractor, third-party distributor, licensee, sub-licensee, joint venturer, venture partner
+       or employee or agent.
+
+                                                                                                                CyberEdge 05-20 | Page 19
+3.14 Patent/Trade Secret
+Any:
+(i)    infringement of patents;
+(ii)   loss of rights to secure registration of patents; or
+(iii) misappropriation of trade secrets.
+
+3.15 Royalties and other monies
+Any:
+(i)    accounting or recovery of profits, royalties, fees or other monies claimed to be due from an Insured; or
+(ii)   licensing fees or royalties ordered, directed or agreed to be paid by an Insured pursuant to a judgment, arbitration award,
+       settlement agreement or similar order or agreement, for the continued use of a person or entity’s copyright, trade mark, service
+       mark, design rights, know-how, database rights, registered domain or any other intellectual property.
+
+3.16 Securities Claims
+Any:
+(i)    actual or alleged violation by an Insured of any law, regulation or rule relating to the ownership, purchase, sale or offer of,
+       or solicitation of an offer to purchase or sell, securities;
+(ii)   any actual or alleged violation by an Insured of any provision of the Securities Act of 1933, the Securities Exchange Act of 1934
+       (each a United States of America statute) or any similar law of any jurisdiction; or
+(iii) any actual or alleged violation by an Insured of the Racketeer Influenced and Corrupt Organisation Act 18 USC Section 1961 et seq
+      (a United States of America statute) and any amendments thereto or any Rule or Regulation promulgated thereunder.
+
+3.17 Trade Debts
+Any:
+(i)    trading debt incurred by an Insured; or
+(ii)   guarantee given by an Insured for a debt.
+
+3.18 Trading Losses/Monetary Value
+Any trading losses or trading liabilities, monetary value of any electronic fund transfers or transfers by or on behalf of an Insured.
+
+3.19 War and Terrorism
+Any war (whether war is declared or not), terrorism, invasion, use of military force, civil war, popular or military rising, rebellion
+or revolution, or any action taken to hinder or defend against any of these events.
+
+                                                                                                                   CyberEdge 05-20 | Page 20
+CyberEdge Coverage
+Cyber Extortion Coverage
+
+1. Insurance Covers
+1.1 Cyber Extortion
+The Insurer will pay, to or on behalf of each Company, Loss that the Company incurs solely as a result of an Extortion Threat which
+first occurs during the Policy Period.
+
+2. Definitions
+The following definitions are specific to this Cyber Extortion Coverage Section. All other definitions set out within Section 9 (Definitions)
+of the General Terms and Conditions shall apply as stated.
+
+ Term(s)                  Meaning
+
+ Breach of                The unauthorised access to or unauthorised disclosure of Confidential Information.
+ Confidential
+ Information
+ Company Computer         (i)   Any computer hardware, software or any components thereof that are linked together through a network
+ System                         of two or more devices accessible through the internet or an intranet or that are connected through data
+                                storage or other peripheral devices which are owned, operated, controlled or leased by a Company;
+                          (ii) any of the foregoing computer hardware, software or components thereof which is part of an industrial
+                               control system, including a supervisory control and data acquisition (SCADA) system; or
+                          (iii) any employee “Bring Your Own Device” but only to the extent such device is used to access any of the
+                                foregoing computer hardware, software or components thereof or Data contained therein.
+
+ Confidential             Corporate Information and Personal Information in a Company’s or Information Holder’s care, custody
+ Information              or control or for which a Company is legally responsible.
+
+ Corporate                A Third Party’s items of information that are not available to the public (including trade secrets, data,
+ Information              designs, forecasts, formulas, practices, processes, records, reports and documents) which are subject to
+                          contractual or legal protection.
+
+ Cyber Extortion          The reasonable and necessary fees, costs and expenses of any firm appointed by the Insurer or any other
+ Expenses                 firm appointed by the Company that has been approved by the Insurer in advance of such appointment to
+                          provide the Cyber Extortion Services.
+
+ Cyber Extortion          (i)   Conducting an investigation to determine the validity, cause and scope of an Extortion Threat;
+ Services                 (ii) advising on the response to an Extortion Threat;
+                          (iii) containing or resolving the disruption of the operations of a Company Computer System caused by the
+                                Extortion Threat; or
+                          (iv) assisting a Company in negotiating a resolution to an Extortion Threat.
+
+ Cyber Terrorism          The premeditated use of disruptive activities against a Company Computer System or network, or the
+                          explicit threat to use such activities, by an individual or group of individuals, whether acting alone or
+                          on behalf of or in connection with any entity or government, in each case with the intention to cause
+                          harm, further social, ideological, religious, political or similar objectives, or to intimidate any person(s) in
+                          furtherance of such objectives.
+                          Cyber Terrorism does not include any such activities which are part of or in support of any use of military
+                          force or war.
+
+ Extortion Threat         Any threat or connected series of threats made to the Company, for the purpose of demanding payment or
+                          transfer of money, securities or other tangible or intangible property of value from a Company, to:
+                          (i)   commit or continue a Breach of Confidential Information;
+                          (ii) commit or continue an intentional attack against a Company Computer System (including through the
+                               use of ransomware); or
+                          (iii) disclose information concerning a vulnerability in a Company Computer System.
+
+ Information Holder       A Third Party that holds Personal Information or Corporate Information on behalf of a Company.
+
+                                                                                                                   CyberEdge 05-20 | Page 21
+ Term(s)                   Meaning
+ Insured                   A Company.
+
+ Insured Event             An Extortion Threat.
+
+ Loss                      (i)   Any payment of cash, monetary instrument, Cryptocurrency (including the costs to obtain such
+                                 Cryptocurrency) or the fair market value of any property which a Company has paid, to prevent
+                                 continuation of, or end, an Extortion Threat; and
+                           (ii) Cyber Extortion Expenses.
+
+ Personal                  Any information relating to an identified or identifiable natural person.
+ Information               Personal Information includes a natural person’s name, national registration identification number,
+                           telephone number, credit card or debit card number, account and other banking information, medical
+                           information, or any other information about a natural person protected under any Data Protection
+                           Legislation.
+
+3. Exclusions
+The following Exclusions are specific to this Cyber Extortion Coverage Section. They apply in addition to the Exclusions in Section 10
+(Exclusions) of the General Terms and Conditions.
+The Insurer shall not be liable for any Loss:
+
+3.1 Anti-terrorism legislation
+To the extent that the provision of such payment to or on behalf of a Company would expose the Insurer, its parent company or its
+ultimate controlling entity to any applicable anti-terrorism legislation or regulation under United Nations resolutions, and laws or
+regulations of the European Union, or the United States of America or the United Kingdom or any equivalent law or regulation in any
+jurisdiction.
+
+3.2 Bodily Injury and Property Damage
+For any:
+(i)    physical injury, mental illness, sickness, disease or death; or
+(ii)   loss, damage or destruction of tangible property.
+
+3.3 Government Entity or Public Authority
+Arising out of, based upon or attributable to a regulatory or enforcement threat or demand by any government entity or public authority.
+
+3.4 Patent
+Arising out of, based upon or attributable to any infringement of patents.
+
+3.5 War and Terrorism
+Arising out of, based upon or attributable to any war (whether war is declared or not), terrorism (except Cyber Terrorism), invasion, use
+of military force, civil war, popular or military rising, rebellion or revolution, or any action taken to hinder or defend against any of these
+events.
+
+                                                                                                                   CyberEdge 05-20 | Page 22
+CyberEdge Coverage
+Cyber Crime Coverage
+
+1. Insurance Covers
+1.1 Impersonation Fraud Coverage
+The Insurer will pay, to or on behalf of each Company, Impersonation Fraud Loss incurred as a result of an Insured Event which is
+Discovered by the Insured during the Policy Period.
+Cover provided under this Insurance Cover 1.1 shall be subject to the condition that the Fraudulent Instruction was Verified prior to
+the Impersonation Fraud Loss.
+
+1.2 Funds Transfer Fraud Coverage
+The Insurer will pay, to or on behalf of each Company, Funds Transfer Fraud Loss incurred as a result of an Insured Event which is
+Discovered by the Insured during the Policy Period.
+
+1.3 Computer Fraud Coverage
+The Insurer will pay, to or on behalf of each Company, Computer Fraud Loss incurred as a result of an Insured Event which is
+Discovered by the Insured during the Policy Period.
+
+1.4 Telephone Usage Fraud Coverage
+The Insurer will pay to or on behalf of each Company, Telephone Usage Fraud Loss incurred as a result of an Insured Event which is
+Discovered by the Insured during the Policy Period.
+
+1.5 Cryptojacking Fraud Coverage
+The Insurer will pay, to or on behalf of each Company, Cryptojacking Fraud Loss incurred as a result of an Insured Event which is
+Discovered by the Insured during the Policy Period.
+
+2. Definitions
+The following definitions are specific to this Cyber Crime Coverage Section. All other definitions set out within Section 9 (Definitions)
+of the General Terms and Conditions shall apply as stated.
+
+ Term(s)                  Meaning
+
+ Assets                   Money, Securities or other tangible property owned by the Insured or held by the Insured, whether
+                          pursuant to a written contract or not. Assets do not include income, interest or dividends that was not in
+                          fact earned or that potentially could have been earned by the Insured on such Money, Securities or other
+                          tangible property.
+
+ Associate                a director, officer, pertner, member, sole proprietor or other employee.
+ Client                   Any person, firm, company, corporation, organization, association or other entity to whom the Insured
+                          provides goods or services for a fee pursuant to a legally binding contract that pre-exists the date of
+                          Discovery of the Loss that is the subject of the Insured’s claim.
+
+ Computer Fraud           The unlawful taking of Assets under the direct or indirect control of an Insured’s Computer System by
+                          means of:
+                          (i)   the fraudulent accessing of such Computer System;
+                          (ii) the insertion of fraudulent data or instructions into such Computer System; or
+                          (iii) the fraudulent alteration of data, programs, or routines in such Computer System.
+
+ Computer Fraud           The theft of the Insured’s own Assets resulting directly from Computer Fraud by a single act or a series of
+ Loss                     related acts.
+
+ Computer System          (i)   Any computer hardware, software or any components thereof that are linked together through a network
+                                of two or more devices accessible through the Internet, internal network or connected with data storage
+                                or other peripheral devices (including, without limitation, wireless and mobile devices), and are under
+                                ownership, operation or control of, or leased by, a Company; or
+                          (ii) any cloud service or other hosted computer resources, used by a Company and operated by a Third Party
+                               service provider under a written contract between such Third Party service provider and a Company.
+
+                                                                                                                 CyberEdge 05-20 | Page 23
+Term(s)                Meaning
+
+Control Group          The Insured’s directors, partners, officers, departmental directors, senior managers, trustees or equivalent.
+
+Cryptocurrency         A digital representation of value based on the cryptographic protocol of a computer network and that is
+                       intended to be used as a medium of exchange and/or store of value.
+
+Cryptocurrency         The use of a Computer System to generate or validate a new unit of any Cryptocurrency and/or the initial
+Mining                 entry for such new unit on the blockchain (or any other form of distributed ledger) of a Cryptocurrency.
+
+Cryptojacking Fraud The fraudulent use of a Computer System to perform Cryptocurrency Mining.
+
+Cryptojacking Fraud Charges for hosted computer resources and/or electricity:
+Loss                (i) provided to the Company by a Third Party service provider in exchange for compensation; and
+                       (ii) incurred solely due to and as a direct result of Cryptojacking Fraud by a single act or series of related acts.
+
+Discovery or           (i)   when any of the Control Group or the risk management department, internal audit department, or
+Discovered                   human resources/personnel department (or functional equivalent) of the Insured first has knowledge of
+                             any act, omission or event which could reasonably be foreseen to give rise to a Loss covered under this
+                             Cyber Crime Coverage Section, even though the exact amount or details of such Loss, act, omission or
+                             event are not known at the time of Discovery; or
+                       (ii) when a claim is first made against the Insured alleging that the Insured is liable to a third party under
+                            circumstances which, if true, would cause a reasonable person to believe that a direct financial loss of
+                            the kind covered by this policy would be incurred.
+                       Such Discovery shall constitute Discovery by every Insured.
+
+Financial Institution (i)    A banking, savings or thrift institution; or
+                       (ii) a stockbroker, mutual fund, liquid assets fund or similar investment institution.
+
+Fraudulent             An instruction received and relied upon by the Insured or an employee of the Insured which was transmitted:
+Instruction            (i)   by a person purporting to be an Associate of the Insured, who was authorized by the Insured to instruct
+                             employees of the Insured to transfer, pay or deliver Funds - or by an individual acting in collusion with
+                             such purported Associate - but which was in fact fraudulently transmitted by someone else without the
+                             knowledge of an Associate of the Insured; or
+                       (ii) by a person purporting to be an Associate of a Vendor or Client of the Insured—or by an individual
+                            acting in collusion with such purported Associate - but which was in fact fraudulently transmitted by
+                            someone else without the knowledge of the Insured; provided, however, Fraudulent Instruction shall
+                            not include any such instruction transmitted by an Associate of the Vendor or Client who was acting in
+                            collusion with any Third Party in submitting such instruction.
+
+Fraudulently-          An instruction directing a Financial Institution to transfer, pay or deliver Funds from a Transfer Account,
+Induced Transfer       communicated by the Insured or an employee of the Insured and based upon a Fraudulent Instruction.
+
+Funds                  A credit balance in a Transfer Account.
+
+Funds Transfer         Fraudulent electronic, e-mail, telegraphic, cable, teletype, telefacsimile, or telephone instructions issued to
+Fraud                  a Financial Institution to debit a Transfer Account and to transfer, pay or deliver Funds from said Transfer
+                       Account which instructions purport to have been transmitted by the Insured or by a person duly authorized
+                       by the Insured to issue such instructions but which have been fraudulently transmitted by someone else.
+
+Funds Transfer         The direct deprivation of the Insured of Funds resulting directly from Funds Transfer Fraud by a single act
+Fraud Loss             or a series of related acts.
+
+Impersonation          The direct deprivation of the Insured of Funds resulting directly from Fraudulently-Induced Transfers by
+Fraud Loss             a single act or a series of related acts.
+
+Insured                A Company.
+
+Insured Event          (i)   in respect of 1.1 Impersonation Fraud Coverage, Fraudulently-Induced Transfer;
+                       (ii) in respect of 1.2 Funds Transfer Fraud Coverage, Funds Transfer Fraud;
+                       (iii) in respect of 1.3 Computer Fraud Coverage, Computer Fraud;
+                       (iv) in respect of 1.4 Telephone Usage Fraud Coverage, a Telephone Hack; and
+                       (v) in respect of 1.5 Cryptojacking Fraud Coverage, a Cryptojacking Fraud.
+
+                                                                                                                CyberEdge 05-20 | Page 24
+ Term(s)                   Meaning
+
+ Loss                      An Impersonation Fraud Loss, Funds Transfer Fraud Loss, Computer Fraud Loss, Telephone Usage
+                           Fraud Loss or Cryptojacking Fraud Loss.
+
+ Money                     Currency, coins, bank notes and bullion, traveller’s cheques, registered checks and money orders held for
+                           sale to the public.
+
+ Premises                  The premises from where the Company conducts its normal business operations.
+
+ Securities                All negotiable and non-negotiable instruments or contracts representing either money or property and
+                           include revenue and other stamps in current use, tokens and tickets, but do not include Money.
+
+ Transfer Account          An account, maintained by the Insured at a Financial Institution, from which the Insured or the Insured’s
+                           authorized representatives may cause the transfer, payment or delivery of Funds:
+                           (i)   by means of electronic, e-mail, telegraphic, cable, teletype, telefacsimile or telephone instructions
+                                 (communicated directly or through a cash management service or funds transfer system); or
+                           (ii) by means of written instructions establishing the conditions under which such transfers are to be
+                                initiated by such Financial Institution through an electronic funds transfer system.
+
+ Telephone Hack            Unauthorised access and use of the Company Telephone System(s) located on the Premises regardless of
+                           whether such access and use is initiated on or off such Premises.
+
+ Telephone                 A PBX or electronic key telephone system, with or without adjuncts including voice mail, auto attendants and
+ System(s)                 automated call directors, that is owned operated, controlled or exclusively leased by the Company.
+
+ Telephone Usage           Call charges incurred within forty-five (45) days from the date on which the first call charge was made, that
+ Fraud Loss                the Company is liable for as a result of an Insured Event.
+
+ Vendor                    Any person, firm, company, corporation, organization, association or other entity that provides goods or
+                           services to the Insured pursuant to a legally binding relationship that pre-exists the date of Discovery of the
+                           Loss that is the subject of the Insured’s claim.
+
+ Verified                  Confirmation of the genuineness of a person, who communicated the Fraudulent Instruction, verified
+                           independently from the person who communicated the Fraudulent Instruction and confirmed by the
+                           Insured:
+                           (i)   through a telephone call back procedure consisting of calling the requestor by using the telephone
+                                 number of such requestor which is:
+                                 (a) held on file by the Insured;
+                                 (b) available in the internal phone directory of the Insured; or
+                                 (c) verifiable into the public domain, or
+                           (ii) where such instruction is in the form of an e-mail, by verifying and ensuring that the genuine requestors’
+                                work e-mail address has been used for such instruction.
+
+3. Exclusions
+The following Exclusions are specific to this Cyber Crime Coverage Section. They apply in addition to the Exclusions in Section 9
+(Exclusions) of the General Terms and Conditions.
+The coverage afforded by this Coverage Section does not apply to:
+
+3.1 Accounting or Arithmetical Error
+Loss arising out of, based upon or attributable to accounting or arithmetical errors or omissions;
+
+3.2 Card Loss
+Loss arising out of, based upon or attributable to, directly or indirectly, the actual or alleged use of credit, debit, charge, access,
+electronic benefit transfer, convenience, cash management or other cards;
+
+3.3 Client or Vendor Conduct
+Loss arising out of, based upon or attributable to theft or any other fraudulent, dishonest or criminal act by a Client or Vendor, or any
+partner, owner, trustee, governor, management committee members, members of the management board, director, employee or leased
+worker of a Client or Vendor, whether acting alone or in collusion with others;
+
+                                                                                                                    CyberEdge 05-20 | Page 25
+3.4    Defence and Prosecution Costs
+
+the costs of defending any legal proceeding brought against the Insured, or the fees, costs or expenses incurred or paid by the Insured
+in prosecuting or defending any legal proceeding;
+
+3.5 Errors and Omissions
+Loss arising out of, based upon or attributable to Computer Fraud arising out of unintentional errors or omissions;
+
+3.6 Financial Institution and Funds Transfer Loss
+Loss arising out of, based upon or attributable to any Insured Event caused by a Financial Institution, or any electronic funds transfer
+system, or electronic data processor, except to the extent that it is excess of any indemnity or other insurance provided for the benefit of
+customers of the Financial Institution;
+
+3.7 Indirect and Consequential Loss
+(a)   Loss that is an indirect or consequential result of any Insured Event including but not limited to loss resulting from payment of
+      damages of any type for which the Insured is legally liable; or
+(b)   Loss arising out of, based upon or attributable to the (i) theft, disappearance or destruction of; (ii) unauthorized use or disclosure
+      of;
+      (iii) unauthorized access to; or (iv) failure to protect any:
+      (i) confidential or non-public; or
+      (ii) personal or personally identifiable,
+      information that any person or entity has a duty to protect under any law, rule or regulation, under any agreement, or any
+      industry guideline or standard.
+Notwithstanding the foregoing, however, this exclusion shall not apply to the extent that any Insured Event results directly from the
+unauthorized use or disclosure of a password or other user credential information.
+(c)   Loss arising out of, based upon or attributable to any indirect or consequential loss, including:
+      (i) any loss of monies, securities or financial assets arising from the unauthorised access or use of the Company Telephone
+          System(s);
+      (ii) any loss arising from the Telephone System(s) being unavailable; or
+      (iii) any loss arising from an Insured voluntarily giving or surrendering unauthorised access to the Company Telephone
+            System(s) through a purchase or exchange.
+
+3.8 Insured Conduct
+Loss arising out of, based upon or attributable to theft or any other fraudulent, dishonest or criminal act by the Insured, or any partner,
+owner, trustee, governor, management committee members, members of the management board, director, employee or leased worker
+of the Insured, whether acting alone or in collusion with others;
+
+3.9 Loss and Damage to Records
+Loss resulting from the loss of or damage to manuscripts, books of account or records maintained in any format or medium;
+
+3.10 Loss of Income
+Loss of potential income, including interest and dividends, of the Insured, a Client, a Vendor or any third party;
+
+3.11 Loss of Time or Use
+Loss of computer time or use due to Computer Fraud;
+
+3.12 Prior or Subsequent Discovery of Loss
+Loss arising out of, based upon or attributable to any Insured Event:
+
+(i) Discovered prior to the inception date of the Policy Period; or
+
+(ii) Discovered after the expiry of the Policy Perod.
+
+3.13 Purchase or Sale from Computer Fraud
+Loss resulting from Computer Fraud which induces the Insured to make any purchase or sale, whether legitimate or fraudulent;
+
+                                                                                                                 CyberEdge 05-20 | Page 26
+3.14 Regulatory and Non-Monetary Loss
+any fines, penalties, consequential damages, punitive damages, expenses as a result of regularly scheduled recurring or routine
+regulatory examinations, or compliance activities or non-monetary relief, including without limitation, injunctive relief, or other
+equitable remedies of any type for which the Insured is legally liable;
+
+3.15 Reversed or Returned Loss
+Loss to the extent that such Loss has been reversed or returned by a credit card company or Financial Institution;
+
+3.16 Surrender
+Loss arising out of, based upon or attributable to Computer Fraud arising out of the giving or surrendering of Assets in any exchange or
+purchase, whether legitimate or fraudulent;
+
+3.17 Trading
+Loss arising out of, based upon or attributable to directly or indirectly from any authorized or unauthorized trading of Money,
+Securities or other tangible property whether or not in the name of the Insured and whether or not in a genuine or fictitious account;
+3.18 War and Terrorism
+Loss arising out of, based upon or attributable to any war, (whether war is declared or not), terrorism (except Cyber Terrorism),
+invasion, use of military force, civil war, popular or military rising, rebellion, or revolution, or any action taken to hinder or defend
+against any of these events.
+Cyber Terrorism does not include any such activities which are part of or in support of any use of military force or war.
+
+4. Conditions
+The following conditions are specific to this Cyber Crime Coverage Section and shall apply in addition to the conditions set out within
+the General Terms and Conditions.
+
+4.1 Notice and Discovery of Loss
+In addition to the provisions of Clause 7.1 Notice of the General Terms and Conditions, and before coverage will apply for Loss under
+this Cyber Crime Coverage Section, each Insured must also:
+(a)   complete and sign a written, detailed and affirmed proof of loss within sixty (60) days after the Discovery of any Loss (unless such
+      period has been extended by the Insurer in writing) which shall include, among any other pertinent information:
+      (1) a full description of such Loss and the circumstances surrounding such Loss, which shall include, among any other necessary
+          information, the time, place and cause of the Loss;
+      (2) a detailed calculation of any Loss; and
+      (3) all underlying documents and materials that reasonably relate to or form any part of the proof of such Loss;
+(b)   upon the Insurer’s request, submit to an examination under oath;
+(c)   immediately record the specifics of any Loss and the date such Loss was Discovered;
+(d)   give notice to law enforcement authorities; and
+(e)   provide the Insurer with any cooperation and assistance that the Insurer may request, including assisting the Insurer in:
+      (1) any investigation of a Loss or circumstance;
+      (2) enforcing any legal rights an Insured or the Insurer may have against anyone who may be liable to an Insured; and
+      (3) executing any documents that the Insurer deems necessary to secure its rights under this policy.
+The costs and expenses of establishing or proving an Insured’s Loss under this Cyber Crime Coverage Section, including, without
+limitation, those connected with preparing a proof of loss, shall be such Insured’s obligation, and are not covered under this policy.
+
+4.2 Basis of Valuation of Loss
+If a foreign currency (a currency other than the currency in which this policy is written) is involved in a covered Loss sustained by the
+Insured, then for the purpose of any required calculation in the settlement of covered Loss, the rate of exchange shall be the rate as
+published by the Monetary Authority of Singapore on the date of Discovery of the Loss.
+
+                                                                                                                    CyberEdge 05-20 | Page 27
+CyberEdge Coverage
+Criminal Reward Fund Coverage
+
+1. Insurance Covers
+1.1 Criminal Reward Fund
+The Insurer may pay on a Company’s behalf, at the Insurer’s sole and absolute discretion, a Criminal Reward Fund.
+
+2. Definitions
+The following definitions are specific to this Criminal Reward Fund Coverage Section. All other definitions set out within Section 9
+(Definitions) of the General Terms and Conditions shall apply as stated.
+
+ Term(s)                  Meaning
+
+ Criminal Reward          An amount offered by the Insurer for information that leads to the arrest and conviction of any individual(s)
+ Fund                     committing or trying to commit any illegal act related to the coverage under any of following Coverage
+                          Sections if such Coverage Sections are Purchased: Security and Privacy Liability Coverage Section,
+                          Network Interruption Coverage Section, Event Management Coverage Section, Cyber Extortion Coverage
+                          Section and Cyber Crime Coverage Section.
+ Insured Event            The payment by the Insurer of the Criminal Reward Fund.
+
+3. Exclusions
+The following Exclusions are specific to this Criminal Reward Fund Coverage Section. They apply in addition to the Exclusions in Section
+10 (Exclusions) of the General Terms and Conditions and in addition to the Exclusions set out within the Data Protection and Cyber
+Liability Coverage Section, the Network Interruption Coverage Section, Event Management Coverage Section, Cyber Extortion
+Coverage Section and Cyber Crime Coverage Section.
+
+3.1 Fees, Costs and Expenses
+The Insurer shall not be liable for any payment under this Criminal Reward Fund Coverage Section arising out of, based upon or
+attributable to any information provided by any Insured, an Insured’s auditors, whether internal or external, any individual hired or
+retained to investigate the aforementioned illegal acts, or any other individuals with responsibilities for the supervision or management
+of the aforementioned individuals.
+
+                                                                                                                CyberEdge 05-20 | Page 28
+CyberEdge Coverage
+Loss Prevention Services
+
+1. Services
+1.1 Loss Prevention Services
+The Policyholder is eligible to enrol for Loss Prevention Services. It is solely at the discretion of the Policyholder to enrol in the Loss
+Prevention Services, and such enrolment shall have no impact on the premium charged under this policy. The Policyholder can begin
+the enrolment process by visiting the following site: www.aig.com/cyberriskconsulting or contact AIG at cyberedgeapac@aig.com or
+contact your AIG underwriter.
+
+2. Definitions
+The following definitions are specific to this Loss Prevention Services Section.
+
+ Term(s)                  Meaning
+
+ Loss Prevention          Cyber risk management tools and services made available to the Policyholder as further described at the
+ Services                 link set forth above.
+
+3. Conditions
+The following conditions are specific to this Loss Prevention Services Section.
+The Insurer may modify (by adding, removing or replacing a cyber risk management tool or service) or discontinue the Loss Prevention
+Services at any time. The Insurer may partner with third party vendors to provide any or all of the Loss Prevention Services to the
+Policyholder.
+The Policyholder is only eligible for Loss Prevention Services during the Policy Period.
+
+                                                                                                                CyberEdge 05-20 | Page 29
+CyberEdge Coverage
+General Terms and Conditions
+In consideration of the payment of Premium or agreement to pay the Premium, the Policyholder and the Insurer agree as follows:
+
+1. Application of General Terms and Conditions
+These General Terms and Conditions shall apply to all Coverage Sections, unless a Coverage Section states specifically that all or part
+of these General Terms and Conditions shall not apply to that Coverage Section. The terms and conditions set forth in each Coverage
+Section shall only apply to that particular Coverage Section. Where there is conflict or ambiguity between these General Terms and
+Conditions and the terms and conditions set forth in any Coverage Section, the terms and conditions set forth in such Coverage
+Section shall prevail to the extent of such conflict or ambiguity. The definitions shall have the meaning given to them either in Section 9
+(Definitions) of these General Terms and Conditions or in the Coverage Section they are used in.
+
+2. Cover
+The Insurer will provide insurance cover as set out in those Coverage Sections which are Purchased.
+
+3. Limits of Liability
+The total amount payable by the Insurer under this policy for the Policy Period for all Loss in the aggregate arising from all Insured
+Events covered by this policy shall not exceed the Policy Aggregate Limit of Liability.
+In respect of each Coverage Section, the total amount payable by the Insurer under this policy for the Policy Period for all Loss in
+the aggregate arising from all Insured Events covered by that Coverage Section shall not exceed that Coverage Section’s Coverage
+Section Limit of Liability. Each Coverage Section Limit of Liability is part of and not in addition to the Policy Aggregate Limit of
+Liability. Payments of Loss under any Coverage Section shall erode the Policy Aggregate Limit of Liability.
+The total amount payable by the Insurer for Loss in respect of which a sub-limit is specified in the schedule or any other provision of
+this policy shall not exceed that sub-limit. Sub-limits are part of and not in addition to the Policy Aggregate Limit of Liability and the
+Coverage Section Limit of Liability of the Coverage Section which covers the Loss. Each such sub-limit is, unless specifically stated
+otherwise, for the Policy Period for all Loss in the aggregate arising from all Insured Events covered by this policy.
+Amounts specified for the Policy Aggregate Limit of Liability, Coverage Section Limits of Liability, sub-limits and other limits are
+limits for all Insureds together, not limits per Insured.
+
+4. Retentions
+With respect to each Single Insured Event, the Insurer shall only pay that part of Loss which exceeds the Retention. The Insurer may,
+in its sole and absolute discretion, advance Loss within the Retention, and, in that event, such amounts shall be reimbursed to the
+Insurer by the Policyholder forthwith.
+The Retention is to be borne by the Insureds and shall remain uninsured. In the event that a Single Insured Event triggers more than
+one Retention, then, as to such Single Insured Event, the highest of those Retentions shall apply with regard to the Loss.
+The Retentions for each Coverage Section are set out in the schedule. The application of a Retention to Loss under one Coverage
+Section shall not reduce the Retention applicable under any other Coverage Section.
+
+5. Subrogation
+Where any amount is paid under this policy in respect of an Insured Event, the Insurer shall be subrogated to all rights of recovery
+of each Insured (whether or not the Insured has been fully compensated for its actual Loss). The Insurer shall be entitled to pursue
+and enforce such rights in the name of the Insured and the Insured shall execute all documents required by the Insurer and shall do
+everything necessary to secure and preserve the Insurer’s rights, including the execution of the documents necessary to enable the
+Insurer effectively to bring a suit in the name of the Insured. No Insured shall do anything to prejudice the Insurer’s rights of recovery.
+A Company may waive an Insured’s rights to recovery against others if such Company does so in writing and before the Insured Event
+occurred.
+
+                                                                                                                CyberEdge 05-20 | Page 30
+6. Recoveries
+In the event the Insurer recovers amounts it pays under this policy, the limits and sub-limits out of which those amounts are paid shall
+be replenished to the extent of the recovery less any costs of recovery.
+Amounts recovered in excess of the Insurer’s total payment under this policy (less any costs of recovery) shall be returned to the
+relevant Insured.
+The Insurer assumes no duty to seek a recovery of any amounts paid under this policy.
+
+7. Claims
+7.1 Notice and Reporting
+It is a condition precedent to the Insurer’s liability under this policy for Loss arising from an Insured Event:
+(i)    that the Insurer is given written notice of that Insured Event as soon as practicable after a Company’s Responsible Officer first
+       becomes aware of it; and
+(ii)   that the Insurer is given written notice of any circumstances that a Company’s Responsible Officer may become aware of and
+       which may reasonably be expected to give rise to that Insured Event as soon as practicable following that awareness,
+but in all events, no later than:
+(a)    60 days after the end of the Policy Period; or
+(b)    expiry of any applicable Discovery Period.
+A notice of circumstances which may reasonably be expected to give rise to an Insured Event must include, to the extent known after
+reasonable inquiry, the reasons for anticipating the Insured Event and particulars as to dates, acts and the potential Insureds and
+claimants concerned.
+Unless otherwise expressly stated, all notifications must be in writing:
+(A)    by post and the date of posting shall constitute the date that notice was given, and proof of posting shall be sufficient proof
+       of notice, to:
+       Claims Department
+       AIG Asia Pacific Insurance Pte. Ltd.
+       AIG Building, 78 Shenton Way, #09-16
+       Singapore 079120; or
+(B)    by e–mail to:
+       financial.claim.sg@aig.com
+Where the First Response Cover is Purchased and a Company has notified the Insurer of an Insured Event by calling the Emergency
+Number specified in the schedule, then, provided the Insurer has acknowledged the call, the Company will be deemed to have
+provided written notice to the Insurer as set out in this Section 7.1 (Notice and Reporting).
+
+7.2 Related Claims, Insured Events or Circumstances
+If a Claim, other Insured Event or circumstance is notified in writing to the Insurer as required by Section 7.1 (Notice and Reporting)
+of these General Terms and Conditions, then all subsequent Claims, other Insured Events and circumstances that constitute a Single
+Insured Event with that notified Claim, other Insured Event or circumstance shall be:
+(i)    deemed to have been first made (in the case of Claims), to have first occurred (in the case of other Insured Events) and to have
+       been first notified (in the case of circumstances) at the time when that notified Claim, other Insured Event or circumstance
+       (respectively) was first made, first occurred or was first notified; and
+(ii)   deemed to be notified to the Insurer at the time that required or permitted notice was given.
+For the purposes of this Section 7.2 (Related Claims, Insured Events or Circumstances), a circumstance which may reasonably be
+expected to give rise to an Insured Event and which is notified in writing to the Insurer as required by Section 7.1 (Notice and
+Reporting) of these General Terms and Conditions shall be deemed to be an Insured Event.
+
+                                                                                                                   CyberEdge 05-20 | Page 31
+7.3 Defence and Settlement
+The Insurer has the right but no obligation to defend any Claim or Regulatory Investigation.
+Each Insured shall have the obligation to defend and contest a Claim or Regulatory Investigation made against them unless the
+Insurer, in its sole and absolute discretion, elects in writing to take over and conduct the defence and settlement of the Claim or
+Regulatory Investigation. If the Insurer does not so elect, it shall be entitled, but not required, to participate fully in that defence and
+the negotiation of any settlement that involves or appears reasonably likely to involve the Insurer making a payment under this policy.
+If legal representation is necessary in relation to any Insured Event, the Insurer shall select a law firm from its legal panel to provide
+such legal representation. Should an Insured wish to appoint a different law firm, that Insured shall make the request in writing to the
+Insurer prior to retaining that law firm. Such request shall include the identity of the proposed fee earners, the proposed hourly rates
+for each fee earner, a summary of the firm’s and those fee earners’ experience in handling similar matters and a budget for the Insured
+Event, and any other relevant information which the Insurer may request. The Insurer shall not be obliged to agree to the Insured’s
+request.
+The Insurer has the right at any time after notification of an Insured Event to make a payment to the Insured of the unpaid balance of
+the Coverage Section Limit of Liability (or, if a sub-limit is applicable to that Insured Event, the unpaid balance of that sub-limit), and
+upon making such payment, all obligations of the Insurer under this policy for that Insured Event, including, if any, those relating to
+defence of such Insured Event, shall cease.
+
+7.4 Insurer’s Consent
+No Insured shall admit or assume any liability, enter into any settlement agreement, consent to any judgment, incur any Defence
+Costs or incur any other amounts where consent is required under this policy without the prior written consent of the Insurer (which
+shall not be unreasonably withheld or delayed, provided that the Insurer shall be entitled to exercise all of its rights under the policy).
+Only liabilities, settlements, judgments and Defence Costs (and other amounts where consent is required under this policy) consented
+to by the Insurer, and judgments resulting from Claims defended in accordance with this policy or other Insured Events handled in
+accordance with this policy, shall be recoverable as Loss under this policy.
+Notifying a Regulator of an actual or potential Breach of Confidential Information or breach of Data Protection Legislation will not
+be regarded as an admission of liability for the purposes of this Section 7.4 (Insurer’s Consent).
+
+7.5 Insured’s Consent
+The Insurer may make any settlement of any Insured Event it deems expedient with respect to any Insured, subject to such Insured’s
+written consent (which shall not be unreasonably withheld or delayed). If any Insured withholds or delays consent to such settlement,
+the Insurer’s liability for all Loss arising from such Insured Event shall not exceed the amount for which the Insurer could have settled
+such Insured Event, plus Defence Costs (and other costs covered by this policy in relation to that Insured Event) incurred as of the date
+such settlement was proposed in writing by the Insurer, less coinsurance (if any) and the applicable Retention.
+
+7.6 Cooperation
+Each Insured will at their own cost:
+(i)    provide all reasonable assistance to the Insurer and co-operate in the investigation, defence, settlement or appeal of any Insured
+       Event and the assertion of indemnification and contribution rights;
+(ii)   use due diligence and do and concur in doing all things reasonably practicable to avoid or diminish any Loss under this policy; and
+(iii) give such information and assistance to the Insurer as the Insurer may reasonably require to enable it to investigate any Loss or
+      determine the Insurer’s liability under this policy.
+
+7.7 Other Insurance
+ (i)   The Network Interruption, Event Management and Cyber Extortion Coverage Sections are written on a primary basis.
+ (ii) Each other Coverage Section shall always apply excess over any other valid and collectable: (i) insurance unless such other
+      insurance is expressly written to be excess over the Policy Aggregate Limit of Liability or that Coverage Section’s Coverage
+      Section Limit of Liability; and (ii) indemnity available to the Insured.
+ (iii) With respect to any Loss covered under this policy for which coverage is also provided by one or more other policies issued by the
+       Insurer or any affiliate thereof, including any renewal or replacement thereof (the “Other Policy”), the maximum the Insurer or
+       such affiliate shall pay under both policies combined shall not be greater than this policy’s Limit of Liability or the Other
+       Policy’s aggregate limit of liability, whichever is higher.
+  (iv) Subject to subparagraph 7.7(ii) above, if coverage for a Loss is sought by the Policyholder under both this policy and the Other
+       Policy, the Insurer will only be liable under this policy for the Insurer’s pro-rata portion of the Loss. The Insurer’s pro-rata
+       portion of the Loss shall not be greater than the proportion of the Loss that this policy’s applicable limit(s) of coverage bears to
+       the total of the applicable limits of liability of both policies.
+       Nothing in the foregoing shall be construed to increase any Sublimit of Liability, Coverage Section’s Coverage Section Limit of
+       Liability or the Limit of Liability.
+
+                                                                                                                  CyberEdge 05-20 | Page 32
+7.8 Allocation
+In the event that any Insured Event involves both covered matters and matters not covered under this policy or involves persons
+covered and persons not covered under this policy, a fair and proper allocation of any costs of defence, damages, judgments or
+settlements or other costs and expenses shall be made between each Insured and the Insurer taking into account the relative legal and
+financial exposures attributable to covered matters and matters not covered under this policy.
+
+8. General Provisions
+Cancellation by Policyholder
+This policy may be cancelled by the Policyholder providing written notice to the Insurer. If no Claim has been made or other actual or
+alleged Insured Event has occurred and no circumstance has been notified prior to such cancellation, the Insurer shall retain the pro–
+rata proportion of Premium due for time on risk. Otherwise, the Premium shall not be returned and shall be deemed fully earned at the
+inception date specified in the schedule.
+
+Cancellation by Insurer
+This policy may be cancelled by the Insurer by giving written notice to the Policyholder at the address set out in the Schedule, through
+registered, certified, other first class mail or other reasonable delivery method. The cancellation will be effective 30 days after written
+notice is given to the Policyholder, except where the cancellation is being made for non-payment of Premium, in which case the
+cancellation is effective ten days after written notice is given to the Policyholder. Proof of mailing or delivery of such notice shall be
+sufficient proof of notice and this policy shall be deemed cancelled as to all Insureds at the date and hour specified in such notice. In
+such case, the Insurer shall be entitled to a pro-rata proportion of the Premium. For the avoidance of doubt, refund of any unearned
+premium by the Insurer shall not be a condition precedent to any such cancellation taking effect. Notwithstanding this, the Insurer will
+make such refund to the Policyholder as soon as practicable.
+
+Insured’s Insolvency
+Insolvency, bankruptcy, winding up of any kind, administration, administrative receivership, voluntary arrangement or any other
+insolvency procedure of an Insured shall not relieve the Insurer of any of its obligations under this policy.
+
+Authority of Policyholder
+Except as provided in Section 7.1 (Notice and Reporting) of these General Terms and Conditions, the Policyholder shall act on behalf
+of all Insureds with respect to all matters relevant to this policy except if and when the Policyholder is in bankruptcy, winding up of any
+kind, administration, administrative receivership, voluntary arrangement or any other insolvency procedure, in which case each Insured
+shall act on their own behalf.
+
+Assignment
+This policy and any rights under or in respect of it cannot be assigned without the prior written consent of the Insurer.
+
+Governing Law
+This policy and any disputes or claims arising out of or in connection with it or its subject matter or formation (including non–
+contractual disputes or claims) shall be governed by and construed in accordance with the laws of Singapore.
+
+Contracts (Rights of Third Parties) Act (Cap 53B)
+A person who is not a party to this policy shall have no rights under the Contracts (Rights of Third Parties) Act (Cap 53B) to enforce any
+of its terms.
+
+Interpretation
+The descriptions in the headings and titles of this policy are solely for reference and convenience and do not lend any meaning to
+this policy. Words and expressions in the singular shall include the plural and vice versa. All references to specific legislation include
+amendments to and re–enactments of such legislation and similar legislation in any jurisdiction in which a Claim is made or an Insured
+Event occurs. References to positions, offices or titles shall include their equivalents in any jurisdiction in which Claim is made or an
+Insured Event occurs. Words in bold typeface have special meaning and are defined in these General Terms and Conditions or in the
+applicable Coverage Section. References in this policy to the schedule or a Section mean the schedule to or a Section of this policy
+unless otherwise stated. Wherever the word “person” or “persons” appears in this policy, it means legal or natural person or persons
+unless otherwise specified.
+
+Dispute Resolution
+Except as otherwise specifically provided in this policy, any dispute arising out of or in connection with this policy including any
+
+                                                                                                                 CyberEdge 05-20 | Page 33
+question regarding its existence, validity or termination, which cannot be resolved by mutual agreement within 60 days of the dispute
+arising, shall be referred to and finally resolved by arbitration administered by the Singapore International Arbitration Centre (“SIAC”) in
+accordance with the Arbitration Rules of the Singapore International Arbitration Centre (“SIAC Rules”) for the time being in force, which
+rules are deemed to be incorporated by reference in this clause. The seat of the arbitration shall be Singapore. The Tribunal shall consist
+of one (1) arbitrator. The language of the arbitration shall be English. The party initiating the arbitration shall give the other party at
+least 7 days’ written notice prior to such initiation.
+
+Fraudulent Claims
+If any Insured shall make a fraudulent claim under this policy, the Insurer:
+(i) is not liable to pay any part of the claim;
+(ii) may recover from that Insured any sums already paid to or on behalf of that Insured in respect of the claim; and
+(iii) may, by notice to that Insured, treat this policy as having been terminated with effect from the date of the fraudulent act, in which
+      case the Insurer is not liable for any relevant event occurring after that date and is entitled to receive and retain the full Premium.
+
+9. Definitions
+Terms appearing in bold in these General Terms and Conditions and not defined in this Section 9 (Definitions) shall have the meaning
+ascribed to them in the applicable Coverage Section for the purposes of coverage provided under that particular Coverage Section.
+Certain terms may have different meanings dependent on the applicable Coverage Section. Where a term is defined in more than one
+Coverage Section it shall have the meaning ascribed to it in the Coverage Section in which it appears, but that meaning shall apply
+solely for purposes of coverage provided under that particular Coverage Section.
+The following terms are applicable to all Coverage Sections and shall have the meanings set out below:
+
+ Term(s)                   Meaning
+
+ Company                   The Policyholder or any Subsidiary.
+ Continuity Date           With respect to a Coverage Section or a specific Cover within a Coverage Section, the date specified in the
+                           schedule as its Continuity Date.
+
+ Coverage Section          A coverage section listed in the schedule. The Insurer will provide only the insurance cover set out in those
+                           coverage sections which are Purchased.
+
+ Coverage Section          With respect to a Coverage Section, the amount specified in the schedule as its Coverage Section Limit
+ Limit of Liability        of Liability.
+
+ Cryptocurrency            A digital representation of value based on the cryptographic protocol of a computer network and that is
+                           intended to be used as a medium of exchange and/or store of value.
+
+ Data                      Any electronically stored, digital, or digitised information, including software. For the purposes of this policy,
+                           Data is not tangible property.
+
+ Discovery Period          A period immediately following the expiry of the Policy Period during which written notice may be given to
+                           the Insurer of a Claim first made during such period or the Policy Period for a Wrongful Act prior to the
+                           expiry of the Policy Period.
+                           A Claim first made during an applicable Discovery Period and notified to the Insurer in writing during that
+                           Discovery Period shall be deemed first made during the Policy Period.
+
+ Employee                  A natural person under a contract of employment with a Company.
+                           Employee does not include any:
+                           (i)   principal, partner, director or officer; or
+                           (ii) temporary contract labourer, self employed person or labour-only sub-contractor.
+
+ Full Annual               The Premium plus any additional premium (as annualised) charged for any endorsements applied to this
+ Premium                   policy during the Policy Period.
+
+ General Terms and         This policy’s General Terms and Conditions.
+ Conditions
+
+ Insurer                   As specified in the schedule
+
+                                                                                                                   CyberEdge 05-20 | Page 34
+Term(s)               Meaning
+
+Policy Aggregate      The amount specified under Policy Aggregate Limit of Liability in the schedule.
+Limit of Liability
+
+Policy Period         The period of time from the inception date specified in the schedule to the expiry date specified in the
+                      schedule or, if earlier, to the date of cancellation of this policy.
+
+Policyholder          The entity specified under Policyholder in the schedule.
+
+Pollutants            Any solid, liquid, biological, radiological, gaseous or thermal irritant or containment whether occurring
+                      naturally or otherwise, including asbestos, smoke, vapour, soot, fibres, mould, spores, fungus, germs,
+                      acids, alkalis, nuclear or radioactive material of any sort, chemicals or waste. Waste includes material to be
+                      recycled, reconditioned or reclaimed.
+
+Premium               The premium detailed under Premium in the schedule.
+
+Purchased             Shown in the schedule as purchased.
+
+Responsible Officer   Any Chief Executive Officer, Chief Financial Officer, Chief Compliance Officer, Chief Information Officer, Data
+                      Protection Officer, Chief Information Security Officer, Risk Manager, General Counsel or position equivalent to
+                      any of the foregoing.
+
+Retention             With respect to a Coverage Section or Cover, the amount or amounts specified in the schedule as its
+                      Retention.
+
+Retroactive Date      With respect to a Coverage Section, the date specified in the schedule as its Retroactive Date.
+
+Single Insured        Any one or more Insured Events to the extent that such Insured Events arise out of, are based upon, are
+Event                 in connection with, or are otherwise attributable to the same originating cause or source. All such Insured
+                      Events shall be regarded as a Single Insured Event regardless of whether such Insured Events involve the
+                      same or different claimants, Insureds or causes of action.
+
+Subsidiary            Any entity of which the Policyholder has or had Control on or before the inception date specified in the
+                      schedule either directly or indirectly through one or more of its other Subsidiaries.
+                      Subsidiary shall also automatically include any entity of which the Policyholder acquires Control, either
+                      directly or indirectly through one or more of its other Subsidiaries during the Policy Period, provided that
+                      such acquired entity:
+                      (i)   undertakes materially similar or identical business activities to the acquiring Company;
+                      (ii) has no prior claims or losses that could otherwise be covered under this policy;
+                      (iii) has total gross revenues that are less than 10% of the total gross revenue of the Policyholder; and
+                      (iv) generates less than 50% of their total gross revenue from the United States of America.
+                      For the purposes of this definition “Control” means where the Policyholder:
+                      (a) controls the election of the majority of the board of directors of such entity;
+                      (b) controls more than half of the voting power of such entity; or
+                      (c) holds more than 50% of the issued share / equity capital of such entity.
+                      Cover under this policy for such entities which the Policyholder has acquired Control, either directly or
+                      indirectly through one or more of its other Subsidiaries during the Policy Period, shall only apply to Claims
+                      made or other Insured Events first occuring on or after the date of acquisition.
+                      Notwithstanding anything to the contrary in this Policy, the applicable Retroactive Date and Continuity
+                      Date in respect of each such entity shall be the date on which the Policyholder acquired Control of the
+                      entity.
+
+Third Party           Any entity or natural person except:
+                      (i)   any Insured; and
+                      (ii) any other entity or natural person having a financial interest or executive role in the operation of
+                           a Company.
+
+                                                                                                              CyberEdge 05-20 | Page 35
+10. Exclusions
+The following Exclusions apply to all Coverage Sections and in addition to the Exclusions set out in each Coverage Section.
+
+Conduct
+The Insurer shall not be liable for Loss, arising out of, based upon, or attributable to:
+(i)    any wilful disregard or non–compliance with a ruling, direction or injunction by a court, tribunal, arbitrator or a Regulator within
+       the relevant jurisdiction;
+(ii)   the commiting of any dishonest, fraudulent, criminal, reckless or malicious act, error or omission, or any intentional or knowing
+       violation of the law, if committed by:
+       (a) any director, principal, partner or Responsible Officer of a Company, whether acting on their own or in collusion with others;
+       or
+       (b) any Employee acting in collusion with any of a Company’s directors, principals, partners or Responsible Officers.
+The Insurer will continue to pay, on behalf of the Insured, Defence Costs under this policy until either (i) or (ii) above is found by a
+court, tribunal, arbitrator or Regulator to have been committed by the Insured. Following such finding the Insurer shall be entitled to
+repayment of any amount paid to the Insured under this policy.
+
+Natural Disaster
+The Insurer shall not be liable for Loss, arising out of, based upon, or attributable to any fire, smoke, explosion, lightning, wind, water,
+flood, earthquake, volcanic eruption, tidal wave, landslide, hail, Act of God or any natural event howsoever caused.
+
+Pollution
+The Insurer shall not be liable for Loss, arising out of, based upon, or attributable to:
+(i)    the actual, alleged or threatened discharge, dispersal, seepage, release, migration or escape of Pollutants;
+(ii)   any direction, request or effort to test for, monitor, clean up, remove, contain, treat, detoxify or neutralise Pollutants or respond
+       to or assess the effects of Pollutants; or
+(iii) any actual or alleged act, error or omission in any way connected to Pollutants.
+
+Prior Claims and Circumstances
+The Insurer shall not be liable for Loss, arising out of, based upon, or attributable to:
+(i)    any circumstance or Insured Event that as of the inception date specified in the schedule may reasonably have been expected by
+       a Company’s Responsible Officer to give rise to a claim under this policy; or any circumstance or Insured Event of which notice
+       has been given under any policy of which this policy is a renewal or replacement or which it may succeed in time;
+(ii)   any pending or prior civil, criminal, adminstrative or regulatory proceeding, investigation, arbitration, mediation, other dispute
+       resolution or adjudication of which a Company’s Responsible Officer had notice as of the Continuity Date, or alleging or
+       deriving from the same or essentially the same facts alledged in such actions; or
+(iii) any Insured Event that would otherwise consititute a Single Insured Event with any claim or other matter reported under any
+      policy of which this policy is a renewal or a replacement or which it may succeed in time.
+
+Satellite Failure
+The Insurer shall not be liable for Loss, arising out of, based upon, or attributable to any satellite failure.
+
+Monetary Value
+The Insurer shall not be liable for Loss consisting of the actual monetary value of cash or a monetary instrument (including
+Cryptocurrency) arising from:
+(i)    the theft of such cash or monetary instrument (including Cryptocurrency) from an Insured; or
+(ii)   the transfer or loss of such cash or monetary instrument (including Cryptocurrency) from or to an Insured’s accounts or accounts
+       under an Insured’s control, including customer accounts. Accounts includes deposit, credit, debit, prepaid and securities
+
+                                                                                                                  CyberEdge 05-20 | Page 36
+        brokerage accounts.
+This Exclusion shall not apply to coverage Purchased uner the Cyber Crime Coverage Section.
+
+Sanctions
+If, by virtue of any law or regulation which is applicable to an Insurer, its parent company or its ultimate controlling entity, at the
+inception of this Policy or at any time thereafter, providing coverage to the Insured is or would be unlawful because it breaches an
+applicable embargo or sanction, that Insurer shall provide no coverage and have no liability whatsoever nor provide any defense to the
+Insured or make any payment of Defense costs or provide any form of security on behalf of the Insured, to the extent that it would be
+in breach of such embargo or sanction.
+
+Taxes
+The Insurer shall not be liable for Loss arising out of, based upon, or attributable to, or consisting of, any taxes payable by a Company
+howsoever arising, other than any GST or equivalent taxes payable in connection with the provision of products or services covered
+under this Policy, including but not limited to IT Services, Legal Services, Reputation Protection Services, Notification Expenses,
+Credit Monitoring and ID Monitoring Services or Cyber Extortion Services.
+
+Uninsurable and Prohibited Loss
+The Insurer shall not be liable for Loss:
+(i)     which is uninsurable under the law of this policy or the law of the jurisdiction where the Claim is first made or other Insured
+        Event first occurs; or
+(ii)    which the Insurer is prohibited from paying by law or regulation (including any rule of the Monetary Authority of Singapore (or any
+        successor organisation)).
+
+11. Complaints and Privacy
+Complaints
+The Insurer believes that the Insureds deserve courteous, fair and prompt service. If there is any occasion when the Insurer’s service
+does not meet an Insured’s expectations, the Insured should contact the Insurer using the appropriate contact details below, providing
+the policy/claim number and the name of the Policyholder/Insured to help the Insurer deal with comments quickly.
+Write to: AIG Customer Service
+          https://www-411.aig.com.sg/contactus/CustomerForm.aspx
+Call:      (65) 6419 3000 (Mondays to Fridays from 8:30 AM to 5:30 PM, excluding Public Holidays)
+
+Privacy Policy
+The Insurer’s Privacy Policy is available at https://www.aig.sg/privacy
+Before providing us with personal information about another individual you must (unless we agree otherwise): (a) inform the individual
+about the content of this notice and our Privacy Policy except in so far as the provision of such information proves impossible or would
+involve a disproportionate effort; and (b) obtain their permission to share their Personal Information with us in accordance with the
+Privacy Policy.
+
+                                                                                                                  CyberEdge 05-20 | Page 37
+                                                                                          EN D OF WOR DIN G
+
+                                                                                                                                                                 AIG ASIA PACIFIC INSURANCE
+American International Group, Inc. (AIG) is a leading global insurance organization. Building on 100 years of experience, today AIG member companies
+provide a wide range of property casualty insurance, life insurance, retirement solutions, and other financial services to customers in more than 80
+                                                                                                                                                                 PTE LTD
+countries and jurisdictions. These diverse offerings include products and services that help businesses and individuals protect their assets, manage
+risks and provide for retirement security. AIG common stock is listed on the New York Stock Exchange.                                                            AIG Building
+Additional information about AIG can be found at www.aig.com | YouTube: www.youtube.com/aig | Twitter: @AIGinsurance www.twitter.com/AIGinsurance                78 Shenton Way, #09-16
+| LinkedIn: www.linkedin.com/company/aig. These references with additional information about AIG have been provided as a convenience, and the                    Singapore 079120
+information contained on such websites is not incorporated by reference into this material.
+AIG is the marketing name for the worldwide property-casualty, life and retirement, and general insurance operations of American International                   General customer service
+Group, Inc. For additional information, please visit our website at www.aig.com and at www.aig.sg. All products and services are written or provided             T: +65 6419 1800
+by subsidiaries or affiliates of American International Group, Inc. Products or services may not be available in all countries and jurisdictions, and coverage
+is subject to underwriting requirements and actual policy language. Non-insurance products and services may be provided by independent third parties.            W: www.aig.sg
+Certain property-casualty coverages may be provided by a surplus lines insurer. Surplus lines insurers do not generally participate in state guaranty
+funds, and insureds are therefore not protected by such funds.
+AIG CyberEdge 05-2020 Singapore

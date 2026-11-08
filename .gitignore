@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.*
+!.env.example
+dgs-api-*.txt
+*.key
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# Large raw data stays on the server, not in git (see AGENTS.md)
+data/raw/
+
+# Personal data from field research (PDPA)
+survey/private/
