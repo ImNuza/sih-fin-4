@@ -45,15 +45,22 @@ r.raise_for_status()
 
 Base URL: `https://api-open.data.gov.sg/v2/real-time/api`
 
-| Data | Endpoint | Interval | History (tested 8 Nov 2026) |
+| Data | Endpoint | Interval | First day with data (binary search, 8 Nov 2026) |
 |---|---|---|---|
-| WBGT heat stress | `/weather?api=wbgt` | 15 min, ~25 stations | From **Feb 2025** (June 2024 = no data) |
-| Rainfall | `/rainfall` | 5 min, ~55 stations | 2016 works (Rafael: from Dec 2016) |
-| Air temperature | `/air-temperature` | 1 min, ~19 stations | 2016 works (Rafael: from May 2016) |
-| Relative humidity | `/relative-humidity` | 1 min | Not confirmed. 2016 returned "Data not found". |
-| Wind speed | `/wind-speed` | 1 min | Not confirmed. 2016 returned "Data not found". |
-| PM2.5 | `/pm25` | hourly, by region | Not tested |
-| PSI (haze) | `/psi` | hourly, by region | Not tested |
+| WBGT heat stress | `/weather?api=wbgt` | 15 min, **8 stations** | Late **Jan 2025** (15 Jan = no data, 31 Jan = data) |
+| Air temperature | `/air-temperature` | 1 min, ~19 stations | 2016-05-05 |
+| Relative humidity | `/relative-humidity` | 1 min | 2016-11-16 |
+| Wind speed | `/wind-speed` | 1 min | 2016-12-08 |
+| Wind direction | `/wind-direction` | 1 min | 2016-12-01 |
+| Rainfall | `/rainfall` | 5 min, ~55 stations | 2016-12-02 |
+| PSI (haze) | `/psi` | hourly, by region | 2016-03-09 |
+| PM2.5 | `/pm25` | hourly, by region | 2016-03-09 |
+
+The "first day" search assumes data is continuous after that day. Gaps inside the range are possible and must be checked per feed. **No feed gives solar radiation or globe temperature**, which WBGT needs. Rebuilding past WBGT needs an outside source for sunlight (for example ERA5 reanalysis) or a model calibrated on the 2025-2026 overlap.
+
+**HTTP client note:** the API returns **HTTP 403** for Python's default User-Agent (`Python-urllib`). Always send a User-Agent header. `scripts/dgs.py` does this.
+
+**Missing values:** readings can be the string `"NA"`. Parse to null, do not crash.
 
 Query parameters:
 - `date=YYYY-MM-DD`: all readings for that day (SGT).

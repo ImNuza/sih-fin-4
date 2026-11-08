@@ -1,0 +1,14 @@
+[project]
+name = "sih-fin-4"
+version = "0.1.0"
+description = "Data work for SIH 2026 FinTech/InsurTech: NEA weather data for parametric climate insurance"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32",
+    "pandas>=2.2",
+    "pyarrow>=17",
+    "matplotlib>=3.9",
+]
+
+[tool.uv]
+package = false

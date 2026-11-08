@@ -2,6 +2,12 @@
 
 Singapore-India Hackathon 2026, FinTech / InsurTech track. Brief: Income Insurance wants climate-risk insurance (heat, rain, haze, flood) for vulnerable households, workers and SMEs in Singapore. The deliverable is a product proposal. This repo holds the data work, the analysis and the team dashboard that support it.
 
+## Commands
+
+- `uv run scripts/fetch_wbgt.py`: download NEA WBGT readings to `data/wbgt/` (cached per day in `data/raw/wbgt/`). Rerun to add new days.
+- `uv run scripts/heat_stats.py`: work-hour heat stats to `data/processed/` and charts to `docs/figures/`.
+- `scripts/dgs.py`: shared data.gov.sg client (API key, User-Agent, retries, pagination). Reuse it for new feeds.
+
 ## Layout
 
 - `docs/problem-statements.md`: the official brief (all 4 tracks). Our track is section 1.
@@ -9,7 +15,8 @@ Singapore-India Hackathon 2026, FinTech / InsurTech track. Brief: Income Insuran
 - `docs/notes/`: overview notes, meeting notes, transcripts.
 - `docs/reference/data-gov-sg-api.md`: **read before calling any data.gov.sg API.**
 - `data/raw/`: raw API downloads. Gitignored. Stays on the server.
-- `data/`: other folders hold small processed tables (Parquet or CSV) that are committed.
+- `data/wbgt/`, `data/processed/`: small tables (Parquet or CSV) that are committed.
+- `docs/figures/`: charts made by the scripts.
 
 ## Rules
 

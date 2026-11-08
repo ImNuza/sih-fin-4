@@ -1,0 +1,32 @@
+station_id,station_name,days_with_data,days_ge_32,total_hours_ge_32,max_wbgt,share_days_ge_32
+S135,Mandai Wildlife Reserve,199,115,136.25,34.3,0.578
+S142,Sentosa Palawan Green,433,250,653.5,35.7,0.577
+S147,Marina Barrage,199,112,159.25,33.7,0.563
+S145,MacRitchie Reservoir,199,88,65.0,33.4,0.442
+S910,Outward Bound Singapore(East Coast),73,32,29.0,33.0,0.438
+S131,Hougang Stadium,73,29,11.0,33.0,0.397
+S151,Outward Bound Singapore(Pulau ubin),199,79,81.75,33.5,0.397
+S137,Sakra Road,487,173,238.75,35.0,0.355
+S128,Bishan Street,661,219,274.5,36.6,0.331
+S126,Old Chua Chu Kang Road,661,209,247.0,34.0,0.316
+S146,Jalan Bahar,199,62,58.0,33.9,0.312
+S144,Upper Pickering Street,296,87,93.25,33.7,0.294
+S127,Stadium Road,658,175,169.5,33.8,0.266
+S143,Punggol North,433,112,109.25,33.7,0.259
+S184,Sengkang East Avenue,296,73,53.75,33.4,0.247
+S125,Woodlands Street 13,660,153,107.75,36.2,0.232
+S129,Bedok North Street 2,661,144,114.0,33.6,0.218
+S187,Bukit Timah(West),433,86,67.75,33.2,0.199
+S180,Taman Jurong Greens,199,32,17.0,33.6,0.161
+S132,Jurong West Street 93,661,89,76.5,33.0,0.135
+S141,Yio Chu Kang Stadium,431,57,74.0,34.8,0.132
+S130,West Coast Road,525,53,32.0,33.4,0.101
+S138,Stirling Road,73,7,2.25,32.5,0.096
+S153,Bukit Batok Street 22,293,20,15.0,34.8,0.068
+S150,Evans Road,296,19,11.5,33.2,0.064
+S124,Upper Changi Road North,660,39,29.5,35.1,0.059
+S140,Choa Chu Kang Stadium,433,23,10.25,32.8,0.053
+S148,Pasir Ris Walk,199,8,7.75,33.4,0.04
+S149,Tampines Walk,296,11,3.75,32.5,0.037
+S133,Cathay Green,73,2,0.75,32.1,0.027
+S139,Tuas Terminal Gateway,433,1,0.25,32.0,0.002
