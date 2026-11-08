@@ -6,8 +6,12 @@ Built for the Singapore-India Hackathon 2026, FinTech / InsurTech track. Income 
 
 ## What's here so far
 
-- A complete download of NEA's Wet Bulb Globe Temperature (WBGT) readings from data.gov.sg, from 16 Jan 2025 onwards.
-- A first analysis of how often heat reaches the Ministry of Manpower's 32°C WBGT level, at which heavy outdoor work needs a paid 10-minute rest break every hour. See [`docs/notes/wbgt-first-look-2026-11-08.md`](docs/notes/wbgt-first-look-2026-11-08.md).
+- NEA data from data.gov.sg, already committed:
+  - Heat stress (WBGT), every 15 minutes, from 16 Jan 2025.
+  - Rainfall per gauge, summed per hour, from 16 Jan 2025.
+  - Haze (24-hour PSI and PM2.5) by region, hourly, from 9 Mar 2016.
+- An analysis of how often each peril happens, how long it lasts and how much of Singapore it covers at once. Start with [`docs/notes/climate-data-findings-2026-11-09.md`](docs/notes/climate-data-findings-2026-11-09.md), or open the team report [`docs/reports/fin4-climate-data-findings-2026-11-09.html`](docs/reports/fin4-climate-data-findings-2026-11-09.html) in a browser.
+- A local dashboard (`app/`) to explore the data and try trigger and price ideas.
 
 ## Quick start
 
@@ -17,20 +21,33 @@ You need [uv](https://docs.astral.sh/uv/) and a free data.gov.sg API key (sign i
 git clone https://github.com/ImNuza/sih-fin-4.git
 cd sih-fin-4
 uv sync
-cp .env.example .env              # then put your key in DATA_GOV_SG_API_KEY
-uv run scripts/fetch_wbgt.py      # download WBGT readings to data/wbgt/
-uv run scripts/heat_stats.py      # heat stats to data/processed/, charts to docs/figures/
+uv run streamlit run app/app.py   # dashboard on http://localhost:8501
 ```
 
-The WBGT data is already committed, so `heat_stats.py` runs without a key.
+The data is already committed, so the dashboard and the analysis scripts run without a key. Only the dashboard's "Live now" tab and the fetch scripts need one:
+
+```bash
+cp .env.example .env              # then put your key in DATA_GOV_SG_API_KEY
+uv run scripts/fetch_wbgt.py      # heat readings to data/wbgt/
+uv run scripts/fetch_psi.py       # haze readings to data/psi/
+uv run scripts/fetch_rainfall.py  # rain per hour to data/rainfall/
+uv run scripts/heat_stats.py      # heat stats and charts
+uv run scripts/hazard_stats.py    # haze and rain stats, and the heat/rain/haze comparison
+```
+
+Run one fetch script at a time. The data.gov.sg rate limit is strict (see `AGENTS.md`).
 
 ## Layout
 
 ```
+app/              Streamlit dashboard.
 scripts/          Data download and analysis scripts.
 data/wbgt/        NEA WBGT readings, one Parquet file per month.
+data/psi/         NEA PSI and PM2.5 by region, one Parquet file per year.
+data/rainfall/    NEA rainfall per gauge per hour, one Parquet file per month.
 data/processed/   Tables made by the analysis scripts.
 docs/figures/     Charts made by the analysis scripts.
+docs/reports/     HTML reports for the team, with the script that builds them.
 docs/notes/       Findings, meeting notes and the hackathon overview.
 docs/reference/   How to use the data.gov.sg API.
 docs/resources/   Team research and reference documents.
