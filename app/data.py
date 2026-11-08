@@ -1,4 +1,7 @@
-"""Data loading for the dashboard. Reads the committed Parquet files; never calls the API except for live readings."""
+"""Data loading for the dashboard.
+
+Reads the committed Parquet files. Calls the API only for the live readings.
+"""
 
 from __future__ import annotations
 
@@ -41,8 +44,10 @@ def wbgt_readings() -> pd.DataFrame:
 def wbgt_stations() -> pd.DataFrame:
     frame = wbgt_readings()
     stations = frame.groupby("station_id").agg(
-        station_name=("station_name", "last"), latitude=("latitude", "last"),
-        longitude=("longitude", "last"), days=("day", "nunique"),
+        station_name=("station_name", "last"),
+        latitude=("latitude", "last"),
+        longitude=("longitude", "last"),
+        days=("day", "nunique"),
     )
     return stations.reset_index()
 
@@ -52,8 +57,11 @@ def heat_station_days(threshold: float) -> pd.DataFrame:
     """Per station per day in work hours: max WBGT and hours at or above the threshold."""
     work = wbgt_readings()
     work = work[work["work_hours"]]
-    out = work.assign(hit=(work["wbgt"] >= threshold) * 0.25).groupby(["station_id", "day"]).agg(
-        max_wbgt=("wbgt", "max"), hours_at_or_above=("hit", "sum"))
+    out = (
+        work.assign(hit=(work["wbgt"] >= threshold) * 0.25)
+        .groupby(["station_id", "day"])
+        .agg(max_wbgt=("wbgt", "max"), hours_at_or_above=("hit", "sum"))
+    )
     return out.reset_index()
 
 
@@ -78,8 +86,11 @@ def rain_stations() -> pd.DataFrame:
 def rain_station_days(mm_per_hour: float) -> pd.DataFrame:
     rain = rain_hourly()
     work = rain[rain["work_hours"]]
-    out = work.assign(hit=work["rain_mm"] >= mm_per_hour).groupby(["station_id", "day"]).agg(
-        rain_mm=("rain_mm", "sum"), hours_at_or_above=("hit", "sum"))
+    out = (
+        work.assign(hit=work["rain_mm"] >= mm_per_hour)
+        .groupby(["station_id", "day"])
+        .agg(rain_mm=("rain_mm", "sum"), hours_at_or_above=("hit", "sum"))
+    )
     return out.reset_index()
 
 
@@ -94,7 +105,9 @@ def psi_hourly() -> pd.DataFrame:
 @st.cache_data
 def psi_region_days() -> pd.DataFrame:
     psi = psi_hourly()
-    return psi.groupby(["region", "day"])["psi_twenty_four_hourly"].max().reset_index(name="psi_max")
+    return (
+        psi.groupby(["region", "day"])["psi_twenty_four_hourly"].max().reset_index(name="psi_max")
+    )
 
 
 @st.cache_data(ttl=600, show_spinner="Fetching live NEA readings...")
@@ -105,25 +118,40 @@ def live_readings() -> dict[str, pd.DataFrame]:
     body = client.get("weather", {"api": "wbgt"})
     if body:
         record = body["data"]["records"][0]
-        out["wbgt"] = pd.DataFrame([{
-            "station": r["station"]["name"], "latitude": float(r["location"]["latitude"]),
-            "longitude": float(r["location"]["longitude"]),
-            "wbgt": pd.to_numeric(r.get("wbgt"), errors="coerce"), "heat_stress": r.get("heatStress"),
-            "time": record["datetime"],
-        } for r in record["item"]["readings"]])
+        out["wbgt"] = pd.DataFrame(
+            [
+                {
+                    "station": r["station"]["name"],
+                    "latitude": float(r["location"]["latitude"]),
+                    "longitude": float(r["location"]["longitude"]),
+                    "wbgt": pd.to_numeric(r.get("wbgt"), errors="coerce"),
+                    "heat_stress": r.get("heatStress"),
+                    "time": record["datetime"],
+                }
+                for r in record["item"]["readings"]
+            ]
+        )
     body = client.get("psi", {})
     if body:
         item = body["data"]["items"][0]
         psi = item["readings"]["psi_twenty_four_hourly"]
-        out["psi"] = pd.DataFrame([{"region": k, "psi_24h": v, "time": item["timestamp"]} for k, v in psi.items()])
+        out["psi"] = pd.DataFrame(
+            [{"region": k, "psi_24h": v, "time": item["timestamp"]} for k, v in psi.items()]
+        )
     body = client.get("rainfall", {})
     if body:
         names = {s["id"]: s for s in body["data"]["stations"]}
         reading = body["data"]["readings"][0]
-        out["rain"] = pd.DataFrame([{
-            "station": names.get(d["stationId"], {}).get("name", d["stationId"]),
-            "latitude": names.get(d["stationId"], {}).get("location", {}).get("latitude"),
-            "longitude": names.get(d["stationId"], {}).get("location", {}).get("longitude"),
-            "rain_mm_5min": d["value"], "time": reading["timestamp"],
-        } for d in reading["data"]])
+        out["rain"] = pd.DataFrame(
+            [
+                {
+                    "station": names.get(d["stationId"], {}).get("name", d["stationId"]),
+                    "latitude": names.get(d["stationId"], {}).get("location", {}).get("latitude"),
+                    "longitude": names.get(d["stationId"], {}).get("location", {}).get("longitude"),
+                    "rain_mm_5min": d["value"],
+                    "time": reading["timestamp"],
+                }
+                for d in reading["data"]
+            ]
+        )
     return out

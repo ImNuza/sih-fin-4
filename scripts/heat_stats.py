@@ -21,11 +21,11 @@ import matplotlib.pyplot as plt
 
 from dgs import REPO_ROOT
 
-WORK_START_HOUR = 7   # 07:00 SGT
-WORK_END_HOUR = 19    # until 19:00 SGT
+WORK_START_HOUR = 7  # 07:00 SGT
+WORK_END_HOUR = 19  # until 19:00 SGT
 READING_HOURS = 0.25  # one reading = 15 minutes
 THRESHOLDS = (31, 32, 33)
-MOM_THRESHOLD = 32    # MOM: paid 10-minute rest break every hour for heavy work at WBGT >= 32°C
+MOM_THRESHOLD = 32  # MOM: paid 10-minute rest break every hour for heavy work at WBGT >= 32°C
 
 IN_DIR = REPO_ROOT / "data" / "wbgt"
 PROC_DIR = REPO_ROOT / "data" / "processed"
@@ -41,12 +41,17 @@ BAR = "#2a78d6"
 
 
 CORE_COVERAGE = 0.95  # a "core" station has data on at least 95% of days
+SOURCE = "Source: NEA real-time APIs, data.gov.sg."
+
+
+def period_label(days: pd.Series) -> str:
+    return f"{days.min():%d %b %Y} to {days.max():%d %b %Y}"
 
 
 def load_readings() -> pd.DataFrame:
     frame = pd.concat(pd.read_parquet(p) for p in sorted(IN_DIR.glob("wbgt_*.parquet")))
     frame["timestamp"] = frame["timestamp"].dt.tz_convert("Asia/Singapore")
-    # Stations get renamed (S135: Mandai Wildlife Reserve -> Bird Paradise). Use the latest name per ID.
+    # Stations get renamed (S135: Mandai Wildlife Reserve, Bird Paradise). Keep the latest name.
     latest = frame.sort_values("timestamp").groupby("station_id")["station_name"].last()
     frame["station_name"] = frame["station_id"].map(latest)
     frame["day"] = frame["timestamp"].dt.date
@@ -81,19 +86,32 @@ def monthly(days: pd.DataFrame, core_ids: list[str]) -> pd.DataFrame:
     island["month"] = island["day"].dt.to_period("M").astype(str)
     out = island.groupby("month").agg(days_with_data=("day", "count"))
     for t in THRESHOLDS:
-        out[f"days_core_ge_{t}"] = island.assign(hit=island["max_wbgt"] >= t).groupby("month")["hit"].sum()
+        out[f"days_core_ge_{t}"] = (
+            island.assign(hit=island["max_wbgt"] >= t).groupby("month")["hit"].sum()
+        )
     core = core.assign(month=core["day"].dt.to_period("M").astype(str))
     out["avg_hours_ge_32_per_station_day"] = core.groupby("month")["hours_ge_32"].mean().round(2)
-    out["stations_reporting"] = days.assign(month=days["day"].dt.to_period("M").astype(str)).groupby("month")["station_id"].nunique()
+    out["stations_reporting"] = (
+        days.assign(month=days["day"].dt.to_period("M").astype(str))
+        .groupby("month")["station_id"]
+        .nunique()
+    )
     return out.reset_index()
 
 
 def hours_distribution(days: pd.DataFrame, core_ids: list[str]) -> pd.Series:
     """How long the heat lasts: share of core station-days by hours at WBGT >= 32."""
     hours = days[days["station_id"].isin(core_ids)]["hours_ge_32"]
-    bins = {"0 h": hours == 0, "under 1 h": (hours > 0) & (hours < 1), "1 to 2 h": (hours >= 1) & (hours < 2),
-            "2 to 4 h": (hours >= 2) & (hours < 4), "4 h or more": hours >= 4}
-    return pd.Series({k: round(v.mean() * 100, 1) for k, v in bins.items()}, name="% of station-days")
+    bins = {
+        "0 h": hours == 0,
+        "under 1 h": (hours > 0) & (hours < 1),
+        "1 to 2 h": (hours >= 1) & (hours < 2),
+        "2 to 4 h": (hours >= 2) & (hours < 4),
+        "4 h or more": hours >= 4,
+    }
+    return pd.Series(
+        {k: round(v.mean() * 100, 1) for k, v in bins.items()}, name="% of station-days"
+    )
 
 
 def stations(days: pd.DataFrame) -> pd.DataFrame:
@@ -117,7 +135,7 @@ def style_axes(ax: plt.Axes) -> None:
     ax.set_axisbelow(True)
 
 
-def plot_monthly(month_table: pd.DataFrame, core_count: int) -> None:
+def plot_monthly(month_table: pd.DataFrame, core_count: int, period: str) -> None:
     fig, ax = plt.subplots(figsize=(11, 4.6), facecolor=SURFACE)
     style_axes(ax)
     labels = pd.PeriodIndex(month_table["month"], freq="M").strftime("%b\n%y")
@@ -126,14 +144,31 @@ def plot_monthly(month_table: pd.DataFrame, core_count: int) -> None:
     ax.set_xticks(range(len(values)), labels, fontsize=9)
     for bar, value in zip(bars, values):
         if value > 0:
-            ax.text(bar.get_x() + bar.get_width() / 2, value + 0.4, f"{int(value)}",
-                    ha="center", va="bottom", fontsize=8, color=INK_2)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                value + 0.4,
+                f"{int(value)}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+                color=INK_2,
+            )
     ax.set_ylabel("days", color=INK_2)
-    fig.suptitle("Days when WBGT reached 32°C at one or more NEA stations (7am to 7pm)",
-                 x=0.01, ha="left", fontsize=13, color=INK, fontweight="bold")
-    ax.set_title(f"MOM rest-break level. The {core_count} stations that reported all period. "
-                 "Jan 2025 and Nov 2026 are partial months.",
-                 loc="left", fontsize=9, color=INK_2)
+    fig.suptitle(
+        "Days when WBGT reached 32°C at one or more NEA stations (7am to 7pm)",
+        x=0.01,
+        ha="left",
+        fontsize=13,
+        color=INK,
+        fontweight="bold",
+    )
+    ax.set_title(
+        f"MOM rest-break level. The {core_count} stations that reported all period, "
+        f"{period}. First and last months are partial. {SOURCE}",
+        loc="left",
+        fontsize=9,
+        color=INK_2,
+    )
     fig.tight_layout()
     fig.savefig(FIG_DIR / "wbgt_trigger_days_by_month.png", dpi=160, facecolor=SURFACE)
     plt.close(fig)
@@ -142,7 +177,7 @@ def plot_monthly(month_table: pd.DataFrame, core_count: int) -> None:
 MIN_DAYS_FOR_STATION_CHART = 365  # newer stations only cover recent months, which skews their share
 
 
-def plot_stations(station_table: pd.DataFrame) -> None:
+def plot_stations(station_table: pd.DataFrame, period: str) -> None:
     table = station_table[station_table["days_with_data"] >= MIN_DAYS_FOR_STATION_CHART]
     table = table.sort_values("share_days_ge_32")
     fig, ax = plt.subplots(figsize=(9, 0.38 * len(table) + 1.6), facecolor=SURFACE)
@@ -152,16 +187,35 @@ def plot_stations(station_table: pd.DataFrame) -> None:
     ax.spines["bottom"].set_visible(False)
     names = table["station_name"]
     values = table["share_days_ge_32"] * 100
-    bars = ax.barh(range(len(values)), values, height=0.55, color=BAR, edgecolor=SURFACE, linewidth=2)
+    bars = ax.barh(
+        range(len(values)), values, height=0.55, color=BAR, edgecolor=SURFACE, linewidth=2
+    )
     ax.set_yticks(range(len(values)), names, fontsize=9)
     for bar, value in zip(bars, values):
-        ax.text(value + 0.5, bar.get_y() + bar.get_height() / 2, f"{value:.0f}%",
-                va="center", fontsize=8, color=INK_2)
+        ax.text(
+            value + 0.5,
+            bar.get_y() + bar.get_height() / 2,
+            f"{value:.0f}%",
+            va="center",
+            fontsize=8,
+            color=INK_2,
+        )
     ax.set_xlabel("% of days with data", color=INK_2)
-    fig.suptitle("Share of days reaching WBGT 32°C, by station (7am to 7pm)",
-                 x=0.01, ha="left", fontsize=13, color=INK, fontweight="bold")
-    ax.set_title(f"Stations with at least {MIN_DAYS_FOR_STATION_CHART} days of data. "
-                 "Full list in data/processed/wbgt_stations.csv.", loc="left", fontsize=9, color=INK_2)
+    fig.suptitle(
+        "Share of days reaching WBGT 32°C, by station (7am to 7pm)",
+        x=0.01,
+        ha="left",
+        fontsize=13,
+        color=INK,
+        fontweight="bold",
+    )
+    ax.set_title(
+        f"Stations with at least {MIN_DAYS_FOR_STATION_CHART} days of data, {period}. "
+        f"Full list in data/processed/wbgt_stations.csv.\n{SOURCE}",
+        loc="left",
+        fontsize=9,
+        color=INK_2,
+    )
     fig.tight_layout()
     fig.savefig(FIG_DIR / "wbgt_trigger_share_by_station.png", dpi=160, facecolor=SURFACE)
     plt.close(fig)
@@ -179,22 +233,27 @@ def main() -> None:
     station_table = stations(days)
     station_table.to_csv(PROC_DIR / "wbgt_stations.csv", index=False)
     hours = hours_distribution(days, core_ids)
-    plot_monthly(month_table, len(core_ids))
-    plot_stations(station_table)
+    period = period_label(days["day"])
+    plot_monthly(month_table, len(core_ids), period)
+    plot_stations(station_table, period)
 
     first, last = readings["timestamp"].min(), readings["timestamp"].max()
     missing = readings["wbgt"].isna().mean()
     core = days[days["station_id"].isin(core_ids)]
     island_days = core.groupby("day")["max_wbgt"].max()
-    print(f"Readings: {len(readings):,} from {first:%Y-%m-%d} to {last:%Y-%m-%d}, "
-          f"{readings['station_id'].nunique()} stations ever, {missing:.2%} missing")
+    print(
+        f"Readings: {len(readings):,} from {first:%Y-%m-%d} to {last:%Y-%m-%d}, "
+        f"{readings['station_id'].nunique()} stations ever, {missing:.2%} missing"
+    )
     print(f"Core stations ({len(core_ids)}): {', '.join(core_ids)}")
     print(f"Days with data: {len(island_days)}")
     for t in THRESHOLDS:
         any_core = (island_days >= t).mean()
         per_station = (core["max_wbgt"] >= t).mean()
-        print(f"  >= {t}°C in work hours: {any_core:.0%} of days at any core station, "
-              f"{per_station:.0%} of days at a typical single station")
+        print(
+            f"  >= {t}°C in work hours: {any_core:.0%} of days at any core station, "
+            f"{per_station:.0%} of days at a typical single station"
+        )
     print(f"Highest WBGT seen: {readings['wbgt'].max()}°C")
     print("\nHours at WBGT >= 32 per core station-day:\n" + hours.to_string())
     print("\nMonthly (core stations):\n" + month_table.to_string(index=False))

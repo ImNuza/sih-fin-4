@@ -75,13 +75,19 @@ class DgsClient:
                 continue  # the other key has its own quota: try it at once
             if response.status_code == 429 or response.status_code >= 500:
                 retry_after = response.headers.get("Retry-After", "")
-                time.sleep(float(retry_after) if retry_after.isdigit() else min(MAX_BACKOFF_SECONDS, 2**attempt))
+                time.sleep(
+                    float(retry_after)
+                    if retry_after.isdigit()
+                    else min(MAX_BACKOFF_SECONDS, 2**attempt)
+                )
                 continue
             body = response.json()
             if body.get("code") == CODE_NOT_FOUND:
                 return None
             if response.status_code != 200 or body.get("code") != 0:
-                raise RuntimeError(f"{path} {params}: HTTP {response.status_code}, {body.get('errorMsg')}")
+                raise RuntimeError(
+                    f"{path} {params}: HTTP {response.status_code}, {body.get('errorMsg')}"
+                )
             return body
         raise RuntimeError(f"{path} {params}: still rate limited after {self.max_retries} retries")
 
@@ -113,35 +119,49 @@ def _thread_client() -> DgsClient:
     return _thread_local.client
 
 
-def fetch_days(path: str, params: dict, days: list[date], raw_dir: Path, workers: int = 2) -> dict[date, list[dict]]:
-    """Fetch every page for each day, in parallel, caching finished days as raw_dir/YYYY-MM-DD.json.gz.
+def fetch_days(
+    path: str, params: dict, days: list[date], raw_dir: Path, workers: int = 2
+) -> dict[date, list[dict]]:
+    """Fetch every page for each day, in parallel.
+
+    Finished days are cached as raw_dir/YYYY-MM-DD.json.gz.
 
     Days with no data are left out of the result. Today is never cached because it is incomplete.
+    If some days fail, the other days are still cached, then a RuntimeError lists the failed days.
+    A rerun fetches only the missing days.
     """
     raw_dir.mkdir(parents=True, exist_ok=True)
     today = date.today()
 
-    def one(day: date) -> tuple[date, list[dict] | None]:
+    def one(day: date) -> tuple[date, list[dict] | None, str | None]:
         cache = raw_dir / f"{day.isoformat()}.json.gz"
         if cache.exists():
-            return day, json.loads(gzip.decompress(cache.read_bytes()))
+            return day, json.loads(gzip.decompress(cache.read_bytes())), None
         try:
             pages = _thread_client().get_all_pages(path, dict(params, date=day.isoformat()))
         except RuntimeError as error:
-            print(f"  skipped {day}: {error}. Rerun the script to fill it.", flush=True)
-            return day, None
+            return day, None, str(error)
         if pages is not None and day < today:
             cache.write_bytes(gzip.compress(json.dumps(pages).encode()))
-        return day, pages
+        return day, pages, None
 
     results: dict[date, list[dict]] = {}
+    failed: dict[date, str] = {}
     done = 0
     newest_first = sorted(days, reverse=True)  # recent data matters most if a run stops early
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        for day, pages in pool.map(one, newest_first):
+        for day, pages, error in pool.map(one, newest_first):
             done += 1
-            if pages is not None:
+            if error:
+                failed[day] = error
+            elif pages is not None:
                 results[day] = pages
             if done % 100 == 0 or done == len(days):
                 print(f"  {path}: {done}/{len(days)} days ({len(results)} with data)", flush=True)
+    if failed:
+        listed = ", ".join(d.isoformat() for d in sorted(failed))
+        raise RuntimeError(
+            f"{path}: {len(failed)} days failed ({listed}). "
+            "The rest are cached. Rerun to fetch them."
+        )
     return results

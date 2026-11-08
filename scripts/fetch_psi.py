@@ -6,7 +6,7 @@ Usage:
 
 Output:
     data/raw/psi/YYYY-MM-DD.json.gz    raw pages per day (gitignored cache)
-    data/psi/psi_YYYY.parquet          one row per hour per region, one column per measure (committed)
+    data/psi/psi_YYYY.parquet          one row per hour per region, one column per measure
 """
 
 from __future__ import annotations
@@ -37,7 +37,9 @@ def pages_to_rows(pages: list[dict]) -> list[dict]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--start", type=date.fromisoformat, default=FIRST_DAY)
     parser.add_argument("--end", type=date.fromisoformat, default=date.today() - timedelta(days=1))
     parser.add_argument("--workers", type=int, default=4)
@@ -47,7 +49,9 @@ def main() -> None:
     results = fetch_days("psi", {}, day_range(args.start, args.end), RAW_DIR, args.workers)
     rows = [row for day in sorted(results) for row in pages_to_rows(results[day])]
     frame = pd.DataFrame(rows)
-    frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True).dt.tz_convert("Asia/Singapore")
+    frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True).dt.tz_convert(
+        "Asia/Singapore"
+    )
     for column in frame.columns.difference(["timestamp", "region"]):
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
     frame = frame.drop_duplicates(["timestamp", "region"]).sort_values(["timestamp", "region"])
@@ -56,7 +60,10 @@ def main() -> None:
     for year, part in frame.groupby(frame["timestamp"].dt.year):
         part.reset_index(drop=True).to_parquet(OUT_DIR / f"psi_{year}.parquet", index=False)
     missing_days = len(day_range(args.start, args.end)) - len(results)
-    print(f"Done: {len(frame):,} rows, measures: {', '.join(frame.columns.difference(['timestamp', 'region']))}")
+    print(
+        f"Done: {len(frame):,} rows, measures: "
+        f"{', '.join(frame.columns.difference(['timestamp', 'region']))}"
+    )
     print(f"Days with no data: {missing_days}")
 
 

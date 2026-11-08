@@ -91,7 +91,9 @@ def pages_to_rows(pages: list[dict]) -> list[dict]:
 def write_months(rows: list[dict]) -> list[Path]:
     frame = pd.DataFrame(rows)
     frame["timestamp"] = pd.to_datetime(frame["timestamp"])
-    frame = frame.drop_duplicates(["timestamp", "station_id"]).sort_values(["timestamp", "station_id"])
+    frame = frame.drop_duplicates(["timestamp", "station_id"]).sort_values(
+        ["timestamp", "station_id"]
+    )
     month = frame["timestamp"].dt.strftime("%Y-%m")
     written = []
     for name, part in frame.groupby(month):
@@ -102,8 +104,12 @@ def write_months(rows: list[dict]) -> list[Path]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--start", type=date.fromisoformat, help="first day (default: first day with data)")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--start", type=date.fromisoformat, help="first day (default: first day with data)"
+    )
     parser.add_argument("--end", type=date.fromisoformat, help="last day (default: yesterday)")
     args = parser.parse_args()
 
@@ -128,7 +134,10 @@ def main() -> None:
         day += timedelta(days=1)
 
     written = write_months(rows)
-    print(f"Done: {len(rows):,} rows in {len(written)} monthly files under {OUT_DIR.relative_to(REPO_ROOT)}")
+    print(
+        f"Done: {len(rows):,} rows in {len(written)} monthly files "
+        f"under {OUT_DIR.relative_to(REPO_ROOT)}"
+    )
     if missing:
         print(f"Days with no data ({len(missing)}): {', '.join(missing)}")
 
