@@ -63,31 +63,61 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--start", type=date.fromisoformat, default=DEFAULT_START)
-    parser.add_argument("--end", type=date.fromisoformat, default=date.today() - timedelta(days=1))
-    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument(
+        "--end", type=date.fromisoformat, default=date.today() - timedelta(days=1)
+    )
+    parser.add_argument("--workers", type=int, default=2)
     args = parser.parse_args()
 
     print(f"Fetching rainfall {args.start} to {args.end}")
-    results = fetch_days("rainfall", {}, day_range(args.start, args.end), RAW_DIR, args.workers)
-    stations: dict[str, dict] = {}
-    hourly = pd.concat(
-        [day_to_hourly(results[day], stations) for day in sorted(results)], ignore_index=True
-    )
-    hourly = hourly.drop_duplicates(["hour", "station_id"]).sort_values(["hour", "station_id"])
-
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for month, part in hourly.groupby(hourly["hour"].dt.strftime("%Y-%m")):
-        part.reset_index(drop=True).to_parquet(
-            OUT_DIR / f"rain_hourly_{month}.parquet", index=False
+    days = day_range(args.start, args.end)
+    stations: dict[str, dict] = {}
+    station_ids: set[str] = set()
+    station_hours = 0
+    days_with_data = 0
+    days_done = 0
+    failed_years: dict[int, str] = {}
+    # One year at a time: raw pages use about 6 MB of memory per day, so 10 years at once
+    # would need about 20 GB. Oldest year first, so the newest station names win in stations.csv.
+    for year in sorted({day.year for day in days}):
+        year_days = [day for day in days if day.year == year]
+        try:
+            results = fetch_days("rainfall", {}, year_days, RAW_DIR, args.workers)
+        except RuntimeError as error:
+            failed_years[year] = str(error)
+            continue
+        days_done += len(year_days)
+        days_with_data += len(results)
+        frames = [day_to_hourly(results[day], stations) for day in sorted(results)]
+        del results
+        frames = [frame for frame in frames if not frame.empty]
+        if not frames:
+            continue
+        hourly = pd.concat(frames, ignore_index=True)
+        hourly = hourly.drop_duplicates(["hour", "station_id"]).sort_values(
+            ["hour", "station_id"]
         )
+        for month, part in hourly.groupby(hourly["hour"].dt.strftime("%Y-%m")):
+            part.reset_index(drop=True).to_parquet(
+                OUT_DIR / f"rain_hourly_{month}.parquet", index=False
+            )
+        station_hours += len(hourly)
+        station_ids.update(hourly["station_id"].unique())
+        print(f"  {year}: {len(hourly):,} station-hours written", flush=True)
+
     pd.DataFrame(stations.values()).sort_values("station_id").to_csv(
         OUT_DIR / "stations.csv", index=False
     )
-    missing_days = len(day_range(args.start, args.end)) - len(results)
     print(
-        f"Done: {len(hourly):,} station-hours, {hourly['station_id'].nunique()} stations, "
-        f"days with no data: {missing_days}"
+        f"Done: {station_hours:,} station-hours, {len(station_ids)} stations, "
+        f"days with no data: {days_done - days_with_data}"
     )
+    if failed_years:
+        details = "\n".join(failed_years[year] for year in sorted(failed_years))
+        raise RuntimeError(
+            f"Some years did not finish. Rerun to fetch them.\n{details}"
+        )
 
 
 if __name__ == "__main__":
