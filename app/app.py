@@ -1,9 +1,12 @@
 """SIH 2026 Fin 4: climate data explorer for Income's parametric insurance brief.
 
 Run:  uv run streamlit run app/app.py
+Set SIH_LIVE_DATA=off to turn off the Live tab (the hosted copy has no internet and no API key).
 """
 
 from __future__ import annotations
+
+import os
 
 import pandas as pd
 import plotly.express as px
@@ -14,6 +17,7 @@ import data
 BLUE = "#2a78d6"
 SEQ_BLUES = ["#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
 MAP_CENTER = {"lat": 1.355, "lon": 103.82}
+LIVE_DATA = os.environ.get("SIH_LIVE_DATA", "on") != "off"
 
 st.set_page_config(
     page_title="Fin 4 climate data", page_icon=":material/thermostat:", layout="wide"
@@ -59,7 +63,7 @@ def per_month(hits: pd.DataFrame, value: str) -> pd.DataFrame:
 
 st.title("Fin 4 climate data explorer")
 st.caption(
-    "Real NEA data from data.gov.sg. Heat (WBGT) and rain from Jan 2025, "
+    "Real NEA data from data.gov.sg. Heat (WBGT) from Jan 2025, rain from Dec 2016, "
     "haze (PSI) from Mar 2016. "
     "Work hours are 7am to 7pm."
 )
@@ -370,6 +374,9 @@ with tabs[4]:
 
 # ---------------- Live ----------------
 with tabs[5]:
+    if not LIVE_DATA:
+        st.info("Live readings are off on this copy. Run the app locally to see them.")
+        st.stop()
     st.markdown("Latest NEA readings. Refreshes at most every 10 minutes.")
     try:
         live = data.live_readings()
