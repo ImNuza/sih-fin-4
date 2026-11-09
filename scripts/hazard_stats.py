@@ -50,10 +50,14 @@ MIN_EPISODE_DAYS = 1
 
 def load_psi() -> pd.DataFrame:
     frame = pd.concat(
-        pd.read_parquet(p) for p in sorted((REPO_ROOT / "data" / "psi").glob("psi_*.parquet"))
+        pd.read_parquet(p)
+        for p in sorted((REPO_ROOT / "data" / "psi").glob("psi_*.parquet"))
     )
     frame["day"] = (
-        frame["timestamp"].dt.tz_convert("Asia/Singapore").dt.tz_localize(None).dt.normalize()
+        frame["timestamp"]
+        .dt.tz_convert("Asia/Singapore")
+        .dt.tz_localize(None)
+        .dt.normalize()
     )
     return frame
 
@@ -72,7 +76,9 @@ def psi_daily(psi: pd.DataFrame) -> pd.DataFrame:
 
 def psi_yearly(daily: pd.DataFrame) -> pd.DataFrame:
     daily = daily.assign(year=daily["day"].dt.year)
-    out = daily.groupby("year").agg(days_with_data=("day", "count"), psi_peak=("psi_max", "max"))
+    out = daily.groupby("year").agg(
+        days_with_data=("day", "count"), psi_peak=("psi_max", "max")
+    )
     out["days_unhealthy"] = (
         daily.assign(x=daily["psi_max"] > PSI_UNHEALTHY).groupby("year")["x"].sum()
     )
@@ -91,7 +97,9 @@ def psi_episodes(daily: pd.DataFrame) -> pd.DataFrame:
         if hazy.iloc[i] and start is None:
             start = day
         last_of_run = hazy.iloc[i] and (
-            i + 1 == len(days) or not hazy.iloc[i + 1] or days[i + 1] - day > pd.Timedelta(days=1)
+            i + 1 == len(days)
+            or not hazy.iloc[i + 1]
+            or days[i + 1] - day > pd.Timedelta(days=1)
         )
         if last_of_run:
             part = daily[(daily["day"] >= start) & (daily["day"] <= day)]
@@ -108,7 +116,9 @@ def psi_episodes(daily: pd.DataFrame) -> pd.DataFrame:
             )
             start = None
     out = pd.DataFrame(episodes)
-    return out[out["days"] >= MIN_EPISODE_DAYS].sort_values("start") if len(out) else out
+    return (
+        out[out["days"] >= MIN_EPISODE_DAYS].sort_values("start") if len(out) else out
+    )
 
 
 def plot_psi(daily: pd.DataFrame) -> None:
@@ -152,7 +162,9 @@ def load_rain() -> pd.DataFrame:
     )
     local = frame["hour"].dt.tz_convert("Asia/Singapore")
     frame["day"] = local.dt.tz_localize(None).dt.normalize()
-    frame["work_hour"] = (local.dt.hour >= WORK_START_HOUR) & (local.dt.hour < WORK_END_HOUR)
+    frame["work_hour"] = (local.dt.hour >= WORK_START_HOUR) & (
+        local.dt.hour < WORK_END_HOUR
+    )
     return frame
 
 
@@ -183,29 +195,72 @@ def rain_monthly(days: pd.DataFrame) -> pd.DataFrame:
     out["share_station_days_ge_20mm_hour"] = (
         days.assign(x=days["hours_ge_20mm"] > 0).groupby("month")["x"].mean().round(3)
     )
-    out["avg_wet_work_hours_per_station_day"] = days.groupby("month")["wet_hours"].mean().round(2)
+    out["avg_wet_work_hours_per_station_day"] = (
+        days.groupby("month")["wet_hours"].mean().round(2)
+    )
     return out.reset_index()
 
 
-def plot_rain(month_table: pd.DataFrame, rain: pd.DataFrame) -> None:
-    gauges = rain.groupby("day")["station_id"].nunique()
-    fig, ax = plt.subplots(figsize=(11, 4.6), facecolor=SURFACE)
-    style_axes(ax)
-    labels = pd.PeriodIndex(month_table["month"], freq="M").strftime("%b\n%y")
-    values = month_table["share_station_days_ge_20mm_hour"] * 100
-    bars = ax.bar(range(len(values)), values, width=0.6, color=BAR, edgecolor=SURFACE, linewidth=2)
-    ax.set_xticks(range(len(values)), labels, fontsize=9)
+def heavy_share(days: pd.DataFrame, key: pd.Series) -> pd.Series:
+    return (days["hours_ge_20mm"] > 0).groupby(key).mean() * 100
+
+
+def label_bars(ax: plt.Axes, bars, values: pd.Series) -> None:
     for bar, value in zip(bars, values):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             value + 0.15,
-            f"{value:.0f}%",
+            f"{value:.1f}%",
             ha="center",
             va="bottom",
             fontsize=8,
             color=INK_2,
         )
-    ax.set_ylabel("% of station-days", color=INK_2)
+
+
+def plot_rain(days: pd.DataFrame, rain: pd.DataFrame) -> None:
+    """Left: season (calendar month, all years pooled). Right: each year, part years muted."""
+    gauges = rain.groupby("day")["station_id"].nunique()
+    by_month = heavy_share(days, days["day"].dt.month)
+    by_year = heavy_share(days, days["day"].dt.year)
+    first_year, last_year = by_year.index.min(), by_year.index.max()
+
+    fig, (ax_month, ax_year) = plt.subplots(
+        1, 2, figsize=(12, 4.8), facecolor=SURFACE, sharey=True, width_ratios=(12, 11)
+    )
+    for ax in (ax_month, ax_year):
+        style_axes(ax)
+    bars = ax_month.bar(
+        range(12), by_month, width=0.6, color=BAR, edgecolor=SURFACE, linewidth=2
+    )
+    label_bars(ax_month, bars, by_month)
+    month_names = pd.date_range("2001-01-01", periods=12, freq="MS").strftime("%b")
+    ax_month.set_xticks(range(12), month_names, fontsize=9)
+    ax_month.set_title(
+        "By calendar month, all years", loc="left", fontsize=10, color=INK
+    )
+    ax_month.set_ylabel("% of station-days", color=INK_2)
+
+    colors = [
+        MUTED if year in (first_year, last_year) else BAR for year in by_year.index
+    ]
+    bars = ax_year.bar(
+        range(len(by_year)),
+        by_year,
+        width=0.6,
+        color=colors,
+        edgecolor=SURFACE,
+        linewidth=2,
+    )
+    label_bars(ax_year, bars, by_year)
+    ax_year.set_xticks(range(len(by_year)), by_year.index.astype(str), fontsize=9)
+    ax_year.set_title(
+        f"By year (grey: only part of {first_year} and {last_year})",
+        loc="left",
+        fontsize=10,
+        color=INK,
+    )
+
     fig.suptitle(
         "Heavy rain: share of days with an hour of 20 mm or more at a station (7am to 7pm)",
         x=0.01,
@@ -214,14 +269,15 @@ def plot_rain(month_table: pd.DataFrame, rain: pd.DataFrame) -> None:
         color=INK,
         fontweight="bold",
     )
-    ax.set_title(
+    fig.text(
+        0.01,
+        0.9,
         f"{gauges.min()} to {gauges.max()} rain gauges per day (median {gauges.median():.0f}), "
-        f"{period_label(rain['day'])}. First and last months are partial. {SOURCE}",
-        loc="left",
+        f"{period_label(rain['day'])}. {SOURCE}",
         fontsize=9,
         color=INK_2,
     )
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
     fig.savefig(FIG_DIR / "rain_heavy_days_by_month.png", dpi=160, facecolor=SURFACE)
     plt.close(fig)
 
@@ -236,26 +292,34 @@ def spread(days: pd.DataFrame, hit_column: str) -> float:
     return round((per_day["sum"] / per_day["count"]).mean(), 2)
 
 
-def comparison(heat_days: pd.DataFrame, rain_days: pd.DataFrame, psi: pd.DataFrame) -> pd.DataFrame:
+def comparison(
+    heat_days: pd.DataFrame, rain_days: pd.DataFrame, psi: pd.DataFrame
+) -> pd.DataFrame:
+    """Each peril over the WBGT period (like for like), then rain and haze over all years."""
     heat_days = heat_days[heat_days["station_id"].isin(core_station_ids(heat_days))]
     heat = heat_days.assign(hit=heat_days["max_wbgt"] >= 32)
     rain = rain_days.assign(hit=rain_days["hours_ge_20mm"] > 0)
-    region_days = psi.groupby(["region", "day"])["psi_twenty_four_hourly"].max().reset_index()
+    region_days = (
+        psi.groupby(["region", "day"])["psi_twenty_four_hourly"].max().reset_index()
+    )
     haze = region_days.assign(hit=region_days["psi_twenty_four_hourly"] > PSI_UNHEALTHY)
-    haze_recent = haze[haze["day"] >= "2025-01-16"]
+    wbgt_start = heat["day"].min()
     rows = []
-    for name, frame, period in (
-        ("Heat: WBGT >= 32°C in work hours (7 core stations)", heat, "Jan 2025 to Nov 2026"),
-        ("Rain: an hour >= 20 mm in work hours", rain, "Jan 2025 to Nov 2026"),
-        ("Haze: 24-hour PSI > 100", haze_recent, "Jan 2025 to Nov 2026"),
-        ("Haze: 24-hour PSI > 100", haze, "Mar 2016 to Nov 2026"),
+    for name, frame in (
+        ("Heat: WBGT >= 32°C in work hours (7 core stations)", heat),
+        ("Rain: an hour >= 20 mm in work hours", rain[rain["day"] >= wbgt_start]),
+        ("Haze: 24-hour PSI > 100", haze[haze["day"] >= wbgt_start]),
+        ("Rain: an hour >= 20 mm in work hours", rain),
+        ("Haze: 24-hour PSI > 100", haze),
     ):
         rows.append(
             {
                 "peril": name,
-                "period": period,
+                "period": period_label(frame["day"]),
                 "share_days_one_location": round(frame["hit"].mean(), 3),
-                "share_days_anywhere": round(frame.groupby("day")["hit"].max().mean(), 3),
+                "share_days_anywhere": round(
+                    frame.groupby("day")["hit"].max().mean(), 3
+                ),
                 "share_of_locations_hit_on_event_days": spread(frame, "hit"),
             }
         )
@@ -280,7 +344,7 @@ def main() -> None:
     rain_days.to_parquet(PROC_DIR / "rain_station_days.parquet", index=False)
     rain_month = rain_monthly(rain_days)
     rain_month.to_csv(PROC_DIR / "rain_monthly.csv", index=False)
-    plot_rain(rain_month, rain)
+    plot_rain(rain_days, rain)
 
     heat_days = pd.read_parquet(PROC_DIR / "wbgt_station_days.parquet")
     table = comparison(heat_days, rain_days, psi.assign(day=psi["day"]))

@@ -11,7 +11,7 @@ Heat is common but short. Rain is short and local. Haze is rare, but when it com
 | Peril | Measure | Period | Locations |
 |---|---|---|---|
 | Heat | WBGT (heat stress), every 15 minutes | 16 Jan 2025 to 7 Nov 2026 (661 days) | 8 stations at the start, 30 at the end. Trends use the 7 stations that reported all period. |
-| Rain | Rainfall, every 5 minutes, summed per hour | 16 Jan 2025 to 8 Nov 2026 | 54 to 90 rain gauges per day (median 61) |
+| Rain | Rainfall, every 5 minutes, summed per hour | 2 Dec 2016 to 8 Nov 2026 (27 days have no data at the source) | 37 to 90 rain gauges per day (median 62) |
 | Haze | 24-hour PSI, hourly | 9 Mar 2016 to 7 Nov 2026 | 5 regions |
 
 NEA WBGT history starts in January 2025. Other NEA feeds start in 2016.
@@ -26,10 +26,14 @@ NEA WBGT history starts in January 2025. Other NEA feeds start in 2016.
 
 ## Rain
 
-- A heavy hour is **20 mm or more in one hour**, in work hours. It happened on **4.8%** of days at a gauge, about 17 days a year. At 10 mm the share is 10.4%. At 30 mm it is 2.2%.
-- Somewhere in Singapore, a heavy hour happened on 36% of days.
-- Rain is **local**. On a day with a heavy hour, on average only **14%** of gauges had one.
-- Rain is short. A gauge had on average 0.6 wet work hours (1 mm or more) per day.
+Rain now covers 10 years (2 Dec 2016 to 8 Nov 2026). The 10-year numbers are close to the numbers for Jan 2025 to Nov 2026, so the first findings hold.
+
+- A heavy hour is **20 mm or more in one hour**, in work hours. It happened on **5.1%** of days at a gauge, about 19 days a year. At 10 mm the share is 11.7%. At 30 mm it is 2.3%.
+- Somewhere in Singapore, a heavy hour happened on 39% of days.
+- Rain is **local**. On a day with a heavy hour, on average only **13%** of gauges had one.
+- Rain is short. A gauge had on average 0.7 wet work hours (1 mm or more) per day.
+- Rain has **seasons**. The share is highest in November (8.1%) and April (7.4%), and lowest in January and August (3.6%).
+- Years differ less than haze does. The share went from 3.3% (2019) to 6.2% (2023) in the full years.
 
 ## Haze
 
@@ -43,7 +47,8 @@ NEA WBGT history starts in January 2025. Other NEA feeds start in 2016.
 | Peril (trigger) | Days at one location | Days anywhere | Locations hit on an event day |
 |---|---|---|---|
 | Heat: WBGT 32°C or more in work hours | 22% | 55% | 40% |
-| Rain: an hour of 20 mm or more in work hours | 4.8% | 36% | 14% |
+| Rain: an hour of 20 mm or more in work hours (2025 to 2026) | 4.8% | 36% | 14% |
+| Rain: an hour of 20 mm or more in work hours (2016 to 2026) | 5.1% | 39% | 13% |
 | Haze: 24-hour PSI above 100 (2025 to 2026) | 4.2% | 6.1% | 70% |
 | Haze: 24-hour PSI above 100 (2016 to 2026) | 0.9% | 1.5% | 66% |
 
@@ -62,6 +67,7 @@ NEA WBGT history starts in January 2025. Other NEA feeds start in 2016.
 
 ## Limits of this data
 
-- Heat and rain cover under 2 years. That is two hot seasons, not "decades of history".
+- Heat covers under 2 years. That is two hot seasons, not "decades of history".
+- Rain covers 10 years, but 27 days have no data at the source.
 - Haze covers 10 years, but 130 days have no data at the source.
 - The prices in the app are indicative only. A real price needs a longer back-test and Income's actuaries.

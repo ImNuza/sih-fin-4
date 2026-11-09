@@ -8,7 +8,7 @@ Built for the Singapore-India Hackathon 2026, FinTech / InsurTech track. Income 
 
 - NEA data from data.gov.sg, already committed:
   - Heat stress (WBGT), every 15 minutes, from 16 Jan 2025.
-  - Rainfall per gauge, summed per hour, from 16 Jan 2025.
+  - Rainfall per gauge, summed per hour, from 2 Dec 2016.
   - Haze (24-hour PSI and PM2.5) by region, hourly, from 9 Mar 2016.
 - An analysis of how often each peril happens, how long it lasts and how much of Singapore it covers at once. Start with [`docs/notes/climate-data-findings-2026-11-09.md`](docs/notes/climate-data-findings-2026-11-09.md), or open the team report [`docs/reports/fin4-climate-data-findings-2026-11-09.html`](docs/reports/fin4-climate-data-findings-2026-11-09.html) in a browser.
 - A local dashboard (`app/`) to explore the data and try trigger and price ideas.
