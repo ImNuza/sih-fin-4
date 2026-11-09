@@ -63,9 +63,7 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--start", type=date.fromisoformat, default=DEFAULT_START)
-    parser.add_argument(
-        "--end", type=date.fromisoformat, default=date.today() - timedelta(days=1)
-    )
+    parser.add_argument("--end", type=date.fromisoformat, default=date.today() - timedelta(days=1))
     parser.add_argument("--workers", type=int, default=2)
     args = parser.parse_args()
 
@@ -95,9 +93,7 @@ def main() -> None:
         if not frames:
             continue
         hourly = pd.concat(frames, ignore_index=True)
-        hourly = hourly.drop_duplicates(["hour", "station_id"]).sort_values(
-            ["hour", "station_id"]
-        )
+        hourly = hourly.drop_duplicates(["hour", "station_id"]).sort_values(["hour", "station_id"])
         for month, part in hourly.groupby(hourly["hour"].dt.strftime("%Y-%m")):
             part.reset_index(drop=True).to_parquet(
                 OUT_DIR / f"rain_hourly_{month}.parquet", index=False
@@ -115,9 +111,7 @@ def main() -> None:
     )
     if failed_years:
         details = "\n".join(failed_years[year] for year in sorted(failed_years))
-        raise RuntimeError(
-            f"Some years did not finish. Rerun to fetch them.\n{details}"
-        )
+        raise RuntimeError(f"Some years did not finish. Rerun to fetch them.\n{details}")
 
 
 if __name__ == "__main__":

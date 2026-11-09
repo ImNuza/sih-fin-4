@@ -50,14 +50,10 @@ MIN_EPISODE_DAYS = 1
 
 def load_psi() -> pd.DataFrame:
     frame = pd.concat(
-        pd.read_parquet(p)
-        for p in sorted((REPO_ROOT / "data" / "psi").glob("psi_*.parquet"))
+        pd.read_parquet(p) for p in sorted((REPO_ROOT / "data" / "psi").glob("psi_*.parquet"))
     )
     frame["day"] = (
-        frame["timestamp"]
-        .dt.tz_convert("Asia/Singapore")
-        .dt.tz_localize(None)
-        .dt.normalize()
+        frame["timestamp"].dt.tz_convert("Asia/Singapore").dt.tz_localize(None).dt.normalize()
     )
     return frame
 
@@ -76,9 +72,7 @@ def psi_daily(psi: pd.DataFrame) -> pd.DataFrame:
 
 def psi_yearly(daily: pd.DataFrame) -> pd.DataFrame:
     daily = daily.assign(year=daily["day"].dt.year)
-    out = daily.groupby("year").agg(
-        days_with_data=("day", "count"), psi_peak=("psi_max", "max")
-    )
+    out = daily.groupby("year").agg(days_with_data=("day", "count"), psi_peak=("psi_max", "max"))
     out["days_unhealthy"] = (
         daily.assign(x=daily["psi_max"] > PSI_UNHEALTHY).groupby("year")["x"].sum()
     )
@@ -97,9 +91,7 @@ def psi_episodes(daily: pd.DataFrame) -> pd.DataFrame:
         if hazy.iloc[i] and start is None:
             start = day
         last_of_run = hazy.iloc[i] and (
-            i + 1 == len(days)
-            or not hazy.iloc[i + 1]
-            or days[i + 1] - day > pd.Timedelta(days=1)
+            i + 1 == len(days) or not hazy.iloc[i + 1] or days[i + 1] - day > pd.Timedelta(days=1)
         )
         if last_of_run:
             part = daily[(daily["day"] >= start) & (daily["day"] <= day)]
@@ -116,9 +108,7 @@ def psi_episodes(daily: pd.DataFrame) -> pd.DataFrame:
             )
             start = None
     out = pd.DataFrame(episodes)
-    return (
-        out[out["days"] >= MIN_EPISODE_DAYS].sort_values("start") if len(out) else out
-    )
+    return out[out["days"] >= MIN_EPISODE_DAYS].sort_values("start") if len(out) else out
 
 
 def plot_psi(daily: pd.DataFrame) -> None:
@@ -162,9 +152,7 @@ def load_rain() -> pd.DataFrame:
     )
     local = frame["hour"].dt.tz_convert("Asia/Singapore")
     frame["day"] = local.dt.tz_localize(None).dt.normalize()
-    frame["work_hour"] = (local.dt.hour >= WORK_START_HOUR) & (
-        local.dt.hour < WORK_END_HOUR
-    )
+    frame["work_hour"] = (local.dt.hour >= WORK_START_HOUR) & (local.dt.hour < WORK_END_HOUR)
     return frame
 
 
@@ -195,9 +183,7 @@ def rain_monthly(days: pd.DataFrame) -> pd.DataFrame:
     out["share_station_days_ge_20mm_hour"] = (
         days.assign(x=days["hours_ge_20mm"] > 0).groupby("month")["x"].mean().round(3)
     )
-    out["avg_wet_work_hours_per_station_day"] = (
-        days.groupby("month")["wet_hours"].mean().round(2)
-    )
+    out["avg_wet_work_hours_per_station_day"] = days.groupby("month")["wet_hours"].mean().round(2)
     return out.reset_index()
 
 
@@ -230,20 +216,14 @@ def plot_rain(days: pd.DataFrame, rain: pd.DataFrame) -> None:
     )
     for ax in (ax_month, ax_year):
         style_axes(ax)
-    bars = ax_month.bar(
-        range(12), by_month, width=0.6, color=BAR, edgecolor=SURFACE, linewidth=2
-    )
+    bars = ax_month.bar(range(12), by_month, width=0.6, color=BAR, edgecolor=SURFACE, linewidth=2)
     label_bars(ax_month, bars, by_month)
     month_names = pd.date_range("2001-01-01", periods=12, freq="MS").strftime("%b")
     ax_month.set_xticks(range(12), month_names, fontsize=9)
-    ax_month.set_title(
-        "By calendar month, all years", loc="left", fontsize=10, color=INK
-    )
+    ax_month.set_title("By calendar month, all years", loc="left", fontsize=10, color=INK)
     ax_month.set_ylabel("% of station-days", color=INK_2)
 
-    colors = [
-        MUTED if year in (first_year, last_year) else BAR for year in by_year.index
-    ]
+    colors = [MUTED if year in (first_year, last_year) else BAR for year in by_year.index]
     bars = ax_year.bar(
         range(len(by_year)),
         by_year,
@@ -292,16 +272,12 @@ def spread(days: pd.DataFrame, hit_column: str) -> float:
     return round((per_day["sum"] / per_day["count"]).mean(), 2)
 
 
-def comparison(
-    heat_days: pd.DataFrame, rain_days: pd.DataFrame, psi: pd.DataFrame
-) -> pd.DataFrame:
+def comparison(heat_days: pd.DataFrame, rain_days: pd.DataFrame, psi: pd.DataFrame) -> pd.DataFrame:
     """Each peril over the WBGT period (like for like), then rain and haze over all years."""
     heat_days = heat_days[heat_days["station_id"].isin(core_station_ids(heat_days))]
     heat = heat_days.assign(hit=heat_days["max_wbgt"] >= 32)
     rain = rain_days.assign(hit=rain_days["hours_ge_20mm"] > 0)
-    region_days = (
-        psi.groupby(["region", "day"])["psi_twenty_four_hourly"].max().reset_index()
-    )
+    region_days = psi.groupby(["region", "day"])["psi_twenty_four_hourly"].max().reset_index()
     haze = region_days.assign(hit=region_days["psi_twenty_four_hourly"] > PSI_UNHEALTHY)
     wbgt_start = heat["day"].min()
     rows = []
@@ -317,9 +293,7 @@ def comparison(
                 "peril": name,
                 "period": period_label(frame["day"]),
                 "share_days_one_location": round(frame["hit"].mean(), 3),
-                "share_days_anywhere": round(
-                    frame.groupby("day")["hit"].max().mean(), 3
-                ),
+                "share_days_anywhere": round(frame.groupby("day")["hit"].max().mean(), 3),
                 "share_of_locations_hit_on_event_days": spread(frame, "hit"),
             }
         )
