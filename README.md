@@ -11,7 +11,7 @@ Built for the Singapore-India Hackathon 2026, FinTech / InsurTech track. Income 
   - Rainfall per gauge, summed per hour, from 2 Dec 2016.
   - Haze (24-hour PSI and PM2.5) by region, hourly, from 9 Mar 2016.
 - An analysis of how often each peril happens, how long it lasts and how much of Singapore it covers at once. Start with [`docs/notes/climate-data-findings-2026-11-09.md`](docs/notes/climate-data-findings-2026-11-09.md), or open the team report [`docs/reports/fin4-climate-data-findings-2026-11-09.html`](docs/reports/fin4-climate-data-findings-2026-11-09.html) in a browser.
-- A local dashboard (`app/`) to explore the data and try trigger and price ideas.
+- A dashboard (`app/`) to explore the data and try trigger and price ideas. It runs locally, and a hosted copy updates from `main` (see `deploy/README.md`).
 
 ## Quick start
 
@@ -41,6 +41,7 @@ Run one fetch script at a time. The data.gov.sg rate limit is strict (see `AGENT
 
 ```
 app/              Streamlit dashboard.
+deploy/           Hosted copy: deploy script and systemd timer.
 scripts/          Data download and analysis scripts.
 data/wbgt/        NEA WBGT readings, one Parquet file per month.
 data/psi/         NEA PSI and PM2.5 by region, one Parquet file per year.

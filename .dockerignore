@@ -1,0 +1,10 @@
+# Allow list: only what the dashboard image needs. Keys, .env and raw data never enter the build.
+*
+!pyproject.toml
+!uv.lock
+!app/
+!scripts/dgs.py
+!data/
+data/raw/
+**/__pycache__/
+**/.DS_Store

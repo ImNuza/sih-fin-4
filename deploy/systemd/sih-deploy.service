@@ -1,0 +1,7 @@
+[Unit]
+Description=Pull main and redeploy the SIH dashboard
+
+[Service]
+Type=oneshot
+Environment=DOCKER_HOST=unix://%t/docker.sock
+ExecStart=%h/bin/sih-pull-deploy

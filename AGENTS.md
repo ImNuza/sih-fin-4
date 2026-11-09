@@ -8,6 +8,7 @@ This is an open-source project: strangers will read the code, so it must be plai
 
 - `uv sync`: install dependencies.
 - `uv run streamlit run app/app.py`: the local dashboard on http://localhost:8501 (heat, rain, haze, trigger and price explorer, live readings).
+- Hosted copy: `Dockerfile`, `compose.yaml` and `deploy/` (see `deploy/README.md`). A push to `main` redeploys it within about 10 minutes. Never put a secret in the image.
 - `uv run scripts/fetch_wbgt.py`: NEA WBGT readings to `data/wbgt/`. Rerun to add new days.
 - `uv run scripts/fetch_psi.py`: PSI and PM2.5 by region, from Mar 2016, to `data/psi/`.
 - `uv run scripts/fetch_rainfall.py`: rainfall summed per hour per gauge, from Jan 2025, to `data/rainfall/`. `--start 2016-12-02` gets the full history (slow).
