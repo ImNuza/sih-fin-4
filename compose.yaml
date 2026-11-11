@@ -1,5 +1,7 @@
-# Hosted dashboard. The app sits on a network with no internet. cloudflared is the only way in.
-# Run on the server as the hosting user. TUNNEL_TOKEN comes from an env file outside the repo:
+# Hosted dashboard. cloudflared is the only way in. The server's firewall blocks the hosting user
+# from localhost and the LAN, so the app can reach the public internet only (for the Live tab).
+# Run on the server as the hosting user. TUNNEL_TOKEN and DATA_GOV_SG_API_KEY_DEV come from an
+# env file outside the repo:
 #   docker compose --env-file ~/secrets/sih-fin-4.env up -d --build
 name: sih-fin-4
 
@@ -15,7 +17,10 @@ services:
     security_opt: [no-new-privileges:true]
     mem_limit: 1536m
     pids_limit: 256
-    networks: [sealed]
+    environment:
+      SIH_LIVE_DATA: "on"
+      DATA_GOV_SG_API_KEY_DEV: ${DATA_GOV_SG_API_KEY_DEV:?missing in the env file}
+    networks: [sealed, internet]
 
   tunnel:
     image: cloudflare/cloudflared:2026.10.1
