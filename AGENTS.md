@@ -8,11 +8,14 @@ This is an open-source project: strangers will read the code, so it must be plai
 
 - `uv sync`: install dependencies.
 - `uv run streamlit run app/app.py`: the local dashboard on http://localhost:8501 (heat, rain, haze, trigger and price explorer, live readings).
-- Hosted copy: `Dockerfile`, `compose.yaml` and `deploy/` (see `deploy/README.md`). A push to `main` redeploys it within about 10 minutes. Never put a secret in the image.
+- Hosted copy: `Dockerfile` (dashboard), `api/Dockerfile` (pricing API), `compose.yaml` (with Postgres for the API) and `deploy/` (see `deploy/README.md`). A push to `main` redeploys it within about 10 minutes. Never put a secret in the image.
 - `uv run scripts/fetch_wbgt.py`: NEA WBGT readings to `data/wbgt/`. Rerun to add new days.
 - `uv run scripts/fetch_psi.py`: PSI and PM2.5 by region, from Mar 2016, to `data/psi/`.
 - `uv run scripts/fetch_rainfall.py`: rainfall summed per hour per gauge, from Jan 2025, to `data/rainfall/`. `--start 2016-12-02` gets the full history (slow).
 - `uv run scripts/heat_stats.py`, then `uv run scripts/hazard_stats.py`: stats to `data/processed/` and charts to `docs/figures/`.
+- `uv run scripts/region_hazard_readings.py`: how often each haze, rain and heat reading happened per PSI region, to `data/processed/region_hazard_readings.csv`, the history the pricing API prices from.
+- `ADMIN_USERNAME=... ADMIN_PASSWORD=... uv run uvicorn api.main:app --reload`: the pricing API on http://localhost:8000 (docs at `/docs`) and the admin panel at `/admin/`. Without `DATABASE_URL` it saves to the SQLite file `api/tariff.db`; the hosted copy uses Postgres.
+- `uv run pytest`: tests for the pricing API.
 - `scripts/dgs.py`: shared data.gov.sg client (API keys, User-Agent, retries, pagination, cache). Reuse it for new feeds.
 - Raw API pages are cached per day in `data/raw/<feed>/`. A rerun only fetches missing days.
 
@@ -29,6 +32,9 @@ Before saying a task is done, run every script the change touches and check its 
 - `docs/figures/`: charts made by the scripts.
 - `docs/reports/`: HTML reports for the team (html-digest skill).
 - `app/`: Streamlit dashboard (`app.py` pages, `data.py` loaders).
+- `api/`: pricing API (`main.py` routes, `calculator.py` loss score and premium, `models.py` tariff and request shapes, `store.py` saved tariff versions) and the admin panel in `api/admin/` (plain HTML, CSS and JavaScript, no build step).
+- `api/default_tariff.json`: the first tariff. After that, admins change the tariff in the admin panel, and every save is a new version in the tariff database.
+- `tests/`: pytest tests.
 - A new data.gov.sg feed gets a `scripts/fetch_<feed>.py` that uses `DgsClient`. Never write a second HTTP client.
 - Shared helpers go in an existing module only when two scripts need them. No `utils.py`.
 - A new reference or research file gets a row in its folder's index.
@@ -52,7 +58,7 @@ Before saying a task is done, run every script the change touches and check its 
 - Small functions that do one thing. Straight-line code, no class where a function will do.
 - Units go in names or constants (`READING_HOURS = 0.25`). No magic numbers inside functions. Paths come from `REPO_ROOT` in `dgs.py`.
 - **No redundant code:** no dead code, unused imports, commented-out code, duplicate logic or speculative options. Use pandas, the standard library or a well-known package before writing our own.
-- Add a dependency only when it removes real work, with `uv add`. Commit `pyproject.toml` and `uv.lock` together.
+- Add a dependency only when it removes real work, with `uv add --group <group>`: `analysis` for the scripts and the dashboard, `api` for the pricing API, `dev` for tests. Each Docker image installs only its own group. Commit `pyproject.toml` and `uv.lock` together.
 - **Comments:** default to none. Write one only when the *why* isn't obvious (an API quirk, a data gap, a regulator's rule). No comments that restate the code, narrate steps, describe history, or mention tasks or AI tools. No emojis.
 - Each script starts with a short docstring: what it does, how to run it, what it reads and writes.
 - Python 3.11+, `from __future__ import annotations`, type hints on signatures, imports grouped std / third-party / local, lines up to 100 characters.

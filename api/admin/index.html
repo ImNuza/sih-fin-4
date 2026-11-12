@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeDay tariff desk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="admin.css" />
+    <script src="admin.js" defer></script>
+  </head>
+  <body>
+    <main id="login" class="login" hidden>
+      <form class="login-card" id="login-form">
+        <p class="brand">SafeDay <span>tariff desk</span></p>
+        <h1>Sign in to edit the tariff</h1>
+        <label>Username <input name="username" autocomplete="username" required /></label>
+        <label>
+          Password
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="error" id="login-error" role="alert"></p>
+        <button class="primary" type="submit">Sign in</button>
+      </form>
+    </main>
+
+    <div id="desk" class="desk" hidden>
+      <header class="topbar">
+        <p class="brand">SafeDay <span>tariff desk</span></p>
+        <p class="version" id="version"></p>
+        <div class="actions">
+          <button id="discard" type="button" disabled>Discard changes</button>
+          <button id="review" class="primary" type="button" disabled>Review changes</button>
+          <button id="sign-out" class="quiet" type="button">Sign out</button>
+        </div>
+      </header>
+
+      <nav class="sections" id="sections" aria-label="Tariff sections"></nav>
+
+      <section class="editor" id="editor" aria-live="polite"></section>
+
+      <aside class="preview" aria-label="Preview">
+        <h2>Preview</h2>
+        <p class="hint">Prices the unsaved tariff as you edit.</p>
+        <div class="pickers">
+          <label>Region <select id="region"></select></label>
+          <label>Product <select id="product"></select></label>
+        </div>
+        <div id="preview-error" class="error-box" role="alert" hidden></div>
+        <div id="quote"></div>
+        <h3>Try a day</h3>
+        <p class="hint">Enter the day's readings. Leave a hazard empty if it did not happen.</p>
+        <div id="readings" class="readings"></div>
+        <div id="assessment"></div>
+      </aside>
+    </div>
+
+    <dialog id="review-dialog" class="review" aria-labelledby="review-title">
+      <form method="dialog">
+        <header>
+          <h2 id="review-title">Review changes</h2>
+          <p class="hint" id="review-summary"></p>
+        </header>
+        <div id="review-changes"></div>
+        <h3 id="impact-title"></h3>
+        <div id="review-impact"></div>
+        <div id="review-error" class="error-box" role="alert" hidden></div>
+        <footer>
+          <button type="submit">Keep editing</button>
+          <button id="apply" class="primary" type="button">Apply changes</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <p class="toast" id="toast" role="status" hidden></p>
+  </body>
+</html>

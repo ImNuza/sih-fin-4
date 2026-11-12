@@ -8,7 +8,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv
 WORKDIR /srv/app
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-default-groups --group analysis --no-install-project
 COPY app/ app/
 COPY scripts/dgs.py scripts/
 COPY data/ data/

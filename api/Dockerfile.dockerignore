@@ -1,0 +1,9 @@
+# Allow list: only what the API image needs. Keys, .env and the local tariff database never enter it.
+*
+!pyproject.toml
+!uv.lock
+!api/
+!data/processed/region_hazard_readings.csv
+api/tariff.db
+**/__pycache__/
+**/.DS_Store
