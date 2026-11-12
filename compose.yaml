@@ -1,7 +1,8 @@
-# Hosted dashboard. cloudflared is the only way in. The server's firewall blocks the hosting user
-# from localhost and the LAN, so the app can reach the public internet only (for the Live tab).
-# Run on the server as the hosting user. TUNNEL_TOKEN and DATA_GOV_SG_API_KEY_DEV come from an
-# env file outside the repo:
+# Hosted dashboard and pricing API. cloudflared is the only way in. The server's firewall blocks the
+# hosting user from localhost and the LAN, so the dashboard can reach the public internet only (for
+# the Live tab). The pricing API and its Postgres database have no internet at all.
+# Run on the server as the hosting user. TUNNEL_TOKEN, DATA_GOV_SG_API_KEY_DEV, ADMIN_USERNAME,
+# ADMIN_PASSWORD and POSTGRES_PASSWORD come from an env file outside the repo:
 #   docker compose --env-file ~/secrets/sih-fin-4.env up -d --build
 name: sih-fin-4
 
@@ -21,6 +22,50 @@ services:
       SIH_LIVE_DATA: "on"
       DATA_GOV_SG_API_KEY_DEV: ${DATA_GOV_SG_API_KEY_DEV:?missing in the env file}
     networks: [sealed, internet]
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: sih-fin-4-api:latest
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    pids_limit: 128
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?Set ADMIN_USERNAME in the env file}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in the env file}
+      DATABASE_URL: postgresql+psycopg://safeday:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the env file}@db:5432/safeday
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [sealed]
+
+  db:
+    image: postgres:18.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: safeday
+      POSTGRES_DB: safeday
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the env file}
+    volumes:
+      - tariff-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "--username=safeday", "--dbname=safeday"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # The entrypoint starts as root to set up the data folder, then drops to the postgres user.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    pids_limit: 128
+    networks: [sealed]
 
   tunnel:
     image: cloudflare/cloudflared:2026.10.1
@@ -42,3 +87,6 @@ networks:
   sealed:
     internal: true
   internet: {}
+
+volumes:
+  tariff-db: {}
