@@ -3,14 +3,33 @@ name = "sih-fin-4"
 version = "0.1.0"
 description = "Data work for SIH 2026 FinTech/InsurTech: NEA weather data for parametric climate insurance"
 requires-python = ">=3.11"
-dependencies = [
-    "requests>=2.32",
+dependencies = []
+
+[tool.uv]
+package = false
+default-groups = ["analysis", "api", "dev"]
+
+[dependency-groups]
+analysis = [
     "pandas>=2.2",
     "pyarrow>=17",
+    "requests>=2.32",
     "matplotlib>=3.9",
     "streamlit>=1.67.0",
     "plotly>=7.1.0",
 ]
+api = [
+    "numpy>=2.0",
+    "fastapi>=0.162.5",
+    "uvicorn>=0.54.0",
+    "sqlalchemy>=2.1.8",
+    "psycopg[binary]>=3.3.9",
+]
+dev = [
+    "httpx2>=2.16.0",
+    "pytest>=9.2.0",
+]
 
-[tool.uv]
-package = false
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

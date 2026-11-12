@@ -1,0 +1,86 @@
+{
+  "hazards": [
+    {
+      "key": "haze",
+      "label": "Haze",
+      "reading": "Highest 24-hour PSI of the day in the region",
+      "weight": 0.8,
+      "scaled_by_product": true,
+      "bands": [
+        {"at_least": 101, "severity": 0.3},
+        {"at_least": 201, "severity": 0.6},
+        {"at_least": 301, "severity": 1.0}
+      ],
+      "assumed_days_per_year": null,
+      "source": "NEA 24-hour PSI by region, Mar 2016 to Nov 2026. Band levels are the NEA PSI bands. Severities are a starting assumption."
+    },
+    {
+      "key": "rain",
+      "label": "Heavy rain",
+      "reading": "Rain in the wettest work hour at the nearest gauge, mm",
+      "weight": 0.5,
+      "scaled_by_product": true,
+      "bands": [
+        {"at_least": 20, "severity": 0.3},
+        {"at_least": 30, "severity": 0.6},
+        {"at_least": 50, "severity": 1.0}
+      ],
+      "assumed_days_per_year": null,
+      "source": "NEA rain gauges, Dec 2016 to Nov 2026, work hours 7am to 7pm. Severities are a starting assumption."
+    },
+    {
+      "key": "heat",
+      "label": "Heat",
+      "reading": "Work hours with WBGT at 32°C or more at the nearest station",
+      "weight": 0.4,
+      "scaled_by_product": true,
+      "bands": [
+        {"at_least": 2, "severity": 0.3},
+        {"at_least": 4, "severity": 0.6},
+        {"at_least": 6, "severity": 1.0}
+      ],
+      "assumed_days_per_year": null,
+      "source": "NEA WBGT stations, Jan 2025 to Nov 2026. 32°C is the MOM rest-break level. Severities are a starting assumption."
+    },
+    {
+      "key": "flood",
+      "label": "Flash flood",
+      "reading": "1 if a PUB flood alert covers the site, else 0",
+      "weight": 0.8,
+      "scaled_by_product": true,
+      "bands": [{"at_least": 1, "severity": 1.0}],
+      "assumed_days_per_year": 0,
+      "source": "No flood history in the repo yet. Priced at 0 days a year until PUB flood records are added."
+    },
+    {
+      "key": "closure",
+      "label": "Closure order",
+      "reading": "1 if a government order closes the business for the day, else 0",
+      "weight": 1.0,
+      "scaled_by_product": false,
+      "bands": [{"at_least": 1, "severity": 1.0}],
+      "assumed_days_per_year": 0,
+      "source": "No history. A closure stops all sales, so it pays the full tier payout. Set the assumed days with Income."
+    }
+  ],
+  "products": [
+    {"key": "cooked_food", "label": "Cooked food", "shelf_life_days": 0.5, "restock_every_days": 1, "demand_sensitivity": 1.0},
+    {"key": "fresh_produce", "label": "Fresh produce, meat and seafood", "shelf_life_days": 3, "restock_every_days": 1, "demand_sensitivity": 0.9},
+    {"key": "flowers", "label": "Flowers and plants", "shelf_life_days": 5, "restock_every_days": 3, "demand_sensitivity": 0.8},
+    {"key": "packaged_food", "label": "Packaged food and drinks", "shelf_life_days": 180, "restock_every_days": 7, "demand_sensitivity": 0.6},
+    {"key": "general_goods", "label": "Clothing and general goods", "shelf_life_days": 365, "restock_every_days": 30, "demand_sensitivity": 0.5}
+  ],
+  "tiers": [
+    {"key": "tier_1", "label": "Tier 1", "daily_payout_sgd": 20, "max_paid_days_per_year": 10},
+    {"key": "tier_2", "label": "Tier 2", "daily_payout_sgd": 40, "max_paid_days_per_year": 15},
+    {"key": "tier_3", "label": "Tier 3", "daily_payout_sgd": 70, "max_paid_days_per_year": 20},
+    {"key": "tier_4", "label": "Tier 4", "daily_payout_sgd": 100, "max_paid_days_per_year": 30}
+  ],
+  "pricing": {
+    "recovered_share": 0.5,
+    "uncertainty_load": 0.15,
+    "catastrophe_load": 0.1,
+    "expense_ratio": 0.25,
+    "gst_rate": 0.09
+  }
+}

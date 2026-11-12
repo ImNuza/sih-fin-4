@@ -21,3 +21,6 @@ data/raw/
 
 # Personal data from field research (PDPA)
 survey/private/
+
+# Local tariff database of the pricing API
+api/tariff.db
