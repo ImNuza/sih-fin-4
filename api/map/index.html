@@ -10,9 +10,9 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="map.css?v=10" />
+    <link rel="stylesheet" href="map.css?v=11" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="map.js?v=10" defer></script>
+    <script src="map.js?v=11" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
@@ -122,8 +122,9 @@
         <div class="circle-block">
           <div class="circle-actions">
             <button class="btn-mini" id="draw-circle" type="button">◯ Draw a circle</button>
-            <button class="btn-mini" id="clear-circle" type="button" hidden>✕ Clear</button>
-            <span class="circle-hint" id="circle-hint">Scope the day to one area: the readings then apply only inside it.</span>
+            <button class="btn-mini" id="remove-circle" type="button" hidden>✕ Remove</button>
+            <button class="btn-mini" id="clear-all" type="button" hidden>Clear all</button>
+            <span class="circle-hint" id="circle-hint">Scope a day to one area — draw several circles with their own readings to compare.</span>
           </div>
           <div class="slider" id="radius-row" hidden><i style="background:var(--accent)"></i>
             <label for="s-radius">Radius</label>

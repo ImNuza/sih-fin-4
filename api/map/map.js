@@ -24,10 +24,12 @@ const state = {
   sim: { psi: 0, rain: 0, heat: 0, flood: false },
   simExtra: {},                    // readings for tariff hazards beyond the four built-in ones
   simAssessment: null,             // latest POST /api/assess result for the sim readings
-  circle: null,                    // {lat, lng, radiusKm} the scenario is scoped to
-  drawing: null,                   // "center" | "radius" while the user draws
-  extraDays: 5,                    // frequency stress: days like this added per year
-  scn: null,                       // latest POST /api/map/scenario result
+  circles: [],                     // drawn scenario circles: {id, lat, lng, radiusKm, readings, extraDays, scn}
+  activeId: null,                  // the circle the simulator's controls are editing
+  nextId: 1,
+  drawing: null,                   // "center" | "drag" while the user draws
+  draft: null,                     // the circle being drawn
+  extraDays: 5,                    // frequency stress buffer: days like this added per year
   live: null,                      // latest /api/map/live snapshot
   livePoll: null,
   zoom: 10.6,
@@ -89,14 +91,17 @@ function verdict(quote) {
   return { cls: "serious", word: "Refer to underwriter", tier,
     detail: `${quote.expected_loss_days.toFixed(1)} expected loss-days/yr price every tier above ${SGD0(COPAY_WEEKLY_SGD)}/wk in this region.` };
 }
-function insideCircle(point) {
-  return state.circle && haversineKm(state.circle, point) <= state.circle.radiusKm;
+function activeCircle() { return state.circles.find((c) => c.id === state.activeId) || null; }
+function circlesAt(point) {
+  return state.circles.filter((c) => haversineKm(c, point) <= c.radiusKm);
 }
 function currentLossFraction(index) {
   if (state.mode === "sim") {
-    if (state.circle) {
-      if (!insideCircle(STATIC.hawker_centres[index])) return 0;
-      return state.scn ? state.scn.assessment.loss_percent / 100 : 0;
+    if (state.circles.length) {
+      let worst = 0;
+      for (const circle of circlesAt(STATIC.hawker_centres[index]))
+        if (circle.scn) worst = Math.max(worst, circle.scn.assessment.loss_percent / 100);
+      return worst;
     }
     return state.simAssessment ? state.simAssessment.loss_percent / 100 : 0;
   }
@@ -144,7 +149,7 @@ function rainLift(gauge) {
   return gauge.share_days_ge_20 * 26000;
 }
 function smeColor(centre, index) {
-  if (state.mode === "sim" && state.circle && !insideCircle(centre)) return [70, 74, 80, 150];
+  if (state.mode === "sim" && state.circles.length && !circlesAt(centre).length) return [70, 74, 80, 150];
   if (state.mode !== "history") {
     const t = Math.min(1, currentLossFraction(index));
     return [0, 1, 2].map((i) => COLORS.lossLow[i] + (COLORS.lossHigh[i] - COLORS.lossLow[i]) * t).concat(235);
@@ -235,14 +240,34 @@ function buildLayers() {
     fontFamily: "Schibsted Grotesk, sans-serif", fontWeight: 600,
     outlineWidth: 2, outlineColor: [16, 18, 20, 255], fontSettings: { sdf: true },
   }));
-  if (state.mode === "sim" && state.circle) layers.push(new ScatterplotLayer({
-    id: "circle", data: [state.circle], pickable: false, stroked: true, filled: true,
-    getPosition: (d) => [d.lng, d.lat],
-    getRadius: (d) => d.radiusKm * 1000, radiusUnits: "meters",
-    getFillColor: [134, 182, 239, 26],
-    getLineColor: [134, 182, 239, state.drawing ? 255 : 190], getLineWidth: 2, lineWidthUnits: "pixels",
-    updateTriggers: { getRadius: [state.rev], getLineColor: [state.rev] },
-  }));
+  if (state.mode === "sim" && (state.circles.length || state.draft)) {
+    const circles = state.draft ? state.circles.concat([state.draft]) : state.circles;
+    layers.push(new ScatterplotLayer({
+      id: "circles", data: circles, pickable: false, stroked: true, filled: true,
+      getPosition: (d) => [d.lng, d.lat],
+      getRadius: (d) => d.radiusKm * 1000, radiusUnits: "meters",
+      getFillColor: (d) => [134, 182, 239, d === state.draft || d.id === state.activeId ? 30 : 13],
+      getLineColor: (d) => d === state.draft ? [134, 182, 239, 255]
+        : d.id === state.activeId ? [134, 182, 239, 210] : [137, 135, 129, 160],
+      getLineWidth: (d) => (d === state.draft || d.id === state.activeId ? 2 : 1.5),
+      lineWidthUnits: "pixels",
+      updateTriggers: { getRadius: [state.rev], getFillColor: [state.rev], getLineColor: [state.rev], getLineWidth: [state.rev] },
+    }));
+    const priced = state.circles.filter((c) => c.scn);
+    if (priced.length) layers.push(new TextLayer({
+      id: "circle-labels", data: priced, pickable: true,
+      getPosition: (d) => [d.lng, d.lat],
+      getText: (d) => ` C${d.id}  ${d.scn.assessment.loss_percent.toFixed(0)}% · ${SGD0(d.scn.totals.payout_today_sgd)}/day `,
+      getSize: 12.5,
+      getColor: (d) => (d.id === state.activeId ? [16, 18, 20, 255] : [242, 241, 237, 240]),
+      background: true, backgroundPadding: [7, 5],
+      getBackgroundColor: (d) => (d.id === state.activeId ? [134, 182, 239, 245] : [26, 28, 31, 230]),
+      getBorderColor: [134, 182, 239, 190], getBorderWidth: 1,
+      fontFamily: "Schibsted Grotesk, sans-serif", fontWeight: 600, fontSettings: { sdf: true },
+      onClick: (info) => { selectCircle(info.object.id); return true; },
+      updateTriggers: { getText: [state.rev], getColor: [state.rev], getBackgroundColor: [state.rev] },
+    }));
+  }
   if (zoom < 11.6) layers.push(new TextLayer({
     id: "region-labels",
     data: Object.entries(STATIC.region_points).map(([name, [lat, lng]]) => ({ name: name.toUpperCase(), lat, lng })),
@@ -266,38 +291,51 @@ function tooltip({ object, layer, index }) {
   if (layer.id === "heat") return { html: `<b>${object.name}</b><div class="m">WBGT ≥32 °C on ${(object.share_days_ge_32 * 100).toFixed(0)}% of days · max ${object.max_wbgt.toFixed(1)} °C</div>` };
   if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">20 mm hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of days (${object.days} days of record)</div>` };
   if (layer.id === "flood") return { html: `<b>${object.name}</b><div class="m">PUB flash-flood hotspot · location approximate</div>` };
+  if (layer.id === "circle-labels") return { html: `<b>Circle ${object.id}</b><div class="m">click to edit this circle's readings</div>` };
   if (layer.id === "pa") return { html: `<b>${object.properties.name}</b><div class="m">${object.properties.psi_region} PSI region · URA ${object.properties.ura_region}</div>` };
   return null;
 }
 
-/* ---------- scenario circle ---------- */
-let scenarioTimer = null, scenarioSeq = 0;
+/* ---------- scenario circles ---------- */
+let dragPending = false;
 function circleHint(text) { el("circle-hint").textContent = text; }
-function requestScenario() {
-  if (state.mode !== "sim" || !state.circle || state.drawing) return;
-  clearTimeout(scenarioTimer);
-  scenarioTimer = setTimeout(async () => {
-    const seq = ++scenarioSeq;
+const HINT_IDLE = "Scope a day to one area — draw several circles with their own readings to compare.";
+function requestScenario(circle) {
+  if (state.mode !== "sim" || !circle || state.drawing) return;
+  clearTimeout(circle.timer);
+  circle.timer = setTimeout(async () => {
+    const seq = (circle.seq = (circle.seq || 0) + 1);
     try {
       const result = await api.scenario({
-        lat: state.circle.lat, lng: state.circle.lng, radius_km: state.circle.radiusKm,
-        readings: simReadings(), extra_days_per_year: state.extraDays,
+        lat: circle.lat, lng: circle.lng, radius_km: circle.radiusKm,
+        readings: { ...circle.readings }, extra_days_per_year: circle.extraDays,
         product: "cooked_food", tier: state.tier,
       });
-      if (seq !== scenarioSeq) return;
-      state.scn = result;
+      if (seq !== circle.seq) return;
+      circle.scn = result;
       renderScenario(); redraw(); renderPortfolio(); renderDetail();
     } catch (error) { console.error(error); }
   }, 180);
 }
+function requestAllScenarios() { for (const circle of state.circles) requestScenario(circle); }
+function applyControlChange() {
+  const circle = activeCircle();
+  if (circle) {
+    circle.readings = simReadings();
+    circle.extraDays = state.extraDays;
+    requestScenario(circle);
+  } else {
+    refreshSimAssessment();
+  }
+}
 function renderScenario() {
-  const box = el("scn-results"), scn = state.scn;
-  if (!scn || !state.circle) { box.hidden = true; return; }
+  const box = el("scn-results"), circle = activeCircle(), scn = circle?.scn;
+  if (!scn) { box.hidden = true; return; }
   box.hidden = false;
   const t = scn.totals;
   const factors = scn.assessment.hazards.filter((h) => h.loss_percent > 0);
   box.innerHTML = `
-    <p class="cap">Inside the circle · ${t.centres} centres · ${t.stalls.toLocaleString("en-SG")} stalls</p>
+    <p class="cap">Circle ${circle.id} · ${t.centres} centres · ${t.stalls.toLocaleString("en-SG")} stalls</p>
     <div class="kv"><span class="k">Loss score on this day</span><span class="v">${scn.assessment.loss_percent.toFixed(0)}%</span></div>
     <div class="kv"><span class="k">Payout per stall (${state.tier.replace("_", " ")})</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
     <div class="kv"><span class="k">Payout, whole circle</span><span class="v">${SGD(t.payout_today_sgd)}</span></div>
@@ -307,89 +345,113 @@ function renderScenario() {
     ${factors.map((h) => `<div class="factor"><span>${QUOTES.hazard_labels[h.hazard] || h.hazard}</span>
       <div class="bar"><div style="width:${h.loss_percent}%;background:${CSS_BY_HAZARD[h.hazard] || "var(--accent)"}"></div></div>
       <output>${h.loss_percent.toFixed(0)}%</output></div>`).join("")}
-    <p class="note">Premium stress: days like this hitting ${state.extraDays} more times a year on top of the region's NEA history, repriced by the same engine. All numbers from the API.</p>`;
+    <p class="note">Each circle keeps its own readings and stress, priced by the API. Click a payout badge on the map to edit that circle.</p>`;
+}
+function syncControls(circle) {
+  state.sim = {
+    psi: circle.readings.haze || 0, rain: circle.readings.rain || 0,
+    heat: circle.readings.heat || 0, flood: !!circle.readings.flood,
+  };
+  state.simExtra = Object.fromEntries(Object.entries(circle.readings)
+    .filter(([key]) => !["haze", "rain", "heat", "flood"].includes(key)));
+  state.extraDays = circle.extraDays;
+  el("s-psi").value = state.sim.psi; el("v-psi").textContent = state.sim.psi;
+  el("psi-band").textContent = state.sim.psi > 0 ? psiBand(state.sim.psi) : "";
+  el("s-rain").value = state.sim.rain; el("v-rain").textContent = `${state.sim.rain} mm`;
+  el("s-heat").value = state.sim.heat; el("v-heat").textContent = `${state.sim.heat} h`;
+  el("s-flood").checked = state.sim.flood;
+  document.querySelectorAll("#extra-hazards [data-extra]").forEach((input) => {
+    const value = state.simExtra[input.dataset.extra] || 0;
+    if (input.type === "checkbox") input.checked = value >= 1;
+    else { input.value = value; const out = el(`xv-${input.dataset.extra}`); if (out) out.textContent = value; }
+  });
+  el("s-extradays").value = state.extraDays; el("v-extradays").textContent = `${state.extraDays} d`;
+  el("s-radius").value = circle.radiusKm; el("v-radius").textContent = `${circle.radiusKm.toFixed(1)} km`;
+}
+function selectCircle(id) {
+  if (state.drawing) return;
+  state.activeId = id;
+  const circle = activeCircle();
+  if (!circle) return;
+  el("sim").classList.remove("folded");
+  el("radius-row").hidden = false; el("extradays-row").hidden = false;
+  el("remove-circle").hidden = false; el("clear-all").hidden = state.circles.length < 2;
+  syncControls(circle);
+  circleHint(`Editing circle ${id} (${circle.radiusKm.toFixed(1)} km) — the sliders shape this circle's day.`);
+  renderScenario(); redraw(); renderPortfolio(); renderDetail();
 }
 const CONTROLLER_ON = { touchRotate: true, inertia: 260 };
 // While aiming, panning is off so a touchpad tap with a little jitter still lands as a click.
 const CONTROLLER_AIMING = { dragPan: false, dragRotate: false, touchRotate: false, scrollZoom: true, inertia: 0 };
 function startDrawing() {
-  state.drawing = "center"; state.scn = null;
+  state.drawing = "center"; state.draft = null;
   deckgl.setProps({ controller: CONTROLLER_AIMING });
   el("draw-circle").classList.add("on");
-  el("clear-circle").hidden = false;
-  circleHint("Tap to place a circle, or press and drag outward to draw one at your own size. Esc cancels; fine-tune with the radius slider after.");
-  renderScenario(); redraw();
+  circleHint("Tap to place a circle, or press and drag outward to draw one at your own size. Esc cancels.");
+  redraw();
 }
 function stopDrawing() {
-  state.drawing = null;
+  state.drawing = null; state.draft = null;
   deckgl.setProps({ controller: CONTROLLER_ON });
   el("draw-circle").classList.remove("on");
 }
-function clearCircle() {
-  state.circle = null; state.scn = null;
-  stopDrawing();
-  el("clear-circle").hidden = true;
-  el("radius-row").hidden = true;
-  el("extradays-row").hidden = true;
-  circleHint("Scope the day to one area: the readings then apply only inside it.");
-  renderScenario(); redraw(); renderPortfolio(); renderDetail();
+function newCircle(lat, lng, radiusKm) {
+  return { id: state.nextId++, lat, lng, radiusKm,
+           readings: simReadings(), extraDays: state.extraDays, scn: null };
 }
-function finalizeCircle() {
-  state.circle.radiusKm = Math.min(15, Math.max(0.2, state.circle.radiusKm));
+function commitCircle(circle) {
+  circle.radiusKm = Math.min(15, Math.max(0.2, circle.radiusKm));
+  state.circles.push(circle);
+  state.activeId = circle.id;
   stopDrawing();
-  el("radius-row").hidden = false;
-  el("extradays-row").hidden = false;
-  el("s-radius").value = state.circle.radiusKm;
-  el("v-radius").textContent = `${state.circle.radiusKm.toFixed(1)} km`;
-  circleHint(`${state.circle.radiusKm.toFixed(1)} km around ${state.circle.lat.toFixed(3)}, ${state.circle.lng.toFixed(3)} — every slider move reprices it on the backend.`);
-  requestScenario();
+  el("remove-circle").hidden = false;
+  el("clear-all").hidden = state.circles.length < 2;
+  el("radius-row").hidden = false; el("extradays-row").hidden = false;
+  el("s-radius").value = circle.radiusKm; el("v-radius").textContent = `${circle.radiusKm.toFixed(1)} km`;
+  circleHint(`Circle ${circle.id} set (${circle.radiusKm.toFixed(1)} km). Its payout floats on the map — click any badge to edit that circle, or draw another to compare.`);
+  requestScenario(circle);
   redraw();
+}
+function removeActiveCircle() {
+  state.circles = state.circles.filter((c) => c.id !== state.activeId);
+  state.activeId = state.circles.length ? state.circles[state.circles.length - 1].id : null;
+  if (state.activeId) { selectCircle(state.activeId); return; }
+  clearAllCircles();
+}
+function clearAllCircles() {
+  state.circles = []; state.activeId = null;
+  stopDrawing();
+  el("remove-circle").hidden = true; el("clear-all").hidden = true;
+  el("radius-row").hidden = true; el("extradays-row").hidden = true;
+  circleHint(HINT_IDLE);
+  renderScenario(); redraw(); renderPortfolio(); renderDetail();
 }
 function onMapClick(info) {
   if (state.drawing !== "center" || !info.coordinate) return;
   const [lng, lat] = info.coordinate;
-  state.circle = { lat, lng, radiusKm: +el("s-radius").value };
-  finalizeCircle();
+  commitCircle(newCircle(lat, lng, +el("s-radius").value));
 }
-let dragPending = false;
 function onMapDragStart(info) {
   if (state.drawing !== "center" || !info.coordinate) return;
   const [lng, lat] = info.coordinate;
-  state.circle = { lat, lng, radiusKm: 0.2 };
+  state.draft = newCircle(lat, lng, 0.2);
   state.drawing = "drag";
   redraw();
 }
 function onMapDrag(info) {
   if (state.drawing !== "drag" || !info.coordinate || dragPending) return;
   const [lng, lat] = info.coordinate;
-  state.circle.radiusKm = Math.min(15, Math.max(0.1, haversineKm(state.circle, { lat, lng })));
-  circleHint(`${state.circle.radiusKm.toFixed(1)} km — release to set.`);
+  state.draft.radiusKm = Math.min(15, Math.max(0.1, haversineKm(state.draft, { lat, lng })));
+  circleHint(`${state.draft.radiusKm.toFixed(1)} km — release to set.`);
   dragPending = true;
   requestAnimationFrame(() => { dragPending = false; redraw(); });
 }
 function onMapDragEnd() {
-  if (state.drawing === "drag") finalizeCircle();
+  if (state.drawing !== "drag") return;
+  const draft = state.draft;
+  state.draft = null;
+  commitCircle(draft);
 }
-function buildExtraHazardControls() {
-  const host = el("extra-hazards");
-  const known = new Set(["haze", "rain", "heat", "flood"]);
-  const extras = (QUOTES.hazards || []).filter((h) => !known.has(h.key));
-  host.innerHTML = extras.map((h) => h.binary
-    ? `<label class="floodrow"><input type="checkbox" data-extra="${h.key}" /> ${h.label} — ${h.reading}</label>`
-    : `<div class="slider"><i style="background:var(--accent)"></i>
-        <label for="x-${h.key}">${h.label}</label>
-        <input type="range" id="x-${h.key}" data-extra="${h.key}" min="0" max="${h.max}" step="1" value="0" />
-        <output id="xv-${h.key}">0</output></div>`).join("");
-  host.querySelectorAll("[data-extra]").forEach((input) =>
-    input.addEventListener("input", () => {
-      const value = input.type === "checkbox" ? (input.checked ? 1 : 0) : +input.value;
-      state.simExtra[input.dataset.extra] = value;
-      const out = el(`xv-${input.dataset.extra}`);
-      if (out) out.textContent = input.value;
-      refreshSimAssessment(); requestScenario();
-    }));
-}
-
 /* ---------- detail panel ---------- */
 function select(type, value) {
   if (state.drawing) return;
@@ -439,17 +501,21 @@ function premiumBuildup(tier) {
 function dayDetail(index, tier) {
   const loss = currentLossFraction(index);
   const centre = STATIC.hawker_centres[index];
-  const inCircle = state.mode === "sim" && state.circle && insideCircle(centre);
-  if (state.mode === "sim" && state.circle && !inCircle)
+  const containing = state.mode === "sim" && state.circles.length
+    ? circlesAt(centre).filter((c) => c.scn) : [];
+  if (state.mode === "sim" && state.circles.length && !containing.length)
     return `<div class="sec"><p class="cap">On the simulated day</p>
-      <p class="note">Outside the drawn circle: the scenario's readings do not apply here.</p></div>`;
+      <p class="note">Outside every drawn circle: the scenario readings do not apply here.</p></div>`;
+  const best = containing.length
+    ? containing.reduce((a, b) => (b.scn.assessment.loss_percent > a.scn.assessment.loss_percent ? b : a))
+    : null;
   const readings = state.mode === "live"
     ? state.live?.hawker_losses?.[index]?.readings
-    : { haze: state.sim.psi, rain: state.sim.rain, heat: state.sim.heat };
+    : best ? best.readings : { haze: state.sim.psi, rain: state.sim.rain, heat: state.sim.heat };
   if (state.mode === "history" || !readings) return "";
   const label = state.mode === "live" ? `Live today (${state.live?.date ?? ""})` : "On the simulated day";
-  const stressed = inCircle && state.scn ? state.scn.regions[centre.region] : null;
-  return `<div class="sec"><p class="cap">${label}${inCircle ? " · inside the circle" : ""}</p>
+  const stressed = best ? best.scn.regions[centre.region] : null;
+  return `<div class="sec"><p class="cap">${label}${best ? ` · circle ${best.id}` : ""}</p>
     <div class="kv"><span class="k">Readings here (PSI / mm / h ≥32)</span><span class="v">${Math.round(readings.haze)} / ${Math.round(readings.rain)} / ${readings.heat}</span></div>
     <div class="kv"><span class="k">Loss score (share of a normal day's sales)</span><span class="v">${(loss * 100).toFixed(0)}%</span></div>
     <div class="kv"><span class="k">Payout per stall at ${tier.label}</span><span class="v">${SGD(loss * tier.daily_payout_sgd)}</span></div>
@@ -554,15 +620,24 @@ function renderPortfolio() {
     expectedPayouts += tier.expected_paid_days * tier.daily_payout_sgd * centre.food_stalls;
     dayPayout += currentLossFraction(index) * tier.daily_payout_sgd * centre.food_stalls;
   });
-  if (state.mode === "sim" && state.circle && state.scn) {
-    const t = state.scn.totals;
-    el("p-n").textContent = `${t.stalls.toLocaleString("en-SG")} in circle`;
-    el("p-prem").textContent = `${SGD0(t.weekly_premium_baseline_sgd * 52)}/yr`;
-    el("p-pay-label").textContent = "Payout in the circle today";
-    el("p-pay").textContent = SGD0(t.payout_today_sgd);
-    el("p-note").textContent =
-      `${t.centres} centres affected. Stressed premium pool ${SGD0(t.weekly_premium_stressed_sgd * 52)}/yr `
-      + `if days like this hit ${state.extraDays} more times a year.`;
+  if (state.mode === "sim" && state.circles.length) {
+    const per = {};
+    for (const circle of state.circles) {
+      if (!circle.scn) continue;
+      const pay = circle.scn.assessment.payout_sgd;
+      for (const a of circle.scn.affected) {
+        if (!per[a.name] || pay > per[a.name].pay)
+          per[a.name] = { stalls: a.stalls, pay, base: a.weekly_baseline_sgd, stressed: a.weekly_stressed_sgd };
+      }
+    }
+    const rows = Object.values(per);
+    const circleStalls = rows.reduce((sum, r) => sum + r.stalls, 0);
+    el("p-n").textContent = `${circleStalls.toLocaleString("en-SG")} in ${state.circles.length} circle${state.circles.length > 1 ? "s" : ""}`;
+    el("p-prem").textContent = `${SGD0(rows.reduce((sum, r) => sum + r.stalls * r.base, 0) * 52)}/yr`;
+    el("p-pay-label").textContent = "Payout in the circles today";
+    el("p-pay").textContent = SGD0(rows.reduce((sum, r) => sum + r.stalls * r.pay, 0));
+    el("p-note").textContent = `Overlapping centres counted once, at their worst circle. Stressed pool `
+      + `${SGD0(rows.reduce((sum, r) => sum + r.stalls * r.stressed, 0) * 52)}/yr.`;
     return;
   }
   el("p-n").textContent = stalls.toLocaleString("en-SG");
@@ -613,8 +688,7 @@ function setSim(partial, preset) {
   el("psi-band").textContent = state.sim.psi > 0 ? psiBand(state.sim.psi) : "";
   el("v-rain").textContent = `${state.sim.rain} mm`;
   el("v-heat").textContent = `${state.sim.heat} h`;
-  refreshSimAssessment();
-  requestScenario();
+  applyControlChange();
   redraw();
 }
 
@@ -786,17 +860,19 @@ function wireUi() {
   document.querySelectorAll(".panel .fold").forEach((button) =>
     button.addEventListener("click", () => button.closest(".panel").classList.toggle("folded")));
   el("draw-circle").addEventListener("click", startDrawing);
-  el("clear-circle").addEventListener("click", clearCircle);
+  el("remove-circle").addEventListener("click", removeActiveCircle);
+  el("clear-all").addEventListener("click", clearAllCircles);
   el("s-radius").addEventListener("input", (e) => {
-    if (!state.circle) return;
-    state.circle.radiusKm = +e.target.value;
-    el("v-radius").textContent = `${state.circle.radiusKm.toFixed(1)} km`;
-    requestScenario(); redraw();
+    const circle = activeCircle();
+    if (!circle) return;
+    circle.radiusKm = +e.target.value;
+    el("v-radius").textContent = `${circle.radiusKm.toFixed(1)} km`;
+    requestScenario(circle); redraw();
   });
   el("s-extradays").addEventListener("input", (e) => {
     state.extraDays = +e.target.value;
     el("v-extradays").textContent = `${state.extraDays} d`;
-    requestScenario();
+    applyControlChange();
   });
   buildExtraHazardControls();
   const tierSelect = el("p-tier");
@@ -809,7 +885,7 @@ function wireUi() {
   tierSelect.value = state.tier;
   tierSelect.addEventListener("change", (e) => {
     state.tier = e.target.value;
-    refreshSimAssessment(); requestScenario(); renderPortfolio(); renderDetail();
+    refreshSimAssessment(); requestAllScenarios(); renderPortfolio(); renderDetail();
   });
 }
 
