@@ -14,7 +14,8 @@ FROM python:3.12.16-slim-trixie
 COPY --from=build /opt/venv /opt/venv
 WORKDIR /srv/app
 COPY api/ api/
-COPY data/processed/region_hazard_readings.csv data/processed/
+COPY scripts/dgs.py scripts/
+COPY data/processed/region_hazard_readings.csv data/processed/map_static.json data/processed/
 
 RUN useradd --uid 10002 --no-create-home --shell /usr/sbin/nologin pricing
 USER 10002
