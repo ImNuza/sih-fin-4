@@ -77,16 +77,28 @@ uv run scripts/build_map_static.py    # bundle to data/processed/map_static.json
 
 The starting weights and bands in `api/default_tariff.json` are assumptions for the team to agree. Premiums come from NEA history per region (haze, rain, heat). Flood and closure orders have no history in the repo yet, so they are priced at the assumed days a year set in the tariff.
 
+To tune the hazard models and run the payout back-test (on a machine with an NVIDIA GPU; see
+[`ml/README.md`](ml/README.md)):
+
+```bash
+uv run --group ml python -m ml.run_all
+```
+
 ## Layout
 
 ```
 api/              Pricing API, admin panel (api/admin/) and the first tariff.
+ml/               Hazard models: features, tuning, payout back-test. Output in ml/output/.
 app/              Streamlit dashboard.
 deploy/           Hosted copy: deploy script and systemd timer.
 scripts/          Data download and analysis scripts.
 data/wbgt/        NEA WBGT readings, one Parquet file per month.
 data/psi/         NEA PSI and PM2.5 by region, one Parquet file per year.
 data/rainfall/    NEA rainfall per gauge per hour, one Parquet file per month.
+data/psi/psi_history_24hr.parquet   NEA Historical 24-hr PSI by region, from Apr 2014.
+data/mss_daily/   MSS daily station records from 1980.
+data/era5/        ERA5 hourly reanalysis at the five PSI region centres from 1980.
+data/climate_indices/   Monthly ENSO (ONI) and Indian Ocean Dipole (DMI).
 data/processed/   Tables made by the analysis scripts.
 docs/figures/     Charts made by the analysis scripts.
 docs/reports/     HTML reports for the team, with the script that builds them.
