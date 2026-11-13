@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeDay risk atlas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="map.css" />
+    <script src="vendor/deck.min.js" defer></script>
+    <script src="map.js" defer></script>
+  </head>
+  <body>
+    <div id="map" aria-label="3D map of Singapore"></div>
+
+    <header class="topbar">
+      <p class="brand">SafeDay <span>risk atlas</span></p>
+      <nav class="modes" aria-label="Data mode">
+        <button id="mode-history" type="button" class="on">History</button>
+        <button id="mode-sim" type="button">Simulate a day</button>
+        <button id="mode-live" type="button">Live now</button>
+      </nav>
+      <p class="live-state" id="live-state" hidden></p>
+      <div class="actions">
+        <nav class="viewtoggle" aria-label="Audience">
+          <button id="view-owner" type="button">SME owner</button>
+          <button id="view-insurer" type="button" class="on">Insurer</button>
+        </nav>
+        <button id="about-open" class="quiet" type="button">Method &amp; data</button>
+      </div>
+    </header>
+
+    <p class="banner" id="flood-banner" role="status" hidden></p>
+
+    <aside class="panel layers" id="layers">
+      <h2>Layers</h2>
+      <p class="group">Exposure</p>
+      <label><input type="checkbox" id="ly-sme" checked /><i class="sw" style="background:#f2f1ed"></i>
+        <span id="sme-label">SMEs — hawker centres</span></label>
+      <p class="note">Dot size = cooked-food stalls (NEA). Colour = current view.</p>
+      <p class="group">Hazard</p>
+      <label><input type="checkbox" id="ly-heat" checked /><i class="sw" style="background:var(--heat)"></i>
+        <span>Heat — WBGT stations</span></label>
+      <p class="note" id="heat-note"></p>
+      <label><input type="checkbox" id="ly-rain" checked /><i class="sw" style="background:var(--rain)"></i>
+        <span>Rain — NEA gauges</span></label>
+      <p class="note" id="rain-note"></p>
+      <label><input type="checkbox" id="ly-haze" checked /><i class="sw" style="background:var(--haze)"></i>
+        <span>Haze — 5 PSI regions</span></label>
+      <p class="note" id="haze-note"></p>
+      <label><input type="checkbox" id="ly-flood" /><i class="sw ring" style="border-color:var(--flood)"></i>
+        <span>Flood — 19 PUB hotspots</span></label>
+      <p class="note">PUB hotspot list, 2 Feb 2026. Points are approximate geocodes of PUB's named roads.</p>
+      <p class="group">Base</p>
+      <label><input type="checkbox" id="ly-pa" checked /><i class="sw" style="background:#3a3e44"></i>
+        <span>Planning areas (URA MP2019)</span></label>
+      <p class="foot" id="sources-foot"></p>
+    </aside>
+
+    <p class="panel zoomchip" id="zoomchip">
+      <span class="step" data-z="island">Island</span><span class="sep">→</span>
+      <span class="step" data-z="region">Region</span><span class="sep">→</span>
+      <span class="step" data-z="site">Site</span>
+      <span class="sep">·</span><span>pinch or scroll to zoom, drag to rotate</span>
+    </p>
+
+    <aside class="panel sim" id="sim" hidden>
+      <h2>Day simulator <span class="hint">what would this day pay?</span></h2>
+      <div class="body">
+        <div class="presets">
+          <button class="preset" data-p="calm" type="button">Calm day</button>
+          <button class="preset" data-p="haze230" type="button">18 Oct 2026 · PSI 230</button>
+          <button class="preset" data-p="storm" type="button">50 mm storm hour</button>
+          <button class="preset" data-p="hot" type="button">4 h at 32 °C</button>
+        </div>
+        <div class="slider"><i style="background:var(--haze)"></i>
+          <label for="s-psi">PSI<span id="psi-band"></span></label>
+          <input type="range" id="s-psi" min="0" max="350" step="5" value="0" />
+          <output id="v-psi">0</output></div>
+        <div class="slider"><i style="background:var(--rain)"></i>
+          <label for="s-rain">Rain mm/h</label>
+          <input type="range" id="s-rain" min="0" max="80" step="1" value="0" />
+          <output id="v-rain">0 mm</output></div>
+        <div class="slider"><i style="background:var(--heat)"></i>
+          <label for="s-heat">WBGT ≥32</label>
+          <input type="range" id="s-heat" min="0" max="8" step="0.25" value="0" />
+          <output id="v-heat">0 h</output></div>
+        <label class="floodrow"><input type="checkbox" id="s-flood" /> PUB flood alert covers the site</label>
+      </div>
+    </aside>
+
+    <aside class="panel portfolio" id="portfolio" hidden>
+      <h2>Portfolio <span class="hint">every food stall insured at</span></h2>
+      <div class="body">
+        <div class="row"><span>Tier</span><select id="p-tier" aria-label="Portfolio tier"></select></div>
+        <div class="row"><span>Policies (stalls)</span><output id="p-n">–</output></div>
+        <div class="row"><span>Annual premium pool</span><output id="p-prem">–</output></div>
+        <div class="row big"><span id="p-pay-label">Payout on this day</span><output id="p-pay">–</output></div>
+        <p class="note" id="p-note"></p>
+      </div>
+    </aside>
+
+    <aside class="panel detail" id="detail" hidden>
+      <button class="close" id="detail-close" type="button" aria-label="Close">✕</button>
+      <h2 id="detail-kind">Selection</h2>
+      <div class="body" id="detail-body"></div>
+    </aside>
+
+    <dialog id="about-dialog" class="about" aria-labelledby="about-title">
+      <form method="dialog"><button class="close" aria-label="Close">✕</button></form>
+      <div id="about-body"></div>
+    </dialog>
+
+    <div id="boot">
+      <p class="brand">SafeDay <span>risk atlas</span></p>
+      <div class="pulse" role="presentation"></div>
+      <p class="msg" id="boot-msg">Loading Singapore — planning areas, hawker centres, NEA stations…</p>
+    </div>
+  </body>
+</html>
