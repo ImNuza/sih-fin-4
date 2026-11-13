@@ -214,10 +214,8 @@ def top_features(model, features: list[str]) -> list[str]:
     return [features[i] for i in order]
 
 
-def run(job: Job, spec: ModelSpec, budget: Budget, device: str) -> dict:
-    """Tune, refit on all training years, score on the test years and save the model."""
-    started = time.monotonic()
-    context = Context(
+def context_for(job: Job, device: str) -> Context:
+    return Context(
         kind=job.kind,
         device=device,
         features=job.features,
@@ -225,6 +223,12 @@ def run(job: Job, spec: ModelSpec, budget: Budget, device: str) -> dict:
         persistence_column=job.persistence_column,
         trigger=job.trigger,
     )
+
+
+def run(job: Job, spec: ModelSpec, budget: Budget, device: str) -> dict:
+    """Tune, refit on all training years, score on the test years and save the model."""
+    started = time.monotonic()
+    context = context_for(job, device)
     train = train_rows(job, budget)
     test = job.frame[job.frame["day"] >= job.test_start]
     splits = time_folds(train["day"], budget.folds)
