@@ -19,6 +19,9 @@ from pathlib import Path
 import requests
 
 BASE_URL = "https://api-open.data.gov.sg/v2/real-time/api"
+DATASET_URL = "https://api-open.data.gov.sg/v1/public/api/datasets"
+DOWNLOAD_POLL_SECONDS = 3
+DOWNLOAD_POLL_ATTEMPTS = 40
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # The API rejects Python's default User-Agent with HTTP 403, so send our own.
 USER_AGENT = "sih-fin-4-data/0.1"
@@ -104,6 +107,27 @@ class DgsClient:
             token = body["data"].get("paginationToken")
             if not token:
                 return pages
+
+
+def download_dataset(dataset_id: str) -> bytes:
+    """Return the full file of a static data.gov.sg dataset (the d_... ID in its URL)."""
+    session = requests.Session()
+    session.headers.update({"User-Agent": USER_AGENT, "x-api-key": load_api_keys()[0]})
+    session.get(f"{DATASET_URL}/{dataset_id}/initiate-download", timeout=30).raise_for_status()
+    for _ in range(DOWNLOAD_POLL_ATTEMPTS):
+        time.sleep(DOWNLOAD_POLL_SECONDS)
+        response = session.get(f"{DATASET_URL}/{dataset_id}/poll-download", timeout=30)
+        if response.status_code == 429:
+            continue
+        response.raise_for_status()
+        file_url = response.json()["data"].get("url")
+        if file_url:
+            download = requests.get(file_url, headers={"User-Agent": USER_AGENT}, timeout=120)
+            download.raise_for_status()
+            return download.content
+    raise RuntimeError(
+        f"{dataset_id}: download link not ready after {DOWNLOAD_POLL_ATTEMPTS} polls"
+    )
 
 
 def day_range(start: date, end: date) -> list[date]:
