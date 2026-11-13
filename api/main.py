@@ -1,10 +1,12 @@
-"""SafeDay pricing API and admin panel.
+"""SafeDay pricing API, admin panel and the public risk map.
 
 Usage:
     ADMIN_USERNAME=admin ADMIN_PASSWORD=... uv run uvicorn api.main:app --reload
-    API docs on http://localhost:8000/docs, admin panel on http://localhost:8000/admin/
+    API docs on http://localhost:8000/docs, admin panel on http://localhost:8000/admin/,
+    risk map on http://localhost:8000/map/
 
 Reads  data/processed/region_hazard_readings.csv    (from scripts/region_hazard_readings.py)
+       data/processed/map_static.json              (from scripts/build_map_static.py)
        api/default_tariff.json                     (the first tariff, when the database is empty)
 Writes the tariff database at DATABASE_URL         (default sqlite:///api/tariff.db)
 """
@@ -12,6 +14,7 @@ Writes the tariff database at DATABASE_URL         (default sqlite:///api/tariff
 from __future__ import annotations
 
 import csv
+import json
 import os
 import secrets
 from collections import defaultdict
@@ -22,11 +25,12 @@ from typing import Annotated
 
 import numpy as np
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
 from api import calculator, store
+from api.live import LiveFeed
 from api.calculator import History, Readings
 from api.models import (
     Assessment,
@@ -46,6 +50,7 @@ from api.models import (
 API_DIR = Path(__file__).resolve().parent
 REPO_ROOT = API_DIR.parent
 HISTORY_PATH = REPO_ROOT / "data" / "processed" / "region_hazard_readings.csv"
+MAP_STATIC_PATH = REPO_ROOT / "data" / "processed" / "map_static.json"
 DEFAULT_TARIFF_PATH = API_DIR / "default_tariff.json"
 DEFAULT_DATABASE_URL = f"sqlite:///{API_DIR / 'tariff.db'}"
 
@@ -77,6 +82,10 @@ def admin_login_from_env() -> tuple[str, str]:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.admin_login = admin_login_from_env()
     app.state.history = load_history(HISTORY_PATH)
+    if not MAP_STATIC_PATH.exists():
+        raise SystemExit(f"{MAP_STATIC_PATH} is missing. Run scripts/build_map_static.py first.")
+    app.state.map_static = json.loads(MAP_STATIC_PATH.read_text())
+    app.state.live = LiveFeed()
     app.state.db = store.connect(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
     if store.latest(app.state.db) is None:
         tariff = Tariff.model_validate_json(DEFAULT_TARIFF_PATH.read_text())
@@ -165,6 +174,74 @@ def assess(request: AssessRequest, tariff: TariffDep) -> Assessment:
     return calculator.assess(tariff, request.product, request.tier, request.readings)
 
 
+def nearest_reading(stations: list[dict], lat: float, lng: float, field: str) -> float:
+    """The reading at the station closest to a site, 0 when no station reports."""
+    if not stations:
+        return 0.0
+    closest = min(stations, key=lambda s: (s["lat"] - lat) ** 2 + (s["lng"] - lng) ** 2)
+    return float(closest[field])
+
+
+@app.get("/api/map/static")
+def map_static() -> FileResponse:
+    """Geography, exposure and hazard history the risk map draws: one static bundle."""
+    return FileResponse(MAP_STATIC_PATH, media_type="application/json")
+
+
+@app.get("/api/map/quotes")
+def map_quotes(tariff: TariffDep, history: HistoryDep, product: str = "cooked_food") -> dict:
+    """Quotes for every region at once, with the per-hazard loss-day split and pricing loads."""
+    chosen = calculator.find(tariff.products, product, "product")
+    return {
+        "product": product,
+        "pricing": tariff.pricing,
+        "hazard_labels": {h.key: h.label for h in tariff.hazards},
+        "quotes": {
+            region: calculator.quote(tariff, history, region, product) for region in sorted(history)
+        },
+        "loss_day_parts": {
+            region: {
+                key: round(days, 4)
+                for key, days in calculator.loss_day_parts(tariff, chosen, history[region]).items()
+            }
+            for region in sorted(history)
+        },
+    }
+
+
+@app.get("/api/map/live")
+def map_live(request: Request, tariff: TariffDep, product: str = "cooked_food") -> dict:
+    """Today's NEA readings and the loss score they give each hawker centre right now.
+
+    The first call starts the background refresh; poll until `available` is true.
+    Flood alerts are listed but not scored: the PUB feed names roads, not coordinates.
+    """
+    live: LiveFeed = request.app.state.live
+    live.ensure_started()
+    snapshot = live.read()
+    if not snapshot.get("available"):
+        return snapshot
+    haze = snapshot.get("haze") or {}
+    heat = snapshot.get("heat") or []
+    rain = snapshot.get("rain") or []
+    first_tier = tariff.tiers[0].key
+    losses = []
+    for centre in request.app.state.map_static["hawker_centres"]:
+        readings = {
+            "haze": float(haze.get(centre["region"], {}).get("max_today", 0.0)),
+            "rain": nearest_reading(rain, centre["lat"], centre["lng"], "wettest_work_hour_today"),
+            "heat": nearest_reading(heat, centre["lat"], centre["lng"], "hours_ge_32_today"),
+        }
+        assessment = calculator.assess(tariff, product, first_tier, readings)
+        losses.append({"loss_percent": assessment.loss_percent, "readings": readings})
+    return {**snapshot, "product": product, "hawker_losses": losses}
+
+
+@app.get("/")
+def root() -> RedirectResponse:
+    return RedirectResponse("/map/")
+
+
 @app.get("/api/admin/tariff")
 def get_tariff(_: AdminDep, saved: Annotated[SavedTariff, Depends(saved_tariff)]) -> SavedTariff:
     return saved
@@ -203,3 +280,4 @@ def preview(request: PreviewRequest, _: AdminDep, history: HistoryDep) -> Previe
 
 
 app.mount("/admin", StaticFiles(directory=API_DIR / "admin", html=True), name="admin")
+app.mount("/map", StaticFiles(directory=API_DIR / "map", html=True), name="map")
