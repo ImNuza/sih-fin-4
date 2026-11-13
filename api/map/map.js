@@ -18,7 +18,9 @@ const PSI_BANDS = [[301, "Hazardous"], [201, "Very unhealthy"], [101, "Unhealthy
 const state = {
   mode: "history",                 // history | sim | live
   view: "insurer",                 // insurer | owner
-  layers: { sme: true, heat: true, rain: true, haze: true, flood: false, pa: true },
+  camera: "bird",                  // plan | bird | city
+  orbit: false,
+  layers: { sme: true, heat: true, rain: true, haze: true, flood: false, pa: true, bld: true, base: true },
   sim: { psi: 0, rain: 0, heat: 0, flood: false },
   simAssessment: null,             // latest POST /api/assess result for the sim readings
   live: null,                      // latest /api/map/live snapshot
@@ -28,7 +30,9 @@ const state = {
   selected: null,                  // {type, index|obj}
   tier: null,                      // portfolio tier key
 };
-let STATIC = null, QUOTES = null, OPTIONS = null, deckgl = null;
+let STATIC = null, QUOTES = null, OPTIONS = null, BUILDINGS = null, deckgl = null;
+let lastView = null;               // the camera, kept across presets, orbit and user drags
+const ONEMAP_TILES = "https://www.onemap.gov.sg/maps/tiles/Night/{z}/{x}/{y}.png";
 
 const el = (id) => document.getElementById(id);
 const SGD = (v) => "S$" + (v >= 1000 ? Math.round(v).toLocaleString("en-SG") : v.toFixed(2));
@@ -124,13 +128,28 @@ function smeColor(centre, index) {
 }
 
 function buildLayers() {
-  const { GeoJsonLayer, ColumnLayer, ScatterplotLayer, TextLayer } = deck;
+  const { GeoJsonLayer, ColumnLayer, ScatterplotLayer, TextLayer, PolygonLayer, TileLayer, BitmapLayer } = deck;
   const zoom = state.zoom, layers = [];
   const paFeatures = STATIC.planning_areas.map((p) => ({ type: "Feature", geometry: p.geometry, properties: p }));
 
+  if (state.layers.base) layers.push(new TileLayer({
+    id: "base", data: ONEMAP_TILES, minZoom: 9, maxZoom: 18, tileSize: 256, opacity: 0.5,
+    renderSubLayers: (props) => {
+      const { west, south, east, north } = props.tile.bbox;
+      return new BitmapLayer(props, { data: null, image: props.data, bounds: [west, south, east, north] });
+    },
+  }));
+  if (state.layers.bld && BUILDINGS && zoom >= 11.8) layers.push(new PolygonLayer({
+    id: "bld", data: BUILDINGS.rings, extruded: true, pickable: false,
+    getPolygon: (d) => d,
+    getElevation: BUILDINGS.nominal_height_m,
+    getFillColor: [64, 70, 79, 220], getLineColor: [28, 31, 35, 255],
+    material: { ambient: 0.45, diffuse: 0.6, shininess: 28 },
+  }));
   if (state.layers.pa) layers.push(new GeoJsonLayer({
     id: "pa", data: paFeatures, stroked: true, filled: true, pickable: true,
-    getFillColor: (f) => REGION_TINT[f.properties.psi_region].concat(205),
+    getFillColor: (f) => REGION_TINT[f.properties.psi_region].concat(state.layers.base ? 110 : 205),
+    updateTriggers: { getFillColor: [state.layers.base] },
     getLineColor: [70, 74, 80, 160], getLineWidth: 1, lineWidthUnits: "pixels",
     onClick: (info) => select("region", info.object.properties),
   }));
@@ -473,6 +492,49 @@ function setView(view) {
   redraw(); renderPortfolio(); renderDetail();
 }
 
+/* ---------- cameras ---------- */
+const CAMERAS = {
+  plan: { pitch: 0, bearing: 0, zoom: 10.9 },
+  bird: { pitch: 52, bearing: -12, zoom: 10.6 },
+  city: { pitch: 68, bearing: 35, zoom: 14.4 },
+};
+const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function flyTo(name) {
+  state.camera = name;
+  for (const cam of Object.keys(CAMERAS)) el(`cam-${cam}`).classList.toggle("on", cam === name);
+  const target = { ...lastView, ...CAMERAS[name] };
+  if (name === "city") {
+    // Land on the selected hawker centre, or the densest one, so the city view opens on a story.
+    const centre = state.selected?.type === "sme"
+      ? STATIC.hawker_centres[state.selected.value]
+      : STATIC.hawker_centres.reduce((a, b) => (b.food_stalls > a.food_stalls ? b : a));
+    target.longitude = centre.lng; target.latitude = centre.lat;
+  }
+  lastView = target;
+  state.zoom = target.zoom;
+  deckgl.setProps({
+    initialViewState: {
+      ...target,
+      transitionDuration: REDUCED_MOTION ? 0 : 1400,
+      transitionInterpolator: new deck.FlyToInterpolator(),
+    },
+  });
+  updateZoomChip(target.zoom);
+  redraw();
+}
+function orbitStep() {
+  if (!state.orbit) return;
+  lastView = { ...lastView, bearing: (lastView.bearing + 0.16) % 360 };
+  deckgl.setProps({ initialViewState: { ...lastView, transitionDuration: 0 } });
+  requestAnimationFrame(orbitStep);
+}
+function toggleOrbit(force) {
+  state.orbit = force ?? !state.orbit;
+  if (REDUCED_MOTION) state.orbit = false;
+  el("cam-orbit").classList.toggle("on", state.orbit);
+  if (state.orbit) orbitStep();
+}
+
 /* ---------- static UI ---------- */
 function legendNotes() {
   el("sme-label").textContent = `SMEs — hawker centres (${STATIC.hawker_centres.length})`;
@@ -520,6 +582,12 @@ function wireUi() {
   el("mode-history").addEventListener("click", () => setMode("history"));
   el("mode-sim").addEventListener("click", () => setMode("sim"));
   el("mode-live").addEventListener("click", () => setMode("live"));
+  el("cam-plan").addEventListener("click", () => flyTo("plan"));
+  el("cam-bird").addEventListener("click", () => flyTo("bird"));
+  el("cam-city").addEventListener("click", () => flyTo("city"));
+  el("cam-orbit").addEventListener("click", () => toggleOrbit());
+  el("map").addEventListener("pointerdown", () => { if (state.orbit) toggleOrbit(false); });
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.orbit) toggleOrbit(false); });
   el("view-owner").addEventListener("click", () => setView("owner"));
   el("view-insurer").addEventListener("click", () => setView("insurer"));
   el("about-open").addEventListener("click", () => el("about-dialog").showModal());
@@ -550,13 +618,14 @@ async function boot() {
     if (!window.deck) throw new Error("deck.gl failed to load (vendor/deck.min.js)");
     [STATIC, QUOTES, OPTIONS] = await Promise.all([api.static(), api.quotes(), api.options()]);
     const { DeckGL, AmbientLight, DirectionalLight, LightingEffect, MapView } = deck;
+    lastView = {
+      longitude: 103.832, latitude: 1.322, zoom: 10.6, pitch: 52, bearing: -12,
+      maxZoom: 17.4, minZoom: 9.4, maxPitch: 78,
+    };
     deckgl = new DeckGL({
       container: "map",
       views: new MapView({ repeat: false }),
-      initialViewState: {
-        longitude: 103.832, latitude: 1.322, zoom: 10.6, pitch: 52, bearing: -12,
-        maxZoom: 16, minZoom: 9.4, maxPitch: 70,
-      },
+      initialViewState: lastView,
       controller: { touchRotate: true, inertia: 260 },
       effects: [new LightingEffect({
         ambient: new AmbientLight({ color: [255, 255, 255], intensity: 1.6 }),
@@ -564,8 +633,9 @@ async function boot() {
       })],
       getTooltip: tooltip,
       onViewStateChange: ({ viewState }) => {
-        const crossed = [11, 11.6, 12, 13].some((edge) => (state.zoom < edge) !== (viewState.zoom < edge));
+        const crossed = [11, 11.6, 11.8, 12, 13].some((edge) => (state.zoom < edge) !== (viewState.zoom < edge));
         state.zoom = viewState.zoom;
+        lastView = { ...lastView, ...viewState };
         updateZoomChip(viewState.zoom);
         if (crossed) redraw();
       },
@@ -579,6 +649,9 @@ async function boot() {
     updateZoomChip(state.zoom);
     el("boot").remove();
     if (document.fonts?.ready) document.fonts.ready.then(() => redraw());
+    getJson("/api/map/buildings")
+      .then((data) => { BUILDINGS = data; redraw(); })
+      .catch((error) => console.error("buildings layer unavailable:", error));
   } catch (error) {
     el("boot-msg").textContent = `Could not start the atlas: ${error.message}. `
       + "Check that the API is running and data/processed/map_static.json exists, then reload.";

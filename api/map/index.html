@@ -24,6 +24,12 @@
         <button id="mode-sim" type="button">Simulate a day</button>
         <button id="mode-live" type="button">Live now</button>
       </nav>
+      <nav class="modes" aria-label="Camera">
+        <button id="cam-plan" type="button">Plan</button>
+        <button id="cam-bird" type="button" class="on">Bird</button>
+        <button id="cam-city" type="button">City</button>
+        <button id="cam-orbit" type="button" title="Circle the camera slowly">◌ Orbit</button>
+      </nav>
       <p class="live-state" id="live-state" hidden></p>
       <div class="actions">
         <nav class="viewtoggle" aria-label="Audience">
@@ -56,6 +62,12 @@
         <span>Flood — 19 PUB hotspots</span></label>
       <p class="note">PUB hotspot list, 2 Feb 2026. Points are approximate geocodes of PUB's named roads.</p>
       <p class="group">Base</p>
+      <label><input type="checkbox" id="ly-bld" checked /><i class="sw" style="background:#454a52"></i>
+        <span>HDB blocks (3D)</span></label>
+      <p class="note">Real block footprints near hawker centres (HDB via data.gov.sg). Heights nominal at the 12-storey HDB median. Appears from Region zoom.</p>
+      <label><input type="checkbox" id="ly-base" checked /><i class="sw" style="background:#243242"></i>
+        <span>Streets — OneMap basemap</span></label>
+      <p class="note">Tiles © OneMap, Singapore Land Authority. Needs internet; every other layer works offline.</p>
       <label><input type="checkbox" id="ly-pa" checked /><i class="sw" style="background:#3a3e44"></i>
         <span>Planning areas (URA MP2019)</span></label>
       <p class="foot" id="sources-foot"></p>
