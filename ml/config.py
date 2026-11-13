@@ -30,6 +30,9 @@ CLIMATE_INDEX_LAGS_MONTHS = (2, 3, 4, 6)
 # fill in history (heat before 2025, rain at gauges with gaps). Horizons 1 and up are forecasts.
 RECONSTRUCTION = 0
 BACKTEST_PRODUCT_KEYS = ("cooked_food", "fresh_produce", "packaged_food")
+# Payout errors in the leaderboard are for one customer on this tier and product.
+REPORT_TIER_KEY = "tier_2"
+REPORT_PRODUCT_KEY = "cooked_food"
 
 
 @dataclass(frozen=True)
