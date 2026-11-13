@@ -644,8 +644,13 @@ async function boot() {
     el("about-body").innerHTML = aboutHtml();
     legendNotes();
     wireUi();
-    setView("insurer");
-    setMode("history");
+    const params = new URLSearchParams(location.search);
+    setView(["owner", "insurer"].includes(params.get("view")) ? params.get("view") : "insurer");
+    setMode(["history", "sim", "live"].includes(params.get("mode")) ? params.get("mode") : "history");
+    const focusName = params.get("focus");
+    const focusIndex = focusName ? STATIC.hawker_centres.findIndex((c) => c.name === focusName) : -1;
+    if (focusIndex >= 0) select("sme", focusIndex);
+    if (["plan", "bird", "city"].includes(params.get("camera"))) flyTo(params.get("camera"));
     updateZoomChip(state.zoom);
     el("boot").remove();
     if (document.fonts?.ready) document.fonts.ready.then(() => redraw());

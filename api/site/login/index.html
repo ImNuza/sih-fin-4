@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in · SafeDay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/site.css" />
+    <script src="/site.js" defer></script>
+  </head>
+  <body>
+    <header class="topnav">
+      <p class="brand"><a href="/">SafeDay</a></p>
+      <nav><a href="/map/">Risk atlas</a></nav>
+    </header>
+
+    <main class="auth">
+      <div class="roletabs" role="tablist">
+        <button id="tab-sme" class="on" type="button">I run a stall</button>
+        <button id="tab-insurer" type="button">I'm the insurer</button>
+      </div>
+
+      <section id="pane-sme" class="pane">
+        <div class="card">
+          <h2>Sign in</h2>
+          <form id="sme-login">
+            <label>Email <input name="email" type="email" autocomplete="email" required /></label>
+            <label>Password <input name="password" type="password" autocomplete="current-password" required /></label>
+            <p class="error" id="sme-login-error" role="alert"></p>
+            <button class="btn primary" type="submit">Sign in</button>
+          </form>
+        </div>
+        <div class="card">
+          <h2>Create your account</h2>
+          <p class="fine">Pick your hawker centre and what you sell — your price comes from your own region's NEA history.</p>
+          <form id="sme-register">
+            <label>Your name <input name="name" autocomplete="name" required /></label>
+            <label>Stall name <input name="business_name" placeholder="e.g. Ah Hock Chicken Rice" /></label>
+            <label>Hawker centre
+              <select name="centre" id="centre-select" required><option value="">Loading centres…</option></select>
+            </label>
+            <label>What you sell
+              <select name="product" id="product-select" required></select>
+            </label>
+            <label>Email <input name="email" type="email" autocomplete="email" required /></label>
+            <label>Password (8+ characters) <input name="password" type="password" minlength="8" autocomplete="new-password" required /></label>
+            <p class="error" id="sme-register-error" role="alert"></p>
+            <button class="btn primary" type="submit">Create account</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="pane-insurer" class="pane" hidden>
+        <div class="card">
+          <h2>Sign in</h2>
+          <form id="ins-login">
+            <label>Email <input name="email" type="email" autocomplete="email" required /></label>
+            <label>Password <input name="password" type="password" autocomplete="current-password" required /></label>
+            <p class="error" id="ins-login-error" role="alert"></p>
+            <button class="btn primary" type="submit">Sign in</button>
+          </form>
+        </div>
+        <div class="card">
+          <h2>First time here</h2>
+          <p class="fine">Select your organisation and enter the insurer access code to proceed.</p>
+          <form id="ins-register">
+            <label>Insurer
+              <select name="insurer" required><option>Income Insurance</option></select>
+            </label>
+            <label>Your name <input name="name" autocomplete="name" required /></label>
+            <label>Work email <input name="email" type="email" autocomplete="email" required /></label>
+            <label>Password (8+ characters) <input name="password" type="password" minlength="8" autocomplete="new-password" required /></label>
+            <label>Access code <input name="access_code" type="password" required /></label>
+            <p class="error" id="ins-register-error" role="alert"></p>
+            <button class="btn primary" type="submit">Proceed to the portfolio desk</button>
+          </form>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

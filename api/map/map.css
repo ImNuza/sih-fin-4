@@ -44,6 +44,11 @@ canvas { outline: none; }
 .topbar > * { pointer-events: auto; margin: 0; }
 .brand { font: 700 17px/1.2 var(--sans); letter-spacing: 0.2px; }
 .brand span { color: var(--accent); font-weight: 600; }
+.brand .backlink {
+  color: var(--ink-2); text-decoration: none; padding: 0 6px 2px 4px; margin-right: 2px;
+  border: 1px solid var(--line); border-radius: 6px; font-weight: 600;
+}
+.brand .backlink:hover { color: var(--ink); border-color: #43474d; }
 .modes, .viewtoggle {
   display: flex; border: 1px solid var(--line); border-radius: 8px;
   overflow: hidden; background: var(--surface);

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeDay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/site.css" />
+    <script src="/site.js" defer></script>
+  </head>
+  <body>
+    <header class="topnav">
+      <p class="brand">SafeDay</p>
+      <nav>
+        <a href="/map/">Risk atlas</a>
+        <a href="/login/" class="btn-link" id="nav-auth">Sign in</a>
+      </nav>
+    </header>
+
+    <main class="landing">
+      <section class="hero">
+        <h1>Climate cover for Singapore's smallest businesses, priced in the open.</h1>
+        <p>
+          When haze empties a hawker centre, a storm hour kills the lunch crowd, or a heat
+          advisory stops outdoor work, SafeDay pays a fixed amount per bad day — triggered by
+          NEA's own readings, no claim form, no loss adjuster.
+        </p>
+        <div class="hero-actions">
+          <a class="btn primary" href="/login/#sme">I run a stall — see my price</a>
+          <a class="btn" href="/login/#insurer">I'm the insurer — portfolio desk</a>
+          <a class="btn quiet" href="/map/">Explore the 3D risk atlas</a>
+        </div>
+      </section>
+
+      <section class="cols">
+        <article class="card">
+          <h2>For stallholders</h2>
+          <ul>
+            <li>One cover for haze, heavy rain, extreme heat and flash-flood alerts.</li>
+            <li>Pays up to S$20–100 a day, capped per year — sized to a bad day's lost takings.</li>
+            <li>From about S$3.60 a week, depending on your region's real NEA history.</li>
+            <li>Paid automatically on NEA readings, usually same-day. It can happen that you lose sales and no payout is due — the trigger levels are public.</li>
+          </ul>
+          <p class="fine">The whole policy fits in one SMS. You can read every number behind your price on the risk atlas before you sign anything.</p>
+        </article>
+        <article class="card">
+          <h2>For the insurer</h2>
+          <ul>
+            <li>Every policy priced by one transparent engine: burning-cost on 10 years of NEA data, explicit loads, 25% expenses, 9% GST.</li>
+            <li>Portfolio desk: who holds what, where it accumulates, what a PSI-230 day pays.</li>
+            <li>Tariff desk: change any weight, band, tier or load — every save is a version.</li>
+            <li>MAS FEAT-explainable by construction; zero personal data in pricing.</li>
+          </ul>
+          <p class="fine">Built for Income Insurance for SIH 2026. The same map serves the customer and the underwriter.</p>
+        </article>
+      </section>
+
+      <section class="how">
+        <h2>How the price is made</h2>
+        <div class="modules">
+          <div class="module"><b>1 · Hazard</b><span>NEA heat, rain and haze history, 2016–2026, plus today's live readings.</span></div>
+          <div class="module"><b>2 · Exposure</b><span>103 hawker centres, 5,837 cooked-food stalls, geocoded (NEA).</span></div>
+          <div class="module"><b>3 · Vulnerability</b><span>How much a reading hurts your product — cooked food keeps nothing overnight.</span></div>
+          <div class="module"><b>4 · Financial</b><span>Day caps, loads, expenses, GST → your weekly premium.</span></div>
+        </div>
+        <p class="fine">
+          This is the same four-module structure catastrophe models use at Swiss Re and Munich Re —
+          drawn as a live map of Singapore anyone can open.
+        </p>
+      </section>
+    </main>
+
+    <footer class="sitefoot">
+      <span>SafeDay · SIH 2026 FinTech/InsurTech · built on NEA, URA and PUB open data (Singapore Open Data Licence)</span>
+    </footer>
+  </body>
+</html>
