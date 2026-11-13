@@ -95,13 +95,26 @@
           <output id="v-psi">0</output></div>
         <div class="slider"><i style="background:var(--rain)"></i>
           <label for="s-rain">Rain mm/h</label>
-          <input type="range" id="s-rain" min="0" max="80" step="1" value="0" />
+          <input type="range" id="s-rain" min="0" max="100" step="1" value="0" />
           <output id="v-rain">0 mm</output></div>
         <div class="slider"><i style="background:var(--heat)"></i>
           <label for="s-heat">WBGT ≥32</label>
           <input type="range" id="s-heat" min="0" max="8" step="0.25" value="0" />
           <output id="v-heat">0 h</output></div>
         <label class="floodrow"><input type="checkbox" id="s-flood" /> PUB flood alert covers the site</label>
+        <div id="extra-hazards"></div>
+        <div class="circle-block">
+          <div class="circle-actions">
+            <button class="btn-mini" id="draw-circle" type="button">◯ Draw a circle</button>
+            <button class="btn-mini" id="clear-circle" type="button" hidden>✕ Clear</button>
+            <span class="circle-hint" id="circle-hint">Scope the day to one area: the readings then apply only inside it.</span>
+          </div>
+          <div class="slider" id="extradays-row" hidden><i style="background:var(--accent)"></i>
+            <label for="s-extradays">+ days/yr<span>frequency stress</span></label>
+            <input type="range" id="s-extradays" min="0" max="30" step="1" value="5" />
+            <output id="v-extradays">5 d</output></div>
+          <div id="scn-results" hidden></div>
+        </div>
       </div>
     </aside>
 
