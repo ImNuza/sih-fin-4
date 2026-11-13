@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard · SafeDay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/site.css" />
+    <script src="/site.js" defer></script>
+  </head>
+  <body>
+    <header class="topnav">
+      <p class="brand"><a href="/">SafeDay</a></p>
+      <nav>
+        <span id="whoami" class="who"></span>
+        <a href="/map/">Risk atlas</a>
+        <button class="btn-link" id="signout" type="button">Sign out</button>
+      </nav>
+    </header>
+
+    <main class="dash" id="dash">
+      <p class="loading" id="dash-loading">Loading your dashboard…</p>
+    </main>
+  </body>
+</html>

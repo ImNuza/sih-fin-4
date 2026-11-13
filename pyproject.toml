@@ -17,6 +17,7 @@ analysis = [
     "matplotlib>=3.9",
     "streamlit>=1.67.0",
     "plotly>=7.1.0",
+    "shapely>=2.2.0",
 ]
 api = [
     "numpy>=2.0",
@@ -24,6 +25,7 @@ api = [
     "uvicorn>=0.54.0",
     "sqlalchemy>=2.1.8",
     "psycopg[binary]>=3.3.9",
+    "requests>=2.34.2",
 ]
 dev = [
     "httpx2>=2.16.0",

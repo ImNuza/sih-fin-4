@@ -12,9 +12,15 @@ This is an open-source project: strangers will read the code, so it must be plai
 - `uv run scripts/fetch_wbgt.py`: NEA WBGT readings to `data/wbgt/`. Rerun to add new days.
 - `uv run scripts/fetch_psi.py`: PSI and PM2.5 by region, from Mar 2016, to `data/psi/`.
 - `uv run scripts/fetch_rainfall.py`: rainfall summed per hour per gauge, from Jan 2025, to `data/rainfall/`. `--start 2016-12-02` gets the full history (slow).
+- `uv run scripts/fetch_psi_history.py`: NEA Historical 24-hr PSI dataset (Apr 2014 on) to `data/psi/psi_history_24hr.parquet`.
+- `uv run scripts/fetch_mss_daily.py`: MSS daily station records (rain maxima, temperature, wind, from 1980) from weather.gov.sg to `data/mss_daily/`. No key.
+- `uv run scripts/fetch_era5.py`: ERA5 hourly reanalysis at the 5 PSI region centres from 1980, via Open-Meteo, to `data/era5/`. No key, non-commercial, one full run a day at most.
+- `uv run scripts/fetch_climate_indices.py`: monthly ONI and DMI from NOAA PSL to `data/climate_indices/`.
+- Data and ML plan, rate limits and download times: `docs/notes/ml-data-plan-2026-11-13.md`.
 - `uv run scripts/heat_stats.py`, then `uv run scripts/hazard_stats.py`: stats to `data/processed/` and charts to `docs/figures/`.
 - `uv run scripts/region_hazard_readings.py`: how often each haze, rain and heat reading happened per PSI region, to `data/processed/region_hazard_readings.csv`, the history the pricing API prices from.
-- `ADMIN_USERNAME=... ADMIN_PASSWORD=... uv run uvicorn api.main:app --reload`: the pricing API on http://localhost:8000 (docs at `/docs`) and the admin panel at `/admin/`. Without `DATABASE_URL` it saves to the SQLite file `api/tariff.db`; the hosted copy uses Postgres.
+- `ADMIN_USERNAME=... ADMIN_PASSWORD=... uv run uvicorn api.main:app --reload`: the platform on http://localhost:8000 — landing at `/`, login at `/login/`, role dashboards at `/dashboard/` (accounts in `api/accounts.py`; insurer sign-up needs `INSURER_ACCESS_CODE`, default `income-demo`), risk map at `/map/`, admin tariff desk at `/admin/`, docs at `/docs`. Without `DATABASE_URL` it saves to the SQLite file `api/tariff.db`; the hosted copy uses Postgres.
+- `uv run scripts/fetch_geo.py`, then `uv run scripts/build_map_static.py`: rebuild `data/processed/map_static.json`, the static bundle behind `/map/`. The map's live mode needs `DATA_GOV_SG_API_KEY`; without it the map works from history and reports the live layer unavailable.
 - `uv run pytest`: tests for the pricing API.
 - `scripts/dgs.py`: shared data.gov.sg client (API keys, User-Agent, retries, pagination, cache). Reuse it for new feeds.
 - Raw API pages are cached per day in `data/raw/<feed>/`. A rerun only fetches missing days.
