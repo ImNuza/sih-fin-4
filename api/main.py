@@ -1,9 +1,10 @@
-"""SafeDay pricing API, admin panel and the public risk map.
+"""SafeDay platform: pricing API, SME and insurer dashboards, risk map and admin panel.
 
 Usage:
     ADMIN_USERNAME=admin ADMIN_PASSWORD=... uv run uvicorn api.main:app --reload
-    API docs on http://localhost:8000/docs, admin panel on http://localhost:8000/admin/,
-    risk map on http://localhost:8000/map/
+    Site on http://localhost:8000/ (landing, /login/, /dashboard/), risk map on /map/,
+    tariff desk on /admin/, API docs on /docs. Insurer sign-up needs INSURER_ACCESS_CODE
+    (default "income-demo").
 
 Reads  data/processed/region_hazard_readings.csv    (from scripts/region_hazard_readings.py)
        data/processed/map_static.json              (from scripts/build_map_static.py)
@@ -20,16 +21,22 @@ import secrets
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
 import numpy as np
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import insert as sa_insert
+from sqlalchemy import select as sa_select
 
-from api import calculator, store
+from api import accounts, calculator, store
+from api.accounts import InsurerDep, SmeDep, UserDep
 from api.live import LiveFeed
 from api.calculator import History, Readings
 from api.models import (
@@ -248,9 +255,92 @@ def map_live(request: Request, tariff: TariffDep, product: str = "cooked_food") 
     return {**snapshot, "product": product, "hawker_losses": losses}
 
 
-@app.get("/")
-def root() -> RedirectResponse:
-    return RedirectResponse("/map/")
+class PolicyRequest(BaseModel):
+    tier: str
+    product: str | None = None
+
+
+@app.post("/api/policies")
+def buy_policy(
+    body: PolicyRequest, user: SmeDep, tariff: TariffDep, history: HistoryDep, request: Request
+) -> dict:
+    """Start a cover for the signed-in stallholder, priced server-side from their region."""
+    product = body.product or user.product or "cooked_food"
+    priced = calculator.quote(tariff, history, user.region, product)
+    tier = next((t for t in priced.tiers if t.tier == body.tier), None)
+    if tier is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {body.tier}")
+    values = {
+        "user_id": user.id,
+        "tier": tier.tier,
+        "tier_label": tier.label,
+        "product": product,
+        "region": user.region,
+        "centre": user.centre,
+        "weekly_premium_sgd": tier.weekly_premium_sgd,
+        "daily_payout_sgd": tier.daily_payout_sgd,
+        "max_paid_days_per_year": round(tier.max_payout_per_year_sgd / tier.daily_payout_sgd),
+        "started_at": datetime.now(UTC),
+    }
+    engine = request.app.state.db
+    with engine.begin() as db:
+        db.execute(sa_delete(accounts.policies).where(accounts.policies.c.user_id == user.id))
+        policy_id = db.execute(
+            sa_insert(accounts.policies).values(**values).returning(accounts.policies.c.id)
+        ).scalar_one()
+    return {"id": policy_id, **{k: v for k, v in values.items() if k != "user_id"}}
+
+
+@app.get("/api/policies")
+def list_policies(user: UserDep, request: Request) -> list[dict]:
+    """The stallholder's own policy, or every policy for an insurer."""
+    engine = request.app.state.db
+    query = (
+        sa_select(accounts.policies, accounts.users.c.business_name, accounts.users.c.name)
+        .join(accounts.users, accounts.users.c.id == accounts.policies.c.user_id)
+        .order_by(accounts.policies.c.started_at.desc())
+    )
+    if user.role != "insurer":
+        query = query.where(accounts.policies.c.user_id == user.id)
+    with engine.connect() as db:
+        rows = db.execute(query).mappings().all()
+    return [{k: v for k, v in row.items() if k not in ("user_id",)} for row in rows]
+
+
+@app.delete("/api/policies/{policy_id}")
+def cancel_policy(policy_id: int, user: SmeDep, request: Request) -> dict:
+    engine = request.app.state.db
+    with engine.begin() as db:
+        gone = db.execute(
+            sa_delete(accounts.policies).where(
+                accounts.policies.c.id == policy_id, accounts.policies.c.user_id == user.id
+            )
+        ).rowcount
+    if not gone:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such policy on this account")
+    return {"cancelled": policy_id}
+
+
+@app.get("/api/insurer/portfolio")
+def insurer_portfolio(user: InsurerDep, request: Request) -> dict:
+    """What the signed-in insurer carries: sold policies aggregated by region and tier."""
+    engine = request.app.state.db
+    with engine.connect() as db:
+        rows = db.execute(sa_select(accounts.policies)).mappings().all()
+    by_region: dict[str, dict] = {}
+    for row in rows:
+        entry = by_region.setdefault(row["region"], {"policies": 0, "weekly_premium_sgd": 0.0, "daily_payout_sgd": 0.0})
+        entry["policies"] += 1
+        entry["weekly_premium_sgd"] += row["weekly_premium_sgd"]
+        entry["daily_payout_sgd"] += row["daily_payout_sgd"]
+    return {
+        "insurer": user.insurer,
+        "policies": len(rows),
+        "weekly_premium_sgd": round(sum(r["weekly_premium_sgd"] for r in rows), 2),
+        "annual_premium_sgd": round(sum(r["weekly_premium_sgd"] for r in rows) * 52, 2),
+        "daily_payout_exposure_sgd": round(sum(r["daily_payout_sgd"] for r in rows), 2),
+        "by_region": {k: {**v, "weekly_premium_sgd": round(v["weekly_premium_sgd"], 2)} for k, v in by_region.items()},
+    }
 
 
 @app.get("/api/admin/tariff")
@@ -290,5 +380,7 @@ def preview(request: PreviewRequest, _: AdminDep, history: HistoryDep) -> Previe
     )
 
 
+app.include_router(accounts.router)
 app.mount("/admin", StaticFiles(directory=API_DIR / "admin", html=True), name="admin")
 app.mount("/map", StaticFiles(directory=API_DIR / "map", html=True), name="map")
+app.mount("/", StaticFiles(directory=API_DIR / "site", html=True), name="site")
