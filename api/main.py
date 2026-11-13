@@ -30,7 +30,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
@@ -214,6 +214,17 @@ def map_quotes(tariff: TariffDep, history: HistoryDep, product: str = "cooked_fo
         "product": product,
         "pricing": tariff.pricing,
         "hazard_labels": {h.key: h.label for h in tariff.hazards},
+        # Enough for the map to build a control per hazard, however the tariff desk changes them.
+        "hazards": [
+            {
+                "key": h.key,
+                "label": h.label,
+                "reading": h.reading,
+                "binary": len(h.bands) == 1 and h.bands[0].at_least == 1,
+                "max": h.bands[-1].at_least * 1.5,
+            }
+            for h in tariff.hazards
+        ],
         "quotes": {
             region: calculator.quote(tariff, history, region, product) for region in sorted(history)
         },
@@ -223,6 +234,88 @@ def map_quotes(tariff: TariffDep, history: HistoryDep, product: str = "cooked_fo
                 for key, days in calculator.loss_day_parts(tariff, chosen, history[region]).items()
             }
             for region in sorted(history)
+        },
+    }
+
+
+EARTH_RADIUS_KM = 6371.0
+
+
+def km_between(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    rad = np.radians([lat1, lng1, lat2, lng2])
+    h = np.sin((rad[2] - rad[0]) / 2) ** 2 + np.cos(rad[0]) * np.cos(rad[2]) * np.sin((rad[3] - rad[1]) / 2) ** 2
+    return float(2 * EARTH_RADIUS_KM * np.arcsin(np.sqrt(h)))
+
+
+class ScenarioRequest(BaseModel):
+    lat: float = Field(ge=1.1, le=1.6)
+    lng: float = Field(ge=103.5, le=104.2)
+    radius_km: float = Field(gt=0.05, le=15)
+    readings: dict[str, float]
+    extra_days_per_year: float = Field(default=5, ge=0, le=60)
+    product: str = "cooked_food"
+    tier: str = "tier_2"
+
+
+@app.post("/api/map/scenario")
+def map_scenario(
+    body: ScenarioRequest, tariff: TariffDep, history: HistoryDep, request: Request
+) -> dict:
+    """Price a what-if day inside a drawn circle.
+
+    The readings score one day's loss and payout (as /api/assess). The premium is stressed
+    by assuming days like this hit the circle extra_days_per_year more times a year on top
+    of the region's NEA history, then priced by the same engine as every quote.
+    """
+    assessment = calculator.assess(tariff, body.product, body.tier, body.readings)
+    day_loss = assessment.loss_percent / 100
+    tier = calculator.find(tariff.tiers, body.tier, "tier")
+    centres = [
+        centre
+        for centre in request.app.state.map_static["hawker_centres"]
+        if km_between(body.lat, body.lng, centre["lat"], centre["lng"]) <= body.radius_km
+    ]
+    regions = {}
+    for region in sorted({centre["region"] for centre in centres}):
+        priced = calculator.quote(tariff, history, region, body.product)
+        baseline = next(t for t in priced.tiers if t.tier == body.tier)
+        stressed_days = min(
+            priced.expected_loss_days + body.extra_days_per_year * day_loss,
+            tier.max_paid_days_per_year,
+        )
+        stressed_yearly = calculator.yearly_premium(
+            stressed_days * tier.daily_payout_sgd, tariff.pricing
+        )
+        regions[region] = {
+            "expected_loss_days": priced.expected_loss_days,
+            "stressed_loss_days": round(stressed_days, 2),
+            "weekly_baseline_sgd": baseline.weekly_premium_sgd,
+            "weekly_stressed_sgd": round(stressed_yearly / calculator.WEEKS_PER_YEAR, 2),
+        }
+    affected = [
+        {
+            "name": centre["name"],
+            "stalls": centre["food_stalls"],
+            "region": centre["region"],
+            **regions[centre["region"]],
+        }
+        for centre in centres
+    ]
+    stalls = sum(centre["food_stalls"] for centre in centres)
+    return {
+        "assessment": assessment,
+        "regions": regions,
+        "affected": affected,
+        "totals": {
+            "centres": len(centres),
+            "stalls": stalls,
+            "payout_today_sgd": round(assessment.payout_sgd * stalls, 2),
+            "weekly_premium_baseline_sgd": round(
+                sum(c["stalls"] * c["weekly_baseline_sgd"] for c in affected), 2
+            ),
+            "weekly_premium_stressed_sgd": round(
+                sum(c["stalls"] * c["weekly_stressed_sgd"] for c in affected), 2
+            ),
         },
     }
 
