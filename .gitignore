@@ -24,3 +24,6 @@ survey/private/
 
 # Local tariff database of the pricing API
 api/tariff.db
+
+# Trained models, Optuna studies and predictions (rebuilt by ml.run_all)
+ml/output/
