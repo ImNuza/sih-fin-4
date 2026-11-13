@@ -189,6 +189,7 @@ function buildLayers() {
     getElevation: (f) => hazeLift(f.properties.psi_region),
     getFillColor: (f) => COLORS.haze.concat(hazeLift(f.properties.psi_region) > 0 ? 70 : 0),
     material: { ambient: 0.55, diffuse: 0.5, shininess: 24 },
+    parameters: { depthWriteEnabled: false },
     transitions: { getElevation: 380 },
     updateTriggers: { getElevation: [state.rev], getFillColor: [state.rev] },
   }));
@@ -234,11 +235,13 @@ function buildLayers() {
   }));
   if (state.layers.sme && zoom >= 13) layers.push(new TextLayer({
     id: "sme-labels", data: STATIC.hawker_centres,
-    getPosition: (d) => [d.lng, d.lat], getText: (d) => d.name,
-    getSize: 11.5, getColor: [242, 241, 237, 235],
+    getPosition: (d) => [d.lng, d.lat],
+    getText: (d) => d.name.split(" (")[0],
+    getSize: 11, getColor: [242, 241, 237, 225],
     getTextAnchor: "start", getAlignmentBaseline: "center", getPixelOffset: [12, 0],
     fontFamily: "Schibsted Grotesk, sans-serif", fontWeight: 600,
     outlineWidth: 2, outlineColor: [16, 18, 20, 255], fontSettings: { sdf: true },
+    parameters: { depthWriteEnabled: false, depthCompare: "always" },
   }));
   if (state.mode === "sim" && (state.circles.length || state.draft)) {
     const circles = state.draft ? state.circles.concat([state.draft]) : state.circles;
@@ -261,6 +264,7 @@ function buildLayers() {
     getSize: 13, getColor: [195, 194, 183, 200],
     fontFamily: "Schibsted Grotesk, sans-serif", fontWeight: 700,
     outlineWidth: 2, outlineColor: [16, 18, 20, 220], fontSettings: { sdf: true },
+    parameters: { depthWriteEnabled: false, depthCompare: "always" },
   }));
   return layers;
 }
@@ -402,13 +406,14 @@ function commitCircle(circle) {
   renderFloats();
   redraw();
 }
-function removeActiveCircle() {
-  state.circles = state.circles.filter((c) => c.id !== state.activeId);
-  renderFloats();
-  state.activeId = state.circles.length ? state.circles[state.circles.length - 1].id : null;
-  if (state.activeId) { selectCircle(state.activeId); return; }
-  clearAllCircles();
+function removeCircleById(id) {
+  state.circles = state.circles.filter((c) => c.id !== id);
+  if (!state.circles.length) { clearAllCircles(); return; }
+  if (state.activeId === id) { selectCircle(state.circles[state.circles.length - 1].id); return; }
+  el("clear-all").hidden = state.circles.length < 2;
+  renderFloats(); redraw(); renderPortfolio(); renderDetail();
 }
+function removeActiveCircle() { removeCircleById(state.activeId); }
 function clearAllCircles() {
   state.circles = []; state.activeId = null;
   stopDrawing();
@@ -467,9 +472,10 @@ function buildExtraHazardControls() {
 /* ---------- floating circle records ---------- */
 function floatCardHtml(circle) {
   const scn = circle.scn, active = circle.id === state.activeId;
-  const head = `<div class="chead" data-act="toggle"><span class="tag">C${circle.id}</span>
-    <span class="pay">${scn.assessment.loss_percent.toFixed(0)}% · ${SGD0(scn.totals.payout_today_sgd)}/day</span>
-    <span class="tgl">${circle.expanded ? "▾" : "▸"}</span></div>`;
+  const head = `<div class="chead"><span class="tag" data-act="toggle">C${circle.id}</span>
+    <span class="pay" data-act="toggle">${scn.assessment.loss_percent.toFixed(0)}% · ${SGD0(scn.totals.payout_today_sgd)}/day</span>
+    <span class="tgl" data-act="toggle">${circle.expanded ? "▾" : "▸"}</span>
+    <span class="x" data-act="remove" title="Remove this circle">✕</span></div>`;
   const body = circle.expanded ? `<div class="cbody" data-act="edit">
     <div class="kv"><span class="k">Payout / stall</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
     <div class="kv"><span class="k">Centres · stalls</span><span class="v">${scn.totals.centres} · ${scn.totals.stalls.toLocaleString("en-SG")}</span></div>
@@ -494,6 +500,7 @@ function renderFloats() {
         const act = event.target.closest("[data-act]")?.dataset.act;
         if (act === "toggle") { circle.expanded = !circle.expanded; renderFloats(); }
         if (act === "edit") selectCircle(circle.id);
+        if (act === "remove") removeCircleById(circle.id);
       });
       layer.appendChild(card);
     }
