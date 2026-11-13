@@ -107,15 +107,15 @@ def assess(
     )
 
 
-def expected_loss_days(
+def loss_day_parts(
     tariff: Tariff, product: Product, region_history: dict[str, Readings]
-) -> float:
-    """Days of full loss in an average year.
+) -> dict[str, float]:
+    """Days of full loss in an average year, per hazard.
 
     A day with two hazards counts twice, a small overstatement.
     """
     factor = product_factor(product, tariff.pricing.recovered_share)
-    total = 0.0
+    parts: dict[str, float] = {}
     for hazard in tariff.hazards:
         if hazard.assumed_days_per_year is not None:
             days, severity = hazard.assumed_days_per_year, hazard.bands[-1].severity
@@ -125,8 +125,14 @@ def expected_loss_days(
             days = DAYS_PER_YEAR
         else:
             raise MissingHistory(f"{hazard.label} has no NEA history. Set its assumed days a year.")
-        total += days * hazard_loss(hazard, severity, factor)
-    return total
+        parts[hazard.key] = days * hazard_loss(hazard, severity, factor)
+    return parts
+
+
+def expected_loss_days(
+    tariff: Tariff, product: Product, region_history: dict[str, Readings]
+) -> float:
+    return sum(loss_day_parts(tariff, product, region_history).values())
 
 
 def yearly_premium(risk_cost: float, pricing: Pricing) -> float:
