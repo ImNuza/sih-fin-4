@@ -182,9 +182,9 @@ class TorchMLP(BaseEstimator):
         check_x = features[check_rows].to(self.device)
         check_y = target[check_rows].to(self.device)
         best_loss, best_state, stale_epochs = float("inf"), None, 0
-        for _ in range(self.epochs):
+        for epoch in range(self.epochs):
             network.train()
-            shuffled = np.random.default_rng().permutation(train_rows)
+            shuffled = np.random.default_rng(SEED + epoch).permutation(train_rows)
             for start in range(0, len(shuffled), self.batch_size):
                 rows = shuffled[start : start + self.batch_size]
                 optimiser.zero_grad()
