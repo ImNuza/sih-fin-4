@@ -545,7 +545,6 @@ function renderPortfolio() {
   const box = el("portfolio");
   if (state.view !== "insurer") { box.hidden = true; return; }
   box.hidden = false;
-  box.classList.toggle("raised", state.mode === "sim");
   const tierKey = state.tier;
   let stalls = 0, premiumPool = 0, expectedPayouts = 0, dayPayout = 0;
   STATIC.hawker_centres.forEach((centre, index) => {
@@ -784,6 +783,8 @@ function wireUi() {
   el("s-rain").addEventListener("input", (e) => setSim({ rain: +e.target.value }));
   el("s-heat").addEventListener("input", (e) => setSim({ heat: +e.target.value }));
   el("s-flood").addEventListener("change", (e) => setSim({ flood: e.target.checked }));
+  document.querySelectorAll(".panel .fold").forEach((button) =>
+    button.addEventListener("click", () => button.closest(".panel").classList.toggle("folded")));
   el("draw-circle").addEventListener("click", startDrawing);
   el("clear-circle").addEventListener("click", clearCircle);
   el("s-radius").addEventListener("input", (e) => {

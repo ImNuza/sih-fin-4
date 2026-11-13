@@ -116,7 +116,6 @@ canvas { outline: none; }
 .zoomchip .sep { color: #55544f; }
 
 /* ---------- simulator & portfolio ---------- */
-.sim { right: 14px; bottom: 14px; width: 330px; max-height: calc(100vh - 88px); overflow: auto; }
 .sim .body { display: flex; flex-direction: column; gap: 10px; }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .preset {
@@ -156,9 +155,6 @@ canvas { outline: none; }
 .factor output { font: 500 10.5px var(--mono); text-align: right; }
 .delta-up { color: var(--serious); font-family: var(--mono); }
 
-.portfolio { right: 14px; bottom: 14px; width: 330px; }
-/* In simulate mode the portfolio moves bottom-left, clear of the taller simulator. */
-.portfolio.raised { right: auto; left: 14px; bottom: 58px; width: 300px; }
 .portfolio .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 2px 0; }
 .portfolio .row span { font-size: 11.5px; color: var(--ink-2); }
 .portfolio .row output { font: 600 13px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -170,7 +166,31 @@ canvas { outline: none; }
 .portfolio .note { margin: 6px 0 0; font-size: 10px; color: var(--muted); line-height: 1.45; }
 
 /* ---------- detail panel ---------- */
-.detail { right: 14px; top: 64px; width: 352px; max-height: calc(100vh - 340px); overflow: auto; }
+/* One right-hand column: detail on top, portfolio and simulator pinned to the bottom.
+   Panels inside it are normal flex children, so they can never overlap. */
+.right-stack {
+  position: fixed; top: 64px; bottom: 14px; right: 14px; width: 344px; z-index: 20;
+  display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+}
+.right-stack .panel { position: static; width: 100%; pointer-events: auto; }
+.right-stack .detail { flex: 0 1 auto; min-height: 0; overflow: auto; }
+.right-stack .portfolio { margin-top: auto; flex: none; }
+.right-stack .sim { flex: 0 1 auto; min-height: 0; overflow: auto; }
+
+.fold {
+  appearance: none; border: 0; background: transparent; color: var(--muted);
+  cursor: pointer; font-size: 11px; padding: 0 5px 0 0; line-height: 1;
+}
+.fold:hover { color: var(--ink); }
+.panel.folded .fold { opacity: 0.7; }
+.panel.folded :is(.body, .fold-body) { display: none; }
+
+.zoomchip .cam {
+  appearance: none; border: 1px solid transparent; background: transparent; color: var(--ink-2);
+  font: 600 11px var(--sans); padding: 3px 8px; border-radius: 6px; cursor: pointer;
+}
+.zoomchip .cam.on { color: var(--ink); border-color: var(--line); background: var(--surface-2); }
+.zoomchip .cam:hover { color: var(--ink); }
 .detail .close, .about .close {
   position: absolute; top: 8px; right: 8px; appearance: none; border: 0;
   background: var(--surface-2); color: var(--ink-2); width: 24px; height: 24px;
@@ -273,10 +293,8 @@ table.tiers tr.rec td { color: var(--ink); background: rgba(134,182,239,0.08); }
 
 /* ---------- phone ---------- */
 @media (max-width: 780px) {
-  .layers { width: 198px; top: 112px; max-height: 36vh; }
-  .detail { left: 14px; right: 14px; width: auto; top: auto; bottom: 14px; max-height: 52vh; z-index: 26; }
-  .sim, .portfolio { left: 14px; right: 14px; width: auto; }
-  .portfolio.raised { display: none; }  /* phones: the simulator takes priority */
+  .layers { width: 198px; top: 108px; max-height: 32vh; }
+  .right-stack { left: 14px; right: 14px; top: auto; bottom: 14px; width: auto; max-height: 62vh; }
   .zoomchip { display: none; }
   .topbar { gap: 8px; }
   .actions { margin-left: 0; }
