@@ -271,7 +271,7 @@ function tooltip({ object, layer, index }) {
 }
 
 /* ---------- scenario circle ---------- */
-let scenarioTimer = null, scenarioSeq = 0, hoverPending = false;
+let scenarioTimer = null, scenarioSeq = 0;
 function circleHint(text) { el("circle-hint").textContent = text; }
 function requestScenario() {
   if (state.mode !== "sim" || !state.circle || state.drawing) return;
@@ -309,44 +309,41 @@ function renderScenario() {
       <output>${h.loss_percent.toFixed(0)}%</output></div>`).join("")}
     <p class="note">Premium stress: days like this hitting ${state.extraDays} more times a year on top of the region's NEA history, repriced by the same engine. All numbers from the API.</p>`;
 }
+const CONTROLLER_ON = { touchRotate: true, inertia: 260 };
+// While aiming, panning is off so a touchpad tap with a little jitter still lands as a click.
+const CONTROLLER_AIMING = { dragPan: false, dragRotate: false, touchRotate: false, scrollZoom: true, inertia: 0 };
 function startDrawing() {
   state.drawing = "center"; state.scn = null;
+  deckgl.setProps({ controller: CONTROLLER_AIMING });
   el("draw-circle").classList.add("on");
   el("clear-circle").hidden = false;
-  circleHint("Click the map to set the centre.");
+  circleHint("Tap or click your area on the map — one tap sets the centre, then size it with the radius slider. Esc cancels.");
   renderScenario(); redraw();
 }
-function clearCircle() {
-  state.circle = null; state.drawing = null; state.scn = null;
+function stopDrawing() {
+  state.drawing = null;
+  deckgl.setProps({ controller: CONTROLLER_ON });
   el("draw-circle").classList.remove("on");
+}
+function clearCircle() {
+  state.circle = null; state.scn = null;
+  stopDrawing();
   el("clear-circle").hidden = true;
+  el("radius-row").hidden = true;
   el("extradays-row").hidden = true;
   circleHint("Scope the day to one area: the readings then apply only inside it.");
   renderScenario(); redraw(); renderPortfolio(); renderDetail();
 }
 function onMapClick(info) {
-  if (!state.drawing || !info.coordinate) return;
+  if (state.drawing !== "center" || !info.coordinate) return;
   const [lng, lat] = info.coordinate;
-  if (state.drawing === "center") {
-    state.circle = { lat, lng, radiusKm: 0.8 };
-    state.drawing = "radius";
-    circleHint("Move the pointer, then click to set the size.");
-  } else {
-    state.circle.radiusKm = Math.min(15, Math.max(0.1, haversineKm(state.circle, { lat, lng }) || 0.8));
-    state.drawing = null;
-    el("draw-circle").classList.remove("on");
-    el("extradays-row").hidden = false;
-    circleHint(`${state.circle.radiusKm.toFixed(1)} km around ${state.circle.lat.toFixed(3)}, ${state.circle.lng.toFixed(3)} — sent to the backend with every slider move.`);
-    requestScenario();
-  }
+  state.circle = { lat, lng, radiusKm: +el("s-radius").value };
+  stopDrawing();
+  el("radius-row").hidden = false;
+  el("extradays-row").hidden = false;
+  circleHint(`Circle set at ${lat.toFixed(3)}, ${lng.toFixed(3)} — every slider move reprices it on the backend.`);
+  requestScenario();
   redraw();
-}
-function onMapHover(info) {
-  if (state.drawing !== "radius" || !info.coordinate || hoverPending) return;
-  const [lng, lat] = info.coordinate;
-  state.circle.radiusKm = Math.min(15, Math.max(0.1, haversineKm(state.circle, { lat, lng })));
-  hoverPending = true;
-  requestAnimationFrame(() => { hoverPending = false; redraw(); });
 }
 function buildExtraHazardControls() {
   const host = el("extra-hazards");
@@ -744,7 +741,11 @@ function wireUi() {
   el("cam-city").addEventListener("click", () => flyTo("city"));
   el("cam-orbit").addEventListener("click", () => toggleOrbit());
   el("map").addEventListener("pointerdown", () => { if (state.orbit) toggleOrbit(false); });
-  window.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.orbit) toggleOrbit(false); });
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (state.orbit) toggleOrbit(false);
+    if (state.drawing) { stopDrawing(); circleHint("Drawing cancelled."); redraw(); }
+  });
   el("view-owner").addEventListener("click", () => setView("owner"));
   el("view-insurer").addEventListener("click", () => setView("insurer"));
   el("about-open").addEventListener("click", () => el("about-dialog").showModal());
@@ -760,6 +761,12 @@ function wireUi() {
   el("s-flood").addEventListener("change", (e) => setSim({ flood: e.target.checked }));
   el("draw-circle").addEventListener("click", startDrawing);
   el("clear-circle").addEventListener("click", clearCircle);
+  el("s-radius").addEventListener("input", (e) => {
+    if (!state.circle) return;
+    state.circle.radiusKm = +e.target.value;
+    el("v-radius").textContent = `${state.circle.radiusKm.toFixed(1)} km`;
+    requestScenario(); redraw();
+  });
   el("s-extradays").addEventListener("input", (e) => {
     state.extraDays = +e.target.value;
     el("v-extradays").textContent = `${state.extraDays} d`;
@@ -796,7 +803,6 @@ async function boot() {
       initialViewState: lastView,
       controller: { touchRotate: true, inertia: 260 },
       onClick: onMapClick,
-      onHover: onMapHover,
       getCursor: ({ isDragging }) => (state.drawing ? "crosshair" : isDragging ? "grabbing" : "grab"),
       effects: [new LightingEffect({
         ambient: new AmbientLight({ color: [255, 255, 255], intensity: 1.6 }),
