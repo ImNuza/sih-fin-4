@@ -27,7 +27,7 @@ There is no cap on the total amount we can download. The only limit is calls per
 | Rainfall per gauge, hourly | Dec 2016 to now | `fetch_rainfall.py` | done (about 3 h) |
 | PSI and PM2.5 by region, hourly | Mar 2016 to now | `fetch_psi.py` | done |
 | **Historical 24-hr PSI by region** (data.gov.sg dataset `d_b4cf557f8750260d229c49fd768e11ed`) | **Apr 2014** to Sep 2026 | `fetch_psi_history.py` | about 10 s |
-| **MSS daily records per station**: daily rain, wettest 30/60/120 min, mean/max/min temperature, wind | **1980** to Sep 2026 (some stations only) | `fetch_mss_daily.py` | about 2 h |
+| **MSS daily records per station**: daily rain (from 1980), wettest 30/60/120 min (from 2014), mean/max/min temperature, wind | **1980** to Oct 2026 (some stations only) | `fetch_mss_daily.py` | about 2 h |
 | **ERA5 hourly** at the 5 PSI region centres: temperature, humidity, dew point, wet-bulb, wind, sunlight, rain | **1980** to now minus 6 days | `fetch_era5.py` | about 1 h (paced to the Open-Meteo hourly cap) |
 | **ENSO (ONI) and IOD (DMI)**, monthly | 1950 / 1870 to 2026 | `fetch_climate_indices.py` | about 5 s |
 
@@ -35,7 +35,10 @@ Results of the 13 Nov runs:
 
 - MSS: 488,917 station-days, 95 stations, 1 Jan 1980 to 31 Oct 2026. Only 17 stations go back to
   1990 or earlier. Daily rain is filled on 98% of station-days, the wettest 60 minutes on 44% and
-  maximum temperature on 30%, because most gauges record rain totals only.
+  maximum temperature on 30%, because most gauges record rain totals only. **The wettest 30, 60
+  and 120 minutes start in 2014.** Before that MSS has daily totals only (17 stations from 1980).
+  The rain reconstruction model rebuilds the wettest hour for 1980 to 2013 from the daily total
+  and ERA5.
 - ERA5: 2,053,560 region-hours, 1 Jan 1980 to 7 Nov 2026, no missing values.
 
 Not downloaded, on purpose:
@@ -74,7 +77,8 @@ it can learn from real data:
 2. **Payout from the tariff (rules, not ML).** Put each predicted or past day through
    `api/calculator.py` (`assess`) to get the loss share and the payout per tier. This keeps the
    price explainable, as MAS FEAT requires.
-3. **Back-test: what we would have paid.** Run every past day since 1980 (rain, heat from ERA5),
+3. **Back-test: what we would have paid.** Run every past day since 1980 (rain and heat rebuilt
+   by the reconstruction models),
    or since 2014 (haze), through the tariff. Per year and per tier, the output is: paid days, days
    capped, total payout, premium and loss ratio. This shows the worst year (2015 for haze) and
    the capital that the catastrophe load and reinsurance must hold.
@@ -99,7 +103,7 @@ Targets:
 | Target | Type | Use |
 |---|---|---|
 | highest 24-hour PSI of the day per region | regression | haze severity band |
-| rain in the wettest work hour at a gauge (MSS gives 60-minute maxima from 1980) | regression or band classifier | rain severity band |
+| rain in the wettest hour at a gauge (MSS 60-minute maxima from 2014, rebuilt before that) | regression or band classifier | rain severity band |
 | work hours at WBGT 32°C or more | count | heat severity band |
 | trigger days per region per season | count (Poisson or negative binomial) | premium and capital |
 
