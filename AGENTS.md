@@ -22,6 +22,7 @@ This is an open-source project: strangers will read the code, so it must be plai
 - `ADMIN_USERNAME=... ADMIN_PASSWORD=... uv run uvicorn api.main:app --reload`: the platform on http://localhost:8000 — landing at `/`, login at `/login/`, role dashboards at `/dashboard/` (accounts in `api/accounts.py`; insurer sign-up needs `INSURER_ACCESS_CODE`, default `income-demo`), risk map at `/map/`, admin tariff desk at `/admin/`, docs at `/docs`. Without `DATABASE_URL` it saves to the SQLite file `api/tariff.db`; the hosted copy uses Postgres.
 - `uv run scripts/fetch_geo.py`, then `uv run scripts/build_map_static.py`: rebuild `data/processed/map_static.json`, the static bundle behind `/map/`. The map's live mode needs `DATA_GOV_SG_API_KEY`; without it the map works from history and reports the live layer unavailable.
 - `uv run pytest`: tests for the pricing API.
+- `uv run --group ml python -m ml.run_all`: tune every hazard model and run the payout back-test, output to the gitignored `ml/output/`. Meant for a machine with an NVIDIA GPU; `--budget smoke` checks the setup in minutes. See `ml/README.md`.
 - `scripts/dgs.py`: shared data.gov.sg client (API keys, User-Agent, retries, pagination, cache). Reuse it for new feeds.
 - Raw API pages are cached per day in `data/raw/<feed>/`. A rerun only fetches missing days.
 
@@ -40,6 +41,7 @@ Before saying a task is done, run every script the change touches and check its 
 - `app/`: Streamlit dashboard (`app.py` pages, `data.py` loaders).
 - `api/`: pricing API (`main.py` routes, `calculator.py` loss score and premium, `models.py` tariff and request shapes, `store.py` saved tariff versions) and the admin panel in `api/admin/` (plain HTML, CSS and JavaScript, no build step).
 - `api/default_tariff.json`: the first tariff. After that, admins change the tariff in the admin panel, and every save is a new version in the tariff database.
+- `ml/`: hazard models (`features.py` feature tables, `models.py` model zoo and search spaces, `tune.py` time-ordered Optuna tuning, `backtest.py` yearly payouts, `run_all.py` the one command). Uses `api/calculator.py` for every payout, never its own copy.
 - `tests/`: pytest tests.
 - A new data.gov.sg feed gets a `scripts/fetch_<feed>.py` that uses `DgsClient`. Never write a second HTTP client.
 - Shared helpers go in an existing module only when two scripts need them. No `utils.py`.
