@@ -152,6 +152,14 @@ def add_place(frame: pd.DataFrame) -> list[str]:
     return ["region_code"] + [c for c in ("latitude", "longitude") if c in frame.columns]
 
 
+def add_weather_calendar_place(grid: pd.DataFrame, horizon: int) -> list[str]:
+    """Features that need only a place and a day, so they exist for any site and year."""
+    features = add_era5(grid, horizon)
+    features += add_calendar(grid)
+    features += add_climate_indices(grid, grid["day"].dt.to_period("M"))
+    return features + add_place(grid)
+
+
 def daily_frame(task: DailyTask, horizon: int) -> tuple[pd.DataFrame, list[str]]:
     """Feature table for a daily task; the target column keeps its name."""
     grid = daily_grid(target_table(task)).sort_values(["unit", "day"]).reset_index(drop=True)
@@ -163,10 +171,11 @@ def daily_frame(task: DailyTask, horizon: int) -> tuple[pd.DataFrame, list[str]]
         features += add_target_history(
             grid, history, horizon, trigger_level(task.hazard_key), task.target
         )
-    features += add_era5(grid, horizon)
-    features += add_calendar(grid)
-    features += add_climate_indices(grid, grid["day"].dt.to_period("M"))
-    features += add_place(grid)
+    features += add_weather_calendar_place(grid, horizon)
+    if horizon == RECONSTRUCTION:
+        # A rebuild is applied to years far outside the training years (heat trains on
+        # 2025-2026 and rebuilds 1980 on), so it must not lean on the year.
+        features.remove("year")
     frame = grid.dropna(subset=[task.target])
     return frame[ID_COLUMNS + features + [task.target]].reset_index(drop=True), features
 
