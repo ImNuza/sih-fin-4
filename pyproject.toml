@@ -31,6 +31,23 @@ dev = [
     "httpx2>=2.16.0",
     "pytest>=9.2.0",
 ]
+ml = [
+    "catboost>=1.2.10",
+    "joblib>=1.6.0",
+    "lightgbm>=4.7.0",
+    "optuna>=5.0.0",
+    "scikit-learn>=1.9.1",
+    "torch>=2.14.1",
+    "xgboost>=3.2.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
