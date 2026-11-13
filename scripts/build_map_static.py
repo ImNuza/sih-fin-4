@@ -1,14 +1,17 @@
-"""Build the static data bundle the risk map (/map/) loads: geography, exposure and hazard stats.
+"""Build the static data bundles the risk map (/map/) loads: geography, exposure and hazard stats.
 
 Usage:
     uv run scripts/build_map_static.py      (run fetch_geo.py, heat_stats.py and hazard_stats.py first)
 
 Reads  data/raw/geo/planning_areas.geojson, data/raw/geo/hawker_centres.geojson
+       data/raw/geo/hdb_buildings.geojson, data/raw/geo/hdb_property_information.csv
        data/processed/wbgt_stations.csv, data/processed/rain_station_days.parquet
        data/processed/psi_yearly.csv, data/processed/psi_episodes.csv
        data/rainfall/stations.csv, data/wbgt/*.parquet
 Writes data/processed/map_static.json     one bundle: planning areas (simplified polygons),
        hawker centres with stall counts, station stats, PUB flood hotspots, yearly haze series
+       data/processed/map_buildings.json  HDB block footprints near hawker centres, for the
+       city view; heights are nominal at the HDB median storey count (see NOMINAL_STOREYS)
 """
 
 from __future__ import annotations
@@ -23,10 +26,18 @@ from dgs import REPO_ROOT
 RAW_GEO = REPO_ROOT / "data" / "raw" / "geo"
 PROC_DIR = REPO_ROOT / "data" / "processed"
 OUT_PATH = PROC_DIR / "map_static.json"
+BUILDINGS_PATH = PROC_DIR / "map_buildings.json"
 
 # About 130 m at the equator: planning areas stay recognisable, the file stays small.
 SIMPLIFY_TOLERANCE_DEG = 0.0012
 MIN_RAIN_DAYS = 365
+# City view: HDB blocks within this distance of a hawker centre, outer ring only.
+BUILDING_RADIUS_DEG = 0.007  # about 780 m
+BUILDING_TOLERANCE_DEG = 0.00005  # about 5.5 m: block outlines stay recognisable
+# Block heights are nominal: the HDB Property Information max_floor_lvl median is 12 storeys,
+# and the footprints dataset has no per-block join key for it (10% of block numbers are unique).
+NOMINAL_STOREYS = 12
+METRES_PER_STOREY = 3.0
 
 # Label points of the five PSI regions, from regionMetadata in the NEA /psi API response.
 # Same assignment rule as scripts/region_hazard_readings.py: nearest label point.
@@ -183,8 +194,44 @@ def rain_stations() -> list[dict]:
     return stations
 
 
+def hdb_buildings(centres: list[dict]) -> dict:
+    """Outer rings of HDB blocks near hawker centres, for the city view."""
+    collection = json.loads((RAW_GEO / "hdb_buildings.geojson").read_text())
+    floors = pd.read_csv(RAW_GEO / "hdb_property_information.csv")
+    points = [(c["lng"], c["lat"]) for c in centres]
+    rings = []
+    for feature in collection["features"]:
+        geometry = shape(feature["geometry"])
+        centroid = geometry.centroid
+        if not any(
+            abs(centroid.x - lng) < BUILDING_RADIUS_DEG and abs(centroid.y - lat) < BUILDING_RADIUS_DEG
+            for lng, lat in points
+        ):
+            continue
+        simplified = geometry.simplify(BUILDING_TOLERANCE_DEG, preserve_topology=True)
+        parts = simplified.geoms if simplified.geom_type == "MultiPolygon" else [simplified]
+        for part in parts:
+            rings.append(
+                [[round(lng, 5), round(lat, 5)] for lng, lat, *_ in part.exterior.coords]
+            )
+    return {
+        "source": "HDB Existing Building footprints via data.gov.sg, filtered to blocks within "
+        "about 780 m of a hawker centre.",
+        "height_note": f"Heights are nominal at {NOMINAL_STOREYS} storeys x {METRES_PER_STOREY} m, "
+        f"the HDB Property Information median of {floors.max_floor_lvl.median():.0f} storeys; "
+        "the footprints dataset has no reliable per-block storey join.",
+        "nominal_height_m": NOMINAL_STOREYS * METRES_PER_STOREY,
+        "rings": rings,
+    }
+
+
 def main() -> None:
-    for name in ("planning_areas.geojson", "hawker_centres.geojson"):
+    for name in (
+        "planning_areas.geojson",
+        "hawker_centres.geojson",
+        "hdb_buildings.geojson",
+        "hdb_property_information.csv",
+    ):
         if not (RAW_GEO / name).exists():
             raise SystemExit(f"{RAW_GEO / name} is missing. Run scripts/fetch_geo.py first.")
     bundle = {
@@ -215,6 +262,12 @@ def main() -> None:
         f"{len(bundle['wbgt_stations'])} WBGT stations, "
         f"{len(bundle['rain_stations'])} rain gauges, "
         f"{OUT_PATH.stat().st_size:,} bytes"
+    )
+    buildings = hdb_buildings(bundle["hawker_centres"])
+    BUILDINGS_PATH.write_text(json.dumps(buildings, separators=(",", ":")))
+    print(
+        f"Wrote {BUILDINGS_PATH.relative_to(REPO_ROOT)}: "
+        f"{len(buildings['rings']):,} HDB blocks, {BUILDINGS_PATH.stat().st_size:,} bytes"
     )
 
 

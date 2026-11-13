@@ -59,6 +59,7 @@ The API docs are on http://localhost:8000/docs, the admin panel is on http://loc
 | `POST /api/assess` | Product, tier and the day's readings in, loss score and payout out. |
 | `GET /api/map/static` | Geography, exposure and hazard stats the map draws (from `scripts/build_map_static.py`). |
 | `GET /api/map/quotes` | Quotes for every region at once, with the per-hazard loss-day split. |
+| `GET /api/map/buildings` | HDB block footprints near hawker centres for the city view (nominal heights). |
 | `GET /api/map/live` | Today's NEA readings and each hawker centre's live loss score (needs the API key). |
 | `GET`, `PUT /api/admin/tariff` | Read or save the tariff (admin login). |
 | `POST /api/admin/preview` | Price an unsaved tariff (admin login). |

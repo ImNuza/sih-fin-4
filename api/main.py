@@ -51,6 +51,7 @@ API_DIR = Path(__file__).resolve().parent
 REPO_ROOT = API_DIR.parent
 HISTORY_PATH = REPO_ROOT / "data" / "processed" / "region_hazard_readings.csv"
 MAP_STATIC_PATH = REPO_ROOT / "data" / "processed" / "map_static.json"
+MAP_BUILDINGS_PATH = REPO_ROOT / "data" / "processed" / "map_buildings.json"
 DEFAULT_TARIFF_PATH = API_DIR / "default_tariff.json"
 DEFAULT_DATABASE_URL = f"sqlite:///{API_DIR / 'tariff.db'}"
 
@@ -186,6 +187,16 @@ def nearest_reading(stations: list[dict], lat: float, lng: float, field: str) ->
 def map_static() -> FileResponse:
     """Geography, exposure and hazard history the risk map draws: one static bundle."""
     return FileResponse(MAP_STATIC_PATH, media_type="application/json")
+
+
+@app.get("/api/map/buildings")
+def map_buildings() -> FileResponse:
+    """HDB block footprints near hawker centres, for the city view. Heights are nominal."""
+    if not MAP_BUILDINGS_PATH.exists():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "map_buildings.json is missing. Run scripts/build_map_static.py."
+        )
+    return FileResponse(MAP_BUILDINGS_PATH, media_type="application/json")
 
 
 @app.get("/api/map/quotes")
