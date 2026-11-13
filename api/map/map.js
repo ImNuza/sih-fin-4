@@ -452,6 +452,26 @@ function onMapDragEnd() {
   state.draft = null;
   commitCircle(draft);
 }
+function buildExtraHazardControls() {
+  const host = el("extra-hazards");
+  const known = new Set(["haze", "rain", "heat", "flood"]);
+  const extras = (QUOTES.hazards || []).filter((h) => !known.has(h.key));
+  host.innerHTML = extras.map((h) => h.binary
+    ? `<label class="floodrow"><input type="checkbox" data-extra="${h.key}" /> ${h.label} — ${h.reading}</label>`
+    : `<div class="slider"><i style="background:var(--accent)"></i>
+        <label for="x-${h.key}">${h.label}</label>
+        <input type="range" id="x-${h.key}" data-extra="${h.key}" min="0" max="${h.max}" step="1" value="0" />
+        <output id="xv-${h.key}">0</output></div>`).join("");
+  host.querySelectorAll("[data-extra]").forEach((input) =>
+    input.addEventListener("input", () => {
+      const value = input.type === "checkbox" ? (input.checked ? 1 : 0) : +input.value;
+      state.simExtra[input.dataset.extra] = value;
+      const out = el(`xv-${input.dataset.extra}`);
+      if (out) out.textContent = input.value;
+      applyControlChange();
+    }));
+}
+
 /* ---------- detail panel ---------- */
 function select(type, value) {
   if (state.drawing) return;
