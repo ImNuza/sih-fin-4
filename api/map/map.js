@@ -253,20 +253,6 @@ function buildLayers() {
       lineWidthUnits: "pixels",
       updateTriggers: { getRadius: [state.rev], getFillColor: [state.rev], getLineColor: [state.rev], getLineWidth: [state.rev] },
     }));
-    const priced = state.circles.filter((c) => c.scn);
-    if (priced.length) layers.push(new TextLayer({
-      id: "circle-labels", data: priced, pickable: true,
-      getPosition: (d) => [d.lng, d.lat],
-      getText: (d) => ` C${d.id}  ${d.scn.assessment.loss_percent.toFixed(0)}% · ${SGD0(d.scn.totals.payout_today_sgd)}/day `,
-      getSize: 12.5,
-      getColor: (d) => (d.id === state.activeId ? [16, 18, 20, 255] : [242, 241, 237, 240]),
-      background: true, backgroundPadding: [7, 5],
-      getBackgroundColor: (d) => (d.id === state.activeId ? [134, 182, 239, 245] : [26, 28, 31, 230]),
-      getBorderColor: [134, 182, 239, 190], getBorderWidth: 1,
-      fontFamily: "Schibsted Grotesk, sans-serif", fontWeight: 600, fontSettings: { sdf: true },
-      onClick: (info) => { selectCircle(info.object.id); return true; },
-      updateTriggers: { getText: [state.rev], getColor: [state.rev], getBackgroundColor: [state.rev] },
-    }));
   }
   if (zoom < 11.6) layers.push(new TextLayer({
     id: "region-labels",
@@ -291,7 +277,6 @@ function tooltip({ object, layer, index }) {
   if (layer.id === "heat") return { html: `<b>${object.name}</b><div class="m">WBGT ≥32 °C on ${(object.share_days_ge_32 * 100).toFixed(0)}% of days · max ${object.max_wbgt.toFixed(1)} °C</div>` };
   if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">20 mm hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of days (${object.days} days of record)</div>` };
   if (layer.id === "flood") return { html: `<b>${object.name}</b><div class="m">PUB flash-flood hotspot · location approximate</div>` };
-  if (layer.id === "circle-labels") return { html: `<b>Circle ${object.id}</b><div class="m">click to edit this circle's readings</div>` };
   if (layer.id === "pa") return { html: `<b>${object.properties.name}</b><div class="m">${object.properties.psi_region} PSI region · URA ${object.properties.ura_region}</div>` };
   return null;
 }
@@ -301,7 +286,7 @@ let dragPending = false;
 function circleHint(text) { el("circle-hint").textContent = text; }
 const HINT_IDLE = "Scope a day to one area — draw several circles with their own readings to compare.";
 function requestScenario(circle) {
-  if (state.mode !== "sim" || !circle || state.drawing) return;
+  if (state.mode !== "sim" || !circle || state.drawing === "drag") return;
   clearTimeout(circle.timer);
   circle.timer = setTimeout(async () => {
     const seq = (circle.seq = (circle.seq || 0) + 1);
@@ -313,7 +298,7 @@ function requestScenario(circle) {
       });
       if (seq !== circle.seq) return;
       circle.scn = result;
-      renderScenario(); redraw(); renderPortfolio(); renderDetail();
+      renderScenario(); renderFloats(); redraw(); renderPortfolio(); renderDetail();
     } catch (error) { console.error(error); }
   }, 180);
 }
@@ -369,31 +354,34 @@ function syncControls(circle) {
   el("s-radius").value = circle.radiusKm; el("v-radius").textContent = `${circle.radiusKm.toFixed(1)} km`;
 }
 function selectCircle(id) {
-  if (state.drawing) return;
   state.activeId = id;
   const circle = activeCircle();
   if (!circle) return;
+  circle.expanded = true;
   el("sim").classList.remove("folded");
   el("radius-row").hidden = false; el("extradays-row").hidden = false;
   el("remove-circle").hidden = false; el("clear-all").hidden = state.circles.length < 2;
   syncControls(circle);
   circleHint(`Editing circle ${id} (${circle.radiusKm.toFixed(1)} km) — the sliders shape this circle's day.`);
-  renderScenario(); redraw(); renderPortfolio(); renderDetail();
+  renderScenario(); renderFloats(); redraw(); renderPortfolio(); renderDetail();
 }
 const CONTROLLER_ON = { touchRotate: true, inertia: 260 };
 // While aiming, panning is off so a touchpad tap with a little jitter still lands as a click.
 const CONTROLLER_AIMING = { dragPan: false, dragRotate: false, touchRotate: false, scrollZoom: true, inertia: 0 };
 function startDrawing() {
+  if (state.drawing) { stopDrawing(); return; }
   state.drawing = "center"; state.draft = null;
   deckgl.setProps({ controller: CONTROLLER_AIMING });
   el("draw-circle").classList.add("on");
-  circleHint("Tap to place a circle, or press and drag outward to draw one at your own size. Esc cancels.");
+  el("draw-circle").textContent = "✓ Done drawing";
+  circleHint("Press and drag outward for each circle — keep going, one after another. Done or Esc finishes; panning resumes then.");
   redraw();
 }
 function stopDrawing() {
   state.drawing = null; state.draft = null;
   deckgl.setProps({ controller: CONTROLLER_ON });
   el("draw-circle").classList.remove("on");
+  el("draw-circle").textContent = "◯ Draw circles";
 }
 function newCircle(lat, lng, radiusKm) {
   return { id: state.nextId++, lat, lng, radiusKm,
@@ -401,19 +389,22 @@ function newCircle(lat, lng, radiusKm) {
 }
 function commitCircle(circle) {
   circle.radiusKm = Math.min(15, Math.max(0.2, circle.radiusKm));
+  circle.expanded = true;
   state.circles.push(circle);
   state.activeId = circle.id;
-  stopDrawing();
+  state.drawing = "center";  // stay armed: drag the next circle straight away
   el("remove-circle").hidden = false;
   el("clear-all").hidden = state.circles.length < 2;
   el("radius-row").hidden = false; el("extradays-row").hidden = false;
   el("s-radius").value = circle.radiusKm; el("v-radius").textContent = `${circle.radiusKm.toFixed(1)} km`;
-  circleHint(`Circle ${circle.id} set (${circle.radiusKm.toFixed(1)} km). Its payout floats on the map — click any badge to edit that circle, or draw another to compare.`);
+  circleHint(`Circle ${circle.id} set (${circle.radiusKm.toFixed(1)} km) — drag the next one, or press Done/Esc to finish.`);
   requestScenario(circle);
+  renderFloats();
   redraw();
 }
 function removeActiveCircle() {
   state.circles = state.circles.filter((c) => c.id !== state.activeId);
+  renderFloats();
   state.activeId = state.circles.length ? state.circles[state.circles.length - 1].id : null;
   if (state.activeId) { selectCircle(state.activeId); return; }
   clearAllCircles();
@@ -421,6 +412,7 @@ function removeActiveCircle() {
 function clearAllCircles() {
   state.circles = []; state.activeId = null;
   stopDrawing();
+  renderFloats();
   el("remove-circle").hidden = true; el("clear-all").hidden = true;
   el("radius-row").hidden = true; el("extradays-row").hidden = true;
   circleHint(HINT_IDLE);
@@ -470,6 +462,66 @@ function buildExtraHazardControls() {
       if (out) out.textContent = input.value;
       applyControlChange();
     }));
+}
+
+/* ---------- floating circle records ---------- */
+function floatCardHtml(circle) {
+  const scn = circle.scn, active = circle.id === state.activeId;
+  const head = `<div class="chead" data-act="toggle"><span class="tag">C${circle.id}</span>
+    <span class="pay">${scn.assessment.loss_percent.toFixed(0)}% · ${SGD0(scn.totals.payout_today_sgd)}/day</span>
+    <span class="tgl">${circle.expanded ? "▾" : "▸"}</span></div>`;
+  const body = circle.expanded ? `<div class="cbody" data-act="edit">
+    <div class="kv"><span class="k">Payout / stall</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
+    <div class="kv"><span class="k">Centres · stalls</span><span class="v">${scn.totals.centres} · ${scn.totals.stalls.toLocaleString("en-SG")}</span></div>
+    <div class="kv"><span class="k">Premium /wk</span><span class="v">${SGD(scn.totals.weekly_premium_baseline_sgd)} → <span class="delta-up">${SGD(scn.totals.weekly_premium_stressed_sgd)}</span></span></div>
+    <p class="hintline">${active ? "editing — the sliders shape this circle" : "click to edit this circle's readings"}</p>
+  </div>` : "";
+  return head + body;
+}
+function renderFloats() {
+  const layer = el("float-layer");
+  const priced = state.mode === "sim" ? state.circles.filter((c) => c.scn) : [];
+  layer.hidden = priced.length === 0;
+  const seen = new Set();
+  for (const circle of priced) {
+    seen.add(String(circle.id));
+    let card = layer.querySelector(`[data-id="${circle.id}"]`);
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "ccard";
+      card.dataset.id = circle.id;
+      card.addEventListener("click", (event) => {
+        const act = event.target.closest("[data-act]")?.dataset.act;
+        if (act === "toggle") { circle.expanded = !circle.expanded; renderFloats(); }
+        if (act === "edit") selectCircle(circle.id);
+      });
+      layer.appendChild(card);
+    }
+    card.classList.toggle("active", circle.id === state.activeId);
+    card.innerHTML = floatCardHtml(circle);
+  }
+  for (const card of [...layer.children]) if (!seen.has(card.dataset.id)) card.remove();
+}
+function currentViewport() {
+  const viewports = deckgl && deckgl.getViewports ? deckgl.getViewports() : null;
+  if (viewports && viewports.length) return viewports[0];
+  return new deck.WebMercatorViewport({ ...lastView, width: window.innerWidth, height: window.innerHeight });
+}
+function positionFloats() {
+  const layer = el("float-layer");
+  if (!layer.hidden && deckgl) {
+    const viewport = currentViewport();
+    for (const card of layer.children) {
+      const circle = state.circles.find((c) => String(c.id) === card.dataset.id);
+      if (!circle) continue;
+      const [x, yEdge] = viewport.project([circle.lng, circle.lat + circle.radiusKm / 111]);
+      const visible = x > -200 && x < window.innerWidth + 200 && yEdge > -100 && yEdge < window.innerHeight + 200;
+      card.style.display = visible ? "" : "none";
+      card.style.left = `${x}px`;
+      card.style.top = `${yEdge - 8}px`;
+    }
+  }
+  requestAnimationFrame(positionFloats);
 }
 
 /* ---------- detail panel ---------- */
@@ -755,7 +807,7 @@ function setMode(mode) {
     state.livePoll = setInterval(pollLive, LIVE_POLL_MS);
   }
   if (mode === "sim" && !state.simAssessment) setSim({ ...PRESETS.haze230 }, "haze230");
-  redraw(); renderPortfolio(); renderDetail();
+  renderFloats(); redraw(); renderPortfolio(); renderDetail();
 }
 function setView(view) {
   state.view = view;
@@ -955,6 +1007,7 @@ async function boot() {
     if (["plan", "bird", "city"].includes(params.get("camera"))) flyTo(params.get("camera"));
     updateZoomChip(state.zoom);
     el("boot").remove();
+    positionFloats();
     if (document.fonts?.ready) document.fonts.ready.then(() => redraw());
     getJson("/api/map/buildings")
       .then((data) => { BUILDINGS = data; redraw(); })

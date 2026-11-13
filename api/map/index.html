@@ -10,12 +10,13 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="map.css?v=12" />
+    <link rel="stylesheet" href="map.css?v=13" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="map.js?v=12" defer></script>
+    <script src="map.js?v=13" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
+    <div id="float-layer" hidden></div>
 
     <header class="topbar">
       <p class="brand"><a href="/dashboard/" class="backlink" title="Back to your dashboard">‹</a> SafeDay <span>risk atlas</span></p>
@@ -121,7 +122,7 @@
         <div id="extra-hazards"></div>
         <div class="circle-block">
           <div class="circle-actions">
-            <button class="btn-mini" id="draw-circle" type="button">◯ Draw a circle</button>
+            <button class="btn-mini" id="draw-circle" type="button">◯ Draw circles</button>
             <button class="btn-mini" id="remove-circle" type="button" hidden>✕ Remove</button>
             <button class="btn-mini" id="clear-all" type="button" hidden>Clear all</button>
             <span class="circle-hint" id="circle-hint">Scope a day to one area — draw several circles with their own readings to compare.</span>
