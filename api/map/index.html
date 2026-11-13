@@ -10,9 +10,9 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="map.css?v=8" />
+    <link rel="stylesheet" href="map.css?v=9" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="map.js?v=8" defer></script>
+    <script src="map.js?v=9" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
@@ -111,7 +111,7 @@
           </div>
           <div class="slider" id="radius-row" hidden><i style="background:var(--accent)"></i>
             <label for="s-radius">Radius</label>
-            <input type="range" id="s-radius" min="0.2" max="10" step="0.1" value="1" />
+            <input type="range" id="s-radius" min="0.2" max="15" step="0.1" value="1" />
             <output id="v-radius">1.0 km</output></div>
           <div class="slider" id="extradays-row" hidden><i style="background:var(--accent)"></i>
             <label for="s-extradays">+ days/yr<span>frequency stress</span></label>

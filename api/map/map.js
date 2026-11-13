@@ -317,7 +317,7 @@ function startDrawing() {
   deckgl.setProps({ controller: CONTROLLER_AIMING });
   el("draw-circle").classList.add("on");
   el("clear-circle").hidden = false;
-  circleHint("Tap or click your area on the map — one tap sets the centre, then size it with the radius slider. Esc cancels.");
+  circleHint("Tap to place a circle, or press and drag outward to draw one at your own size. Esc cancels; fine-tune with the radius slider after.");
   renderScenario(); redraw();
 }
 function stopDrawing() {
@@ -334,16 +334,41 @@ function clearCircle() {
   circleHint("Scope the day to one area: the readings then apply only inside it.");
   renderScenario(); redraw(); renderPortfolio(); renderDetail();
 }
+function finalizeCircle() {
+  state.circle.radiusKm = Math.min(15, Math.max(0.2, state.circle.radiusKm));
+  stopDrawing();
+  el("radius-row").hidden = false;
+  el("extradays-row").hidden = false;
+  el("s-radius").value = state.circle.radiusKm;
+  el("v-radius").textContent = `${state.circle.radiusKm.toFixed(1)} km`;
+  circleHint(`${state.circle.radiusKm.toFixed(1)} km around ${state.circle.lat.toFixed(3)}, ${state.circle.lng.toFixed(3)} — every slider move reprices it on the backend.`);
+  requestScenario();
+  redraw();
+}
 function onMapClick(info) {
   if (state.drawing !== "center" || !info.coordinate) return;
   const [lng, lat] = info.coordinate;
   state.circle = { lat, lng, radiusKm: +el("s-radius").value };
-  stopDrawing();
-  el("radius-row").hidden = false;
-  el("extradays-row").hidden = false;
-  circleHint(`Circle set at ${lat.toFixed(3)}, ${lng.toFixed(3)} — every slider move reprices it on the backend.`);
-  requestScenario();
+  finalizeCircle();
+}
+let dragPending = false;
+function onMapDragStart(info) {
+  if (state.drawing !== "center" || !info.coordinate) return;
+  const [lng, lat] = info.coordinate;
+  state.circle = { lat, lng, radiusKm: 0.2 };
+  state.drawing = "drag";
   redraw();
+}
+function onMapDrag(info) {
+  if (state.drawing !== "drag" || !info.coordinate || dragPending) return;
+  const [lng, lat] = info.coordinate;
+  state.circle.radiusKm = Math.min(15, Math.max(0.1, haversineKm(state.circle, { lat, lng })));
+  circleHint(`${state.circle.radiusKm.toFixed(1)} km — release to set.`);
+  dragPending = true;
+  requestAnimationFrame(() => { dragPending = false; redraw(); });
+}
+function onMapDragEnd() {
+  if (state.drawing === "drag") finalizeCircle();
 }
 function buildExtraHazardControls() {
   const host = el("extra-hazards");
@@ -803,6 +828,9 @@ async function boot() {
       initialViewState: lastView,
       controller: { touchRotate: true, inertia: 260 },
       onClick: onMapClick,
+      onDragStart: onMapDragStart,
+      onDrag: onMapDrag,
+      onDragEnd: onMapDragEnd,
       getCursor: ({ isDragging }) => (state.drawing ? "crosshair" : isDragging ? "grabbing" : "grab"),
       effects: [new LightingEffect({
         ambient: new AmbientLight({ color: [255, 255, 255], intensity: 1.6 }),
