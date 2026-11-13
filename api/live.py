@@ -129,22 +129,17 @@ def fetch_rain(client: DgsClient, day: str) -> list[dict]:
 
 
 def fetch_flood_alerts(client: DgsClient) -> list[dict]:
-    """Active PUB flood alerts, newest first. The feed starts Oct 2025 and refreshes every 2 min."""
+    """Active PUB flood alerts. The feed posts an observation record every 2 minutes whose
+    item.readings lists the alerts; an empty list means no flood alert is active."""
     body = client.get("weather/flood-alerts", {})
     if body is None:
         return []
-    records = body.get("data", {}).get("records", []) or body.get("data", {}).get("items", [])
-    alerts = []
-    for record in records:
-        if not isinstance(record, dict):
-            continue
-        text = {
-            key: record[key]
-            for key in ("alertType", "type", "location", "description", "message", "datetime", "timestamp")
-            if key in record
-        }
-        alerts.append(text or record)
-    return alerts
+    records = body.get("data", {}).get("records", [])
+    if not records:
+        return []
+    latest = max(records, key=lambda record: record.get("datetime", ""))
+    alerts = latest.get("item", {}).get("readings", []) or []
+    return [alert if isinstance(alert, dict) else {"alert": str(alert)} for alert in alerts]
 
 
 class LiveFeed:
