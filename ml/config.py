@@ -101,7 +101,7 @@ SEASONAL_TASKS = {
         name="rain_season",
         hazard_key="rain",
         target="trigger_days",
-        test_start="2016-01-01",
+        test_start="2023-01-01",
         description="Days a month a typical gauge in the region has a wettest hour in the "
         "first payout band",
     ),
