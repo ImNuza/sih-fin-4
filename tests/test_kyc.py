@@ -293,6 +293,30 @@ def test_openai_failures_follow_the_same_rules(client, openai_model):
     assert shop["place"]["name"] == "Tiong Bahru Market"
 
 
+def test_grok_reads_the_shop_through_xai_when_only_its_key_is_set(client, monkeypatch):
+    calls, clients = [], []
+
+    def parse(**request):
+        calls.append(request)
+        answer = kyc.ModelAnswer(
+            product="cooked_food", place_name=None, confidence=0.7, summary="Laksa stall"
+        )
+        message = SimpleNamespace(parsed=answer)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    def grok_client(api_key, base_url):
+        clients.append((api_key, base_url))
+        completions = SimpleNamespace(parse=parse)
+        return SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+    monkeypatch.setattr(kyc, "api_key", {"XAI_API_KEY": "xai-test-key"}.get)
+    monkeypatch.setattr(kyc.openai, "OpenAI", grok_client)
+    shop = read(client, "I sell laksa")
+    assert (shop["product"], shop["source"]) == ("cooked_food", "llm")
+    assert clients == [("xai-test-key", kyc.XAI_BASE_URL)]
+    assert calls[0]["model"] == kyc.XAI_MODEL
+
+
 def test_scenario_prices_the_product_it_is_sent(client):
     def payout(product: str) -> float:
         response = client.post("/api/map/scenario", json={**STORM, "product": product})

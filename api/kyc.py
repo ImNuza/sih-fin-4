@@ -1,8 +1,9 @@
 """Read a shop owner's own words (and an optional photo) into a tariff product and a map place.
 
 The reading is advisory: it proposes a product and a place for the owner to confirm, and never
-a price. With ANTHROPIC_API_KEY or OPENAI_API_KEY (environment or .env at the repo root) one
-model call classifies the product, Claude first when both are set; with neither, or with no
+a price. With ANTHROPIC_API_KEY, OPENAI_API_KEY or XAI_API_KEY (environment or .env at the repo
+root) one model call classifies the product, asking Claude, then OpenAI, then Grok, by the first
+key set; with none, or with no
 route to the model's API, a keyword table does. Places
 resolve against the hawker centres and planning areas in data/processed/map_static.json, and a
 planning area stands for its most central hawker centre. Nothing sent here is stored.
@@ -29,6 +30,9 @@ CLAUDE_KEY_NAME = "ANTHROPIC_API_KEY"
 CLAUDE_MODEL = "claude-haiku-5-5"
 OPENAI_KEY_NAME = "OPENAI_API_KEY"
 OPENAI_MODEL = "gpt-5.4-mini"
+XAI_KEY_NAME = "XAI_API_KEY"
+XAI_MODEL = "grok-4.20-non-reasoning"
+XAI_BASE_URL = "https://api.x.ai/v1"
 ONLY_A_PHOTO = "(The owner sent only a photo.)"
 MAX_ANSWER_TOKENS = 1024
 FUZZY_CUTOFF = 0.85
@@ -262,13 +266,25 @@ def ask_claude(key: str, system: str, text: str, photo: KycPhoto | None) -> Mode
 
 
 def ask_openai(key: str, system: str, text: str, photo: KycPhoto | None) -> ModelAnswer | None:
+    client = openai.OpenAI(api_key=key)
+    return ask_chat_model(client, OPENAI_MODEL, "api.openai.com", system, text, photo)
+
+
+def ask_grok(key: str, system: str, text: str, photo: KycPhoto | None) -> ModelAnswer | None:
+    client = openai.OpenAI(api_key=key, base_url=XAI_BASE_URL)
+    return ask_chat_model(client, XAI_MODEL, "api.x.ai", system, text, photo)
+
+
+def ask_chat_model(
+    client: openai.OpenAI, model: str, host: str, system: str, text: str, photo: KycPhoto | None
+) -> ModelAnswer | None:
     content: list[dict] = [{"type": "text", "text": text or ONLY_A_PHOTO}]
     if photo is not None:
         url = f"data:{photo.media_type};base64,{photo.data}"
         content.append({"type": "image_url", "image_url": {"url": url}})
     try:
-        response = openai.OpenAI(api_key=key).chat.completions.parse(
-            model=OPENAI_MODEL,
+        response = client.chat.completions.parse(
+            model=model,
             max_completion_tokens=MAX_ANSWER_TOKENS,
             messages=[
                 {"role": "system", "content": system},
@@ -277,7 +293,7 @@ def ask_openai(key: str, system: str, text: str, photo: KycPhoto | None) -> Mode
             response_format=ModelAnswer,
         )
     except openai.APIConnectionError as error:
-        raise NoRoute("api.openai.com") from error
+        raise NoRoute(host) from error
     except (openai.OpenAIError, ValueError) as error:
         log.warning("Shop reading failed: %s", type(error).__name__)
         return None
@@ -289,6 +305,7 @@ Ask = Callable[[str, str, str, KycPhoto | None], ModelAnswer | None]
 MODELS: tuple[tuple[str, Ask], ...] = (
     (CLAUDE_KEY_NAME, ask_claude),
     (OPENAI_KEY_NAME, ask_openai),
+    (XAI_KEY_NAME, ask_grok),
 )
 
 
