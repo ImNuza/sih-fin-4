@@ -26,6 +26,7 @@ api = [
     "sqlalchemy>=2.1.8",
     "psycopg[binary]>=3.3.9",
     "requests>=2.34.2",
+    "anthropic>=2.8.0",
 ]
 dev = [
     "httpx2>=2.16.0",
