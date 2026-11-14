@@ -66,7 +66,7 @@ form input, form select {
 .landing { max-width: 1180px; }
 .hero {
   position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-  gap: var(--s-7); align-items: start; padding: var(--s-7) 0 210px;
+  gap: var(--s-7); align-items: start; padding: var(--s-7) 0 190px;
 }
 .hero h1 { font: 700 var(--t-display)/1.04 var(--sans); letter-spacing: -0.025em; text-wrap: balance; margin-bottom: var(--s-5); }
 .hero p { color: var(--ink-2); font-size: var(--t-md); max-width: 56ch; margin-bottom: var(--s-5); }
@@ -87,7 +87,7 @@ form input, form select {
 .skyline .sky-near rect, .skyline .sky-near path, .skyline .sky-near circle { fill: var(--sky-near); }
 .skyline .wheel { fill: none; stroke: var(--sky-near); stroke-width: 5; }
 .skyline .shophouses rect, .skyline .shophouses path { fill: var(--sky-detail); }
-.skyline .rain rect { fill: var(--rain); }
+.skyline .rain { display: none; }
 .skyline .umbrella path, .skyline .umbrella rect { fill: var(--ink); }
 .skyline .sun { fill: var(--sky-far); }
 
