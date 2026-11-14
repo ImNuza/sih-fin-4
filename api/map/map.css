@@ -328,3 +328,44 @@ table.tiers tr.rec td:first-child { box-shadow: inset 4px 0 0 var(--good); }
   .topbar { gap: var(--s-2); }
   .actions { margin-left: 0; }
 }
+/* ---------- the time machine: a deliberately greyscale box over the map ---------- */
+.timebox {
+  background: #161616; color: #ececec; border: 1px solid #3a3a3a; border-radius: 16px;
+  padding: 26px 30px 30px; max-width: 780px; width: calc(100vw - 32px); max-height: 88vh;
+  filter: grayscale(1);
+}
+.timebox::backdrop { background: rgba(8, 8, 8, 0.78); }
+.timebox .close {
+  position: absolute; top: 10px; right: 10px; appearance: none; border: 0;
+  background: #2a2a2a; color: #cfcfcf; width: 26px; height: 26px; border-radius: 7px;
+  cursor: pointer; font-size: 13px; line-height: 1;
+}
+.timebox h3 { font: 700 22px/1.2 var(--sans); margin: 0 0 2px; color: #ffffff; }
+.t-sub { font-size: 12.5px; color: #9a9a9a; margin: 0 0 14px; }
+.t-controls { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
+.t-controls label { font-size: 11.5px; color: #bdbdbd; font-weight: 600; display: flex; flex-direction: column; gap: 4px; }
+.t-controls select, .t-controls input {
+  background: #242424; color: #ececec; border: 1px solid #3a3a3a; border-radius: 7px;
+  padding: 7px 9px; font: 12.5px var(--sans); min-width: 150px;
+}
+.t-big { font: 700 36px/1.15 var(--sans); color: #ffffff; margin: 4px 0 2px; }
+.t-big small { font: 600 15px var(--sans); color: #9a9a9a; }
+.t-line { font-size: 13px; color: #bdbdbd; line-height: 1.6; margin: 4px 0 14px; }
+.t-line b { color: #ffffff; }
+.t-cap { font: 700 10px/1.2 var(--sans); letter-spacing: 1.1px; text-transform: uppercase; color: #8a8a8a; margin: 14px 0 7px; }
+.t-hz { display: grid; grid-template-columns: 90px 1fr 80px; gap: 9px; align-items: center; font-size: 12px; color: #cfcfcf; margin: 4px 0; }
+.t-hz .bar { height: 12px; background: #242424; border-radius: 4px; overflow: hidden; }
+.t-hz .bar div { height: 100%; border-radius: 4px; }
+.t-hz output { font: 500 11.5px var(--mono); text-align: right; color: #ececec; }
+.t-years { display: flex; gap: 7px; align-items: flex-end; margin: 8px 0 2px; }
+.t-year { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+.t-year span { font: 9.5px var(--mono); color: #8a8a8a; }
+.t-year .bars { display: flex; gap: 2px; align-items: flex-end; height: 64px; }
+.t-year .lost { width: 11px; background: #3d3d3d; border-radius: 2px 2px 0 0; }
+.t-year .paid { width: 11px; background: #cfcfcf; border-radius: 2px 2px 0 0; }
+.t-note { font-size: 10.5px; color: #8a8a8a; line-height: 1.5; margin-top: 10px; }
+.t-cta {
+  display: inline-block; margin-top: 14px; background: #ffffff; color: #111111;
+  font: 700 13px var(--sans); padding: 11px 18px; border-radius: 9px; text-decoration: none;
+}
+.t-wait { color: #9a9a9a; font-size: 13px; }
