@@ -3,8 +3,7 @@
 Usage:
     ADMIN_USERNAME=admin ADMIN_PASSWORD=... uv run uvicorn api.main:app --reload
     Site on http://localhost:8000/ (landing, /login/, /dashboard/), risk map on /map/,
-    tariff desk on /admin/, API docs on /docs. Insurer sign-up needs INSURER_ACCESS_CODE
-    (default "income-demo").
+    tariff desk on /admin/, API docs on /docs.
 
 Reads  data/processed/region_hazard_readings.csv    (from scripts/region_hazard_readings.py)
        data/processed/map_static.json              (from scripts/build_map_static.py)
