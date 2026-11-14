@@ -280,7 +280,7 @@ function tooltip({ object, layer, index }) {
   if (layer.id === "heat") return { html: `<b>${object.name}</b><div class="m">WBGT ≥32 °C on ${(object.share_days_ge_32 * 100).toFixed(0)}% of days · max ${object.max_wbgt.toFixed(1)} °C</div>` };
   if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">20 mm hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of days (${object.days} days of record)</div>` };
   if (layer.id === "flood") return { html: `<b>${object.name}</b><div class="m">PUB flash-flood hotspot · location approximate</div>` };
-  if (layer.id === "pa") return { html: `<b>${object.properties.name}</b><div class="m">${object.properties.psi_region} PSI region · URA ${object.properties.ura_region}</div>` };
+  if (layer.id === "pa") return { html: `<b>${object.properties.name}</b><div class="m">${object.properties.ura_region} planning region · haze zone: ${object.properties.psi_region}</div>` };
   return null;
 }
 
@@ -617,7 +617,7 @@ function renderDetail() {
     kind.textContent = "SME · hawker centre";
     body.innerHTML = `
       <p class="title">${centre.name}</p>
-      <p class="subtitle">${centre.address} · ${centre.region} PSI region${centre.built ? ` · est. ${centre.built}` : ""}</p>
+      <p class="subtitle">${centre.address} · haze zone: ${centre.region}${centre.built ? ` · est. ${centre.built}` : ""}</p>
       <div class="chips">
         <span class="chip">${centre.food_stalls} cooked-food stalls (NEA)</span>
         <span class="chip ${basisFar ? "warning" : "good"}">trigger stations ${nearHeat.km.toFixed(1)} km (heat) · ${nearRain.km.toFixed(1)} km (rain)</span>
@@ -671,7 +671,7 @@ function renderDetail() {
     const tier2 = quote.tiers[1] ?? quote.tiers[0];
     kind.textContent = "Region profile";
     body.innerHTML = `<p class="title">${area.name}</p>
-      <p class="subtitle">URA ${area.ura_region} region · priced from the <b>${region}</b> PSI region's NEA history</p>
+      <p class="subtitle">In URA's ${area.ura_region} planning region. NEA reports haze in five zones (north, south, east, west, central); this area's prices come from the <b>${region}</b> zone's history.</p>
       <div class="sec"><p class="cap">Expected full-loss days (cooked food)</p>
         ${stackBar(parts)}
         <p class="note">${quote.expected_loss_days.toFixed(2)} days/yr → ${tier2.label} (${SGD0(tier2.daily_payout_sgd)}/day) prices at ${SGD(tier2.weekly_premium_sgd)}/week here.</p></div>
