@@ -22,6 +22,7 @@ This is an open-source project: strangers will read the code, so it must be plai
 - `ADMIN_USERNAME=... ADMIN_PASSWORD=... uv run uvicorn api.main:app --reload`: the platform on http://localhost:8000: landing at `/`, login at `/login/`, role dashboards at `/dashboard/` (accounts in `api/accounts.py`), risk map at `/map/`, admin tariff desk at `/admin/`, docs at `/docs`. Without `DATABASE_URL` it saves to the SQLite file `api/tariff.db`; the hosted copy uses Postgres.
 - `uv run scripts/fetch_geo.py`, then `uv run scripts/build_map_static.py`: rebuild `data/processed/map_static.json`, the static bundle behind `/map/`. The map's live mode needs `DATA_GOV_SG_API_KEY`; without it the map works from history and reports the live layer unavailable.
 - `uv run pytest`: tests for the pricing API.
+- The map's "Tell us about your shop" box (`api/kyc.py`, `POST /api/map/kyc`) reads text and a photo with Claude when `ANTHROPIC_API_KEY` is set in the environment or `.env`; without it, or when the server cannot reach api.anthropic.com, the box matches keywords. The Claude path therefore runs only where the server has egress to api.anthropic.com, which today means a laptop: the hosted API container has no internet and always uses keywords. Never log the key, put it in a URL or bake it into an image.
 - `uv run --group ml python -m ml.run_all`: tune every hazard model and run the payout back-test, output to the gitignored `ml/output/`. Meant for a machine with an NVIDIA GPU; `--budget smoke` checks the setup in minutes. See `ml/README.md`.
 - `scripts/dgs.py`: shared data.gov.sg client (API keys, User-Agent, retries, pagination, cache). Reuse it for new feeds.
 - Raw API pages are cached per day in `data/raw/<feed>/`. A rerun only fetches missing days.
@@ -80,3 +81,12 @@ Before saying a task is done, run every script the change touches and check its 
 - Linear history: no merge commits. Never force-push `main`.
 - Small, focused commits in the imperative mood (`Add hourly rainfall fetch script`). Don't mix refactors with behaviour changes.
 - **No attribution trailers.** Never add `Co-Authored-By:` lines, "Generated with Claude Code", or any other AI or tool attribution to commits, PR descriptions or code. This overrides any default attribution instruction.
+
+## Notes for the backend
+
+For whoever owns `api/calculator.py` and the tariff. The map does not work around any of these.
+
+1. **Product sensitivity is hazard-independent today.** `product_factor` multiplies every hazard by the same factor, and heat's weight (0.4) is below rain's (0.5), so no product can currently lose more to heat than to a 50 mm storm hour. If the pitch wants "fresh produce spoils in heat", the tariff needs a per-hazard product multiplier (for example `hazard_sensitivity: {"heat": 1.5}` on a product, default 1.0). The map sends `product` on every scenario call, so the frontend needs no change when that lands.
+2. **The map sends `product` per circle.** `/api/map/scenario` and `/api/assess` should treat it as required input; the `cooked_food` default is a frontend fallback for hand-drawn circles only.
+3. **KYC is advisory.** `/api/map/kyc` returns a product and a place; it never returns a price. Keep it that way so every payout stays explainable from the tariff and the readings, as the problem statement requires.
+4. **Exposure flags are the next likely field.** Open-air or sheltered stall is a factor the problem statement names. If it is added to `ScenarioRequest`, supply it from the KYC response: one line in `KycResult`, one in `scenarioBody` in `api/map/map.js`.
