@@ -560,7 +560,7 @@ function hazeYearChart() {
   });
   return `<div class="minichart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Unhealthy haze days per year">
     <line x1="0" y1="${H - 16}" x2="${W}" y2="${H - 16}" stroke="#383835" stroke-width="1"/>${bars}</svg>
-    <p class="note">Days with 24-h PSI &gt; 100 per year. NEA, Mar 2016 - Nov 2026.</p></div>`;
+    <p class="note">Days per year with 24-hour PSI above 100. PSI is NEA's 0 to 500 air quality index; above 100 the air is officially unhealthy. NEA, Mar 2016 to Nov 2026.</p></div>`;
 }
 function premiumBuildup(tier) {
   const p = QUOTES.pricing;
