@@ -3,7 +3,11 @@
 !pyproject.toml
 !uv.lock
 !api/
+!scripts/dgs.py
 !data/processed/region_hazard_readings.csv
+!data/processed/map_static.json
+!data/processed/map_buildings.json
+!data/processed/day_readings.csv.gz
 api/tariff.db
 **/__pycache__/
 **/.DS_Store
