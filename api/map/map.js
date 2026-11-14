@@ -435,7 +435,7 @@ function commitCircle(circle) {
 }
 function removeCircleById(id) {
   state.circles = state.circles.filter((c) => c.id !== id);
-  if (id === state.shopId) forgetShop();
+  if (id === state.shopId) { if (state.shopDraft) state.shopId = null; else forgetShop(); }
   if (!state.circles.length) { clearAllCircles(); return; }
   if (state.activeId === id) { selectCircle(state.circles[state.circles.length - 1].id); return; }
   el("clear-all").hidden = state.circles.length < 2;
@@ -831,7 +831,7 @@ async function readShop() {
   shopStatus("Reading your description…");
   try {
     const answer = await api.kyc({ text, photo: file ? await readPhoto(file) : null });
-    state.shopId = null; el("kyc-strip").hidden = true;
+    el("kyc-strip").hidden = true;
     // The answer's fields go onto the circle as they are, so a new one needs no change here.
     state.shopDraft = { product: answer.product, place: answer.place, summary: answer.summary };
     showShopDraft();
@@ -871,6 +871,7 @@ function focusOn(point) {
 function placeShop() {
   const { product, place } = state.shopDraft;
   if (state.drawing) stopDrawing();
+  state.circles = state.circles.filter((c) => c.id !== state.shopId);
   const circle = Object.assign(newCircle(place.lat, place.lng, SHOP_RADIUS_KM), { product, place: placeName(place) });
   el("kyc-place").textContent = circle.place;
   state.shopDraft = null; state.shopId = circle.id;
