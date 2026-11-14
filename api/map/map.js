@@ -17,7 +17,6 @@ const PSI_BANDS = [[301, "Hazardous"], [201, "Very unhealthy"], [101, "Unhealthy
 
 const state = {
   mode: "history",                 // history | sim | live
-  view: "insurer",                 // insurer | owner
   camera: "bird",                  // plan | bird | city
   orbit: false,
   layers: { sme: true, heat: true, rain: true, haze: true, flood: false, pa: true, bld: true, base: true },
@@ -154,8 +153,7 @@ function smeColor(centre, index) {
     const t = Math.min(1, currentLossFraction(index));
     return [0, 1, 2].map((i) => COLORS.lossLow[i] + (COLORS.lossHigh[i] - COLORS.lossLow[i]) * t).concat(235);
   }
-  if (state.view === "insurer") return COLORS[verdict(regionQuote(centre.region)).cls].concat(235);
-  return COLORS.ink.concat(235);
+  return COLORS[verdict(regionQuote(centre.region)).cls].concat(235);
 }
 
 function buildLayers() {
@@ -231,7 +229,7 @@ function buildLayers() {
     getFillColor: (d, { index }) => smeColor(d, index),
     getLineColor: [16, 18, 20, 255], getLineWidth: 1.5, lineWidthUnits: "pixels",
     onClick: (info) => select("sme", info.index),
-    updateTriggers: { getFillColor: [state.rev, state.view, state.mode] },
+    updateTriggers: { getFillColor: [state.rev, state.mode] },
   }));
   if (state.layers.sme && zoom >= 13) layers.push(new TextLayer({
     id: "sme-labels", data: STATIC.hawker_centres,
@@ -607,7 +605,6 @@ function renderDetail() {
   const panel = el("detail"), body = el("detail-body"), kind = el("detail-kind");
   if (!state.selected) { panel.hidden = true; return; }
   panel.hidden = false;
-  const insurer = state.view === "insurer";
   const { type, value } = state.selected;
 
   if (type === "sme") {
@@ -624,24 +621,20 @@ function renderDetail() {
         <span class="chip">${centre.food_stalls} cooked-food stalls (NEA)</span>
         <span class="chip ${basisFar ? "warning" : "good"}">trigger stations ${nearHeat.km.toFixed(1)} km (heat) · ${nearRain.km.toFixed(1)} km (rain)</span>
       </div>
-      ${insurer ? `
       <div class="verdict"><div class="mark" style="background:var(--${v.cls})"></div>
-        <div><div class="t1">${v.word} - ${rec.label}</div><div class="t2">${v.detail}</div></div></div>
-      <div class="sec"><p class="cap">Expected loss - ${quote.expected_loss_days.toFixed(2)} full-loss days / year</p>
+        <div><div class="t1">${v.word} · ${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week</div>
+        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. Paid on NEA readings, usually the same day. If readings stay below the trigger levels, nothing is paid.</div></div></div>
+      <div class="sec"><p class="cap">The policy in one SMS</p>
+        <p class="note" style="font-size:12px;color:var(--ink-2)">"SafeDay: we pay ${SGD0(rec.daily_payout_sgd)}/day (max ${SGD0(rec.max_payout_per_year_sgd)}/yr) when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${centre.name}. ${SGD(rec.weekly_premium_sgd)}/wk. No payout below these levels."</p></div>
+      <div class="sec"><p class="cap">Expected loss · ${quote.expected_loss_days.toFixed(2)} full-loss days a year</p>
         ${stackBar(parts)}
-        <p class="note">Day-weighted severity of every NEA reading in the ${centre.region} region's history × 365.25 × peril weight × product factor (cooked food keeps nothing overnight).</p></div>
-      <div class="sec"><p class="cap">Tariff - weekly premium per stall</p>
+        <p class="note">Day-weighted severity of every NEA reading in the ${centre.region} zone's history × 365.25 × peril weight × product factor (cooked food keeps nothing overnight).</p></div>
+      <div class="sec"><p class="cap">All tiers · weekly premium per stall</p>
         <table class="tiers"><tr><th>Tier</th><th>Payout/day</th><th>Cap</th><th>Max/yr</th><th>Weekly</th></tr>
         ${quote.tiers.map((t) => `<tr class="${t.tier === rec.tier ? "rec" : ""}"><td>${t.label}</td><td>${SGD0(t.daily_payout_sgd)}</td><td>${t.max_paid_days_per_year ?? Math.round(t.max_payout_per_year_sgd / t.daily_payout_sgd)} d</td><td>${SGD0(t.max_payout_per_year_sgd)}</td><td>${SGD(t.weekly_premium_sgd)}</td></tr>`).join("")}
         </table></div>
-      <div class="sec"><p class="cap">Premium build-up - ${rec.label}</p>${premiumBuildup(rec)}
-        <p class="note">Insurable interest (Insurance Act 1966 s151): the payout is a pre-estimate of a stall's lost daily takings, so this is insurance, not a wager.</p></div>`
-      : `
-      <div class="verdict"><div class="mark" style="background:var(--${v.cls})"></div>
-        <div><div class="t1">${SGD(rec.weekly_premium_sgd)} a week</div>
-        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits your stall's area. Paid on NEA readings, usually same-day. You can lose sales and receive nothing if readings stay below the trigger.</div></div></div>
-      <div class="sec"><p class="cap">In one SMS</p>
-        <p class="note" style="font-size:12px;color:var(--ink-2)">"SafeDay: we pay ${SGD0(rec.daily_payout_sgd)}/day (max ${SGD0(rec.max_payout_per_year_sgd)}/yr) when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${centre.name}. ${SGD(rec.weekly_premium_sgd)}/wk. No payout below these levels."</p></div>`}
+      <div class="sec"><p class="cap">Premium build-up · ${rec.label}</p>${premiumBuildup(rec)}
+        <p class="note">Insurable interest (Insurance Act 1966 s151): the payout is a pre-estimate of a stall's lost daily takings, so this is insurance, not a wager.</p></div>
       ${dayDetail(value, rec)}`;
   } else if (type === "heat") {
     const s = value;
@@ -688,7 +681,6 @@ function renderDetail() {
 /* ---------- portfolio ---------- */
 function renderPortfolio() {
   const box = el("portfolio");
-  if (state.view !== "insurer") { box.hidden = true; return; }
   box.hidden = false;
   const tierKey = state.tier;
   let stalls = 0, premiumPool = 0, expectedPayouts = 0, dayPayout = 0;
@@ -816,13 +808,6 @@ function setMode(mode) {
   if (mode === "sim" && !state.simAssessment) setSim({ ...PRESETS.haze230 }, "haze230");
   renderFloats(); redraw(); renderPortfolio(); renderDetail();
 }
-function setView(view) {
-  state.view = view;
-  el("view-owner").classList.toggle("on", view === "owner");
-  el("view-insurer").classList.toggle("on", view === "insurer");
-  redraw(); renderPortfolio(); renderDetail();
-}
-
 /* ---------- cameras ---------- */
 const CAMERAS = {
   plan: { pitch: 0, bearing: 0, zoom: 10.9 },
@@ -924,8 +909,6 @@ function wireUi() {
     if (state.orbit) toggleOrbit(false);
     if (state.drawing) { stopDrawing(); circleHint("Drawing cancelled."); redraw(); }
   });
-  el("view-owner").addEventListener("click", () => setView("owner"));
-  el("view-insurer").addEventListener("click", () => setView("insurer"));
   el("about-open").addEventListener("click", () => el("about-dialog").showModal());
   el("detail-close").addEventListener("click", () => { state.selected = null; renderDetail(); });
   for (const key of Object.keys(state.layers)) {
@@ -1006,7 +989,6 @@ async function boot() {
     legendNotes();
     wireUi();
     const params = new URLSearchParams(location.search);
-    setView(["owner", "insurer"].includes(params.get("view")) ? params.get("view") : "insurer");
     setMode(["history", "sim", "live"].includes(params.get("mode")) ? params.get("mode") : "history");
     const focusName = params.get("focus");
     const focusIndex = focusName ? STATIC.hawker_centres.findIndex((c) => c.name === focusName) : -1;
