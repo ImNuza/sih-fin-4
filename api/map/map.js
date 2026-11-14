@@ -322,8 +322,11 @@ function renderScenario() {
   box.hidden = false;
   const t = scn.totals;
   const factors = scn.assessment.hazards.filter((h) => h.loss_percent > 0);
+  const empty = t.centres === 0
+    ? `<p class="note" style="color:var(--warning)">No hawker centres sit inside this circle, so its payouts and premiums are S$0. Drag it over the dots, or widen it.</p>` : "";
   box.innerHTML = `
     <p class="cap">Circle ${circle.id} · ${t.centres} centres · ${t.stalls.toLocaleString("en-SG")} stalls</p>
+    ${empty}
     <div class="kv"><span class="k">Loss score on this day</span><span class="v">${scn.assessment.loss_percent.toFixed(0)}%</span></div>
     <div class="kv"><span class="k">Payout per stall (${state.tier.replace("_", " ")})</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
     <div class="kv"><span class="k">Payout, whole circle</span><span class="v">${SGD(t.payout_today_sgd)}</span></div>
@@ -333,7 +336,7 @@ function renderScenario() {
     ${factors.map((h) => `<div class="factor"><span>${QUOTES.hazard_labels[h.hazard] || h.hazard}</span>
       <div class="bar"><div style="width:${h.loss_percent}%;background:${CSS_BY_HAZARD[h.hazard] || "var(--accent)"}"></div></div>
       <output>${h.loss_percent.toFixed(0)}%</output></div>`).join("")}
-    <p class="note">Each circle keeps its own readings and stress, priced by the API. Click a payout badge on the map to edit that circle.</p>`;
+    <p class="note">The "if more common" slider changes only the premium line above: it asks what the cover would cost if days like this hit ${state.extraDays} more times a year. The payout for the day never changes with it. Click a payout badge on the map to edit that circle.</p>`;
 }
 function syncControls(circle) {
   state.sim = {
