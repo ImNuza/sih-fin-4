@@ -1,14 +1,13 @@
 """Users, sessions and policies: role-based access for the SME and insurer dashboards.
 
-Roles: "sme" (stallholders, open registration) and "insurer" (registration needs the
-access code in INSURER_ACCESS_CODE). Passwords are scrypt-hashed; a login puts a random
+Roles: "sme" (business owners, open registration) and "insurer" (pick the insurer and
+proceed; no access code in this demo). Passwords are scrypt-hashed; a login puts a random
 session token in an HttpOnly cookie. Tables share the tariff database (api/store.py).
 """
 
 from __future__ import annotations
 
 import hashlib
-import os
 import secrets
 from datetime import UTC, datetime
 from typing import Annotated
@@ -33,7 +32,6 @@ from api.store import metadata
 SESSION_COOKIE = "safeday_session"
 SESSION_DAYS = 7
 SCRYPT = {"n": 2**14, "r": 8, "p": 1}
-DEFAULT_INSURER_ACCESS_CODE = "income-demo"
 INSURERS = ("Income Insurance",)
 
 users = Table(
@@ -87,10 +85,6 @@ def verify_password(password: str, stored: str) -> bool:
     return secrets.compare_digest(digest.hex(), digest_hex)
 
 
-def insurer_access_code() -> str:
-    return os.environ.get("INSURER_ACCESS_CODE", DEFAULT_INSURER_ACCESS_CODE)
-
-
 class Registration(BaseModel):
     role: str = Field(pattern="^(sme|insurer)$")
     name: str = Field(min_length=1, max_length=120)
@@ -100,7 +94,6 @@ class Registration(BaseModel):
     centre: str | None = None
     product: str | None = None
     insurer: str | None = None
-    access_code: str | None = None
 
 
 class Login(BaseModel):
@@ -200,8 +193,6 @@ def register(body: Registration, request: Request, response: Response) -> Accoun
         "created_at": datetime.now(UTC),
     }
     if body.role == "insurer":
-        if not secrets.compare_digest(body.access_code or "", insurer_access_code()):
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "Wrong insurer access code")
         if body.insurer not in INSURERS:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick an insurer")
         values["insurer"] = body.insurer

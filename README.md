@@ -13,7 +13,7 @@ Built for the Singapore-India Hackathon 2026, FinTech / InsurTech track. Income 
 - An analysis of how often each peril happens, how long it lasts and how much of Singapore it covers at once. Start with [`docs/notes/climate-data-findings-2026-11-09.md`](docs/notes/climate-data-findings-2026-11-09.md), or open the team report [`docs/reports/fin4-climate-data-findings-2026-11-09.html`](docs/reports/fin4-climate-data-findings-2026-11-09.html) in a browser.
 - A pricing API (`api/`) for the cover. A customer picks a region and what they sell, and gets Tier 1 to 4, each with a weekly premium and a payout. For a given day it scores the loss from 0% to 100% of normal sales and works out the payout. An admin panel lets the team change every weight, band, product, tier and load, and saves each change as a new version.
 - A 3D risk map (`api/map/`, served at `/map/`) over Singapore: hawker centres sized by their real stall counts, heat, rain, haze and flood layers from the committed NEA history, HDB blocks and OneMap streets for the city view, a day simulator, and a "Live now" mode that prices today from the NEA real-time APIs. Both views: what an SME owner pays and what the insurer carries: come from the same pricing engine.
-- The platform site (`api/site/`, served at `/`): a landing page, a login page and role-based dashboards. A stallholder registers with their hawker centre and product, sees their live risk and quote, and starts a cover; an insurer signs in with the access code (`INSURER_ACCESS_CODE`, default `income-demo`) and gets the portfolio desk: policies in force, accumulation, the tariff desk, the data dashboard and the map in insurer view.
+- The platform site (`api/site/`, served at `/`): a landing page, a login page and role-based dashboards. A stallholder registers with their hawker centre and product, sees their live risk and quote, and starts a cover; an insurer selects their organisation, signs in and gets the portfolio desk: policies in force, accumulation, the tariff desk, the data dashboard and the map in insurer view.
 - A dashboard (`app/`) to explore the data and try trigger and price ideas. It runs locally, and a hosted copy updates from `main` (see `deploy/README.md`).
 
 ## Quick start
@@ -62,7 +62,7 @@ The API docs are on http://localhost:8000/docs, the admin panel is on http://loc
 | `GET /api/map/quotes` | Quotes for every region at once, with the per-hazard loss-day split. |
 | `GET /api/map/buildings` | HDB block footprints near hawker centres for the city view (nominal heights). |
 | `GET /api/map/live` | Today's NEA readings and each hawker centre's live loss score (needs the API key). |
-| `POST /api/auth/register`, `/login`, `/logout`, `GET /api/auth/me` | Accounts and sessions; roles `sme` and `insurer` (access code). |
+| `POST /api/auth/register`, `/login`, `/logout`, `GET /api/auth/me` | Accounts and sessions; roles `sme` and `insurer`. |
 | `GET`, `POST`, `DELETE /api/policies` | A stallholder's cover, priced server-side; an insurer lists every policy. |
 | `GET /api/insurer/portfolio` | The insurer's book: policies, premium and payout exposure by region. |
 | `GET`, `PUT /api/admin/tariff` | Read or save the tariff (admin login). |
