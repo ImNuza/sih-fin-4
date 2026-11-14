@@ -278,7 +278,7 @@ function tooltip({ object, layer, index }) {
     return { html: `<b>${object.name}</b><div class="m">${object.food_stalls} food stalls · ${object.region} region · ${SGD(tier.weekly_premium_sgd)}/wk at ${tier.label}${live}</div>` };
   }
   if (layer.id === "heat") return { html: `<b>${object.name}</b><div class="m">reached 32 °C on ${(object.share_days_ge_32 * 100).toFixed(0)}% of its ${object.days} recorded days · hottest ${object.max_wbgt.toFixed(1)} °C</div>` };
-  if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">20 mm hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of days (${object.days} days of record)</div>` };
+  if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">a 20 mm downpour hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of its ${object.days} recorded days</div>` };
   if (layer.id === "flood") return { html: `<b>${object.name}</b><div class="m">PUB flash-flood hotspot · location approximate</div>` };
   if (layer.id === "pa") return { html: `<b>${object.properties.name}</b><div class="m">${object.properties.ura_region} planning region · haze zone: ${object.properties.psi_region}</div>` };
   return null;
@@ -656,10 +656,10 @@ function renderDetail() {
     body.innerHTML = `<p class="title">${s.name}</p>
       <p class="subtitle">Gauge ${s.id} · ${s.days} days of record (10-year NEA history)</p>
       ${live ? `<div class="kv"><span class="k">Wettest work hour today (live)</span><span class="v">${live.wettest_work_hour_today.toFixed(1)} mm</span></div>` : ""}
-      <div class="kv"><span class="k">Days with a 20 mm work-hour</span><span class="v">${(s.share_days_ge_20 * 100).toFixed(1)}%</span></div>
-      <div class="kv"><span class="k">Days with a 30 mm work-hour</span><span class="v">${(s.share_days_ge_30 * 100).toFixed(1)}%</span></div>
+      <div class="kv"><span class="k">Days with 20 mm in one hour</span><span class="v">${(s.share_days_ge_20 * 100).toFixed(1)}% of ${s.days} days</span></div>
+      <div class="kv"><span class="k">Days with 30 mm in one hour</span><span class="v">${(s.share_days_ge_30 * 100).toFixed(1)}% of ${s.days} days</span></div>
       <div class="kv"><span class="k">Average wet work-hours per day</span><span class="v">${s.wet_hours_per_day.toFixed(2)} h</span></div>
-      <p class="note">Rain is local: on an island-wide "rain day" only ~13% of gauges see a heavy hour, so the policy triggers on the gauge nearest the stall.</p>`;
+      <p class="note">The trigger is 20 mm of rain falling within one working hour (7am to 7pm): a downpour hard enough to empty a hawker centre. The percentages count how many of this gauge's recorded days had such an hour. Rain is local, so the policy watches the gauge nearest each business, not an island average.</p>`;
   } else if (type === "flood") {
     kind.textContent = "Hazard · flood hotspot";
     body.innerHTML = `<p class="title">${value.name}</p>
