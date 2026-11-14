@@ -22,6 +22,7 @@
       </nav>
       <p class="live-state" id="live-state" hidden></p>
       <div class="actions">
+        <button id="time-open" class="quiet" type="button">⌛ Time machine</button>
         <button id="about-open" class="quiet" type="button">Method &amp; data</button>
       </div>
     </header>
@@ -144,6 +145,18 @@
       </div>
     </aside>
     </div>
+
+    <dialog id="time-dialog" class="timebox" aria-labelledby="time-title">
+      <form method="dialog"><button class="close" aria-label="Close">✕</button></form>
+      <h3 id="time-title">The time machine</h3>
+      <p class="t-sub">Had this cover existed for the last ten years, at this business:</p>
+      <div class="t-controls">
+        <label>Hawker centre <select id="t-centre"></select></label>
+        <label>Tier <select id="t-tier"></select></label>
+        <label>Daily sales (S$) <input type="number" id="t-takings" value="500" min="50" max="20000" step="50" /></label>
+      </div>
+      <div id="t-body"><p class="t-wait">Computing…</p></div>
+    </dialog>
 
     <dialog id="about-dialog" class="about" aria-labelledby="about-title">
       <form method="dialog"><button class="close" aria-label="Close">✕</button></form>

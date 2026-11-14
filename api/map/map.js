@@ -81,6 +81,8 @@ const api = {
     body: JSON.stringify({ product: "cooked_food", tier: state.tier, readings }),
   }),
   day: (date) => getJson(`/api/map/day?date=${date}`),
+  burn: (centre, product, tier, takings) => getJson(
+    `/api/map/burn?centre=${encodeURIComponent(centre)}&product=${product}&tier=${tier}&takings=${takings}`),
   scenario: (body) => getJson("/api/map/scenario", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1063,6 +1065,65 @@ function toggleOrbit(force) {
   if (state.orbit) orbitStep();
 }
 
+/* ---------- the time machine ---------- */
+let timeTimer = null;
+function wireTimeMachine() {
+  const centreSelect = el("t-centre"), tierSelect = el("t-tier");
+  centreSelect.innerHTML = [...STATIC.hawker_centres]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((c) => `<option value="${c.name}">${c.name}</option>`).join("");
+  tierSelect.innerHTML = OPTIONS.tiers
+    .map((t) => `<option value="${t.key}">${t.label}</option>`).join("");
+  tierSelect.value = state.tier;
+  const refresh = () => {
+    clearTimeout(timeTimer);
+    timeTimer = setTimeout(runTimeMachine, 150);
+  };
+  centreSelect.addEventListener("change", refresh);
+  tierSelect.addEventListener("change", refresh);
+  el("t-takings").addEventListener("change", refresh);
+  el("time-open").addEventListener("click", () => {
+    if (state.selected?.type === "sme")
+      centreSelect.value = STATIC.hawker_centres[state.selected.value].name;
+    el("time-dialog").showModal();
+    runTimeMachine();
+  });
+}
+async function runTimeMachine() {
+  const body = el("t-body");
+  body.innerHTML = `<p class="t-wait">Replaying ten years of NEA readings…</p>`;
+  try {
+    const burn = await api.burn(
+      el("t-centre").value, "cooked_food", el("t-tier").value, +el("t-takings").value || 500);
+    const t = burn.totals, hz = t.by_hazard_sgd;
+    const hzMax = Math.max(hz.haze, hz.rain, hz.heat, 1);
+    const shades = { haze: "#e6e6e6", rain: "#b5b5b5", heat: "#878787" };
+    const labels = { haze: "Haze", rain: "Heavy rain", heat: "Heat" };
+    const lostMax = Math.max(...burn.years.map((y) => y.est_lost_sgd), 1);
+    body.innerHTML = `
+      <p class="t-big">${SGD0(t.paid_sgd)} <small>back in your till, ${t.from_year} to ${t.to_year}</small></p>
+      <p class="t-line">Weather took about <b>${SGD0(t.est_lost_sgd)}</b> from a business like this.
+        ${burn.tier_label} would have paid on <b>${t.trigger_days} bad days</b>, usually the same
+        day, for <b>${SGD0(t.premium_sgd)}</b> of premium (${SGD(burn.weekly_premium_sgd)} a week).</p>
+      <p class="t-cap">Where the payouts came from</p>
+      ${Object.keys(labels).map((k) => `<div class="t-hz"><span>${labels[k]}</span>
+        <div class="bar"><div style="width:${hz[k] / hzMax * 100}%;background:${shades[k]}"></div></div>
+        <output>${SGD0(hz[k])}</output></div>`).join("")}
+      <div class="t-hz"><span>Flash flood</span><div class="bar"></div><output>S$0</output></div>
+      <p class="t-cap">Year by year · grey: lost, white: paid</p>
+      <div class="t-years">${burn.years.map((y) => `
+        <div class="t-year"><div class="bars">
+          <div class="lost" style="height:${Math.max(y.est_lost_sgd / lostMax * 60, 2)}px" title="Lost ~${SGD0(y.est_lost_sgd)}"></div>
+          <div class="paid" style="height:${Math.max(y.paid_sgd / lostMax * 60, y.paid_sgd ? 2 : 0)}px" title="Paid ${SGD0(y.paid_sgd)}"></div>
+        </div><span>${String(y.year).slice(2)}</span></div>`).join("")}</div>
+      <p class="t-note">Losses are the tariff's loss score times the daily sales entered above; heat
+        readings exist from 2025; flood pays on PUB alerts but is priced at zero history days so far.</p>
+      <a class="t-cta" href="/login/#sme">Get covered from ${SGD(burn.weekly_premium_sgd)}/week</a>`;
+  } catch (error) {
+    body.innerHTML = `<p class="t-wait">Could not compute: ${error.message}</p>`;
+  }
+}
+
 /* ---------- static UI ---------- */
 function legendNotes() {
   el("sme-label").textContent = `SMEs · hawker centres (${STATIC.hawker_centres.length})`;
@@ -1119,6 +1180,7 @@ function wireUi() {
     if (state.drawing) { stopDrawing(); circleHint("Drawing cancelled."); redraw(); }
   });
   el("about-open").addEventListener("click", () => el("about-dialog").showModal());
+  wireTimeMachine();
   el("detail-close").addEventListener("click", () => { state.selected = null; renderDetail(); });
   for (const key of Object.keys(state.layers)) {
     el(`ly-${key}`).addEventListener("change", (event) => { state.layers[key] = event.target.checked; redraw(); });
