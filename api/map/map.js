@@ -452,8 +452,9 @@ function buildExtraHazardControls() {
   const host = el("extra-hazards");
   const known = new Set(["haze", "rain", "heat", "flood"]);
   const extras = (QUOTES.hazards || []).filter((h) => !known.has(h.key));
+  const plain = { closure: "A government order shuts businesses here for the day" };
   host.innerHTML = extras.map((h) => h.binary
-    ? `<label class="floodrow"><input type="checkbox" data-extra="${h.key}" /> ${h.label} · ${h.reading}</label>`
+    ? `<label class="floodrow"><input type="checkbox" data-extra="${h.key}" /> ${plain[h.key] || h.label}</label>`
     : `<div class="slider"><i style="background:var(--accent)"></i>
         <label for="x-${h.key}">${h.label}</label>
         <input type="range" id="x-${h.key}" data-extra="${h.key}" min="0" max="${h.max}" step="1" value="0" />
