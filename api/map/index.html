@@ -10,9 +10,9 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="map.css?v=15" />
+    <link rel="stylesheet" href="map.css?v=16" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="map.js?v=15" defer></script>
+    <script src="map.js?v=16" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
@@ -92,6 +92,11 @@
     <aside class="panel sim" id="sim" hidden>
       <h2><button class="fold" type="button" aria-label="Collapse">▾</button>Day simulator <span class="hint">what would this day pay?</span></h2>
       <div class="body">
+        <div class="dayrow">
+          <label for="s-date">Replay a real day</label>
+          <input type="date" id="s-date" />
+        </div>
+        <p class="note" id="day-note" hidden></p>
         <div class="slider"><i style="background:var(--haze)"></i>
           <label for="s-psi">PSI<span id="psi-band"></span></label>
           <input type="range" id="s-psi" min="0" max="350" step="5" value="0" />
