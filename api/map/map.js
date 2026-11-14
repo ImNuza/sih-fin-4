@@ -279,7 +279,7 @@ function tooltip({ object, layer, index }) {
   }
   if (layer.id === "heat") return { html: `<b>${object.name}</b><div class="m">reached 32 °C on ${(object.share_days_ge_32 * 100).toFixed(0)}% of its ${object.days} recorded days · hottest ${object.max_wbgt.toFixed(1)} °C</div>` };
   if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">rain gauge · a 20 mm downpour hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of its ${object.days} recorded days</div>` };
-  if (layer.id === "flood") return { html: `<b>${object.name}</b><div class="m">PUB flash-flood hotspot · location approximate</div>` };
+  if (layer.id === "flood") return { html: `<b>${object.name}</b><div class="m">PUB flash-flood hotspot</div>` };
   if (layer.id === "pa") return { html: `<b>${object.properties.name}</b><div class="m">${object.properties.ura_region} planning region · haze zone: ${object.properties.psi_region}</div>` };
   return null;
 }
@@ -663,7 +663,7 @@ function renderDetail() {
   } else if (type === "flood") {
     kind.textContent = "Hazard · flood hotspot";
     body.innerHTML = `<p class="title">${value.name}</p>
-      <p class="subtitle">PUB flash-flood hotspot (list of 2 Feb 2026) · plotted location approximate</p>
+      <p class="subtitle">PUB flash-flood hotspot (list of 2 Feb 2026)</p>
       <p class="note">Flash floods in Singapore are localised and usually subside within an hour; flood-prone area is down to 23.3 ha (PUB, 2025) from ~3,200 ha in the 1970s. PUB records 2017-2023 show ~7 flash-flood days a year island-wide (Li et al. 2024). The live trigger is PUB's Flood Alerts feed, shown in Live mode.</p>`;
   } else if (type === "region") {
     const area = value, region = area.psi_region;
