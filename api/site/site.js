@@ -172,6 +172,16 @@ async function renderSme(user) {
         <p class="error" id="buy-error"></p>`}
       </div>
     </div>
+    <div class="card" id="burn-card">
+      <h2>Your last ten years, replayed</h2>
+      <p class="fine">Every NEA reading since 2017 at ${user.centre}, scored by the live tariff.
+        Set your normal daily sales; the losses scale with it, the payouts do not.</p>
+      <div class="burn-controls">
+        <label>My daily sales (S$)
+          <input type="number" id="burn-takings" min="50" max="20000" step="50" value="500" /></label>
+      </div>
+      <div id="burn-body"><p class="fine">Computing…</p></div>
+    </div>
     ${mapFrame({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")}`;
 
   document.querySelectorAll(".tier-card").forEach((button) =>
@@ -186,6 +196,42 @@ async function renderSme(user) {
     renderSme(user);
   });
   el("retry-live")?.addEventListener("click", () => renderSme(user));
+  const burnTier = policy ? policy.tier : rec;
+  const loadBurn = async () => {
+    const takings = +el("burn-takings").value || 500;
+    try {
+      const burn = await api(`/api/map/burn?centre=${encodeURIComponent(user.centre)}`
+        + `&product=${user.product || "cooked_food"}&tier=${burnTier}&takings=${takings}`);
+      el("burn-body").innerHTML = renderBurn(burn, policy);
+    } catch (error) {
+      el("burn-body").innerHTML = `<p class="error">${error.message}</p>`;
+    }
+  };
+  el("burn-takings").addEventListener("change", loadBurn);
+  loadBurn();
+}
+
+function renderBurn(burn, policy) {
+  const t = burn.totals;
+  const maxLost = Math.max(...burn.years.map((y) => y.est_lost_sgd), 1);
+  const bars = burn.years.map((y) => `
+    <div class="burn-year">
+      <div class="burn-bars">
+        <div class="burn-lost" style="height:${Math.max(y.est_lost_sgd / maxLost * 72, 2)}px" title="Lost ~${SGD(y.est_lost_sgd)}"></div>
+        <div class="burn-paid" style="height:${Math.max(y.paid_sgd / maxLost * 72, y.paid_sgd ? 2 : 0)}px" title="Paid ${SGD(y.paid_sgd)}"></div>
+      </div>
+      <span>${String(y.year).slice(2)}</span>
+    </div>`).join("");
+  const hz = t.by_hazard_sgd;
+  return `
+    <p class="burn-headline">Weather took about <b>${SGD(t.est_lost_sgd)}</b> from a business like
+      yours since ${t.from_year}. With ${burn.tier_label}, SafeDay would have paid you
+      <b>${SGD(t.paid_sgd)}</b> across <b>${t.trigger_days} bad days</b>, for
+      ${SGD(t.premium_sgd)} of premium${policy ? "" : " (you are not covered yet)"}.</p>
+    <div class="burn-chart">${bars}</div>
+    <p class="fine">Grey: estimated revenue lost each year. Blue: what this tier would have paid.
+      Of the payouts, ${SGD(hz.rain)} came from heavy rain, ${SGD(hz.haze)} from haze and
+      ${SGD(hz.heat)} from heat (heat readings exist from 2025).</p>`;
 }
 
 async function renderInsurer(user) {
