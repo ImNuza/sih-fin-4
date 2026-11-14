@@ -277,7 +277,7 @@ function tooltip({ object, layer, index }) {
       ? ` · today's loss ${(currentLossFraction(index) * 100).toFixed(0)}%` : "";
     return { html: `<b>${object.name}</b><div class="m">${object.food_stalls} food stalls · ${object.region} region · ${SGD(tier.weekly_premium_sgd)}/wk at ${tier.label}${live}</div>` };
   }
-  if (layer.id === "heat") return { html: `<b>${object.name}</b><div class="m">WBGT ≥32 °C on ${(object.share_days_ge_32 * 100).toFixed(0)}% of days · max ${object.max_wbgt.toFixed(1)} °C</div>` };
+  if (layer.id === "heat") return { html: `<b>${object.name}</b><div class="m">reached 32 °C on ${(object.share_days_ge_32 * 100).toFixed(0)}% of its ${object.days} recorded days · hottest ${object.max_wbgt.toFixed(1)} °C</div>` };
   if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">20 mm hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of days (${object.days} days of record)</div>` };
   if (layer.id === "flood") return { html: `<b>${object.name}</b><div class="m">PUB flash-flood hotspot · location approximate</div>` };
   if (layer.id === "pa") return { html: `<b>${object.properties.name}</b><div class="m">${object.properties.ura_region} planning region · haze zone: ${object.properties.psi_region}</div>` };
@@ -645,7 +645,7 @@ function renderDetail() {
       <p class="subtitle">NEA station ${s.id} · ${s.days} days of record since 16 Jan 2025</p>
       ${live ? `<div class="kv"><span class="k">Latest WBGT (live)</span><span class="v">${live.latest.toFixed(1)} °C</span></div>
       <div class="kv"><span class="k">Work hours ≥32 °C today</span><span class="v">${live.hours_ge_32_today.toFixed(2)} h</span></div>` : ""}
-      <div class="kv"><span class="k">Days reaching 32 °C (MOM rest-break level)</span><span class="v">${(s.share_days_ge_32 * 100).toFixed(0)}%</span></div>
+      <div class="kv"><span class="k">Days reaching 32 °C (MOM rest-break level)</span><span class="v">${(s.share_days_ge_32 * 100).toFixed(0)}% of ${s.days} days</span></div>
       <div class="kv"><span class="k">Hours at ≥32 °C over the record</span><span class="v">${s.hours_ge_32.toFixed(0)} h</span></div>
       <div class="kv"><span class="k">Hottest reading</span><span class="v">${s.max_wbgt.toFixed(1)} °C</span></div>
       <p class="note">Heat is frequent but short: when WBGT reaches 32 °C it usually stays under an hour, so the trigger uses a duration rule (2 h+), not a single touch. MOM accepts NEA myENV readings as the workplace reference.</p>`;
