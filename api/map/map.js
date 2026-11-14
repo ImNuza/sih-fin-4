@@ -802,14 +802,21 @@ function setSim(partial) {
 }
 
 /* ---------- tell us about your shop ---------- */
+let stripSeq = 0;
 function shopCircle() { return state.circles.find((c) => c.id === state.shopId) || null; }
 function shopStatus(text) {
   el("kyc-status").hidden = !text;
   el("kyc-status").textContent = text;
 }
+function hideShopStrip() {
+  stripSeq++;  // drops a strip still being priced, so it cannot reappear beside a newer reading
+  el("kyc-strip").hidden = true;
+  el("kyc-strip").replaceChildren();
+}
 function forgetShop() {
   state.shopId = null; state.shopDraft = null;
-  el("kyc-confirm").hidden = true; el("kyc-strip").hidden = true;
+  el("kyc-confirm").hidden = true;
+  hideShopStrip();
   shopStatus("");
 }
 function placeName(place) {
@@ -831,7 +838,7 @@ async function readShop() {
   shopStatus("Reading your description…");
   try {
     const answer = await api.kyc({ text, photo: file ? await readPhoto(file) : null });
-    el("kyc-strip").hidden = true;
+    hideShopStrip();
     // The answer's fields go onto the circle as they are, so a new one needs no change here.
     state.shopDraft = { product: answer.product, place: answer.place, summary: answer.summary };
     showShopDraft();
@@ -890,10 +897,9 @@ function setShopProduct(product) {
   requestScenario(circle);
   renderShopStrip();
 }
-let stripSeq = 0;
 async function renderShopStrip() {
   const circle = shopCircle(), strip = el("kyc-strip");
-  if (!circle) { strip.hidden = true; return; }
+  if (!circle || state.shopDraft) { hideShopStrip(); return; }
   const seq = ++stripSeq;
   try {
     const days = await Promise.all(BAD_DAYS.map((day) => api.scenario(scenarioBody(circle, readingsOf(day.sim, {})))));
