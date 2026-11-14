@@ -853,7 +853,6 @@ function legendNotes() {
   el("heat-note").textContent = "History: column height = share of days reaching WBGT 32 °C. Live: work hours ≥32 °C today.";
   el("rain-note").textContent = "History: share of days with a 20 mm work-hour. Live: wettest work hour today.";
   el("haze-note").textContent = "History: expected haze loss-days by region. Simulate and Live: region lift = 24-h PSI.";
-  el("sources-foot").textContent = STATIC.sources.hazard;
 }
 function aboutHtml() {
   return `
