@@ -4,19 +4,21 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SafeDay</title>
+    <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="/site.css" />
-    <script src="/site.js" defer></script>
+    <link rel="stylesheet" href="/site.css?v=2" />
+    <script src="/site.js?v=2" defer></script>
   </head>
   <body>
     <header class="topnav">
       <p class="brand">SafeDay</p>
       <nav>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">☾</button>
         <a href="/map/">Risk atlas</a>
         <a href="/login/" class="btn-link" id="nav-auth">Sign in</a>
       </nav>
@@ -24,59 +26,100 @@
 
     <main class="landing">
       <section class="hero">
-        <h1>Climate cover for Singapore's smallest businesses, priced in the open.</h1>
-        <p>
-          When haze empties a hawker centre, a storm hour kills the lunch crowd, or a heat
-          advisory stops outdoor work, SafeDay pays a fixed amount per bad day — triggered by
-          NEA's own readings, no claim form, no loss adjuster.
-        </p>
-        <div class="hero-actions">
-          <a class="btn primary" href="/login/#sme">I run a stall — see my price</a>
-          <a class="btn" href="/login/#insurer">I'm the insurer — portfolio desk</a>
-          <a class="btn quiet" href="/map/">Explore the 3D risk atlas</a>
+        <svg class="skyline" viewBox="0 0 1200 240" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+          <circle cx="1020" cy="60" r="38" class="sun" />
+          <g class="sky-far">
+            <rect x="40" y="120" width="34" height="120" /><rect x="84" y="95" width="26" height="145" />
+            <rect x="120" y="135" width="40" height="105" /><rect x="170" y="80" width="30" height="160" />
+            <rect x="210" y="110" width="24" height="130" /><rect x="950" y="105" width="30" height="135" />
+            <rect x="990" y="130" width="42" height="110" /><rect x="1042" y="95" width="26" height="145" />
+            <rect x="1078" y="120" width="36" height="120" /><rect x="1124" y="140" width="46" height="100" />
+          </g>
+          <g class="sky-near">
+            <!-- Marina Bay Sands -->
+            <rect x="560" y="88" width="26" height="152" /><rect x="596" y="88" width="26" height="152" />
+            <rect x="632" y="88" width="26" height="152" />
+            <path d="M548 88 Q609 60 672 88 L666 100 Q609 74 554 100 Z" />
+            <!-- Singapore Flyer -->
+            <circle cx="760" cy="120" r="52" fill="none" class="wheel" />
+            <circle cx="760" cy="120" r="6" /><path d="M752 168 L768 168 L764 240 L756 240 Z" />
+            <!-- Esplanade -->
+            <path d="M420 240 Q452 178 500 240 Z" /><path d="M350 240 Q386 170 440 240 Z" />
+            <!-- CBD towers -->
+            <rect x="250" y="60" width="34" height="180" /><rect x="292" y="92" width="28" height="148" />
+            <rect x="860" y="76" width="30" height="164" /><rect x="898" y="112" width="24" height="128" />
+          </g>
+          <g class="shophouses">
+            <rect x="330" y="206" width="560" height="34" />
+            <path d="M330 206 L358 188 L386 206 Z" /><path d="M386 206 L414 188 L442 206 Z" />
+            <path d="M442 206 L470 188 L498 206 Z" /><path d="M722 206 L750 188 L778 206 Z" />
+            <path d="M778 206 L806 188 L834 206 Z" /><path d="M834 206 L862 188 L890 206 Z" />
+          </g>
+          <g class="umbrella">
+            <path d="M560 180 Q609 138 658 180 Q641 171 625 180 Q617 174 609 180 Q601 174 593 180 Q577 171 560 180 Z" />
+            <rect x="606" y="178" width="5" height="34" rx="2" />
+          </g>
+          <g class="rain">
+            <rect x="140" y="30" width="3" height="16" rx="1.5" /><rect x="170" y="54" width="3" height="16" rx="1.5" />
+            <rect x="200" y="26" width="3" height="16" rx="1.5" /><rect x="230" y="56" width="3" height="16" rx="1.5" />
+            <rect x="112" y="60" width="3" height="16" rx="1.5" /><rect x="260" y="32" width="3" height="16" rx="1.5" />
+          </g>
+        </svg>
+        <div class="hero-inner">
+          <h1>When bad weather stops your business, we pay the same day.</h1>
+          <p>
+            SafeDay covers Singapore's small businesses against haze, heavy rain, extreme heat and
+            flash floods. The payout follows NEA's public readings. No claim forms, no waiting.
+          </p>
+          <div class="hero-actions">
+            <a class="btn primary" href="/login/#sme">See my price</a>
+            <a class="btn" href="/login/#insurer">Insurer desk</a>
+            <a class="btn quiet" href="/map/">Explore the 3D risk atlas</a>
+          </div>
         </div>
       </section>
 
       <section class="cols">
         <article class="card">
-          <h2>For stallholders</h2>
+          <h2>For small businesses</h2>
           <ul>
             <li>One cover for haze, heavy rain, extreme heat and flash-flood alerts.</li>
-            <li>Pays up to S$20–100 a day, capped per year — sized to a bad day's lost takings.</li>
-            <li>From about S$3.60 a week, depending on your region's real NEA history.</li>
-            <li>Paid automatically on NEA readings, usually same-day. It can happen that you lose sales and no payout is due — the trigger levels are public.</li>
+            <li>Pays S$20 to S$100 for each bad day, up to a yearly cap. The amount matches what a bad day really costs a stall.</li>
+            <li>From about S$3.60 a week. Your price depends on your own area's weather history.</li>
+            <li>Payment is automatic when NEA readings cross the trigger levels. If readings stay below them, nothing is paid, and the levels are public.</li>
           </ul>
-          <p class="fine">The whole policy fits in one SMS. You can read every number behind your price on the risk atlas before you sign anything.</p>
+          <p class="fine">The whole policy fits in one SMS. Before you sign anything, you can see every number behind your price on the risk atlas.</p>
         </article>
         <article class="card">
           <h2>For the insurer</h2>
           <ul>
-            <li>Every policy priced by one transparent engine: burning-cost on 10 years of NEA data, explicit loads, 25% expenses, 9% GST.</li>
-            <li>Portfolio desk: who holds what, where it accumulates, what a PSI-230 day pays.</li>
-            <li>Tariff desk: change any weight, band, tier or load — every save is a version.</li>
-            <li>MAS FEAT-explainable by construction; zero personal data in pricing.</li>
+            <li>Every policy is priced by one engine: 10 years of NEA data, clear loads, 25% expenses, 9% GST.</li>
+            <li>Portfolio desk: who holds what, where risk piles up, and what a worst haze day pays.</li>
+            <li>Tariff desk: change any weight, band, tier or load. Every save is a version.</li>
+            <li>Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, so we can show exactly why a customer pays what they pay. No personal data is used to set any price.</li>
           </ul>
-          <p class="fine">Built for Income Insurance for SIH 2026. The same map serves the customer and the underwriter.</p>
+          <p class="fine">Built with Income Insurance. The same map serves the customer and the underwriter.</p>
         </article>
       </section>
 
       <section class="how">
-        <h2>How the price is made</h2>
-        <div class="modules">
-          <div class="module"><b>1 · Hazard</b><span>NEA heat, rain and haze history, 2016–2026, plus today's live readings.</span></div>
-          <div class="module"><b>2 · Exposure</b><span>103 hawker centres, 5,837 cooked-food stalls, geocoded (NEA).</span></div>
-          <div class="module"><b>3 · Vulnerability</b><span>How much a reading hurts your product — cooked food keeps nothing overnight.</span></div>
-          <div class="module"><b>4 · Financial</b><span>Day caps, loads, expenses, GST → your weekly premium.</span></div>
-        </div>
+        <h2>How the payout is made</h2>
+        <ol class="steps">
+          <li><b>NEA publishes the reading.</b> The 24-hour PSI, the rain at the gauge nearest you, the hours of dangerous heat, or a PUB flood alert.</li>
+          <li><b>The reading crosses a trigger level.</b> The levels are fixed and public: PSI above 100, 20 mm of rain in a work hour, 2 hours at WBGT 32 °C, an active flood alert.</li>
+          <li><b>The day gets a loss score.</b> How much of a normal day's sales that reading costs your kind of business, from 0% to 100%.</li>
+          <li><b>You get paid.</b> Your tier's daily amount times the loss score, usually the same day. No claim form, no assessor.</li>
+        </ol>
         <p class="fine">
-          This is the same four-module structure catastrophe models use at Swiss Re and Munich Re —
-          drawn as a live map of Singapore anyone can open.
+          The premium comes from the same four parts insurers like Swiss Re and Munich Re use to price
+          catastrophe risk: where the hazard strikes, who is exposed, how much it hurts them, and the
+          money terms on top. Open the Method and data panel on the risk atlas for every step.
         </p>
       </section>
     </main>
 
     <footer class="sitefoot">
-      <span>SafeDay · SIH 2026 FinTech/InsurTech · built on NEA, URA and PUB open data (Singapore Open Data Licence)</span>
+      <span>Data: NEA, URA and PUB via data.gov.sg (Singapore Open Data Licence).</span>
     </footer>
   </body>
 </html>

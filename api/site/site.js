@@ -19,6 +19,20 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+/* ---------- theme ---------- */
+function wireTheme() {
+  const button = el("theme-toggle");
+  if (!button) return;
+  const paint = () => { button.textContent = document.documentElement.dataset.theme === "dark" ? "\u2600" : "\u263e"; };
+  paint();
+  button.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("safeday-theme", next); } catch { /* private window */ }
+    paint();
+  });
+}
+
 /* ---------- top nav: show Dashboard instead of Sign in when a session exists ---------- */
 async function updateNav() {
   const link = el("nav-auth");
@@ -42,6 +56,12 @@ function wireLogin() {
   el("tab-sme").addEventListener("click", () => showPane("sme"));
   el("tab-insurer").addEventListener("click", () => showPane("insurer"));
   if (location.hash === "#insurer") showPane("insurer");
+  document.querySelectorAll(".authcard [data-goto]").forEach((link) =>
+    link.addEventListener("click", () => {
+      const card = link.closest(".authcard");
+      for (const step of card.querySelectorAll("[data-step]"))
+        step.hidden = step.dataset.step !== link.dataset.goto;
+    }));
 
   api("/api/map/static").then((data) => {
     const centres = [...data.hawker_centres].sort((a, b) => a.name.localeCompare(b.name));
@@ -86,7 +106,7 @@ function mapFrame(params, caption) {
     <iframe src="${src}" title="${caption}" loading="lazy"></iframe></section>`;
 }
 function liveStatus(live) {
-  if (!live || !live.available) return { ok: false, text: live?.status || "live feed warming up — refresh in a minute" };
+  if (!live || !live.available) return { ok: false, text: live?.status || "live feed warming up, refresh in a minute" };
   return { ok: true, text: `NEA readings as of ${String(live.fetched_at).slice(11, 16)} SGT` };
 }
 
@@ -109,8 +129,8 @@ async function renderSme(user) {
     <h1>${user.business_name || user.name}</h1>
     <p class="sub">${user.centre} · ${user.region} region · priced from your region's own NEA history</p>
     <div class="kpis">
-      ${kpi("Today's loss score", todays ? `${todays.loss_percent.toFixed(0)}%` : "—", status.text)}
-      ${kpi("Payout due today", policy ? (payoutToday != null ? SGD(payoutToday) : "—") : "no cover yet", policy ? `at ${policy.tier_label}` : "pick a tier below")}
+      ${kpi("Today's loss score", todays ? `${todays.loss_percent.toFixed(0)}%` : "–", status.text)}
+      ${kpi("Payout due today", policy ? (payoutToday != null ? SGD(payoutToday) : "–") : "no cover yet", policy ? `at ${policy.tier_label}` : "pick a tier below")}
       ${kpi("Your weekly premium", policy ? SGD(policy.weekly_premium_sgd) : SGD(quote.tiers.find((t) => t.tier === rec).weekly_premium_sgd), policy ? policy.tier_label : "recommended tier")}
       ${kpi("Expected trigger days", quote.expected_loss_days.toFixed(1) + " / yr", "full-loss-day equivalents")}
     </div>
@@ -120,7 +140,7 @@ async function renderSme(user) {
         <div class="kv"><span class="k">24-h PSI (your region)</span><span class="v">${Math.round(todays.readings.haze)}</span></div>
         <div class="kv"><span class="k">Wettest work hour (nearest gauge)</span><span class="v">${todays.readings.rain.toFixed(1)} mm</span></div>
         <div class="kv"><span class="k">Hours at WBGT ≥32 °C (nearest station)</span><span class="v">${todays.readings.heat} h</span></div>
-        <p class="fine">Readings refresh every 5 minutes from NEA. A payout needs no claim — it follows these numbers.</p>`
+        <p class="fine">Readings refresh every 5 minutes from NEA. A payout needs no claim. It follows these numbers.</p>`
         : `<p class="fine">${status.text}</p><button class="btn small" id="retry-live" type="button">Refresh</button>`}
       </div>
       <div class="card"><h2>${policy ? "Your cover" : "Choose your cover"}</h2>
@@ -138,7 +158,7 @@ async function renderSme(user) {
             <span class="p">${SGD(t.weekly_premium_sgd)}<small>/wk</small></span>
             <span class="d">${SGD(t.daily_payout_sgd)}/bad day · max ${SGD(t.max_payout_per_year_sgd)}/yr</span>
           </button>`).join("")}</div>
-        <p class="fine">One price, four sizes. ● marks the dearest tier still within "a few dollars a week". Click a tier to start cover.</p>
+        <p class="fine">One price, four sizes. ● marks the biggest tier that still costs only a few dollars a week. Click a tier to start cover.</p>
         <p class="error" id="buy-error"></p>`}
       </div>
     </div>
@@ -182,24 +202,24 @@ async function renderInsurer(user) {
       ${kpi("Policies in force", portfolio.policies, "sold on this platform")}
       ${kpi("Premium booked", SGD(portfolio.annual_premium_sgd) + "/yr", SGD(portfolio.weekly_premium_sgd) + "/wk")}
       ${kpi("Payout exposure", SGD(portfolio.daily_payout_exposure_sgd) + "/day", "if every policy pays in full")}
-      ${kpi("Worst live loss now", maxLoss != null ? maxLoss.toFixed(0) + "%" : "—", status.text)}
+      ${kpi("Worst live loss now", maxLoss != null ? maxLoss.toFixed(0) + "%" : "–", status.text)}
       ${kpi("Market potential", stalls.toLocaleString("en-SG") + " stalls", SGD(marketPool) + "/yr pool at Tier 2")}
     </div>
     <div class="tools">
-      <a class="tool" href="/map/?view=insurer&mode=live" target="_blank" rel="noopener"><b>3D risk atlas</b><span>Hazard, exposure and accumulation over Singapore — live NEA readings, worst-day simulator, city view.</span></a>
-      <a class="tool" href="/admin/" target="_blank" rel="noopener"><b>Tariff desk</b><span>Change any weight, severity band, product factor, tier or load. Every save is a new version; every dashboard reprices instantly.</span></a>
+      <a class="tool" href="/map/?view=insurer&mode=live" target="_blank" rel="noopener"><b>3D risk atlas</b><span>Hazard, exposure and accumulation over Singapore, with live NEA readings, a worst-day simulator and the city view.</span></a>
+      <a class="tool" href="/admin/" target="_blank" rel="noopener"><b>Tariff desk</b><span>Change any weight, severity band, product factor, tier or load. Every save is a new version and every dashboard reprices at once.</span></a>
       <a class="tool" href="http://localhost:8501" target="_blank" rel="noopener"><b>Data dashboard</b><span>The team's Streamlit explorer: heat, rain and haze history, trigger &amp; price experiments, live readings. Run: uv run streamlit run app/app.py</span></a>
-      <a class="tool" href="/docs" target="_blank" rel="noopener"><b>API docs</b><span>Quote, assess, map and portfolio endpoints — the same engine behind every screen.</span></a>
+      <a class="tool" href="/docs" target="_blank" rel="noopener"><b>API docs</b><span>Quote, assess, map and portfolio endpoints. One engine behind every screen.</span></a>
     </div>
     <div class="card">
       <h2>Policies in force</h2>
       ${policies.length ? `<table class="list">
         <tr><th>Business</th><th>Centre</th><th>Region</th><th>Tier</th><th>Weekly</th><th>Payout/day</th><th>Started</th></tr>
         ${policies.map((p) => `<tr>
-          <td>${p.business_name || p.name}</td><td>${p.centre || "—"}</td><td>${p.region}</td>
+          <td>${p.business_name || p.name}</td><td>${p.centre || "–"}</td><td>${p.region}</td>
           <td>${p.tier_label}</td><td class="num">${SGD(p.weekly_premium_sgd)}</td>
           <td class="num">${SGD(p.daily_payout_sgd)}</td><td class="num">${String(p.started_at).slice(0, 10)}</td></tr>`).join("")}
-      </table>` : `<p class="fine">No policies sold yet. When a stallholder signs up and picks a tier, it lands here with its region and accumulation.</p>`}
+      </table>` : `<p class="fine">No policies sold yet. When a business owner signs up and picks a tier, it lands here with its region and accumulation.</p>`}
       ${Object.keys(portfolio.by_region).length ? `<p class="fine" style="margin-top:10px">By region: ${Object.entries(portfolio.by_region)
         .map(([region, r]) => `${region} ${r.policies} (${SGD(r.weekly_premium_sgd)}/wk)`).join(" · ")}</p>` : ""}
     </div>
@@ -228,6 +248,7 @@ async function wireDashboard() {
   }
 }
 
+wireTheme();
 updateNav();
 wireLogin();
 wireDashboard();
