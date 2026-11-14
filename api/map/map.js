@@ -288,7 +288,7 @@ function tooltip({ object, layer, index }) {
 /* ---------- scenario circles ---------- */
 let dragPending = false;
 function circleHint(text) { el("circle-hint").textContent = text; }
-const HINT_IDLE = "Scope a day to one area — draw several circles with their own readings to compare.";
+const HINT_IDLE = "Scope a day to one area. Draw several circles with their own readings to compare.";
 function requestScenario(circle) {
   if (state.mode !== "sim" || !circle || state.drawing === "drag") return;
   clearTimeout(circle.timer);
@@ -366,7 +366,7 @@ function selectCircle(id) {
   el("radius-row").hidden = false; el("extradays-row").hidden = false;
   el("remove-circle").hidden = false; el("clear-all").hidden = state.circles.length < 2;
   syncControls(circle);
-  circleHint(`Editing circle ${id} (${circle.radiusKm.toFixed(1)} km) — the sliders shape this circle's day.`);
+  circleHint(`Editing circle ${id} (${circle.radiusKm.toFixed(1)} km). The sliders shape this circle's day.`);
   renderScenario(); renderFloats(); redraw(); renderPortfolio(); renderDetail();
 }
 const CONTROLLER_ON = { touchRotate: true, inertia: 260 };
@@ -378,7 +378,7 @@ function startDrawing() {
   deckgl.setProps({ controller: CONTROLLER_AIMING });
   el("draw-circle").classList.add("on");
   el("draw-circle").textContent = "✓ Done drawing";
-  circleHint("Press and drag outward for each circle — keep going, one after another. Done or Esc finishes; panning resumes then.");
+  circleHint("Press and drag outward for each circle, one after another. Done or Esc finishes, and panning comes back.");
   redraw();
 }
 function stopDrawing() {
@@ -401,7 +401,7 @@ function commitCircle(circle) {
   el("clear-all").hidden = state.circles.length < 2;
   el("radius-row").hidden = false; el("extradays-row").hidden = false;
   el("s-radius").value = circle.radiusKm; el("v-radius").textContent = `${circle.radiusKm.toFixed(1)} km`;
-  circleHint(`Circle ${circle.id} set (${circle.radiusKm.toFixed(1)} km) — drag the next one, or press Done/Esc to finish.`);
+  circleHint(`Circle ${circle.id} set (${circle.radiusKm.toFixed(1)} km). Drag the next one, or press Done or Esc to finish.`);
   requestScenario(circle);
   renderFloats();
   redraw();
@@ -439,7 +439,7 @@ function onMapDrag(info) {
   if (state.drawing !== "drag" || !info.coordinate || dragPending) return;
   const [lng, lat] = info.coordinate;
   state.draft.radiusKm = Math.min(15, Math.max(0.1, haversineKm(state.draft, { lat, lng })));
-  circleHint(`${state.draft.radiusKm.toFixed(1)} km — release to set.`);
+  circleHint(`${state.draft.radiusKm.toFixed(1)} km. Release to set.`);
   dragPending = true;
   requestAnimationFrame(() => { dragPending = false; redraw(); });
 }
@@ -454,7 +454,7 @@ function buildExtraHazardControls() {
   const known = new Set(["haze", "rain", "heat", "flood"]);
   const extras = (QUOTES.hazards || []).filter((h) => !known.has(h.key));
   host.innerHTML = extras.map((h) => h.binary
-    ? `<label class="floodrow"><input type="checkbox" data-extra="${h.key}" /> ${h.label} — ${h.reading}</label>`
+    ? `<label class="floodrow"><input type="checkbox" data-extra="${h.key}" /> ${h.label} · ${h.reading}</label>`
     : `<div class="slider"><i style="background:var(--accent)"></i>
         <label for="x-${h.key}">${h.label}</label>
         <input type="range" id="x-${h.key}" data-extra="${h.key}" min="0" max="${h.max}" step="1" value="0" />
@@ -480,7 +480,7 @@ function floatCardHtml(circle) {
     <div class="kv"><span class="k">Payout / stall</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
     <div class="kv"><span class="k">Centres · stalls</span><span class="v">${scn.totals.centres} · ${scn.totals.stalls.toLocaleString("en-SG")}</span></div>
     <div class="kv"><span class="k">Premium /wk</span><span class="v">${SGD(scn.totals.weekly_premium_baseline_sgd)} → <span class="delta-up">${SGD(scn.totals.weekly_premium_stressed_sgd)}</span></span></div>
-    <p class="hintline">${active ? "editing — the sliders shape this circle" : "click to edit this circle's readings"}</p>
+    <p class="hintline">${active ? "editing: the sliders shape this circle" : "click to edit this circle's readings"}</p>
   </div>` : "";
   return head + body;
 }
@@ -831,6 +831,8 @@ const CAMERAS = {
 };
 const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 function flyTo(name) {
+  const resumeOrbit = state.orbit;
+  if (resumeOrbit) toggleOrbit(false);
   state.camera = name;
   for (const cam of Object.keys(CAMERAS)) el(`cam-${cam}`).classList.toggle("on", cam === name);
   const target = { ...lastView, ...CAMERAS[name] };
@@ -850,7 +852,7 @@ function flyTo(name) {
       transitionInterpolator: new deck.FlyToInterpolator(),
     },
   });
-  updateZoomChip(target.zoom);
+  if (resumeOrbit) setTimeout(() => toggleOrbit(true), REDUCED_MOTION ? 50 : 1500);
   redraw();
 }
 function orbitStep() {
@@ -868,15 +870,11 @@ function toggleOrbit(force) {
 
 /* ---------- static UI ---------- */
 function legendNotes() {
-  el("sme-label").textContent = `SMEs — hawker centres (${STATIC.hawker_centres.length})`;
+  el("sme-label").textContent = `SMEs · hawker centres (${STATIC.hawker_centres.length})`;
   el("heat-note").textContent = "History: column height = share of days reaching WBGT 32 °C. Live: work hours ≥32 °C today.";
   el("rain-note").textContent = "History: share of days with a 20 mm work-hour. Live: wettest work hour today.";
   el("haze-note").textContent = "History: expected haze loss-days by region. Simulate and Live: region lift = 24-h PSI.";
   el("sources-foot").textContent = STATIC.sources.hazard;
-}
-function updateZoomChip(zoom) {
-  const level = zoom < 11 ? "island" : zoom < 13 ? "region" : "site";
-  document.querySelectorAll(".zoomchip .step").forEach((s) => s.classList.toggle("on", s.dataset.z === level));
 }
 function aboutHtml() {
   return `
@@ -889,10 +887,13 @@ function aboutHtml() {
     <div class="module"><div class="m1" style="color:var(--accent)">4 · Financial</div><div class="m2">Turning damage into premium and payout.</div><div class="m3">Day caps, loads, expenses, GST - the live tariff from the tariff desk.</div></div>
   </div>
   <p>This mirrors regulator-recognised practice (NAIC's description of property cat models) and the geospatial tools underwriters already use - Swiss Re CatNet and Munich Re Location Risk Intelligence score locations by stacking hazard layers over geocoded exposure. The difference here: the layers are open NEA data, so the customer sees the same map as the underwriter.</p>
-  <h4>The premium, step by step</h4>
+  <h4>The premium, step by step (the Swiss Re and Munich Re recipe)</h4>
+  <p>Swiss Re's CatNet and Munich Re's Location Risk Intelligence price a location by layering
+  hazard frequency over geocoded exposure, applying a damage function, then adding the money
+  terms. SafeDay runs the same four steps, with every input public:</p>
   <p>Every number on this page comes from the pricing API (<code>/api/quote</code>, <code>/api/assess</code>) - the same engine the tariff desk edits. For a stall, the engine computes expected loss-days (day-weighted severity of every NEA reading in the region's history × 365.25 × peril weight × product factor - classical burning-cost rating), caps paid days per tier, then loads: +15% uncertainty, +10% catastrophe (modest next to the 2-4× expected-loss multiples of the cat-bond market), ÷ (1-25%) expenses (the documented microinsurance average), +9% GST (IRAS).</p>
   <h4>Why a payout is insurance, not a bet</h4>
-  <p>Insurance Act 1966 s151 voids cover without insurable interest. Tier payouts (S$20-100/day) sit below a stall's normal daily takings (triangulated S$400-800/day gross), so each payout is a pre-estimate of lost income, sold only to operating stallholders. Pricing is a transparent formula over public data, in line with MAS FEAT explainability and Fair Dealing.</p>
+  <p>Insurance Act 1966 s151 voids cover without insurable interest. Tier payouts (S$20-100/day) sit below a stall's normal daily takings (triangulated S$400-800/day gross), so each payout is a pre-estimate of lost income, sold only to operating businesses. Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, we can show a customer exactly why they pay what they pay, and no personal data goes into any price.</p>
   <h4>The protection gap</h4>
   <ul>
     <li>Singapore has ~369,500 SMEs - 99% of enterprises (SingStat, 2025); NEA manages 123 markets and hawker centres.</li>
@@ -997,7 +998,6 @@ async function boot() {
         const crossed = [11, 11.6, 11.8, 12, 13].some((edge) => (state.zoom < edge) !== (viewState.zoom < edge));
         state.zoom = viewState.zoom;
         lastView = { ...lastView, ...viewState };
-        updateZoomChip(viewState.zoom);
         if (crossed) redraw();
       },
       layers: [],
@@ -1012,7 +1012,6 @@ async function boot() {
     const focusIndex = focusName ? STATIC.hawker_centres.findIndex((c) => c.name === focusName) : -1;
     if (focusIndex >= 0) select("sme", focusIndex);
     if (["plan", "bird", "city"].includes(params.get("camera"))) flyTo(params.get("camera"));
-    updateZoomChip(state.zoom);
     el("boot").remove();
     positionFloats();
     if (document.fonts?.ready) document.fonts.ready.then(() => redraw());

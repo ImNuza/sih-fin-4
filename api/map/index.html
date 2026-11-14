@@ -10,9 +10,9 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="map.css?v=14" />
+    <link rel="stylesheet" href="map.css?v=15" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="map.js?v=14" defer></script>
+    <script src="map.js?v=15" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
@@ -42,27 +42,27 @@
       <div class="fold-body">
       <p class="group">Exposure</p>
       <label><input type="checkbox" id="ly-sme" checked /><i class="sw" style="background:#f2f1ed"></i>
-        <span id="sme-label">SMEs — hawker centres</span></label>
+        <span id="sme-label">SMEs · hawker centres</span></label>
       <p class="note">Dot size = cooked-food stalls (NEA). Colour = current view.</p>
       <p class="group">Hazard</p>
       <label><input type="checkbox" id="ly-heat" checked /><i class="sw" style="background:var(--heat)"></i>
-        <span>Heat — WBGT stations</span></label>
+        <span>Heat · WBGT stations</span></label>
       <p class="note" id="heat-note"></p>
       <label><input type="checkbox" id="ly-rain" checked /><i class="sw" style="background:var(--rain)"></i>
-        <span>Rain — NEA gauges</span></label>
+        <span>Rain · NEA gauges</span></label>
       <p class="note" id="rain-note"></p>
       <label><input type="checkbox" id="ly-haze" checked /><i class="sw" style="background:var(--haze)"></i>
-        <span>Haze — 5 PSI regions</span></label>
+        <span>Haze · 5 PSI regions</span></label>
       <p class="note" id="haze-note"></p>
       <label><input type="checkbox" id="ly-flood" /><i class="sw ring" style="border-color:var(--flood)"></i>
-        <span>Flood — 19 PUB hotspots</span></label>
+        <span>Flood · 19 PUB hotspots</span></label>
       <p class="note">PUB hotspot list, 2 Feb 2026. Points are approximate geocodes of PUB's named roads.</p>
       <p class="group">Base</p>
       <label><input type="checkbox" id="ly-bld" checked /><i class="sw" style="background:#454a52"></i>
         <span>HDB blocks (3D)</span></label>
       <p class="note">Real block footprints near hawker centres (HDB via data.gov.sg). Heights nominal at the 12-storey HDB median. Appears from Region zoom.</p>
       <label><input type="checkbox" id="ly-base" checked /><i class="sw" style="background:#243242"></i>
-        <span>Streets — OneMap basemap</span></label>
+        <span>Streets · OneMap basemap</span></label>
       <p class="note">Tiles © OneMap, Singapore Land Authority. Needs internet; every other layer works offline.</p>
       <label><input type="checkbox" id="ly-pa" checked /><i class="sw" style="background:#3a3e44"></i>
         <span>Planning areas (URA MP2019)</span></label>
@@ -71,10 +71,6 @@
     </aside>
 
     <p class="panel zoomchip" id="zoomchip">
-      <span class="step" data-z="island">Island</span><span class="sep">→</span>
-      <span class="step" data-z="region">Region</span><span class="sep">→</span>
-      <span class="step" data-z="site">Site</span>
-      <span class="sep">·</span>
       <button class="cam" id="cam-plan" type="button">Plan</button>
       <button class="cam on" id="cam-bird" type="button">Bird</button>
       <button class="cam" id="cam-city" type="button">City</button>
@@ -125,7 +121,7 @@
             <button class="btn-mini" id="draw-circle" type="button">◯ Draw circles</button>
             <button class="btn-mini" id="remove-circle" type="button" hidden>✕ Remove</button>
             <button class="btn-mini" id="clear-all" type="button" hidden>Clear all</button>
-            <span class="circle-hint" id="circle-hint">Scope a day to one area — draw several circles with their own readings to compare.</span>
+            <span class="circle-hint" id="circle-hint">Scope a day to one area. Draw several circles with their own readings to compare.</span>
           </div>
           <div class="slider" id="radius-row" hidden><i style="background:var(--accent)"></i>
             <label for="s-radius">Radius</label>
@@ -149,7 +145,7 @@
     <div id="boot">
       <p class="brand">SafeDay <span>risk atlas</span></p>
       <div class="pulse" role="presentation"></div>
-      <p class="msg" id="boot-msg">Loading Singapore — planning areas, hawker centres, NEA stations…</p>
+      <p class="msg" id="boot-msg">Loading Singapore: planning areas, hawker centres, NEA stations…</p>
     </div>
   </body>
 </html>
