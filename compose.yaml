@@ -1,8 +1,8 @@
 # Hosted dashboard and pricing API. cloudflared is the only way in. The server's firewall blocks the
-# hosting user from localhost and the LAN, so the dashboard can reach the public internet only (for
-# the Live tab). The pricing API and its Postgres database have no internet at all.
+# hosting user from localhost and the LAN, so the dashboard and the pricing API can reach the public
+# internet only (for live NEA readings and the shop box's model). Postgres has no internet at all.
 # Run on the server as the hosting user. TUNNEL_TOKEN, DATA_GOV_SG_API_KEY_DEV, ADMIN_USERNAME,
-# ADMIN_PASSWORD and POSTGRES_PASSWORD come from an env file outside the repo:
+# ADMIN_PASSWORD, POSTGRES_PASSWORD and XAI_API_KEY come from an env file outside the repo:
 #   docker compose --env-file ~/secrets/sih-fin-4.env up -d --build
 name: sih-fin-4
 
@@ -40,10 +40,13 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:?Set ADMIN_USERNAME in the env file}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in the env file}
       DATABASE_URL: postgresql+psycopg://safeday:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the env file}@db:5432/safeday
+      # Optional: without them the map's live mode is off and the shop box matches keywords.
+      DATA_GOV_SG_API_KEY: ${DATA_GOV_SG_API_KEY_DEV:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
-    networks: [sealed]
+    networks: [sealed, internet]
 
   db:
     image: postgres:18.6-alpine

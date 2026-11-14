@@ -7,7 +7,7 @@ The team dashboard and the pricing API also run on a small home server, behind a
 - `Dockerfile` builds the app. The image holds the committed data only, with no API key. The Live tab is off by default (`SIH_LIVE_DATA=off`).
 - `compose.yaml` runs two containers:
   - `dashboard`: Streamlit. Read-only filesystem, no Linux capabilities, non-root. Compose turns the Live tab on and gives it the data.gov.sg development key from a file on the server. It can reach the public internet only. The server firewall blocks the rest of the home network.
-  - `api`: the pricing API and admin panel (`api/Dockerfile`). Same lock-down as the dashboard, and no internet at all.
+  - `api`: the pricing API and admin panel (`api/Dockerfile`). Same lock-down as the dashboard. It reaches the public internet only, for live NEA readings and the shop box's model (`XAI_API_KEY`, optional).
   - `db`: Postgres for the tariff versions the admin panel saves. Data is kept in the `tariff-db` volume. No internet.
   - `tunnel`: cloudflared, the only way in. The server opens no inbound port.
 - The server runs Docker in rootless mode under an unprivileged user.
