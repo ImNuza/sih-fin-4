@@ -675,7 +675,7 @@ function renderDetail() {
       <div class="sec"><p class="cap">Expected full-loss days (cooked food)</p>
         ${stackBar(parts)}
         <p class="note">${quote.expected_loss_days.toFixed(2)} days/yr → ${tier2.label} (${SGD0(tier2.daily_payout_sgd)}/day) prices at ${SGD(tier2.weekly_premium_sgd)}/week here.</p></div>
-      <div class="sec"><p class="cap">Haze history - the catastrophe peril</p>${hazeYearChart()}</div>`;
+      <div class="sec"><p class="cap">Unhealthy haze days per year</p>${hazeYearChart()}<p class="note">Haze is the catastrophe peril: most years have a handful of bad days, then one year (like 2026, with 39) hits the whole island for weeks, so every policy pays at once. That is what the caps and the catastrophe load are for.</p></div>`;
   }
 }
 
