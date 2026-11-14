@@ -12,7 +12,8 @@ Usage:
 Reads  data/processed/day_readings.csv.gz, data/processed/map_static.json
        data/processed/region_hazard_readings.csv, api/default_tariff.json
        data/mss_daily/mss_daily.parquet
-Writes data/processed/burn_yearly_hero.csv     the hero stall, year by year
+Writes data/processed/burn_site_map.json       each centre's active gauge and station per year
+       data/processed/burn_yearly_hero.csv     the hero stall, year by year
        data/processed/burn_yearly_island.csv   all 103 centres summed, year by year
        data/processed/burn_daily_hero.csv      the hero stall, every day with a payout
        docs/figures/burn_hero_yearly.png, burn_2026_episode.png, burn_loss_ratio.png
@@ -106,6 +107,15 @@ def burn() -> None:
         gauges, stations = ranked(static["rain_stations"], centre), ranked(static["wbgt_stations"], centre)
         centre["gauge_by_year"] = {y: pick(gauges, rain_active[y]) for y in rain_active}
         centre["station_by_year"] = {y: pick(stations, heat_active[y]) for y in heat_active}
+    site_map = {
+        centre["name"]: {
+            "region": centre["region"],
+            "gauge_by_year": {str(y): g for y, g in centre["gauge_by_year"].items() if g},
+            "station_by_year": {str(y): st for y, st in centre["station_by_year"].items() if st},
+        }
+        for centre in centres
+    }
+    (PROC_DIR / "burn_site_map.json").write_text(json.dumps(site_map, separators=(",", ":")))
     premiums = {
         region: next(
             t for t in calculator.quote(tariff, history, region, PRODUCT).tiers if t.tier == TIER
