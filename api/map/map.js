@@ -278,7 +278,7 @@ function tooltip({ object, layer, index }) {
     return { html: `<b>${object.name}</b><div class="m">${object.food_stalls} food stalls · ${object.region} region · ${SGD(tier.weekly_premium_sgd)}/wk at ${tier.label}${live}</div>` };
   }
   if (layer.id === "heat") return { html: `<b>${object.name}</b><div class="m">reached 32 °C on ${(object.share_days_ge_32 * 100).toFixed(0)}% of its ${object.days} recorded days · hottest ${object.max_wbgt.toFixed(1)} °C</div>` };
-  if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">a 20 mm downpour hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of its ${object.days} recorded days</div>` };
+  if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">rain gauge · a 20 mm downpour hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of its ${object.days} recorded days</div>` };
   if (layer.id === "flood") return { html: `<b>${object.name}</b><div class="m">PUB flash-flood hotspot · location approximate</div>` };
   if (layer.id === "pa") return { html: `<b>${object.properties.name}</b><div class="m">${object.properties.ura_region} planning region · haze zone: ${object.properties.psi_region}</div>` };
   return null;
@@ -654,7 +654,7 @@ function renderDetail() {
     const live = state.live?.rain?.find((x) => x.id === s.id);
     kind.textContent = "Hazard · rain gauge";
     body.innerHTML = `<p class="title">${s.name}</p>
-      <p class="subtitle">Gauge ${s.id} · ${s.days} days of record (10-year NEA history)</p>
+      <p class="subtitle">Rain gauge ${s.id}, an NEA roadside rain meter · ${s.days} days of record over 10 years</p>
       ${live ? `<div class="kv"><span class="k">Wettest work hour today (live)</span><span class="v">${live.wettest_work_hour_today.toFixed(1)} mm</span></div>` : ""}
       <div class="kv"><span class="k">Days with 20 mm in one hour</span><span class="v">${(s.share_days_ge_20 * 100).toFixed(1)}% of ${s.days} days</span></div>
       <div class="kv"><span class="k">Days with 30 mm in one hour</span><span class="v">${(s.share_days_ge_30 * 100).toFixed(1)}% of ${s.days} days</span></div>
