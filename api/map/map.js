@@ -13,6 +13,15 @@ const CSS_BY_HAZARD = { haze: "var(--haze)", rain: "var(--rain)", heat: "var(--h
 const AFFORDABLE_WEEKLY_SGD = 3;   // the brief's "a few dollars a week"
 const COPAY_WEEKLY_SGD = 6;        // above this even a co-payer is a stretch
 const LIVE_POLL_MS = 60_000;       // the server refreshes its NEA snapshot every 5 minutes
+const DEFAULT_PRODUCT = "cooked_food";  // what a hand-drawn circle sells until a shop says otherwise
+const SHOP_RADIUS_KM = 0.5;
+const SHOP_ZOOM = 14;
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const BAD_DAYS = [
+  { key: "haze230", label: "Haze day · PSI 230", sim: { psi: 230, rain: 0, heat: 0, flood: false } },
+  { key: "storm", label: "50 mm storm hour", sim: { psi: 0, rain: 50, heat: 0, flood: true } },
+  { key: "hot", label: "4 h at 32 °C", sim: { psi: 0, rain: 0, heat: 4, flood: false } },
+];
 const PSI_BANDS = [[301, "Hazardous"], [201, "Very unhealthy"], [101, "Unhealthy"], [51, "Moderate"], [0, "Good"]];
 
 const state = {
@@ -23,7 +32,9 @@ const state = {
   sim: { psi: 0, rain: 0, heat: 0, flood: false },
   simExtra: {},                    // readings for tariff hazards beyond the four built-in ones
   simAssessment: null,             // latest POST /api/assess result for the sim readings
-  circles: [],                     // drawn scenario circles: {id, lat, lng, radiusKm, readings, extraDays, scn}
+  circles: [],                     // scenario circles: {id, lat, lng, radiusKm, product, place, readings, extraDays, scn}
+  shopId: null,                    // the circle placed from the "Tell us about your shop" box
+  shopDraft: null,                 // the box's answer, waiting for the owner to confirm it
   activeId: null,                  // the circle the simulator's controls are editing
   nextId: 1,
   drawing: null,                   // "center" | "drag" while the user draws
@@ -66,13 +77,30 @@ const api = {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }),
+  kyc: (body) => getJson("/api/map/kyc", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }),
 };
-function simReadings() {
+// The four hazards with a built-in control. Every other tariff hazard reads from `extra`, or 0.
+const SIM_READING = {
+  haze: (sim) => sim.psi, rain: (sim) => sim.rain, heat: (sim) => sim.heat, flood: (sim) => (sim.flood ? 1 : 0),
+};
+function readingsOf(sim, extra) {
+  return Object.fromEntries(OPTIONS.hazards.map((h) => [h.key, SIM_READING[h.key]?.(sim) ?? extra[h.key] ?? 0]));
+}
+function simReadings() { return readingsOf(state.sim, state.simExtra); }
+// Everything the engine prices a circle from. A new ScenarioRequest field is one line here.
+function scenarioBody(circle, readings) {
   return {
-    haze: state.sim.psi, rain: state.sim.rain, heat: state.sim.heat,
-    flood: state.sim.flood ? 1 : 0, ...state.simExtra,
+    lat: circle.lat, lng: circle.lng, radius_km: circle.radiusKm,
+    readings: { ...readings }, extra_days_per_year: circle.extraDays,
+    product: circle.product, tier: state.tier,
   };
 }
+function productLabel(key) { return OPTIONS.products.find((p) => p.key === key)?.label ?? key; }
+function tierLabel(key) { return OPTIONS.tiers.find((t) => t.key === key)?.label ?? key; }
 
 /* ---------- pricing views (all numbers come from the API) ---------- */
 function regionQuote(region) { return QUOTES.quotes[region]; }
@@ -294,11 +322,7 @@ function requestScenario(circle) {
   circle.timer = setTimeout(async () => {
     const seq = (circle.seq = (circle.seq || 0) + 1);
     try {
-      const result = await api.scenario({
-        lat: circle.lat, lng: circle.lng, radius_km: circle.radiusKm,
-        readings: { ...circle.readings }, extra_days_per_year: circle.extraDays,
-        product: "cooked_food", tier: state.tier,
-      });
+      const result = await api.scenario(scenarioBody(circle, circle.readings));
       if (seq !== circle.seq) return;
       circle.scn = result;
       renderScenario(); renderFloats(); redraw(); renderPortfolio(); renderDetail();
@@ -326,6 +350,7 @@ function renderScenario() {
     ? `<p class="note" style="color:var(--warning)">No hawker centres sit inside this circle, so its payouts and premiums are S$0. Drag it over the dots, or widen it.</p>` : "";
   box.innerHTML = `
     <p class="cap">Circle ${circle.id} · ${t.centres} centres · ${t.stalls.toLocaleString("en-SG")} stalls</p>
+    <div class="kv"><span class="k">Priced as</span><span class="v">${productLabel(circle.product)}</span></div>
     ${empty}
     <div class="kv"><span class="k">Loss score on this day</span><span class="v">${scn.assessment.loss_percent.toFixed(0)}%</span></div>
     <div class="kv"><span class="k">Payout per stall (${state.tier.replace("_", " ")})</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
@@ -344,7 +369,7 @@ function syncControls(circle) {
     heat: circle.readings.heat || 0, flood: !!circle.readings.flood,
   };
   state.simExtra = Object.fromEntries(Object.entries(circle.readings)
-    .filter(([key]) => !["haze", "rain", "heat", "flood"].includes(key)));
+    .filter(([key]) => !(key in SIM_READING)));
   state.extraDays = circle.extraDays;
   el("s-psi").value = state.sim.psi; el("v-psi").textContent = state.sim.psi;
   el("psi-band").textContent = state.sim.psi > 0 ? psiBand(state.sim.psi) : "";
@@ -390,7 +415,7 @@ function stopDrawing() {
   el("draw-circle").textContent = "◯ Draw circles";
 }
 function newCircle(lat, lng, radiusKm) {
-  return { id: state.nextId++, lat, lng, radiusKm,
+  return { id: state.nextId++, lat, lng, radiusKm, product: DEFAULT_PRODUCT, place: null,
            readings: simReadings(), extraDays: state.extraDays, scn: null };
 }
 function commitCircle(circle) {
@@ -398,7 +423,7 @@ function commitCircle(circle) {
   circle.expanded = true;
   state.circles.push(circle);
   state.activeId = circle.id;
-  state.drawing = "center";  // stay armed: drag the next circle straight away
+  if (state.drawing) state.drawing = "center";  // stay armed: drag the next circle straight away
   el("remove-circle").hidden = false;
   el("clear-all").hidden = state.circles.length < 2;
   el("radius-row").hidden = false; el("extradays-row").hidden = false;
@@ -410,6 +435,7 @@ function commitCircle(circle) {
 }
 function removeCircleById(id) {
   state.circles = state.circles.filter((c) => c.id !== id);
+  if (id === state.shopId) forgetShop();
   if (!state.circles.length) { clearAllCircles(); return; }
   if (state.activeId === id) { selectCircle(state.circles[state.circles.length - 1].id); return; }
   el("clear-all").hidden = state.circles.length < 2;
@@ -418,6 +444,7 @@ function removeCircleById(id) {
 function removeActiveCircle() { removeCircleById(state.activeId); }
 function clearAllCircles() {
   state.circles = []; state.activeId = null;
+  forgetShop();
   stopDrawing();
   renderFloats();
   el("remove-circle").hidden = true; el("clear-all").hidden = true;
@@ -426,8 +453,15 @@ function clearAllCircles() {
   renderScenario(); redraw(); renderPortfolio(); renderDetail();
 }
 function onMapClick(info) {
-  if (state.drawing !== "center" || !info.coordinate) return;
+  if (!info.coordinate) return;
   const [lng, lat] = info.coordinate;
+  if (state.shopDraft && !state.shopDraft.place) {
+    state.shopDraft.place = { name: "Point picked on the map", lat, lng };
+    // The click is the owner's own answer for the place, so a known product needs no second confirm.
+    if (state.shopDraft.product) placeShop(); else showShopDraft();
+    return;
+  }
+  if (state.drawing !== "center") return;
   commitCircle(newCircle(lat, lng, +el("s-radius").value));
 }
 function onMapDragStart(info) {
@@ -453,8 +487,7 @@ function onMapDragEnd() {
 }
 function buildExtraHazardControls() {
   const host = el("extra-hazards");
-  const known = new Set(["haze", "rain", "heat", "flood"]);
-  const extras = (QUOTES.hazards || []).filter((h) => !known.has(h.key));
+  const extras = (QUOTES.hazards || []).filter((h) => !(h.key in SIM_READING));
   const plain = { closure: "A government order shuts businesses here for the day" };
   host.innerHTML = extras.map((h) => h.binary
     ? `<label class="floodrow"><input type="checkbox" data-extra="${h.key}" /> ${plain[h.key] || h.label}</label>`
@@ -480,6 +513,8 @@ function floatCardHtml(circle) {
     <span class="tgl" data-act="toggle">${circle.expanded ? "▾" : "▸"}</span>
     <span class="x" data-act="remove" title="Remove this circle">✕</span></div>`;
   const body = circle.expanded ? `<div class="cbody" data-act="edit">
+    ${circle.place ? `<p class="where">${circle.place}</p>` : ""}
+    <div class="kv"><span class="k" style="white-space:nowrap">Priced as</span><span class="v">${productLabel(circle.product)}</span></div>
     <div class="kv"><span class="k">Payout per stall today</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
     <div class="kv"><span class="k">Centres hit · stalls covered</span><span class="v">${scn.totals.centres} · ${scn.totals.stalls.toLocaleString("en-SG")}</span></div>
     <div class="kv"><span class="k">Weekly premium, now → if more common</span><span class="v">${SGD(scn.totals.weekly_premium_baseline_sgd)} → <span class="delta-up">${SGD(scn.totals.weekly_premium_stressed_sgd)}</span></span></div>
@@ -536,7 +571,7 @@ function positionFloats() {
 
 /* ---------- detail panel ---------- */
 function select(type, value) {
-  if (state.drawing) return;
+  if (state.drawing || (state.shopDraft && !state.shopDraft.place)) return;
   state.selected = { type, value };
   renderDetail();
 }
@@ -597,11 +632,16 @@ function dayDetail(index, tier) {
   if (state.mode === "history" || !readings) return "";
   const label = state.mode === "live" ? `Live today (${state.live?.date ?? ""})` : "On the simulated day";
   const stressed = best ? best.scn.regions[centre.region] : null;
+  // Inside a circle the payout is the one the API priced for that circle's product and tier.
+  const paid = best
+    ? { tier: tierLabel(state.tier), perStall: best.scn.assessment.payout_sgd }
+    : { tier: tier.label, perStall: loss * tier.daily_payout_sgd };
   return `<div class="sec"><p class="cap">${label}${best ? ` · circle ${best.id}` : ""}</p>
     <div class="kv"><span class="k">Readings here (PSI / mm / h ≥32)</span><span class="v">${Math.round(readings.haze)} / ${Math.round(readings.rain)} / ${readings.heat}</span></div>
+    ${best ? `<div class="kv"><span class="k">Priced as</span><span class="v">${productLabel(best.product)}</span></div>` : ""}
     <div class="kv"><span class="k">Loss score (share of a normal day's sales)</span><span class="v">${(loss * 100).toFixed(0)}%</span></div>
-    <div class="kv"><span class="k">Payout per stall at ${tier.label}</span><span class="v">${SGD(loss * tier.daily_payout_sgd)}</span></div>
-    <div class="kv"><span class="k">Whole centre (${centre.food_stalls} stalls)</span><span class="v">${SGD0(loss * tier.daily_payout_sgd * centre.food_stalls)}</span></div>
+    <div class="kv"><span class="k">Payout per stall at ${paid.tier}</span><span class="v" id="day-payout">${SGD(paid.perStall)}</span></div>
+    <div class="kv"><span class="k">Whole centre (${centre.food_stalls} stalls)</span><span class="v">${SGD0(paid.perStall * centre.food_stalls)}</span></div>
     ${stressed ? `<div class="kv"><span class="k">Weekly premium if this grows ${state.extraDays} d/yr more frequent</span>
       <span class="v">${SGD(stressed.weekly_baseline_sgd)} → <span class="delta-up">${SGD(stressed.weekly_stressed_sgd)}</span></span></div>` : ""}
     <p class="note">Paid automatically on NEA readings - no claim form, no loss adjuster.</p></div>`;
@@ -759,6 +799,118 @@ function setSim(partial) {
   el("v-heat").textContent = `${state.sim.heat} h`;
   applyControlChange();
   redraw();
+}
+
+/* ---------- tell us about your shop ---------- */
+function shopCircle() { return state.circles.find((c) => c.id === state.shopId) || null; }
+function shopStatus(text) {
+  el("kyc-status").hidden = !text;
+  el("kyc-status").textContent = text;
+}
+function forgetShop() {
+  state.shopId = null; state.shopDraft = null;
+  el("kyc-confirm").hidden = true; el("kyc-strip").hidden = true;
+  shopStatus("");
+}
+function placeName(place) {
+  return place.area && place.area !== place.name ? `${place.name}, ${place.area}` : place.name;
+}
+function readPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ media_type: file.type, data: reader.result.split(",")[1] });
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+async function readShop() {
+  const text = el("kyc-text").value.trim(), file = el("kyc-photo").files[0];
+  if (!text && !file) { shopStatus("Describe your shop, or attach a photo of it."); return; }
+  if (file && file.size > PHOTO_MAX_BYTES) { shopStatus("That photo is over 5 MB. Pick a smaller one."); return; }
+  el("kyc-submit").disabled = true;
+  shopStatus("Reading your description…");
+  try {
+    const answer = await api.kyc({ text, photo: file ? await readPhoto(file) : null });
+    state.shopId = null; el("kyc-strip").hidden = true;
+    // The answer's fields go onto the circle as they are, so a new one needs no change here.
+    state.shopDraft = { product: answer.product, place: answer.place, summary: answer.summary };
+    showShopDraft();
+    if (file && answer.source === "keywords")
+      shopStatus(`${el("kyc-status").textContent} The photo was not read: no assistant key is set, so only your words were matched.`.trim());
+  } catch (error) {
+    console.error(error);
+    shopStatus("Could not read that just now. Try again, or draw a circle by hand below.");
+  } finally {
+    el("kyc-submit").disabled = false;
+  }
+}
+function showShopDraft() {
+  const draft = state.shopDraft;
+  el("kyc-confirm").hidden = false;
+  el("kyc-confirm-btn").hidden = false;
+  el("kyc-product").value = draft.product ?? "";
+  el("kyc-place").textContent = draft.place ? placeName(draft.place) : "Not found";
+  el("kyc-confirm-btn").disabled = !draft.place || !draft.product;
+  shopStatus([
+    draft.product ? "" : "We could not tell what you sell. Choose it from the list.",
+    draft.place ? "" : "We could not find that place. Click the map where your shop is instead.",
+  ].filter(Boolean).join(" "));
+}
+function focusOn(point) {
+  if (state.orbit) toggleOrbit(false);
+  lastView = { ...lastView, longitude: point.lng, latitude: point.lat, zoom: Math.max(lastView.zoom, SHOP_ZOOM) };
+  state.zoom = lastView.zoom;
+  deckgl.setProps({
+    initialViewState: {
+      ...lastView,
+      transitionDuration: REDUCED_MOTION ? 0 : 1400,
+      transitionInterpolator: new deck.FlyToInterpolator(),
+    },
+  });
+}
+function placeShop() {
+  const { product, place } = state.shopDraft;
+  if (state.drawing) stopDrawing();
+  const circle = Object.assign(newCircle(place.lat, place.lng, SHOP_RADIUS_KM), { product, place: placeName(place) });
+  el("kyc-place").textContent = circle.place;
+  state.shopDraft = null; state.shopId = circle.id;
+  commitCircle(circle);
+  selectCircle(circle.id);
+  el("kyc-confirm-btn").hidden = true;
+  shopStatus("");
+  focusOn(circle);
+  renderShopStrip();
+}
+function setShopProduct(product) {
+  const circle = shopCircle();
+  if (state.shopDraft) { state.shopDraft.product = product; showShopDraft(); return; }
+  if (!circle) return;
+  circle.product = product;
+  requestScenario(circle);
+  renderShopStrip();
+}
+let stripSeq = 0;
+async function renderShopStrip() {
+  const circle = shopCircle(), strip = el("kyc-strip");
+  if (!circle) { strip.hidden = true; return; }
+  const seq = ++stripSeq;
+  try {
+    const days = await Promise.all(BAD_DAYS.map((day) => api.scenario(scenarioBody(circle, readingsOf(day.sim, {})))));
+    if (seq !== stripSeq || circle !== shopCircle()) return;
+    strip.hidden = false;
+    const centres = days[0].totals.centres;
+    strip.innerHTML = `<p class="cap">What a bad day costs this shop</p>
+      <p class="note">${productLabel(circle.product)} · ${circle.place} · ${centres} hawker centre${centres === 1 ? "" : "s"} in the circle · payout per stall at ${tierLabel(state.tier)}, as priced by the API. Click a day to apply it.</p>
+      <div class="days">${BAD_DAYS.map((day, i) => `<button class="day" type="button" data-day="${day.key}">
+        <span>${day.label}</span><b>${SGD(days[i].assessment.payout_sgd)}</b></button>`).join("")}</div>`;
+  } catch (error) { console.error(error); }
+}
+function applyBadDay(key) {
+  const circle = shopCircle(), day = BAD_DAYS.find((d) => d.key === key);
+  if (!circle || !day) return;
+  circle.readings = readingsOf(day.sim, {});
+  selectCircle(circle.id);
+  setSim({ ...day.sim });
 }
 
 /* ---------- live mode ---------- */
@@ -945,6 +1097,16 @@ function wireUi() {
         + ". The sliders are set to them; adjust freely.";
     } catch (error) { console.error(error); }
   });
+  const productSelect = el("kyc-product");
+  productSelect.innerHTML = `<option value="" disabled>Choose what you sell</option>`
+    + OPTIONS.products.map((p) => `<option value="${p.key}">${p.label}</option>`).join("");
+  productSelect.addEventListener("change", () => setShopProduct(productSelect.value));
+  el("kyc-submit").addEventListener("click", readShop);
+  el("kyc-confirm-btn").addEventListener("click", placeShop);
+  el("kyc-strip").addEventListener("click", (event) => {
+    const day = event.target.closest("[data-day]");
+    if (day) applyBadDay(day.dataset.day);
+  });
   el("draw-circle").addEventListener("click", startDrawing);
   el("remove-circle").addEventListener("click", removeActiveCircle);
   el("clear-all").addEventListener("click", clearAllCircles);
@@ -971,7 +1133,7 @@ function wireUi() {
   tierSelect.value = state.tier;
   tierSelect.addEventListener("change", (e) => {
     state.tier = e.target.value;
-    refreshSimAssessment(); requestAllScenarios(); renderPortfolio(); renderDetail();
+    refreshSimAssessment(); requestAllScenarios(); renderShopStrip(); renderPortfolio(); renderDetail();
   });
 }
 

@@ -10,9 +10,9 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="map.css?v=17" />
+    <link rel="stylesheet" href="map.css?v=18" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="map.js?v=17" defer></script>
+    <script src="map.js?v=18" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
@@ -91,6 +91,22 @@
     <aside class="panel sim" id="sim" hidden>
       <h2><button class="fold" type="button" aria-label="Collapse">▾</button>Day simulator <span class="hint">what would this day pay?</span></h2>
       <div class="body">
+        <div class="kyc" id="kyc">
+          <label class="kyc-title" for="kyc-text">Tell us about your shop</label>
+          <textarea id="kyc-text" rows="2" maxlength="500" placeholder="I have a fruit shop at Tiong Bahru market"></textarea>
+          <div class="kyc-row">
+            <input type="file" id="kyc-photo" accept="image/jpeg,image/png,image/webp" aria-label="Photo of the shop (optional)" />
+            <button class="btn-mini" id="kyc-submit" type="button">Place my shop</button>
+          </div>
+          <p class="note">The assistant only suggests what you sell and where; you confirm both, and the payout always comes from the tariff and the day's readings. Your words and photo are not stored.</p>
+          <p class="note" id="kyc-status" role="status" hidden></p>
+          <div class="kyc-confirm" id="kyc-confirm" hidden>
+            <div class="kyc-row"><label for="kyc-product">Sells</label><select id="kyc-product"></select></div>
+            <div class="kyc-row"><span>Place</span><output id="kyc-place"></output></div>
+            <button class="btn-mini" id="kyc-confirm-btn" type="button">Confirm and price</button>
+          </div>
+          <div class="kyc-strip" id="kyc-strip" hidden></div>
+        </div>
         <div class="dayrow">
           <label for="s-date">Replay a real day</label>
           <input type="date" id="s-date" />

@@ -117,6 +117,29 @@ canvas { outline: none; }
 
 /* ---------- simulator & portfolio ---------- */
 .sim .body { display: flex; flex-direction: column; gap: 10px; }
+.kyc { display: flex; flex-direction: column; gap: 7px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.kyc-title { font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
+.kyc textarea, .kyc select {
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 7px; padding: 6px 8px; font: 12px var(--sans);
+}
+.kyc textarea { resize: vertical; min-height: 38px; }
+.kyc-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-2); }
+.kyc-row input[type="file"] { flex: 1; min-width: 0; font-size: 10.5px; color: var(--muted); }
+.kyc-row select, .kyc-row output { flex: 1; min-width: 0; }
+.kyc-row output { color: var(--ink); text-align: right; }
+.kyc-confirm, .kyc-strip { display: flex; flex-direction: column; gap: 7px; }
+.kyc-confirm[hidden], .kyc-strip[hidden] { display: none; }
+.kyc-strip .cap { font: 700 10px/1.2 var(--sans); letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); margin: 0; }
+.kyc-strip .days { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.kyc-strip .day {
+  appearance: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2);
+  border-radius: 7px; padding: 7px 6px; cursor: pointer; font: 10.5px/1.3 var(--sans);
+  display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left;
+}
+.kyc-strip .day:hover { border-color: var(--accent); }
+.kyc-strip .day b { font: 500 13px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.ccard .cbody .where { font-size: 10.5px; color: var(--ink); font-weight: 600; margin: 4px 0 1px; }
 .dayrow { display: flex; align-items: center; gap: 10px; }
 .dayrow label { font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
 .dayrow input[type="date"] {
