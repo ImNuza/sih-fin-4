@@ -208,7 +208,7 @@ async function renderInsurer(user) {
     <div class="tools">
       <a class="tool" href="/map/?view=insurer&mode=live" target="_blank" rel="noopener"><b>3D risk atlas</b><span>Hazard, exposure and accumulation over Singapore, with live NEA readings, a worst-day simulator and the city view.</span></a>
       <a class="tool" href="/admin/" target="_blank" rel="noopener"><b>Tariff desk</b><span>Change any weight, severity band, product factor, tier or load. Every save is a new version and every dashboard reprices at once.</span></a>
-      <a class="tool" href="http://localhost:8501" target="_blank" rel="noopener"><b>Data dashboard</b><span>The team's Streamlit explorer: heat, rain and haze history, trigger &amp; price experiments, live readings. Run: uv run streamlit run app/app.py</span></a>
+      <a class="tool" href="http://localhost:8501" target="_blank" rel="noopener"><b>Data dashboard</b><span>The team's Streamlit explorer: heat, rain and haze history, trigger &amp; price experiments, live readings.</span></a>
       <a class="tool" href="/docs" target="_blank" rel="noopener"><b>API docs</b><span>Quote, assess, map and portfolio endpoints. One engine behind every screen.</span></a>
     </div>
     <div class="card">

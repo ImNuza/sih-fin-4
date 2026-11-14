@@ -648,7 +648,7 @@ function renderDetail() {
       <div class="kv"><span class="k">Days reaching 32 °C (MOM rest-break level)</span><span class="v">${(s.share_days_ge_32 * 100).toFixed(0)}% of ${s.days} days</span></div>
       <div class="kv"><span class="k">Hours at ≥32 °C over the record</span><span class="v">${s.hours_ge_32.toFixed(0)} h</span></div>
       <div class="kv"><span class="k">Hottest reading</span><span class="v">${s.max_wbgt.toFixed(1)} °C</span></div>
-      <p class="note">Heat is frequent but short: when WBGT reaches 32 °C it usually stays under an hour, so the trigger uses a duration rule (2 h+), not a single touch. MOM accepts NEA myENV readings as the workplace reference.</p>`;
+      <p class="note">Heat is frequent but short: when WBGT reaches 32 °C it usually stays under an hour, so the trigger uses a duration rule (2 h+), not a single touch.</p>`;
   } else if (type === "rain") {
     const s = value;
     const live = state.live?.rain?.find((x) => x.id === s.id);
