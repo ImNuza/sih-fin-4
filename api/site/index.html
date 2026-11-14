@@ -5,14 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SafeDay</title>
     <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
-    />
-    <link rel="stylesheet" href="/site.css?v=2" />
-    <script src="/site.js?v=2" defer></script>
+    <link rel="stylesheet" href="/theme.css?v=1" />
+    <link rel="stylesheet" href="/site.css?v=3" />
+    <script src="/site.js?v=3" defer></script>
   </head>
   <body>
     <header class="topnav">
@@ -73,32 +68,48 @@
           </p>
           <div class="hero-actions">
             <a class="btn primary" href="/login/#sme">See my price</a>
-            <a class="btn" href="/login/#insurer">Insurer desk</a>
             <a class="btn quiet" href="/map/">Explore the 3D risk atlas</a>
           </div>
         </div>
+        <figure class="phone">
+          <figcaption>The whole policy fits in one SMS.</figcaption>
+          <p class="sms">
+            SafeDay: you are covered for haze, heavy rain, extreme heat and flash floods. We pay
+            when NEA shows PSI above 100, 20 mm of rain in a work hour, 2 hours at WBGT 32 °C or a
+            PUB flood alert near your stall. No claim form.
+          </p>
+          <p class="meta">Your own price and payout are on the risk atlas before you sign.</p>
+        </figure>
       </section>
 
-      <section class="cols">
-        <article class="card">
-          <h2>For small businesses</h2>
+      <section class="roles" aria-label="Where to start">
+        <article class="card role">
+          <h2>I run a small business</h2>
           <ul>
             <li>One cover for haze, heavy rain, extreme heat and flash-flood alerts.</li>
             <li>Pays S$20 to S$100 for each bad day, up to a yearly cap. The amount matches what a bad day really costs a stall.</li>
             <li>From about S$3.60 a week. Your price depends on your own area's weather history.</li>
             <li>Payment is automatic when NEA readings cross the trigger levels. If readings stay below them, nothing is paid, and the levels are public.</li>
           </ul>
-          <p class="fine">The whole policy fits in one SMS. Before you sign anything, you can see every number behind your price on the risk atlas.</p>
+          <a class="btn primary" href="/login/#sme">See my price</a>
         </article>
-        <article class="card">
-          <h2>For the insurer</h2>
+        <article class="card role">
+          <h2>I am the insurer</h2>
           <ul>
             <li>Every policy is priced by one engine: 10 years of NEA data, clear loads, 25% expenses, 9% GST.</li>
             <li>Portfolio desk: who holds what, where risk piles up, and what a worst haze day pays.</li>
-            <li>Tariff desk: change any weight, band, tier or load. Every save is a version.</li>
-            <li>Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, so we can show exactly why a customer pays what they pay. No personal data is used to set any price.</li>
+            <li>Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data. No personal data is used to set any price.</li>
           </ul>
-          <p class="fine">Built with Income Insurance. The same map serves the customer and the underwriter.</p>
+          <a class="btn" href="/login/#insurer">Open the portfolio desk</a>
+        </article>
+        <article class="card role">
+          <h2>I manage the tariff</h2>
+          <ul>
+            <li>Tariff desk: change any weight, band, tier or load.</li>
+            <li>Every save is a version, and every dashboard reprices at once.</li>
+            <li>Built with Income Insurance. The same map serves the customer and the underwriter.</li>
+          </ul>
+          <a class="btn" href="/admin/">Open the tariff desk</a>
         </article>
       </section>
 
