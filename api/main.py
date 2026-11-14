@@ -319,6 +319,65 @@ def map_scenario(
     }
 
 
+DAY_READINGS_PATH = REPO_ROOT / "data" / "processed" / "day_readings.csv.gz"
+
+
+def day_readings(request: Request) -> dict[str, dict[str, dict[str, float]]]:
+    """All historical daily readings, loaded once: {day: {kind: {site: value}}}."""
+    if not hasattr(request.app.state, "day_readings"):
+        if not DAY_READINGS_PATH.exists():
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                "day_readings.csv.gz is missing. Run scripts/build_day_readings.py.",
+            )
+        import csv as csv_module
+        import gzip
+
+        table: dict[str, dict[str, dict[str, float]]] = {}
+        with gzip.open(DAY_READINGS_PATH, "rt", newline="") as file:
+            for row in csv_module.DictReader(file):
+                table.setdefault(row["day"], {}).setdefault(row["kind"], {})[row["site"]] = float(
+                    row["value"]
+                )
+        request.app.state.day_readings = table
+    return request.app.state.day_readings
+
+
+@app.get("/api/map/day")
+def map_day(date: str, request: Request) -> dict:
+    """What NEA actually recorded on one past day: the worst reading of each peril.
+
+    The map sets its simulator sliders from these maxima, so a replayed day prices
+    through the same engine as any simulated one.
+    """
+    table = day_readings(request)
+    available = sorted(table)
+    if date not in table:
+        return {
+            "date": date,
+            "available": {"min": available[0], "max": available[-1]},
+            "found": False,
+        }
+    readings = table[date]
+
+    def worst(kind: str) -> dict:
+        sites = readings.get(kind, {})
+        if not sites:
+            return {"value": 0, "site": None}
+        site = max(sites, key=sites.get)
+        return {"value": sites[site], "site": site}
+
+    return {
+        "date": date,
+        "available": {"min": available[0], "max": available[-1]},
+        "found": True,
+        "haze": worst("haze"),
+        "rain": worst("rain"),
+        "heat": worst("heat"),
+        "haze_by_region": readings.get("haze", {}),
+    }
+
+
 @app.get("/api/map/live")
 def map_live(request: Request, tariff: TariffDep, product: str = "cooked_food") -> dict:
     """Today's NEA readings and the loss score they give each hawker centre right now.
