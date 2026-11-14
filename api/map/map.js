@@ -60,6 +60,7 @@ const api = {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ product: "cooked_food", tier: state.tier, readings }),
   }),
+  day: (date) => getJson(`/api/map/day?date=${date}`),
   scenario: (body) => getJson("/api/map/scenario", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -913,6 +914,34 @@ function wireUi() {
   el("s-flood").addEventListener("change", (e) => setSim({ flood: e.target.checked }));
   document.querySelectorAll(".panel .fold").forEach((button) =>
     button.addEventListener("click", () => button.closest(".panel").classList.toggle("folded")));
+  const dateInput = el("s-date");
+  const today = new Date().toISOString().slice(0, 10);
+  api.day(today).then((bounds) => {
+    dateInput.min = bounds.available.min;
+    dateInput.max = bounds.available.max;
+    dateInput.value = bounds.found ? today : bounds.available.max;
+  }).catch(() => {});
+  dateInput.addEventListener("change", async () => {
+    if (!dateInput.value) return;
+    try {
+      const day = await api.day(dateInput.value);
+      const note = el("day-note");
+      note.hidden = false;
+      if (!day.found) {
+        note.textContent = `No NEA readings for ${dateInput.value}. Data runs ${day.available.min} to ${day.available.max}.`;
+        return;
+      }
+      setSim({
+        psi: Math.round(day.haze.value), rain: Math.round(day.rain.value),
+        heat: day.heat.value, flood: false,
+      });
+      note.textContent = `Worst readings on ${dateInput.value}: PSI ${Math.round(day.haze.value)}`
+        + (day.haze.site ? ` (${day.haze.site} zone)` : "")
+        + `, ${day.rain.value} mm rain` + (day.rain.site ? ` (gauge ${day.rain.site})` : "")
+        + `, ${day.heat.value} h of dangerous heat` + (day.heat.site ? ` (${day.heat.site})` : "")
+        + ". The sliders are set to them; adjust freely.";
+    } catch (error) { console.error(error); }
+  });
   el("draw-circle").addEventListener("click", startDrawing);
   el("remove-circle").addEventListener("click", removeActiveCircle);
   el("clear-all").addEventListener("click", clearAllCircles);
