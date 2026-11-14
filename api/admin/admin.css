@@ -1,61 +1,11 @@
+/* SafeDay tariff desk. Tokens come from /theme.css; these aliases keep the desk's own names. */
 :root {
-  --paper: #f5f3ee;
-  --surface: #fffefb;
-  --ink: #1c1b18;
-  --ink-2: #5b5850;
-  --muted: #8a867c;
-  --rule: #e2ded4;
-  --accent: #0e6b5c;
-  --accent-ink: #ffffff;
-  --accent-soft: #e1efe9;
-  --danger: #b3261e;
-  --danger-soft: #fbe9e7;
-  --haze: #a1661b;
-  --rain: #2c6ea6;
-  --heat: #c2412d;
-  --flood: #23707f;
-  --closure: #6b6b6b;
-  --sans: "Schibsted Grotesk", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
-  --radius: 10px;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #141412;
-    --surface: #1c1b19;
-    --ink: #ecebe6;
-    --ink-2: #b5b2a8;
-    --muted: #85827a;
-    --rule: #2d2c28;
-    --accent: #4fb39c;
-    --accent-ink: #0d1f1b;
-    --accent-soft: #1d322c;
-    --danger: #f28b82;
-    --danger-soft: #3a1e1c;
-    --haze: #d9a24f;
-    --rain: #6aa6dc;
-    --heat: #ee7a64;
-    --flood: #5cb2c2;
-    --closure: #a3a3a3;
-    color-scheme: dark;
-  }
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font: 15px/1.5 var(--sans);
-}
-
-[hidden] {
-  display: none !important;
+  --paper: var(--bg);
+  --rule: var(--line);
+  --accent-soft: var(--surface-2);
+  --danger: var(--critical);
+  --danger-soft: var(--critical-soft);
+  --radius: var(--r-md);
 }
 
 h1,
@@ -65,16 +15,17 @@ h3 {
   line-height: 1.25;
 }
 h1 {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--t-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 h2 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--t-lg);
+  font-weight: 700;
 }
 h3 {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--t-md);
+  font-weight: 700;
   margin-top: 28px;
 }
 
@@ -86,6 +37,7 @@ h3 {
 
 .brand {
   margin: 0;
+  font-size: var(--t-lg);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
@@ -112,8 +64,7 @@ textarea {
   border-radius: 6px;
 }
 input[type="number"] {
-  font-family: var(--mono);
-  font-size: 14px;
+  text-align: right;
 }
 input[type="checkbox"] {
   width: auto;
@@ -279,12 +230,13 @@ button.remove:hover {
 }
 .sections button[aria-current="true"] {
   background: var(--surface);
+  box-shadow: inset 3px 0 0 var(--ink);
   color: var(--ink);
   font-weight: 600;
 }
 .sections .count {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
   color: var(--muted);
 }
 
@@ -341,7 +293,7 @@ button.remove:hover {
   color: var(--ink);
 }
 .history-note {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 
@@ -367,10 +319,10 @@ button.remove:hover {
 }
 .chart text {
   fill: var(--muted);
-  font: 10px var(--mono);
+  font: 11px var(--sans);
 }
 .chart figcaption {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 4px;
 }
@@ -383,15 +335,20 @@ table {
 }
 th {
   padding: 0 8px 8px 0;
+  border-bottom: 1px solid var(--ink);
   text-align: left;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--muted);
   vertical-align: bottom;
 }
 td {
-  padding: 4px 8px 4px 0;
+  padding: 6px 8px 6px 0;
+  border-bottom: 1px solid var(--rule);
   vertical-align: middle;
+}
+tbody tr:last-child td {
+  border-bottom: none;
 }
 td.unit {
   width: 1%;
@@ -446,7 +403,7 @@ td.unit {
   color: var(--ink-2);
 }
 .loss-days b {
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   color: var(--ink);
   font-weight: 500;
 }
@@ -481,12 +438,12 @@ td.unit {
   border-radius: 4px;
 }
 .rung-price {
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: 14px;
 }
 .rung-detail {
   grid-column: 2 / -1;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-2);
 }
 
@@ -498,7 +455,7 @@ td.unit {
 }
 .readings label span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .day-loss {
@@ -508,7 +465,7 @@ td.unit {
   gap: 10px;
 }
 .day-loss strong {
-  font: 500 32px/1 var(--mono);
+  font: 700 34px/1 var(--sans);
 }
 .breakdown,
 .payouts {
@@ -526,7 +483,7 @@ td.unit {
 }
 .breakdown span:last-child,
 .payouts span:last-child {
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .toast {
@@ -625,6 +582,9 @@ td.unit {
   vertical-align: top;
   font-size: 14px;
 }
+.changes tbody :is(th, td) {
+  border-bottom: none;
+}
 .changes thead th {
   border-top: none;
 }
@@ -637,6 +597,6 @@ td.unit {
   text-decoration: line-through;
 }
 .changes .after {
-  color: var(--accent);
-  font-weight: 500;
+  color: var(--ink);
+  font-weight: 700;
 }
