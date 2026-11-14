@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from itertools import pairwise
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 Share = Annotated[float, Field(ge=0, le=1)]
 Money = Annotated[float, Field(gt=0)]
+KYC_TEXT_MAX_CHARS = 500
+KYC_PHOTO_MAX_BYTES = 5 * 1024 * 1024
+# Base64 writes every 3 bytes as 4 characters.
+KYC_PHOTO_MAX_BASE64_CHARS = KYC_PHOTO_MAX_BYTES // 3 * 4 + 4
 
 
 def unique_keys(items: list[BaseModel], kind: str) -> None:
@@ -177,3 +181,45 @@ class PreviewRequest(BaseModel):
 class Preview(BaseModel):
     quote: Quote
     assessments: list[Assessment]
+
+
+class KycPhoto(BaseModel):
+    media_type: Literal["image/jpeg", "image/png", "image/webp"]
+    data: str = Field(
+        min_length=1,
+        max_length=KYC_PHOTO_MAX_BASE64_CHARS,
+        description="The photo as base64, 5 MB at most. Read once, never stored.",
+    )
+
+
+class KycRequest(BaseModel):
+    text: str = Field(default="", max_length=KYC_TEXT_MAX_CHARS)
+    photo: KycPhoto | None = None
+
+    @model_validator(mode="after")
+    def says_something(self) -> KycRequest:
+        if not self.text.strip() and self.photo is None:
+            raise ValueError("Describe the shop or attach a photo")
+        return self
+
+
+class KycPlace(BaseModel):
+    name: str
+    lat: float
+    lng: float
+    region: str
+    match: Literal["hawker_centre", "planning_area"]
+    area: str | None = Field(
+        default=None,
+        description="The planning area the owner named, when the place was found through it.",
+    )
+
+
+class KycResult(BaseModel):
+    """A proposed product and place for the owner to confirm. Never a price."""
+
+    product: str | None
+    place: KycPlace | None
+    confidence: float | None = Field(description="The model's own 0 to 1. Empty for keywords.")
+    summary: str
+    source: Literal["llm", "keywords"]

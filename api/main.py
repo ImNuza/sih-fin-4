@@ -34,7 +34,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
-from api import accounts, calculator, store
+from api import accounts, calculator, kyc, store
 from api.accounts import InsurerDep, SmeDep, UserDep
 from api.live import LiveFeed
 from api.calculator import History, Readings
@@ -43,6 +43,8 @@ from api.models import (
     AssessRequest,
     Choice,
     HazardChoice,
+    KycRequest,
+    KycResult,
     Options,
     Preview,
     PreviewRequest,
@@ -92,6 +94,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if not MAP_STATIC_PATH.exists():
         raise SystemExit(f"{MAP_STATIC_PATH} is missing. Run scripts/build_map_static.py first.")
     app.state.map_static = json.loads(MAP_STATIC_PATH.read_text())
+    app.state.places = kyc.load_places(app.state.map_static)
     app.state.live = LiveFeed()
     app.state.db = store.connect(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
     if store.latest(app.state.db) is None:
@@ -317,6 +320,16 @@ def map_scenario(
             ),
         },
     }
+
+
+@app.post("/api/map/kyc")
+def map_kyc(body: KycRequest, tariff: TariffDep, request: Request) -> KycResult:
+    """Read a shop owner's description, and an optional photo, into a product and a place.
+
+    Advisory only: the owner confirms both on the map before /api/map/scenario prices anything,
+    so every payout still comes from the tariff and the day's readings. Nothing is stored.
+    """
+    return kyc.read_shop(body, tariff.products, request.app.state.places)
 
 
 DAY_READINGS_PATH = REPO_ROOT / "data" / "processed" / "day_readings.csv.gz"
