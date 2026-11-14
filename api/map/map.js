@@ -729,12 +729,6 @@ function renderPortfolio() {
 }
 
 /* ---------- simulator ---------- */
-const PRESETS = {
-  calm: { psi: 0, rain: 0, heat: 0, flood: false },
-  haze230: { psi: 230, rain: 0, heat: 0, flood: false },
-  storm: { psi: 0, rain: 50, heat: 0, flood: true },
-  hot: { psi: 0, rain: 0, heat: 4, flood: false },
-};
 let assessTimer = null, assessSeq = 0;
 function refreshSimAssessment() {
   clearTimeout(assessTimer);
@@ -750,9 +744,8 @@ function refreshSimAssessment() {
     }
   }, 150);
 }
-function setSim(partial, preset) {
+function setSim(partial) {
   Object.assign(state.sim, partial);
-  document.querySelectorAll(".preset").forEach((b) => b.classList.toggle("on", b.dataset.p === preset));
   el("s-psi").value = state.sim.psi; el("s-rain").value = state.sim.rain; el("s-heat").value = state.sim.heat;
   el("s-flood").checked = state.sim.flood;
   el("v-psi").textContent = state.sim.psi;
@@ -805,7 +798,7 @@ function setMode(mode) {
     pollLive();
     state.livePoll = setInterval(pollLive, LIVE_POLL_MS);
   }
-  if (mode === "sim" && !state.simAssessment) setSim({ ...PRESETS.haze230 }, "haze230");
+  if (mode === "sim" && !state.simAssessment) refreshSimAssessment();
   renderFloats(); redraw(); renderPortfolio(); renderDetail();
 }
 /* ---------- cameras ---------- */
@@ -914,8 +907,6 @@ function wireUi() {
   for (const key of Object.keys(state.layers)) {
     el(`ly-${key}`).addEventListener("change", (event) => { state.layers[key] = event.target.checked; redraw(); });
   }
-  document.querySelectorAll(".preset").forEach((b) =>
-    b.addEventListener("click", () => setSim({ ...PRESETS[b.dataset.p] }, b.dataset.p)));
   el("s-psi").addEventListener("input", (e) => setSim({ psi: +e.target.value }));
   el("s-rain").addEventListener("input", (e) => setSim({ rain: +e.target.value }));
   el("s-heat").addEventListener("input", (e) => setSim({ heat: +e.target.value }));
