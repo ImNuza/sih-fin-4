@@ -480,9 +480,9 @@ function floatCardHtml(circle) {
     <span class="tgl" data-act="toggle">${circle.expanded ? "▾" : "▸"}</span>
     <span class="x" data-act="remove" title="Remove this circle">✕</span></div>`;
   const body = circle.expanded ? `<div class="cbody" data-act="edit">
-    <div class="kv"><span class="k">Payout / stall</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
-    <div class="kv"><span class="k">Centres · stalls</span><span class="v">${scn.totals.centres} · ${scn.totals.stalls.toLocaleString("en-SG")}</span></div>
-    <div class="kv"><span class="k">Premium /wk</span><span class="v">${SGD(scn.totals.weekly_premium_baseline_sgd)} → <span class="delta-up">${SGD(scn.totals.weekly_premium_stressed_sgd)}</span></span></div>
+    <div class="kv"><span class="k">Payout per stall today</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
+    <div class="kv"><span class="k">Centres hit · stalls covered</span><span class="v">${scn.totals.centres} · ${scn.totals.stalls.toLocaleString("en-SG")}</span></div>
+    <div class="kv"><span class="k">Weekly premium, now → if more common</span><span class="v">${SGD(scn.totals.weekly_premium_baseline_sgd)} → <span class="delta-up">${SGD(scn.totals.weekly_premium_stressed_sgd)}</span></span></div>
     <p class="hintline">${active ? "editing: the sliders shape this circle" : "click to edit this circle's readings"}</p>
   </div>` : "";
   return head + body;
