@@ -348,7 +348,7 @@ function impactTable(before, after) {
   const rows = after
     .map((tier) => {
       const old = before.find((candidate) => candidate.tier === tier.tier);
-      const was = old ? money(old.weekly_premium_sgd) : "—";
+      const was = old ? money(old.weekly_premium_sgd) : "–";
       return `<tr><th scope="row">${esc(tier.label)}</th>
         <td class="before">${was}</td><td class="after">${money(tier.weekly_premium_sgd)}</td></tr>`;
     })
