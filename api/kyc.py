@@ -1,8 +1,9 @@
 """Read a shop owner's own words (and an optional photo) into a tariff product and a map place.
 
 The reading is advisory: it proposes a product and a place for the owner to confirm, and never
-a price. With ANTHROPIC_API_KEY (environment or .env at the repo root) one Claude call classifies
-the product; without it, or with no route to the Anthropic API, a keyword table does. Places
+a price. With ANTHROPIC_API_KEY or OPENAI_API_KEY (environment or .env at the repo root) one
+model call classifies the product, Claude first when both are set; with neither, or with no
+route to the model's API, a keyword table does. Places
 resolve against the hawker centres and planning areas in data/processed/map_static.json, and a
 planning area stands for its most central hawker centre. Nothing sent here is stored.
 """
@@ -12,18 +13,23 @@ from __future__ import annotations
 import logging
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from difflib import get_close_matches
 from pathlib import Path
 
 import anthropic
+import openai
 from pydantic import BaseModel
 
 from api.models import KycPhoto, KycPlace, KycRequest, KycResult, Product
 
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
-KEY_NAME = "ANTHROPIC_API_KEY"
-MODEL = "claude-haiku-5-5"
+CLAUDE_KEY_NAME = "ANTHROPIC_API_KEY"
+CLAUDE_MODEL = "claude-haiku-5-5"
+OPENAI_KEY_NAME = "OPENAI_API_KEY"
+OPENAI_MODEL = "gpt-5.4-mini"
+ONLY_A_PHOTO = "(The owner sent only a photo.)"
 MAX_ANSWER_TOKENS = 1024
 FUZZY_CUTOFF = 0.85
 MIN_ALIAS_CHARS = 4
@@ -48,6 +54,10 @@ class Places:
 
     by_alias: dict[str, KycPlace]
     by_name: dict[str, KycPlace]
+
+
+class NoRoute(Exception):
+    """The model's API could not be reached from this server."""
 
 
 class ModelAnswer(BaseModel):
@@ -198,13 +208,13 @@ def keyword_product(text: str, products: list[Product]) -> str | None:
     return None
 
 
-def api_key() -> str | None:
-    if os.environ.get(KEY_NAME):
-        return os.environ[KEY_NAME]
+def api_key(key_name: str) -> str | None:
+    if os.environ.get(key_name):
+        return os.environ[key_name]
     if ENV_PATH.exists():
         for line in ENV_PATH.read_text().splitlines():
             name, _, value = line.partition("=")
-            if name.strip() == KEY_NAME and value.strip():
+            if name.strip() == key_name and value.strip():
                 return value.strip()
     return None
 
@@ -226,34 +236,75 @@ def prompt(products: list[Product], places: Places) -> str:
     )
 
 
-def ask_model(
-    key: str, text: str, photo: KycPhoto | None, products: list[Product], places: Places
-) -> ModelAnswer | None:
-    """One Claude call. None when the API rejects it, the model refuses or the answer won't parse.
-
-    A connection error is left to the caller: with no route to the API, keywords still work.
-    """
+def ask_claude(key: str, system: str, text: str, photo: KycPhoto | None) -> ModelAnswer | None:
     content: list[dict] = []
     if photo is not None:
         source = {"type": "base64", "media_type": photo.media_type, "data": photo.data}
         content.append({"type": "image", "source": source})
-    content.append({"type": "text", "text": text or "(The owner sent only a photo.)"})
+    content.append({"type": "text", "text": text or ONLY_A_PHOTO})
     try:
         response = anthropic.Anthropic(api_key=key).messages.parse(
-            model=MODEL,
+            model=CLAUDE_MODEL,
             max_tokens=MAX_ANSWER_TOKENS,
             output_config={"effort": "low"},
-            system=prompt(products, places),
+            system=system,
             messages=[{"role": "user", "content": content}],
             output_format=ModelAnswer,
         )
+    except anthropic.APIConnectionError as error:
+        raise NoRoute("api.anthropic.com") from error
     except (anthropic.APIStatusError, ValueError) as error:
-        # The owner can still pick the product by hand, so a failed reading is not fatal.
         log.warning("Shop reading failed: %s", type(error).__name__)
         return None
     if response.stop_reason == "refusal":
         return None
     return response.parsed_output
+
+
+def ask_openai(key: str, system: str, text: str, photo: KycPhoto | None) -> ModelAnswer | None:
+    content: list[dict] = [{"type": "text", "text": text or ONLY_A_PHOTO}]
+    if photo is not None:
+        url = f"data:{photo.media_type};base64,{photo.data}"
+        content.append({"type": "image_url", "image_url": {"url": url}})
+    try:
+        response = openai.OpenAI(api_key=key).chat.completions.parse(
+            model=OPENAI_MODEL,
+            max_completion_tokens=MAX_ANSWER_TOKENS,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": content},
+            ],
+            response_format=ModelAnswer,
+        )
+    except openai.APIConnectionError as error:
+        raise NoRoute("api.openai.com") from error
+    except (openai.OpenAIError, ValueError) as error:
+        log.warning("Shop reading failed: %s", type(error).__name__)
+        return None
+    # `parsed` is empty when the model refuses.
+    return response.choices[0].message.parsed
+
+
+Ask = Callable[[str, str, str, KycPhoto | None], ModelAnswer | None]
+MODELS: tuple[tuple[str, Ask], ...] = (
+    (CLAUDE_KEY_NAME, ask_claude),
+    (OPENAI_KEY_NAME, ask_openai),
+)
+
+
+def ask_model(
+    text: str, photo: KycPhoto | None, products: list[Product], places: Places
+) -> ModelAnswer | None:
+    """One call to the first model with a key. None when it rejects, refuses or will not parse.
+
+    Raises LookupError when no key is set and NoRoute when the API cannot be reached: in both
+    cases keywords still work. Any other failure leaves the product for the owner to pick.
+    """
+    for key_name, ask in MODELS:
+        key = api_key(key_name)
+        if key:
+            return ask(key, prompt(products, places), text, photo)
+    raise LookupError("No model API key is set")
 
 
 def with_place_note(summary: str, place: KycPlace | None) -> str:
@@ -278,13 +329,12 @@ def keyword_reading(text: str, place: KycPlace | None, products: list[Product]) 
 
 def read_shop(body: KycRequest, products: list[Product], places: Places) -> KycResult:
     place = match_place(body.text, places)
-    key = api_key()
-    if key is None:
-        return keyword_reading(body.text, place, products)
     try:
-        answer = ask_model(key, body.text, body.photo, products, places)
-    except anthropic.APIConnectionError:
-        log.warning("No route to the Anthropic API; matched keywords instead")
+        answer = ask_model(body.text, body.photo, products, places)
+    except LookupError:
+        return keyword_reading(body.text, place, products)
+    except NoRoute as error:
+        log.warning("No route to %s; matched keywords instead", error)
         return keyword_reading(body.text, place, products)
     if answer is None:
         return KycResult(product=None, place=place, confidence=None, summary="Shop", source="llm")

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import anthropic
 import httpx2
+import openai
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,7 +22,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("ADMIN_USERNAME", "admin")
     monkeypatch.setenv("ADMIN_PASSWORD", "secret")
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'tariff.db'}")
-    monkeypatch.setattr(kyc, "api_key", lambda: None)
+    monkeypatch.setattr(kyc, "api_key", lambda key_name: None)
     with TestClient(app) as client:
         yield client
 
@@ -41,8 +42,30 @@ def model(monkeypatch):
         fake.api_key = api_key
         return SimpleNamespace(messages=SimpleNamespace(parse=parse))
 
-    monkeypatch.setattr(kyc, "api_key", lambda: "test-key")
+    monkeypatch.setattr(kyc, "api_key", {"ANTHROPIC_API_KEY": "test-key"}.get)
     monkeypatch.setattr(kyc.anthropic, "Anthropic", client)
+    return fake
+
+
+@pytest.fixture
+def openai_model(monkeypatch):
+    """Stand in for the OpenAI client, with only OPENAI_API_KEY set."""
+    fake = SimpleNamespace(calls=[], answer=None, error=None)
+
+    def parse(**request):
+        fake.calls.append(request)
+        if fake.error:
+            raise fake.error
+        message = SimpleNamespace(parsed=fake.answer)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    def client(api_key):
+        fake.api_key = api_key
+        completions = SimpleNamespace(parse=parse)
+        return SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+    monkeypatch.setattr(kyc, "api_key", {"OPENAI_API_KEY": "openai-test-key"}.get)
+    monkeypatch.setattr(kyc.openai, "OpenAI", client)
     return fake
 
 
@@ -184,7 +207,7 @@ def test_model_reads_the_product_and_sees_the_tariff_the_places_and_the_photo(cl
     assert image == {"type": "image", "source": {"type": "base64", **PHOTO}}
     assert words == {"type": "text", "text": "I sell durian at Tiong Bahru market"}
     assert call["output_format"] is kyc.ModelAnswer
-    assert call["model"] == kyc.MODEL == "claude-haiku-5-5"
+    assert call["model"] == kyc.CLAUDE_MODEL == "claude-haiku-5-5"
 
 
 def test_model_chooses_the_place_when_the_words_name_none(client, model):
@@ -227,6 +250,47 @@ def test_an_unparsed_or_refused_model_answer_gives_no_product_but_keeps_the_plac
 
     model.error, model.stop_reason = None, "refusal"
     assert read(client, "fruit shop at Tiong Bahru market")["product"] is None
+
+
+def test_openai_reads_the_shop_when_only_its_key_is_set(client, openai_model):
+    openai_model.answer = kyc.ModelAnswer(
+        product="flowers", place_name=None, confidence=0.8, summary="Orchid stall at Tekka"
+    )
+    shop = read(client, "orchids at Tekka", photo=PHOTO)
+    assert (shop["product"], shop["source"], shop["confidence"]) == ("flowers", "llm", 0.8)
+    assert shop["place"]["name"] == "Buffalo Road Blk 665 (Tekka Centre/Zhu Jiao Market)"
+
+    assert openai_model.api_key == "openai-test-key"
+    (call,) = openai_model.calls
+    assert call["model"] == kyc.OPENAI_MODEL
+    assert call["response_format"] is kyc.ModelAnswer
+    system, user = call["messages"]
+    assert "flowers: Flowers and plants" in system["content"]
+    assert "- Tiong Bahru Market" in system["content"]
+    words, image = user["content"]
+    assert words == {"type": "text", "text": "orchids at Tekka"}
+    assert image["image_url"]["url"] == f"data:image/png;base64,{PHOTO['data']}"
+
+
+def test_claude_is_asked_first_when_both_keys_are_set(client, model, openai_model, monkeypatch):
+    monkeypatch.setattr(kyc, "api_key", lambda key_name: "a-key")
+    model.answer = kyc.ModelAnswer(
+        product="cooked_food", place_name=None, confidence=0.9, summary="Noodle stall"
+    )
+    assert read(client, "I sell laksa")["product"] == "cooked_food"
+    assert (len(model.calls), len(openai_model.calls)) == (1, 0)
+
+
+def test_openai_failures_follow_the_same_rules(client, openai_model):
+    request = httpx2.Request("POST", "https://api.openai.com/v1/chat/completions")
+    openai_model.error = openai.APIConnectionError(request=request)
+    shop = read(client, "fruit shop at Tiong Bahru market")
+    assert (shop["product"], shop["source"]) == ("fresh_produce", "keywords")
+
+    openai_model.error = None
+    shop = read(client, "fruit shop at Tiong Bahru market")
+    assert (shop["product"], shop["source"]) == (None, "llm")
+    assert shop["place"]["name"] == "Tiong Bahru Market"
 
 
 def test_scenario_prices_the_product_it_is_sent(client):
