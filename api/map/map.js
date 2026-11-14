@@ -4,12 +4,18 @@
    All pricing comes from the server's calculator; this file only draws it. */
 "use strict";
 
+// The hazard and status colours are defined once, in /theme.css, and read here for deck.gl.
+const THEME = getComputedStyle(document.documentElement);
+function themeRgb(name) {
+  const hex = THEME.getPropertyValue(`--${name}`).trim();
+  return [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+}
 const COLORS = {
-  heat: [217, 89, 38], rain: [57, 135, 229], haze: [144, 133, 233], flood: [25, 158, 112],
-  good: [12, 163, 12], warning: [250, 178, 25], serious: [236, 131, 90],
-  ink: [242, 241, 237], lossLow: [82, 81, 78], lossHigh: [230, 103, 103],
+  ...Object.fromEntries(["heat", "rain", "haze", "flood", "good", "warning", "serious", "ink", "muted"]
+    .map((name) => [name, themeRgb(name)])),
+  lossLow: [82, 81, 78], lossHigh: [230, 103, 103],
 };
-const CSS_BY_HAZARD = { haze: "var(--haze)", rain: "var(--rain)", heat: "var(--heat)", flood: "var(--flood)", closure: "#898781" };
+const CSS_BY_HAZARD = { haze: "var(--haze)", rain: "var(--rain)", heat: "var(--heat)", flood: "var(--flood)", closure: "var(--closure)" };
 const AFFORDABLE_WEEKLY_SGD = 3;   // the brief's "a few dollars a week"
 const COPAY_WEEKLY_SGD = 6;        // above this even a co-payer is a stretch
 const LIVE_POLL_MS = 60_000;       // the server refreshes its NEA snapshot every 5 minutes
@@ -18,9 +24,9 @@ const SHOP_RADIUS_KM = 0.5;
 const SHOP_ZOOM = 14;
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const BAD_DAYS = [
-  { key: "haze230", label: "Haze day · PSI 230", sim: { psi: 230, rain: 0, heat: 0, flood: false } },
-  { key: "storm", label: "50 mm storm hour", sim: { psi: 0, rain: 50, heat: 0, flood: true } },
-  { key: "hot", label: "4 h at 32 °C", sim: { psi: 0, rain: 0, heat: 4, flood: false } },
+  { key: "haze230", hazard: "haze", label: "Haze day · PSI 230", sim: { psi: 230, rain: 0, heat: 0, flood: false } },
+  { key: "storm", hazard: "rain", label: "50 mm storm hour", sim: { psi: 0, rain: 50, heat: 0, flood: true } },
+  { key: "hot", hazard: "heat", label: "4 h at 32 °C", sim: { psi: 0, rain: 0, heat: 4, flood: false } },
 ];
 const PSI_BANDS = [[301, "Hazardous"], [201, "Very unhealthy"], [101, "Unhealthy"], [51, "Moderate"], [0, "Good"]];
 
@@ -276,9 +282,9 @@ function buildLayers() {
       id: "circles", data: circles, pickable: false, stroked: true, filled: true,
       getPosition: (d) => [d.lng, d.lat],
       getRadius: (d) => d.radiusKm * 1000, radiusUnits: "meters",
-      getFillColor: (d) => [134, 182, 239, d === state.draft || d.id === state.activeId ? 30 : 13],
-      getLineColor: (d) => d === state.draft ? [134, 182, 239, 255]
-        : d.id === state.activeId ? [134, 182, 239, 210] : [137, 135, 129, 160],
+      getFillColor: (d) => [...COLORS.ink, d === state.draft || d.id === state.activeId ? 30 : 13],
+      getLineColor: (d) => d === state.draft ? [...COLORS.ink, 255]
+        : d.id === state.activeId ? [...COLORS.ink, 210] : [...COLORS.muted, 160],
       getLineWidth: (d) => (d === state.draft || d.id === state.activeId ? 2 : 1.5),
       lineWidthUnits: "pixels",
       updateTriggers: { getRadius: [state.rev], getFillColor: [state.rev], getLineColor: [state.rev], getLineWidth: [state.rev] },
@@ -336,6 +342,7 @@ function applyControlChange() {
     circle.readings = simReadings();
     circle.extraDays = state.extraDays;
     requestScenario(circle);
+    markBadDay();
   } else {
     refreshSimAssessment();
   }
@@ -593,12 +600,12 @@ function hazeYearChart() {
   years.forEach((y, i) => {
     const h = Math.max(y.days_unhealthy / max * (H - 30), 1.5);
     const hot = y.year === years[years.length - 1].year;
-    bars += `<rect x="${(i * bw + 3).toFixed(1)}" y="${(H - 16 - h).toFixed(1)}" width="${(bw - 6).toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="${hot ? "#9085e9" : "#4b4766"}"/>`;
-    if (y.days_unhealthy > 0) bars += `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${(H - 20 - h).toFixed(1)}" font-size="9.5" fill="#c3c2b7" text-anchor="middle" font-family="IBM Plex Mono">${y.days_unhealthy}</text>`;
-    if (i % 2 === 0 || hot) bars += `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 4}" font-size="9" fill="#898781" text-anchor="middle" font-family="IBM Plex Mono">${String(y.year).slice(2)}</text>`;
+    bars += `<rect x="${(i * bw + 3).toFixed(1)}" y="${(H - 16 - h).toFixed(1)}" width="${(bw - 6).toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" style="fill:var(--haze)" opacity="${hot ? 1 : 0.4}"/>`;
+    if (y.days_unhealthy > 0) bars += `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${(H - 20 - h).toFixed(1)}" font-size="9.5" style="fill:var(--ink-2)" text-anchor="middle">${y.days_unhealthy}</text>`;
+    if (i % 2 === 0 || hot) bars += `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 4}" font-size="9" style="fill:var(--muted)" text-anchor="middle">${String(y.year).slice(2)}</text>`;
   });
   return `<div class="minichart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Unhealthy haze days per year">
-    <line x1="0" y1="${H - 16}" x2="${W}" y2="${H - 16}" stroke="#383835" stroke-width="1"/>${bars}</svg>
+    <line x1="0" y1="${H - 16}" x2="${W}" y2="${H - 16}" style="stroke:var(--line)" stroke-width="1"/>${bars}</svg>
     <p class="note">Days per year with 24-hour PSI above 100. PSI is NEA's 0 to 500 air quality index; above 100 the air is officially unhealthy. NEA, Mar 2016 to Nov 2026.</p></div>`;
 }
 function premiumBuildup(tier) {
@@ -670,7 +677,7 @@ function renderDetail() {
         <div><div class="t1">${v.word} · ${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week</div>
         <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. Paid on NEA readings, usually the same day. If readings stay below the trigger levels, nothing is paid.</div></div></div>
       <div class="sec"><p class="cap">The policy in one SMS</p>
-        <p class="note" style="font-size:12px;color:var(--ink-2)">"SafeDay: we pay ${SGD0(rec.daily_payout_sgd)}/day (max ${SGD0(rec.max_payout_per_year_sgd)}/yr) when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${centre.name}. ${SGD(rec.weekly_premium_sgd)}/wk. No payout below these levels."</p></div>
+        <p class="sms">"SafeDay: we pay ${SGD0(rec.daily_payout_sgd)}/day (max ${SGD0(rec.max_payout_per_year_sgd)}/yr) when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${centre.name}. ${SGD(rec.weekly_premium_sgd)}/wk. No payout below these levels."</p></div>
       <div class="sec"><p class="cap">Expected loss · ${quote.expected_loss_days.toFixed(2)} full-loss days a year</p>
         ${stackBar(parts)}
         <p class="note">Day-weighted severity of every NEA reading in the ${centre.region} zone's history × 365.25 × peril weight × product factor (cooked food keeps nothing overnight).</p></div>
@@ -908,9 +915,17 @@ async function renderShopStrip() {
     const centres = days[0].totals.centres;
     strip.innerHTML = `<p class="cap">What a bad day costs this shop</p>
       <p class="note">${productLabel(circle.product)} · ${circle.place} · ${centres} hawker centre${centres === 1 ? "" : "s"} in the circle · payout per stall at ${tierLabel(state.tier)}, as priced by the API. Click a day to apply it.</p>
-      <div class="days">${BAD_DAYS.map((day, i) => `<button class="day" type="button" data-day="${day.key}">
+      <div class="days">${BAD_DAYS.map((day, i) => `<button class="day" type="button" data-day="${day.key}" data-hazard="${day.hazard}">
         <span>${day.label}</span><b>${SGD(days[i].assessment.payout_sgd)}</b></button>`).join("")}</div>`;
+    markBadDay();
   } catch (error) { console.error(error); }
+}
+function markBadDay() {
+  const readings = JSON.stringify(shopCircle()?.readings);
+  for (const button of el("kyc-strip").querySelectorAll(".day")) {
+    const day = BAD_DAYS.find((d) => d.key === button.dataset.day);
+    button.setAttribute("aria-pressed", JSON.stringify(readingsOf(day.sim, {})) === readings);
+  }
 }
 function applyBadDay(key) {
   const circle = shopCircle(), day = BAD_DAYS.find((d) => d.key === key);
@@ -918,6 +933,7 @@ function applyBadDay(key) {
   circle.readings = readingsOf(day.sim, {});
   selectCircle(circle.id);
   setSim({ ...day.sim });
+  markBadDay();
 }
 
 /* ---------- live mode ---------- */
@@ -1023,7 +1039,7 @@ function aboutHtml() {
   <p>Insurers price catastrophe-exposed risk with layered models. A catastrophe model has four modules - this atlas is the same structure drawn as a live map of Singapore, so an SME owner and an underwriter look at the same calculation.</p>
   <div class="modules">
     <div class="module"><div class="m1" style="color:var(--haze)">1 · Hazard</div><div class="m2">Where and how often each peril strikes.</div><div class="m3">NEA WBGT, rain-gauge and 24-h PSI history 2016-2026, plus today's live readings.</div></div>
-    <div class="module"><div class="m1" style="color:#f2f1ed">2 · Exposure</div><div class="m2">Who is standing in the way, geocoded.</div><div class="m3">${STATIC.hawker_centres.length} hawker centres, ${STATIC.hawker_centres.reduce((a, c) => a + c.food_stalls, 0).toLocaleString("en-SG")} cooked-food stalls (NEA).</div></div>
+    <div class="module"><div class="m1" style="color:var(--ink)">2 · Exposure</div><div class="m2">Who is standing in the way, geocoded.</div><div class="m3">${STATIC.hawker_centres.length} hawker centres, ${STATIC.hawker_centres.reduce((a, c) => a + c.food_stalls, 0).toLocaleString("en-SG")} cooked-food stalls (NEA).</div></div>
     <div class="module"><div class="m1" style="color:var(--heat)">3 · Vulnerability</div><div class="m2">How much a reading hurts a given business.</div><div class="m3">Severity bands × product factor (shelf life, restock, demand).</div></div>
     <div class="module"><div class="m1" style="color:var(--accent)">4 · Financial</div><div class="m2">Turning damage into premium and payout.</div><div class="m3">Day caps, loads, expenses, GST - the live tariff from the tariff desk.</div></div>
   </div>

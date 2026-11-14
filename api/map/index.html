@@ -1,18 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SafeDay risk atlas</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
-    />
-    <link rel="stylesheet" href="map.css?v=19" />
+    <link rel="stylesheet" href="/theme.css?v=1" />
+    <link rel="stylesheet" href="map.css?v=20" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="map.js?v=19" defer></script>
+    <script src="map.js?v=20" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
@@ -37,7 +32,7 @@
       <h2><button class="fold" type="button" aria-label="Collapse">▾</button>Layers</h2>
       <div class="fold-body">
       <p class="group">Exposure</p>
-      <label><input type="checkbox" id="ly-sme" checked /><i class="sw" style="background:#f2f1ed"></i>
+      <label><input type="checkbox" id="ly-sme" checked /><i class="sw" style="background:var(--ink)"></i>
         <span id="sme-label">SMEs · hawker centres</span></label>
       <p class="note">Each dot is one hawker centre; a bigger dot has more food stalls. Colour is the pricing result: green covers cheaply, amber needs a co-payer, orange needs an underwriter. In Simulate and Live, grey to red shows the day's loss instead.</p>
       <p class="group">Hazard</p>
