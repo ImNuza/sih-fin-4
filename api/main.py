@@ -5,7 +5,7 @@ Usage:
     Site on http://localhost:8000/ (landing, /login/, /dashboard/), risk map on /map/,
     tariff desk on /admin/, API docs on /docs.
 
-Reads  data/processed/region_hazard_readings.csv    (from scripts/region_hazard_readings.py)
+Reads  data/processed/site_hazard_readings.csv      (from scripts/region_hazard_readings.py)
        data/processed/map_static.json              (from scripts/build_map_static.py)
        api/default_tariff.json                     (the first tariff, when the database is empty)
 Writes the tariff database at DATABASE_URL         (default sqlite:///api/tariff.db)
@@ -29,7 +29,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
@@ -37,7 +37,7 @@ from sqlalchemy import select as sa_select
 from api import accounts, calculator, kyc, store
 from api.accounts import InsurerDep, SmeDep, UserDep
 from api.live import LiveFeed
-from api.calculator import History, Readings
+from api.calculator import History, Readings, Site, Sites
 from api.models import (
     Assessment,
     AssessRequest,
@@ -57,27 +57,39 @@ from api.models import (
 
 API_DIR = Path(__file__).resolve().parent
 REPO_ROOT = API_DIR.parent
-HISTORY_PATH = REPO_ROOT / "data" / "processed" / "region_hazard_readings.csv"
+HISTORY_PATH = REPO_ROOT / "data" / "processed" / "site_hazard_readings.csv"
 MAP_STATIC_PATH = REPO_ROOT / "data" / "processed" / "map_static.json"
 MAP_BUILDINGS_PATH = REPO_ROOT / "data" / "processed" / "map_buildings.json"
 DEFAULT_TARIFF_PATH = API_DIR / "default_tariff.json"
 DEFAULT_DATABASE_URL = f"sqlite:///{API_DIR / 'tariff.db'}"
 
 
-def load_history(path: Path) -> History:
+def as_readings(rows: list[tuple[float, int]]) -> Readings:
+    return Readings(np.array([value for value, _ in rows]), np.array([days for _, days in rows]))
+
+
+def load_history(path: Path) -> tuple[History, Sites]:
+    """Each hazard's readings pooled per region, and kept per station with its location."""
     if not path.exists():
         raise SystemExit(f"{path} is missing. Run scripts/region_hazard_readings.py first.")
-    counts: dict[str, dict[str, list[tuple[float, int]]]] = defaultdict(lambda: defaultdict(list))
+    by_region: dict[str, dict[str, list[tuple[float, int]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    by_site: dict[tuple[str, str, str, float, float], list[tuple[float, int]]] = defaultdict(list)
     with path.open(newline="") as file:
         for row in csv.DictReader(file):
-            counts[row["region"]][row["hazard"]].append((float(row["reading"]), int(row["days"])))
-    return {
-        region: {
-            hazard: Readings(np.array([v for v, _ in rows]), np.array([d for _, d in rows]))
-            for hazard, rows in by_hazard.items()
-        }
-        for region, by_hazard in counts.items()
+            reading = (float(row["reading"]), int(row["days"]))
+            by_region[row["region"]][row["hazard"]].append(reading)
+            place = (float(row["latitude"]), float(row["longitude"]))
+            by_site[(row["hazard"], row["site"], row["region"], *place)].append(reading)
+    history = {
+        region: {hazard: as_readings(rows) for hazard, rows in by_hazard.items()}
+        for region, by_hazard in by_region.items()
     }
+    sites: Sites = defaultdict(list)
+    for (hazard, key, region, latitude, longitude), rows in by_site.items():
+        sites[hazard].append(Site(key, region, latitude, longitude, as_readings(rows)))
+    return history, dict(sites)
 
 
 def admin_login_from_env() -> tuple[str, str]:
@@ -90,14 +102,20 @@ def admin_login_from_env() -> tuple[str, str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.admin_login = admin_login_from_env()
-    app.state.history = load_history(HISTORY_PATH)
+    app.state.history, app.state.sites = load_history(HISTORY_PATH)
     if not MAP_STATIC_PATH.exists():
         raise SystemExit(f"{MAP_STATIC_PATH} is missing. Run scripts/build_map_static.py first.")
     app.state.map_static = json.loads(MAP_STATIC_PATH.read_text())
     app.state.places = kyc.load_places(app.state.map_static)
     app.state.live = LiveFeed()
     app.state.db = store.connect(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
-    if store.latest(app.state.db) is None:
+    try:
+        saved = store.latest(app.state.db)
+    except ValidationError:
+        # Saved before the tariff gained fields (product margins, stations per trigger). Older
+        # versions stay in the database; pricing starts again from the default tariff.
+        saved = None
+    if saved is None:
         tariff = Tariff.model_validate_json(DEFAULT_TARIFF_PATH.read_text())
         store.save(app.state.db, tariff, saved_by="default")
     yield
@@ -122,6 +140,10 @@ def missing_history(_: Request, error: calculator.MissingHistory) -> JSONRespons
 
 def history(request: Request) -> History:
     return request.app.state.history
+
+
+def sites(request: Request) -> Sites:
+    return request.app.state.sites
 
 
 def saved_tariff(request: Request) -> SavedTariff:
@@ -173,9 +195,18 @@ def options(tariff: TariffDep, history: HistoryDep) -> Options:
 
 
 @app.post("/api/quote")
-def quote(request: QuoteRequest, tariff: TariffDep, history: HistoryDep) -> Quote:
-    """Weekly premium and payout of every tier, for one region and product."""
-    return calculator.quote(tariff, history, request.region, request.product)
+def quote(
+    request: QuoteRequest,
+    tariff: TariffDep,
+    history: HistoryDep,
+    sites: Annotated[Sites, Depends(sites)],
+) -> Quote:
+    """Weekly premium and payout of every tier, for a region or for one place and product."""
+    if request.region is not None:
+        return calculator.quote(tariff, history, request.region, request.product)
+    return calculator.quote_at(
+        tariff, history, sites, request.latitude, request.longitude, request.product
+    )
 
 
 @app.post("/api/assess")
@@ -240,13 +271,6 @@ def map_quotes(tariff: TariffDep, history: HistoryDep, product: str = "cooked_fo
     }
 
 
-EARTH_RADIUS_KM = 6371.0
-
-
-def km_between(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    rad = np.radians([lat1, lng1, lat2, lng2])
-    h = np.sin((rad[2] - rad[0]) / 2) ** 2 + np.cos(rad[0]) * np.cos(rad[2]) * np.sin((rad[3] - rad[1]) / 2) ** 2
-    return float(2 * EARTH_RADIUS_KM * np.arcsin(np.sqrt(h)))
 
 
 class ScenarioRequest(BaseModel):
@@ -275,7 +299,7 @@ def map_scenario(
     centres = [
         centre
         for centre in request.app.state.map_static["hawker_centres"]
-        if km_between(body.lat, body.lng, centre["lat"], centre["lng"]) <= body.radius_km
+        if calculator.km_between(body.lat, body.lng, centre["lat"], centre["lng"]) <= body.radius_km
     ]
     regions = {}
     for region in sorted({centre["region"] for centre in centres}):

@@ -363,6 +363,13 @@ td.unit {
 .card.table-wrap table {
   min-width: 680px;
 }
+.source-row td {
+  padding-top: 0;
+}
+.source-row textarea {
+  min-height: 0;
+  font-size: 13px;
+}
 
 /* Pricing */
 

@@ -12,8 +12,9 @@ const SECTIONS = [
     key: "products",
     label: "Products",
     intro:
-      "What the business sells. The shorter the shelf life and the slower the restock, " +
-      "the more of a lost day's stock is thrown away.",
+      "What the business sells. A lost day costs the margin on sales that never come back, " +
+      "plus the cost of stock that spoils first: the shorter the shelf life and the slower " +
+      "the restock, the more is thrown away.",
   },
   {
     key: "tiers",
@@ -30,11 +31,6 @@ const SECTIONS = [
 ];
 
 const PRICING_FIELDS = [
-  {
-    key: "recovered_share",
-    label: "Sales recovered later",
-    hint: "Share of lost sales of long-lasting stock that is made up on later days.",
-  },
   {
     key: "uncertainty_load",
     label: "Data uncertainty load",
@@ -60,17 +56,22 @@ const FIELD_LABELS = {
   weight: "Weight",
   scaled_by_product: "Depends on the product",
   bands: "Bands",
+  sites_used: "Nearest stations read",
   assumed_days_per_year: "Assumed days a year",
   source: "Source",
   shelf_life_days: "Shelf life, days",
   restock_every_days: "Restock every, days",
   demand_sensitivity: "Demand lost on a bad day",
+  gross_margin: "Gross margin",
+  recovered_share: "Sales recovered later",
   daily_payout_sgd: "Payout for a day with no sales, S$",
   max_paid_days_per_year: "Paid days a year, at most",
 };
 const PERCENT_FIELDS = new Set([
   "weight",
   "demand_sensitivity",
+  "gross_margin",
+  "recovered_share",
   ...PRICING_FIELDS.map((f) => f.key),
 ]);
 
@@ -225,6 +226,9 @@ function newItem(path, list) {
       shelf_life_days: 1,
       restock_every_days: 1,
       demand_sensitivity: 1,
+      gross_margin: 0.32,
+      recovered_share: 0.5,
+      source: "",
     };
   }
   return {
@@ -540,6 +544,8 @@ function hazardCard(hazard, i) {
       <div class="hazard-fields">
         <label>Weight: sales lost at full severity
           ${withUnit(field(`${base}.weight`, "percent", "Weight"), "%")}</label>
+        <label>Nearest stations read
+          ${field(`${base}.sites_used`, "number", "Nearest stations read")}</label>
         <label>Assumed days a year
           ${field(`${base}.assumed_days_per_year`, "optional", "Assumed days a year")}
           <span class="history-note">${daysNote}</span></label>
@@ -611,7 +617,12 @@ function productsEditor() {
         <td>${field(`${base}.shelf_life_days`, "number", "Shelf life in days")}</td>
         <td>${field(`${base}.restock_every_days`, "number", "Days between restocks")}</td>
         <td>${withUnit(field(`${base}.demand_sensitivity`, "percent", "Demand lost on a bad day"), "%")}</td>
+        <td>${withUnit(field(`${base}.gross_margin`, "percent", "Gross margin"), "%")}</td>
+        <td>${withUnit(field(`${base}.recovered_share`, "percent", "Sales recovered later"), "%")}</td>
         <td>${removeButton("products", i, state.draft.products.length > 1)}</td>
+      </tr>
+      <tr class="source-row">
+        <td colspan="8">${field(`${base}.source`, "long-text", "Source")}</td>
       </tr>`;
     })
     .join("");
@@ -619,7 +630,7 @@ function productsEditor() {
     <table>
       <thead><tr>
         <th>Product</th><th>Key</th><th>Shelf life, days</th><th>Restock every, days</th>
-        <th>Demand lost on a bad day</th><th></th>
+        <th>Demand lost on a bad day</th><th>Gross margin</th><th>Sales recovered later</th><th></th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>

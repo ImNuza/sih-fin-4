@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import insert
 
+from api import store
 from api.main import DEFAULT_TARIFF_PATH, app
 
 ADMIN = ("admin", "secret")
@@ -107,3 +110,44 @@ def test_preview_prices_an_unsaved_tariff_for_every_tier(client):
     preview = client.post("/api/admin/preview", json=body, auth=ADMIN).json()
     assert [a["tier"] for a in preview["assessments"]] == ["tier_1", "tier_2", "tier_3", "tier_4"]
     assert len({a["loss_percent"] for a in preview["assessments"]}) == 1
+
+
+def test_a_place_is_priced_from_its_nearest_stations(client):
+    maxwell_food_centre = {"latitude": 1.28033, "longitude": 103.84475}
+    body = {"product": "cooked_food", **maxwell_food_centre}
+    quote = client.post("/api/quote", json=body).json()
+    assert quote["region"] in {"central", "south"}
+    by_hazard = {risk["hazard"]: risk for risk in quote["local_risks"]}
+    assert set(by_hazard) == {"haze", "rain", "heat"}
+    assert len(by_hazard["rain"]["stations"]) == 3
+    assert all(0 <= risk["credibility"] <= 1 for risk in by_hazard.values())
+    assert quote["tiers"][0]["weekly_premium_sgd"] > 0
+
+
+@pytest.mark.parametrize(
+    "where",
+    [{}, {"region": "east", "latitude": 1.3, "longitude": 103.9}, {"latitude": 1.3}],
+)
+def test_a_quote_needs_a_region_or_a_place(client, where):
+    response = client.post("/api/quote", json={"product": "cooked_food", **where})
+    assert response.status_code == 422
+
+
+def test_a_tariff_saved_in_the_old_shape_is_replaced_by_the_default(tmp_path, monkeypatch):
+    database_url = f"sqlite:///{tmp_path / 'tariff.db'}"
+    old = default_tariff()
+    old["pricing"]["recovered_share"] = 0.5
+    for product in old["products"]:
+        for field in ("gross_margin", "recovered_share", "source"):
+            del product[field]
+    old_row = insert(store.tariff_versions).values(
+        saved_at=datetime.now(UTC), saved_by="admin", body=old
+    )
+    with store.connect(database_url).begin() as db:
+        db.execute(old_row)
+    monkeypatch.setenv("ADMIN_USERNAME", ADMIN[0])
+    monkeypatch.setenv("ADMIN_PASSWORD", ADMIN[1])
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    with TestClient(app) as client:
+        saved = client.get("/api/admin/tariff", auth=ADMIN).json()
+    assert (saved["version"], saved["saved_by"]) == (2, "default")

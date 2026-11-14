@@ -1,13 +1,13 @@
-"""How often each hazard reading happened per NEA region: the history the pricing API prices from.
+"""How often each hazard reading happened at each NEA station: the history the pricing API prices from.
 
 Usage:
     uv run scripts/region_hazard_readings.py      (run heat_stats.py and hazard_stats.py first)
 
 Reads  data/processed/psi_daily.parquet, data/processed/wbgt_station_days.parquet
        data/rainfall/*.parquet, data/rainfall/stations.csv, data/wbgt/*.parquet
-Writes data/processed/region_hazard_readings.csv   one row per hazard, region and reading, with
-       the number of site-days that had it. Readings:
-       haze  daily max 24-hour PSI of the region
+Writes data/processed/site_hazard_readings.csv   one row per hazard, station and reading, with the
+       station's PSI region and location and the number of days that had the reading. Readings:
+       haze  daily max 24-hour PSI of the region (the region's label point is its station)
        rain  wettest work hour of the gauge, in mm
        heat  work hours with WBGT at 32°C or more at the station
 """
@@ -20,9 +20,10 @@ from dgs import REPO_ROOT
 from hazard_stats import load_rain
 
 PROC_DIR = REPO_ROOT / "data" / "processed"
-OUT_PATH = PROC_DIR / "region_hazard_readings.csv"
+OUT_PATH = PROC_DIR / "site_hazard_readings.csv"
 READING_DECIMALS = 2
-COLUMNS = ["hazard", "region", "site", "day", "reading"]
+LOCATION_DECIMALS = 5
+COLUMNS = ["hazard", "region", "site", "latitude", "longitude", "day", "reading"]
 # Label points of the five PSI regions, from regionMetadata in the NEA /psi API response.
 REGION_POINTS = pd.DataFrame(
     {
@@ -41,11 +42,13 @@ def nearest_region(stations: pd.DataFrame) -> pd.Series:
     return pd.Series(REGION_POINTS["region"].to_numpy()[closest], index=stations["station_id"])
 
 
-def with_region(days: pd.DataFrame, stations: pd.DataFrame) -> pd.DataFrame:
-    days["region"] = days["site"].map(nearest_region(stations))
-    unplaced = sorted(days.loc[days["region"].isna(), "site"].unique())
+def with_location(days: pd.DataFrame, stations: pd.DataFrame) -> pd.DataFrame:
+    located = stations.set_index("station_id")[["latitude", "longitude"]]
+    days = days.join(located, on="site")
+    unplaced = sorted(days.loc[days["latitude"].isna(), "site"].unique())
     if unplaced:
         raise SystemExit(f"No location for stations {unplaced}. Refresh the station list.")
+    days["region"] = days["site"].map(nearest_region(stations))
     return days
 
 
@@ -55,7 +58,8 @@ def haze_days() -> pd.DataFrame:
     days = daily.melt(
         id_vars="day", value_vars=region_columns, var_name="site", value_name="reading"
     )
-    days["region"] = days["site"].str.removeprefix("psi_")
+    days["site"] = days["site"].str.removeprefix("psi_")
+    days = days.merge(REGION_POINTS, left_on="site", right_on="region")
     return days.dropna(subset=["reading"]).assign(hazard="haze")
 
 
@@ -65,7 +69,7 @@ def rain_days() -> pd.DataFrame:
     days = work.groupby(["station_id", "day"])["rain_mm"].max().reset_index()
     days = days.rename(columns={"station_id": "site", "rain_mm": "reading"})
     stations = pd.read_csv(REPO_ROOT / "data" / "rainfall" / "stations.csv")
-    return with_region(days, stations).assign(hazard="rain")
+    return with_location(days, stations).assign(hazard="rain")
 
 
 def heat_days() -> pd.DataFrame:
@@ -76,7 +80,7 @@ def heat_days() -> pd.DataFrame:
         for path in sorted((REPO_ROOT / "data" / "wbgt").glob("wbgt_*.parquet"))
     )
     stations = readings.groupby("station_id")[["latitude", "longitude"]].last().reset_index()
-    return with_region(days[["site", "day", "reading"]], stations).assign(hazard="heat")
+    return with_location(days[["site", "day", "reading"]], stations).assign(hazard="heat")
 
 
 def main() -> None:
@@ -87,7 +91,9 @@ def main() -> None:
         .to_string()
     )
     days["reading"] = days["reading"].round(READING_DECIMALS)
-    counts = days.groupby(["hazard", "region", "reading"]).size().rename("days").reset_index()
+    days[["latitude", "longitude"]] = days[["latitude", "longitude"]].round(LOCATION_DECIMALS)
+    keys = ["hazard", "region", "site", "latitude", "longitude", "reading"]
+    counts = days.groupby(keys).size().rename("days").reset_index()
     counts.to_csv(OUT_PATH, index=False)
     print(
         f"Wrote {len(counts):,} rows ({len(days):,} site-days) to {OUT_PATH.relative_to(REPO_ROOT)}"
