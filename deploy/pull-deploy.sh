@@ -8,13 +8,20 @@ set -euo pipefail
 
 REPO_DIR=${REPO_DIR:-$HOME/sih-fin-4}
 ENV_FILE=${ENV_FILE:-$HOME/secrets/sih-fin-4.env}
+# The checkout moves before the build, so only this file says which commit is really running.
+# A failed build leaves it unchanged, and the next run tries again.
+DEPLOYED_FILE=${DEPLOYED_FILE:-$HOME/.local/state/sih-deployed-commit}
 
 cd "$REPO_DIR"
 git fetch --quiet origin main
-if [[ $(git rev-parse HEAD) == $(git rev-parse origin/main) && ${1:-} != "--force" ]]; then
+target=$(git rev-parse origin/main)
+deployed=$(cat "$DEPLOYED_FILE" 2>/dev/null || true)
+if [[ $target == "$deployed" && ${1:-} != "--force" ]]; then
   exit 0
 fi
-git reset --quiet --hard origin/main
+git reset --quiet --hard "$target"
 docker compose --env-file "$ENV_FILE" up --detach --build --remove-orphans
 docker image prune --force >/dev/null
+mkdir -p "$(dirname "$DEPLOYED_FILE")"
+echo "$target" > "$DEPLOYED_FILE"
 echo "Deployed $(git rev-parse --short HEAD)"
