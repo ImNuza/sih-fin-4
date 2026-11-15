@@ -1,8 +1,11 @@
 /* SafeDay's one assistant: a chat button at the bottom of every page (/api/assistant/chat).
-   Type or speak in English, Chinese, Malay or Tamil; replies can be read aloud. The server runs
-   the tools and returns actions the page carries out: fill the sign-up form, or start sign-up
-   with details the chat worked out. The conversation lives in this tab only (sessionStorage).
-   Speech uses the browser's own recognition and voices, so nothing is downloaded. */
+   Pick English, Chinese, Malay or Tamil: replies come back in that language whatever you type
+   or say. The server runs the tools and returns actions the page carries out: fill the sign-up
+   form, or start sign-up with details the chat worked out. The conversation lives in this tab
+   only (sessionStorage).
+   Voice: the mic records and the server's Whisper writes down the words in the picked language
+   (/api/assistant/listen); replies are read by a neural voice in that language
+   (/api/assistant/speak). Where the server has no voice, the browser's own speech is used. */
 "use strict";
 
 (() => {
@@ -36,7 +39,11 @@
   };
   const state = store.get(STORE_KEY, { messages: [], lang: "en", open: false });
   let readAloud = (() => { try { return localStorage.getItem(VOICE_KEY) === "on"; } catch { return false; } })();
-  let busy = false, recognition = null;
+  let busy = false, recognition = null, recorder = null, playing = null;
+  let serverVoice = { listen: false, speak: false };
+  fetch("/api/assistant/voice").then((r) => (r.ok ? r.json() : serverVoice))
+    .then((v) => { serverVoice = v; }).catch(() => {});
+  const MAX_RECORD_MS = 20000;
 
   const escapeHtml = (text) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const render = (text) => escapeHtml(text)
@@ -119,6 +126,7 @@
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           page: PAGE,
+          language: state.lang,
           messages: state.messages.slice(-12).map(({ role, content }) => ({ role, content })),
         }),
       });
@@ -182,10 +190,32 @@
   }
 
   /* ---------- voice ---------- */
-  function speak(text) {
+  function stopSpeaking() {
+    if (playing) { playing.pause(); playing = null; }
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+  }
+
+  async function speak(text) {
+    stopSpeaking();
+    const clean = text.replace(/\*\*/g, "");
+    if (serverVoice.speak) {
+      try {
+        const response = await fetch("/api/assistant/speak", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: clean.slice(0, 1500), language: state.lang }),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        playing = new Audio(URL.createObjectURL(await response.blob()));
+        await playing.play();
+        return;
+      } catch { /* fall back to the browser's own voices */ }
+    }
+    browserSpeak(clean);
+  }
+
+  function browserSpeak(text) {
     if (!("speechSynthesis" in window)) return;
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text.replace(/\*\*/g, ""));
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = speechLang();
     const voice = speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(state.lang));
     if (voice) utterance.voice = voice;
@@ -193,7 +223,48 @@
     speechSynthesis.speak(utterance);
   }
 
-  function listen() {
+  async function listen() {
+    const mic = $(".sd-mic");
+    if (recorder) { recorder.stop(); return; }
+    if (serverVoice.listen && navigator.mediaDevices && window.MediaRecorder) {
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {
+        bubble("assistant", "I can't hear you: allow the microphone for this site and try again.");
+        return;
+      }
+      const chunks = [];
+      recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        mic.classList.remove("sd-live");
+        recorder = null;
+        input.placeholder = "Writing down what you said…";
+        try {
+          const audio = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
+          const response = await fetch(`/api/assistant/listen?language=${state.lang}`, {
+            method: "POST", headers: { "Content-Type": audio.type }, body: audio,
+          });
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.detail || `HTTP ${response.status}`);
+          if (body.text) send(body.text);
+          else bubble("assistant", "I didn't catch anything. Please tap the mic and speak a little closer.");
+        } catch (error) {
+          bubble("assistant", `I couldn't make out the recording (${error.message}). Please try again or type.`);
+        } finally {
+          input.placeholder = "Type or tap the mic…";
+        }
+      };
+      recorder.start();
+      mic.classList.add("sd-live");
+      input.placeholder = "Listening… tap the mic again when you finish";
+      setTimeout(() => recorder?.state === "recording" && recorder.stop(), MAX_RECORD_MS);
+      return;
+    }
+    browserListen();
+  }
+
+  function browserListen() {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition) {
       bubble("assistant", "Your browser can't take speech here. Chrome, Edge and Safari can.");
@@ -237,7 +308,7 @@
   voiceButton.addEventListener("click", () => {
     readAloud = !readAloud;
     try { localStorage.setItem(VOICE_KEY, readAloud ? "on" : "off"); } catch { /* private window */ }
-    if (!readAloud && "speechSynthesis" in window) speechSynthesis.cancel();
+    if (!readAloud) stopSpeaking();
     paintVoice();
   });
   $(".sd-mic").addEventListener("click", listen);
