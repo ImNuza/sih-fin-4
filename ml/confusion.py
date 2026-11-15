@@ -9,7 +9,7 @@ models call one when their predicted reading reaches the band. Monthly count mod
 number of days, not a yes or no, so they have no confusion matrix.
 
 Reads ml/output/leaderboard.csv and ml/output/predictions/. Writes
-ml/output/confusion_matrices.csv and ml/output/confusion.md.
+ml/output/confusion_metrics.csv and ml/output/confusion.md.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from ml.config import DAILY_TASKS, LEADERBOARD_PATH, OUTPUT_DIR
 from ml.metrics import CLASS_CUTOFF
 
 PREDICTION_DIR = OUTPUT_DIR / "predictions"
-CONFUSION_CSV_PATH = OUTPUT_DIR / "confusion_matrices.csv"
+CONFUSION_CSV_PATH = OUTPUT_DIR / "confusion_metrics.csv"
 CONFUSION_REPORT_PATH = OUTPUT_DIR / "confusion.md"
 YES_NO_KINDS = ("classification", "regression")
 

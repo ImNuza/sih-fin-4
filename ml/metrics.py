@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
@@ -90,6 +91,24 @@ def count_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict:
         "rmse": root_mean_squared_error(actual, predicted),
         "total_bias_pct": bias_percent(actual.sum(), predicted.sum()),
     }
+
+
+def best_per_job(board: pd.DataFrame) -> pd.DataFrame:
+    """The model of each job with the best cross-validated score.
+
+    Choosing on the validation folds keeps the test years unseen, so their score stays honest.
+    """
+    ok = board[board["status"] == "ok"]
+    rows = []
+    for job, job_rows in ok.groupby("job", sort=False):
+        metric, direction = TUNING_METRIC[job_rows["kind"].iloc[0]]
+        scored = job_rows.dropna(subset=[f"cv_{metric}"])
+        if scored.empty:
+            raise SystemExit(f"{job}: no model has a cross-validated {metric}")
+        ranked = scored.sort_values(f"cv_{metric}", ascending=direction == "minimize")
+        rows.append({**ranked.iloc[0].to_dict(), "score_name": f"test_{metric}",
+                     "cv_score_name": f"cv_{metric}"})
+    return pd.DataFrame(rows).reset_index(drop=True)
 
 
 def tuning_score(kind: str, actual: np.ndarray, predicted: np.ndarray) -> float:

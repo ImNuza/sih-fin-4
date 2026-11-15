@@ -7,12 +7,16 @@ machine (the API image has no GPU). No training happens here.
 Usage (on the machine that ran ml.run_all):
     uv run --group ml python -m ml.publish
 
-Reads  ml/output/leaderboard.csv, report.md, backtest_yearly.csv, predictions/, models/
-Writes ml/results/leaderboard.csv, report.md, backtest_yearly.csv
-       ml/results/confusion_matrices.csv   one row per job, model, threshold and cell
-       ml/results/confusion_matrices.md    the best model of each job, readable
-       ml/results/models/<job>.joblib      the best model of each job
-       ml/results/models/index.csv         which model each file is, and its test score
+The best model of each job is the one with the best cross-validated score, not the best test
+score, so the test years play no part in the choice.
+
+Reads  ml/output/: leaderboard.csv, report.md, backtest_yearly.csv, confusion.md,
+       confusion_metrics.csv, predictions/, models/
+Writes ml/results/: the same files, plus
+       confusion_matrices.csv   one row per job, model, threshold and cell
+       confusion_matrices.md    the best model of each job, readable
+       models/<job>.joblib      the best model of each job
+       models/index.csv         which model each file is, its validation and test score
 """
 
 from __future__ import annotations
@@ -33,9 +37,10 @@ from ml.config import (
     REPO_ROOT,
     REPORT_PATH,
 )
+from ml.confusion import CONFUSION_CSV_PATH, CONFUSION_REPORT_PATH, called_and_fired
 from ml.data import load_tariff
 from ml.features import trigger_level
-from ml.metrics import CLASS_CUTOFF, TUNING_METRIC
+from ml.metrics import CLASS_CUTOFF, best_per_job
 from ml.tune import PREDICTION_DIR
 
 RESULTS_DIR = REPO_ROOT / "ml" / "results"
@@ -50,17 +55,13 @@ def require(path) -> None:
         raise SystemExit(f"Missing {path}. Run: uv run --group ml python -m ml.run_all")
 
 
-def best_per_job(board: pd.DataFrame) -> pd.DataFrame:
-    ok = board[board["status"] == "ok"]
-    rows = []
-    for _, job_rows in ok.groupby("job", sort=False):
-        metric, direction = TUNING_METRIC[job_rows["kind"].iloc[0]]
-        ranked = job_rows.sort_values(f"test_{metric}", ascending=direction == "minimize")
-        rows.append({**ranked.iloc[0].to_dict(), "score_name": f"test_{metric}"})
-    return pd.DataFrame(rows).reset_index(drop=True)
-
-
 TRIGGER_LABELS = ["no trigger", "trigger"]
+COPIED_OUTPUTS = (LEADERBOARD_PATH, REPORT_PATH, BACKTEST_PATH, CONFUSION_REPORT_PATH,
+                  CONFUSION_CSV_PATH)
+
+
+def trigger_label(flags: np.ndarray) -> np.ndarray:
+    return np.where(flags, "trigger", "no trigger")
 
 
 def band_labels(hazard_key: str, readings: np.ndarray) -> tuple[np.ndarray, list[str]]:
@@ -90,20 +91,16 @@ def job_confusion(row: pd.Series) -> list[dict]:
     if row["kind"] == "count" or not path.exists():
         return []
     predictions = pd.read_parquet(path)
-    actual = predictions["actual"].to_numpy(dtype=float)
-    predicted = predictions["predicted"].to_numpy(dtype=float)
+    called, fired = called_and_fired(row["kind"], row["task"], predictions)
+    called, fired = trigger_label(called), trigger_label(fired)
     job, model = row["job"], row["model"]
     if row["kind"] == "classification":
-        fired = np.where(actual >= 1, "trigger", "no trigger")
-        called = np.where(predicted >= CLASS_CUTOFF, "trigger", "no trigger")
         names = (job, model, f"probability >= {CLASS_CUTOFF}")
         return cells(names, fired, called, TRIGGER_LABELS)
     hazard_key = DAILY_TASKS[row["task"]].hazard_key
+    actual_bands, order = band_labels(hazard_key, predictions["actual"].to_numpy(dtype=float))
+    predicted_bands, _ = band_labels(hazard_key, predictions["predicted"].to_numpy(dtype=float))
     level = trigger_level(hazard_key)
-    fired = np.where(actual >= level, "trigger", "no trigger")
-    called = np.where(predicted >= level, "trigger", "no trigger")
-    actual_bands, order = band_labels(hazard_key, actual)
-    predicted_bands, _ = band_labels(hazard_key, predicted)
     return cells((job, model, f"reading >= {level:g}"), fired, called, TRIGGER_LABELS) + cells(
         (job, model, "tariff band"), actual_bands, predicted_bands, order
     )
@@ -157,9 +154,10 @@ def copy_best_models(best: pd.DataFrame) -> pd.DataFrame:
         else:
             print(f"  {row['job']}: {row['model']} is {size_mb:.0f} MB, over {MAX_MODEL_MB} MB, "
                   "not copied")
-        index.append({"job": row["job"], "model": row["model"], "score_name": row["score_name"],
-                      "score": row[row["score_name"]], "source_mb": round(size_mb, 1),
-                      "copied": copied})
+        index.append({"job": row["job"], "model": row["model"],
+                      "cv_score_name": row["cv_score_name"], "cv_score": row[row["cv_score_name"]],
+                      "score_name": row["score_name"], "score": row[row["score_name"]],
+                      "source_mb": round(size_mb, 1), "copied": copied})
     table = pd.DataFrame(index)
     table.to_csv(RESULT_MODEL_DIR / "index.csv", index=False)
     return table
@@ -169,7 +167,7 @@ def main() -> None:
     require(LEADERBOARD_PATH)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     board = pd.read_csv(LEADERBOARD_PATH)
-    for path in (LEADERBOARD_PATH, REPORT_PATH, BACKTEST_PATH):
+    for path in COPIED_OUTPUTS:
         if path.exists():
             shutil.copy2(path, RESULTS_DIR / path.name)
         else:
