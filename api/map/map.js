@@ -1088,7 +1088,7 @@ async function pollLive() {
     const snapshot = await api.live();
     state.live = snapshot;
     if (!snapshot.available) {
-      label.textContent = `LIVE · ${snapshot.status}`;
+      label.textContent = SafeUI.LIVE_UNAVAILABLE;
       label.classList.add("err");
     } else {
       const at = snapshot.fetched_at ? snapshot.fetched_at.slice(11, 16) : "";

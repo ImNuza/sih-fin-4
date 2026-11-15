@@ -144,5 +144,8 @@
     });
   }
 
-  window.SafeUI = { icon, help, openDrawer, sortable };
+  /* What a customer reads when /api/map/live has no readings; its `status` is for developers. */
+  const LIVE_UNAVAILABLE = "Live readings are unavailable right now.";
+
+  window.SafeUI = { icon, help, openDrawer, sortable, LIVE_UNAVAILABLE };
 })();

@@ -275,7 +275,7 @@ function businessProof(application) {
   ].filter(Boolean).join(" · ");
 }
 function liveStatus(live) {
-  if (!live || !live.available) return { ok: false, text: live?.status || "live feed warming up, refresh in a minute" };
+  if (!live || !live.available) return { ok: false, text: SafeUI.LIVE_UNAVAILABLE };
   return { ok: true, text: `NEA readings as of ${String(live.fetched_at).slice(11, 16)} SGT` };
 }
 
