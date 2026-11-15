@@ -580,3 +580,9 @@ def test_a_place_quote_explains_its_loss_days_and_premium(client):
     tier = quote["tiers"][0]
     total = sum(step["amount_sgd"] for step in tier["build_up"])
     assert round(total, 2) == tier["yearly_premium_sgd"]
+
+
+def test_options_give_each_hazards_first_trigger_level(client):
+    hazards = {h["key"]: h for h in client.get("/api/options").json()["hazards"]}
+    assert (hazards["haze"]["first_band"], hazards["rain"]["first_band"]) == (101, 20)
+    assert hazards["heat"]["first_band"] == 2

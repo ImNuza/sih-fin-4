@@ -233,6 +233,7 @@ def options(tariff: TariffDep, history: HistoryDep) -> Options:
                 label=h.label,
                 reading=h.reading,
                 has_history=h.key in hazards_with_history,
+                first_band=h.bands[0].at_least,
             )
             for h in tariff.hazards
         ],

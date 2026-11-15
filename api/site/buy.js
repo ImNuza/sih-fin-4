@@ -283,11 +283,35 @@ async function renderTiers() {
       : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Suggested: the biggest tier.`)
       + " The price comes from your region's NEA weather history."
     : "The price comes from your region's NEA weather history.";
+  el("what-pays").innerHTML = whatPays(quote, buyState.tier);
   el("why-price").innerHTML = whyPrice(quote, buyState.tier);
 }
 
 const HAZARD_WORDS = { haze: "haze", rain: "heavy rain", heat: "extreme heat", flood: "flash floods", closure: "closure orders" };
 const DAYS = (days) => days.toFixed(1);
+
+// The first level that pays, per hazard, from /api/options. Closure orders are left out: they are
+// not a climate trigger and are paid only by an insurer's manual run.
+const TRIGGER_WORDS = {
+  haze: (level) => `24-hour PSI of ${level} or more in your region`,
+  rain: (level) => `${level} mm of rain or more in one work hour at the nearest gauge`,
+  heat: (level) => `${level} work hours or more at WBGT 32 °C at the nearest station`,
+  flood: () => "a PUB flood alert at your place",
+};
+
+function whatPays(quote, tierKey) {
+  const tier = quote.tiers.find((t) => t.tier === tierKey) || quote.tiers[0];
+  const triggers = buyState.options.hazards.filter((h) => TRIGGER_WORDS[h.key])
+    .map((h) => TRIGGER_WORDS[h.key](h.first_band));
+  return `<h3>What it pays, and what it does not</h3>
+    <ul>
+      <li>${tier.label} pays up to ${SGD(tier.daily_payout_sgd)} for a bad day, and up to ${SGD(tier.max_payout_per_year_sgd)} a year.</li>
+      <li>A bad day starts at ${triggers.slice(0, -1).join(", ")} or ${triggers.at(-1)}. Higher readings pay a bigger share of the day.</li>
+      <li>No payout for a bad day in the first ${buyState.options.waiting_period_days} days of cover.</li>
+      <li><b>You can lose sales and receive nothing if the readings stay below these levels.</b></li>
+      <li>There is no claim form. Injury, medical costs and damaged goods are not covered by SafeDay.</li>
+    </ul>`;
+}
 
 // The quote's own build-up, in words: no number here is worked out in the browser.
 function whyPrice(quote, tierKey) {
@@ -543,7 +567,8 @@ async function wireBuy() {
   buyState.centres = [...map.hawker_centres].sort((a, b) => a.name.localeCompare(b.name));
   buyState.rent = rent;
   buyState.options = {
-    ...buyOptions, productLabels: Object.fromEntries(options.products.map((p) => [p.key, p.label])),
+    ...buyOptions, hazards: options.hazards,
+    productLabels: Object.fromEntries(options.products.map((p) => [p.key, p.label])),
   };
   fillChoices(options);
 

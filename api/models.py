@@ -164,6 +164,7 @@ class Choice(BaseModel):
 class HazardChoice(Choice):
     reading: str
     has_history: bool
+    first_band: float = Field(description="The lowest reading that pays anything.")
 
 
 class Options(BaseModel):
