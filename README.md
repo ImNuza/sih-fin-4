@@ -11,7 +11,7 @@ Built for the Singapore-India Hackathon 2026, FinTech / InsurTech track. Income 
   - Rainfall per gauge, summed per hour, from 2 Dec 2016.
   - Haze (24-hour PSI and PM2.5) by region, hourly, from 9 Mar 2016.
 - An analysis of how often each peril happens, how long it lasts and how much of Singapore it covers at once. Start with [`docs/notes/climate-data-findings-2026-11-09.md`](docs/notes/climate-data-findings-2026-11-09.md), or open the team report [`docs/reports/fin4-climate-data-findings-2026-11-09.html`](docs/reports/fin4-climate-data-findings-2026-11-09.html) in a browser.
-- A pricing API (`api/`) for the cover. A customer picks a region and what they sell, and gets Tier 1 to 4, each with a weekly premium and a payout. For a given day it scores the loss from 0% to 100% of normal sales and works out the payout. An admin panel lets the team change every weight, band, product, tier and load, and saves each change as a new version.
+- A pricing API (`api/`) for the cover. A customer says where they work and what they sell, and gets Tier 1 to 4, each with a weekly premium and a payout. For a given day it scores the loss from 0% to 100% of normal sales and works out the payout. An admin panel lets the team change every weight, band, product, tier and load, and saves each change as a new version.
 - A 3D risk map (`api/map/`, served at `/map/`) over Singapore: hawker centres sized by their real stall counts, heat, rain, haze and flood layers from the committed NEA history, HDB blocks and OneMap streets for the city view, a day simulator, and a "Live now" mode that prices today from the NEA real-time APIs. Both views: what an SME owner pays and what the insurer carries: come from the same pricing engine.
 - The platform site (`api/site/`, served at `/`): a landing page, a login page and role-based dashboards. A stallholder registers with their hawker centre and product, sees their live risk and quote, and starts a cover; an insurer selects their organisation, signs in and gets the portfolio desk: policies in force, accumulation, the tariff desk, the data dashboard and the map in insurer view.
 - A dashboard (`app/`) to explore the data and try trigger and price ideas. It runs locally, and a hosted copy updates from `main` (see `deploy/README.md`).
@@ -56,15 +56,18 @@ The API docs are on http://localhost:8000/docs, the admin panel is on http://loc
 | Endpoint | What it does |
 |---|---|
 | `GET /api/options` | Regions, products, tiers and hazards to choose from. |
-| `POST /api/quote` | Product and a region, or a latitude and longitude, in; weekly premium and payout of every tier out. A place is priced from its nearest NEA stations, blended with its region by credibility. |
+| `POST /api/quote` | Product and one place in (a region, a latitude and longitude, a hawker centre or a postcode); weekly premium and payout of every tier out. A place is priced from its nearest NEA stations, blended with its region by credibility. A hawker is charged its centre's price, a shop its postcode area's price, and a platform worker its region's price. |
 | `POST /api/assess` | Product, tier and the day's readings in, loss score and payout out. |
 | `GET /api/map/static` | Geography, exposure and hazard stats the map draws (from `scripts/build_map_static.py`). |
-| `GET /api/map/quotes` | Quotes for every region at once, with the per-hazard loss-day split. |
+| `GET /api/map/quotes` | Quotes for every region and every hawker centre at once, with the per-hazard loss-day split. A centre's quote is the price a stall there is charged. |
 | `GET /api/map/buildings` | HDB block footprints near hawker centres for the city view (nominal heights). |
 | `GET /api/map/live` | Today's NEA readings and each hawker centre's live loss score (needs the API key). |
+| `GET /api/map/day` | What NEA recorded on one past day, and each hawker centre's loss score from its own readings. |
+| `GET /api/map/burn` | One business's last ten years: what it lost and what the cover would have paid, at the price it is charged. |
 | `POST /api/auth/register`, `/login`, `/logout`, `GET /api/auth/me` | Accounts and sessions; roles `sme` and `insurer`. |
 | `GET`, `POST`, `DELETE /api/policies` | A stallholder's cover, priced server-side; an insurer lists every policy. |
 | `GET /api/insurer/portfolio` | The insurer's book: policies, premium and payout exposure by region. |
+| `POST /api/insurer/payout-runs` | Assess every policy for one date and pay what its readings give (insurer login). A policy pays the daily amount it was sold with, and stops paying when the term of its latest application ends. |
 | `GET`, `PUT /api/admin/tariff` | Read or save the tariff (admin login). |
 | `POST /api/admin/preview` | Price an unsaved tariff (admin login). |
 
@@ -75,7 +78,9 @@ uv run scripts/fetch_geo.py           # hawker centres and planning areas to dat
 uv run scripts/build_map_static.py    # bundle to data/processed/map_static.json
 ```
 
-The starting weights and bands in `api/default_tariff.json` are assumptions for the team to agree. Premiums come from NEA history per region (haze, rain, heat). Flood and closure orders have no history in the repo yet, so they are priced at the assumed days a year set in the tariff.
+The starting weights and bands in `api/default_tariff.json` are assumptions for the team to agree. Premiums come from NEA history (haze, rain, heat) at a place's nearest stations, blended with its region. Flood and closure orders have no history in the repo yet, so they are priced at the assumed days a year set in the tariff.
+
+Every payout, live score and replay reads a place's readings the same way (`api/readings.py`): haze is the region's highest 24-hour PSI of the day, rain is the middle value of the 3 nearest rain gauges that reported (the nearest gauge and any other within 5 km), and heat is the nearest WBGT station that reported on the same terms. A station that did not report is skipped, never read as 0. If no gauge reported, rain uses the MSS daily record; if there is still no reading, the payout waits for data and a later run pays it.
 
 To tune the hazard models and run the payout back-test (on a machine with an NVIDIA GPU; see
 [`ml/README.md`](ml/README.md)):
