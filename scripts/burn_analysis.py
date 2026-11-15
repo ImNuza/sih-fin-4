@@ -10,7 +10,7 @@ Usage:
     uv run scripts/burn_analysis.py           (run build_day_readings.py first)
 
 Reads  data/processed/day_readings.csv.gz, data/processed/map_static.json
-       data/processed/region_hazard_readings.csv, api/default_tariff.json
+       data/processed/site_hazard_readings.csv, api/default_tariff.json
        data/mss_daily/mss_daily.parquet
 Writes data/processed/burn_site_map.json       each centre's active gauge and station per year
        data/processed/burn_yearly_hero.csv     the hero stall, year by year
@@ -96,7 +96,7 @@ def load_day_table() -> dict[str, dict[str, dict[str, float]]]:
 def burn() -> None:
     tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
     static = json.loads((PROC_DIR / "map_static.json").read_text())
-    history = load_history(PROC_DIR / "region_hazard_readings.csv")
+    history, sites = load_history(PROC_DIR / "site_hazard_readings.csv")
     tier = calculator.find(tariff.tiers, TIER, "tier")
     cap_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
 
@@ -117,10 +117,14 @@ def burn() -> None:
     }
     (PROC_DIR / "burn_site_map.json").write_text(json.dumps(site_map, separators=(",", ":")))
     premiums = {
-        region: next(
-            t for t in calculator.quote(tariff, history, region, PRODUCT).tiers if t.tier == TIER
+        centre["name"]: next(
+            t
+            for t in calculator.quote_at(
+                tariff, history, sites, centre["lat"], centre["lng"], PRODUCT
+            ).tiers
+            if t.tier == TIER
         ).yearly_premium_sgd
-        for region in history
+        for centre in centres
     }
 
     table = load_day_table()
@@ -172,7 +176,7 @@ def burn() -> None:
     hero_rows, island_rows = [], []
     for year in years:
         entry = yearly[(HERO, year)]
-        premium = premiums[hero["region"]]
+        premium = premiums[HERO]
         hero_rows.append({
             "year": year, "trigger_days": entry["trigger_days"],
             "payout_sgd": round(entry["paid"], 2),
@@ -188,7 +192,7 @@ def burn() -> None:
         for centre in centres:
             c_entry = yearly[(centre["name"], year)]
             stalls += centre["food_stalls"]
-            premium_pool += premiums[centre["region"]] * centre["food_stalls"]
+            premium_pool += premiums[centre["name"]] * centre["food_stalls"]
             paid_total += c_entry["paid"] * centre["food_stalls"]
             lost_total += c_entry["lost"] * centre["food_stalls"]
         island_rows.append({
@@ -204,7 +208,7 @@ def burn() -> None:
     pd.DataFrame(hero_days).to_csv(PROC_DIR / "burn_daily_hero.csv", index=False)
     figures(hero_rows, hero_days)
     summary(hero_rows, island_rows, hero_days)
-    sensitivity(table, centres, history, premiums[hero["region"]] / 52)
+    sensitivity(table, centres, history, sites, premiums[HERO] / 52)
 
 
 def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
@@ -258,7 +262,7 @@ def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
     fig.savefig(FIG_DIR / "burn_loss_ratio.png", dpi=200)
 
 
-def sensitivity(table, centres, history, premiums_base) -> None:
+def sensitivity(table, centres, history, sites, premiums_base) -> None:
     """The same burn with haze severities raised to 0.5/0.8/1.0: the tariff desk's one knob
     that most changes what haze pays. Labelled a what-if; the base tariff stays the truth."""
     tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
@@ -269,7 +273,10 @@ def sensitivity(table, centres, history, premiums_base) -> None:
     cap_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
     hero = next(c for c in centres if c["name"] == HERO)
     premium = next(
-        t for t in calculator.quote(tariff, history, hero["region"], PRODUCT).tiers
+        t
+        for t in calculator.quote_at(
+            tariff, history, sites, hero["lat"], hero["lng"], PRODUCT
+        ).tiers
         if t.tier == TIER
     ).yearly_premium_sgd
     paid_by_year: dict[int, float] = defaultdict(float)
