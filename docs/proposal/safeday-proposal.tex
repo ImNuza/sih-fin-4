@@ -96,7 +96,9 @@
   \item \textbf{The problem.} When haze, a downpour or a dangerous heat spell keeps customers away, a hawker loses the day's sales and often the day's stock. No insurance in Singapore pays for that, because existing cover pays only for physical damage.\cite{ps,mse-hawker}
   \item \textbf{The product.} Payung, offered by Income, reads NEA's public weather readings. It works out how much of a normal day's sales the weather took, and pays that share of the chosen daily amount to the stallholder's PayNow the same day. A government lockdown or closure order pays the full daily amount. There is no claim form and no loss adjuster.
   \item \textbf{The customer.} Hawkers, whose typical income is in the second-lowest income decile, and small shops.\cite{koh-hawker} A median cooked food stall pays \sgd 1,450 a month in rent.\cite{mse-rent}
-  \item \textbf{The price.} Tier 1, the hawker plan, costs a cooked food stall \sgd 37.62 to \sgd 61.37 a month (\sgd 8.68 to \sgd 14.16 a week) at the 103 hawker centres, about 3\% of the median rent. That is more than the brief's ``few dollars a week''. A shop selling packaged food pays about \sgd 15 a month. The price comes from the same readings and the same rule that pay.
+  \item \textbf{The price.} Tier 1, the smallest tier, costs a cooked food stall \sgd 37.62 to \sgd 61.37 a month (\sgd 8.68 to \sgd 14.16 a week) at the 103 hawker centres, about 3\% of the median rent. That is more than the brief's ``few dollars a week''. A shop selling packaged food pays about \sgd 15 a month. The price comes from the same readings and the same rule that pay.
+  \item \textbf{The tier.} We suggest the biggest tier that pays no more than the business loses on a day with no sales: Tier 1 for a stall selling \sgd 150 a day, Tier 2 at \sgd 500. Bigger tiers are not offered to it.
+  \item \textbf{The value.} From weather alone, a customer who saved the premium instead would keep more at most places. The cover is worth most in a shock year: a 40-day lockdown pays a Maxwell stall 2.4 years of its Tier 1 premium. We show this plainly (Section \ref{sec:value}).
   \item \textbf{For Income.} Each premium keeps 7\% to 10\% as profit, after payouts, reinsurance and running costs. At Tier 1 that is about \biz{0.10}{1} per policy in an average year, or \biz{0.10}{5837} a year if every cooked food stall joins. Haze and lockdowns hit every customer at once, so 6\% of every premium goes to reinsurance.
 \end{itemize}
 \end{tcolorbox}
@@ -110,7 +112,9 @@ Who it is for & Hawker stalls and neighbourhood shops. The pilot starts with coo
 \hline
 What they can afford & No survey yet. Tier 1 is about 3\% of a median stall's \sgd 1,450 monthly rent.\cite{mse-rent} \\
 \hline
-What it costs & Tier 1 cooked food cover: \sgd 49.25 a month (\sgd 11.37 a week) at Maxwell Food Centre, \sgd 37.62 to \sgd 61.37 a month across the 103 centres. Tiers 2 to 4 are for businesses with higher takings. \\
+What it costs & Tier 1 cooked food cover: \sgd 49.25 a month (\sgd 11.37 a week) at Maxwell Food Centre, \sgd 37.62 to \sgd 61.37 a month across the 103 centres. \\
+\hline
+Which tier & The biggest tier whose daily amount is at or below what the business loses on a day with no sales: its normal weekday sales times its product share. A cooked food stall selling \sgd 500 a day gets Tier 2. \\
 \hline
 What it pays & A share of a chosen daily amount (\sgd 35, \sgd 195, \sgd 630 or \sgd 1,355) on each day that haze, heavy rain, heat or a flood alert hits the business. A lockdown or closure order pays the full amount. \\
 \hline
@@ -148,7 +152,7 @@ The problem statement asks for eight things and five must-haves.\cite{ps} Each o
 \hline
 5 & Claim parameters and exclusions & Sections \ref{sec:triggers} and \ref{sec:pays} \\
 \hline
-6 & Expected impact and affordability & Sections \ref{sec:customer}, \ref{sec:budget} and \ref{sec:impact} \\
+6 & Expected impact and affordability & Sections \ref{sec:customer}, \ref{sec:budget}, \ref{sec:value} and \ref{sec:impact} \\
 \hline
 7 & Market competitiveness & Section \ref{sec:compete} \\
 \hline
@@ -211,7 +215,9 @@ Payout share & The share of the premium without GST that is expected to go back 
 \hline
 Cover multiple & The most a tier can pay in a year, divided by its yearly price. The quote says ``up to N times what you pay''. \\
 \hline
-Refer to underwriter & A tier that is not sold directly at a place, because its price is more than half its yearly limit. Income's underwriter decides. \\
+Not offered here & A tier that cannot be bought. At a place: its price is more than half its yearly limit. For a business: it pays more than the business loses on a day with no sales. \\
+\hline
+Self-insure test & Whether a tier pays more than saving its premium would. It passes at a place when a 2015-type weather year pays back more than one year's premium. \\
 \hline
 Combined ratio & Payouts plus running costs and reinsurance, as a share of premium without GST. Below 100\% means the insurer makes a profit. \\
 \hline
@@ -322,7 +328,7 @@ Payung pays a hawker or a small shop when the weather, or a government order, ta
 
 The last sentence is required by the problem statement and keeps the product honest.\cite{ps}
 
-\textbf{How the rest of this section is ordered.} Income's product lead told us how Income designs a product: start with the target customer and what they can afford, then the premium, the cover, the benefits, what Income keeps and what it reinsures, and how it is sold.\cite{income-qa} Sections \ref{sec:customer} to \ref{sec:sold} follow that order. The price build-up comes last, in Section \ref{sec:numbers}, because it only turns those choices into a number.
+\textbf{How the rest of this section is ordered.} Income's product lead told us how Income designs a product: start with the target customer and what they can afford, then the premium, the cover, the benefits, what Income keeps and what it reinsures, and how it is sold.\cite{income-qa} Sections \ref{sec:customer} to \ref{sec:sold} follow that order. After the benefits, Section \ref{sec:value} asks whether they are worth more than saving the premium. The price build-up comes last, in Section \ref{sec:numbers}, because it only turns those choices into a number.
 
 Every price in this proposal comes from the platform's pricing engine with the final tariff of 15 November 2026. Maxwell Food Centre (Kim Hua Market) is our worked example. ``The median centre'' means the middle of the 103 hawker centres' prices.
 
@@ -384,16 +390,42 @@ Paid for a day with no sales & \sgd 35 & \sgd 195 & \sgd 630 & \sgd 1,355 \\
 \end{center}
 
 \begin{itemize}[leftmargin=1.2em]
-  \item \textbf{Tier 1 is the hawker plan.} It costs about 3\% of a median month's rent. A typical hawker earns less than \sgd 5,000, so Tier 1 is more than 1\% of a typical hawker's income.
-  \item \textbf{Tier 2 costs about a sixth of the rent.} It suits a stall with steady takings well above the floor in the table above.
-  \item \textbf{Tiers 3 and 4 are not hawker plans.} They cost half to all of a month's median rent. They pay \sgd 630 or \sgd 1,355 for a lost day, which can be more than a stall takes in. They fit businesses whose takings are above the daily amount, such as larger shops.
+  \item \textbf{Tier 1 costs about 3\% of a median month's rent.} A typical hawker earns less than \sgd 5,000, so Tier 1 is more than 1\% of a typical hawker's income.
+  \item \textbf{Tier 2 costs about a sixth of the rent,} and Tiers 3 and 4 half to all of it.
   \item \textbf{We have not asked stallholders what they will pay.} No survey has been done. The pilot must test it.
 \end{itemize}
+
+\textbf{Which tier does a business get?} Rent tells us what a stall can afford, but not how much cover it needs. So the tier follows what a bad day costs the business.
+\begin{itemize}[leftmargin=1.2em]
+  \item The sign-up asks for the business's normal sales on a weekday. A day with no sales costs the business those sales times its product share (Section \ref{sec:pays}): 1.00 for cooked food, about 0.11 for packaged food.
+  \item We suggest the biggest tier whose daily amount is at or below that loss. A bigger tier is not offered, because cover must not pay more than the loss. This is insurable interest.
+  \item A business that loses less than \sgd 35 on a day with no sales is not offered Payung. For a shop selling packaged food, that is normal sales below about \sgd 313 a day.
+  \item Rent is shown for information only. It does not choose the tier.
+\end{itemize}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{|Y|R{2.2cm}|R{2.4cm}|C{1.9cm}|C{2.2cm}|}
+\hline
+\head \textbf{Business} & \textbf{Normal weekday sales} & \textbf{Lost on a day with no sales} & \textbf{Suggested tier} & \textbf{Tiers offered} \\
+\hline
+Drinks stall, Maxwell Food Centre & \sgd 150 & \sgd 150 & Tier 1 & 1 \\
+\hline
+Chicken rice stall, Maxwell Food Centre & \sgd 500 & \sgd 500 & Tier 2 & 1 and 2 \\
+\hline
+Busy cooked food stall, Maxwell Food Centre & \sgd 1,500 & \sgd 1,500 & Tier 4 & 1 to 4 \\
+\hline
+Provision shop, postcode 380123, packaged food & \sgd 2,000 & about \sgd 224 & Tier 2 & 1 and 2 \\
+\hline
+\end{tabularx}
+\end{center}
+
+The three Maxwell stalls are priced as cooked food. Without the sales, as on the risk atlas, every tier the place allows is shown and none is suggested.
 
 % ---------------------------------------------------------------- 4b
 \subsection{What premium fits that budget?}\label{sec:budget}
 
-We work backwards: the budget sets the tier a customer can buy. The premium for a given place rises in step with the daily amount, so the budget fixes the daily cover.
+We work backwards. What a bad day costs the business sets the biggest tier it can buy. The budget then decides whether it takes that tier or a smaller one. The premium for a given place rises in step with the daily amount, so the budget fixes the daily cover.
 
 \begin{center}
 \small
@@ -407,7 +439,7 @@ Weekly price & \sgd 11.37 & \sgd 58.05 & \sgd 173.11 & \sgd 345.73 \\
 \hline
 Price per day & \sgd 1.62 & \sgd 8.27 & \sgd 24.66 & \sgd 49.25 \\
 \hline
-Who it fits & hawker stalls & stalls with higher takings & shops with takings above \sgd 630 a day & shops with takings above \sgd 1,355 a day \\
+Suggested when a day with no sales costs & \sgd 35 to under \sgd 195 & \sgd 195 to under \sgd 630 & \sgd 630 to under \sgd 1,355 & \sgd 1,355 or more \\
 \hline
 \end{tabularx}
 \end{center}
@@ -441,7 +473,7 @@ Lockdown or closure order & A government order that closes the business for the 
 \hline
 \end{xltabular}}
 
-\textbf{How much cover in a year?} Every tier pays up to 45 full days a year. So a 40-day lockdown or closure order is paid in full. The worst year we replayed at any centre came to 14.9 full days, in 2026. A year like 2015, with an average year of rain, heat and lockdown added, comes to about 18.5 full days at Maxwell. So the limit does not run out in a haze year.
+\textbf{How much cover in a year?} Every tier pays up to 45 full days a year. So a 40-day lockdown or closure order is paid in full. The worst year we replayed at any centre came to 14.9 full days, in 2026. A year like 2015, with an average year of rain and heat added, comes to about 16.5 full days at Maxwell, and at most 18.9 at any centre (Jurong West Street 52 Blk 505). So the limit does not run out in a haze year.
 
 \textbf{When does cover start?} After a 30-day waiting period. A move up to a higher tier starts a new 30-day wait for the whole cover, so nobody moves up when a bad day is forecast. A move down keeps the start date.
 
@@ -586,13 +618,13 @@ Paid in X of the last N years & The years from 2017 to 2026 with at least one pa
 \hline
 In 2026 & What the tier would have paid in 2026, to the last day of data. \\
 \hline
-A year like 2015 & The 2015 haze loss-days plus an average year's other loss-days, capped at the yearly limit, times the daily amount. \\
+A year like 2015 & The 2015 haze loss-days plus an average year's rain and heat loss-days, capped at the yearly limit, times the daily amount. Weather only: no lockdown. \\
 \hline
 In a 40-day lockdown & 40 days times the daily amount. \\
 \hline
 Priced to return & Expected payouts divided by the price with GST: about 50\% to 64\%, by tier. \\
 \hline
-Best value & The tier with the highest multiple that is sold directly at that place. \\
+Best value & The tier with the highest multiple that is offered at that place. \\
 \hline
 \end{xltabular}}
 
@@ -604,12 +636,53 @@ For a Tier 1 cooked food stall at Maxwell Food Centre, the quote reads:
   \item ``A typical year paid \sgd 103, spread over about 17 days with a part payout.''
   \item ``A stall here would have been paid in each of the last 10 years.''
   \item ``In 2026, a stall here would have been paid \sgd 378 in total.''
-  \item ``We estimate a year like 2015 would pay about \sgd 648. It does not run out before 45 bad days.''
+  \item ``We estimate a year like 2015 would pay about \sgd 578. It does not run out before 45 bad days.''
   \item ``In a 40-day lockdown: \sgd 1,400.''
 \end{enumerate}
 \end{tcolorbox}
 
 The 17 days are days with any payout, most of them part days. A typical year pays back much less than the price: \sgd 103 of the \sgd 591.02 a year. The price expects \sgd 298.22 of payouts a year, about half of what the customer pays. The gap has three causes. The haze years, 2015 and 2026, pay far more than a typical year. The price carries 2 lockdown days a year (\sgd 70 of payouts) that no replayed year has used. And it adds the average heat loss to the years before NEA's heat readings start in 2025. We tell the customer this plainly.
+
+% ---------------------------------------------------------------- 4d2
+\subsection{Is it worth more than saving the premium?}\label{sec:value}
+
+Income's product lead asked: ``Pay a premium of say \$10 and my payout is \$20, would I see value, or would I rather save \$10 and self-insure?''\cite{income-qa} So we compared two customers at the same place. One buys the tier every year. The other puts the same premium aside and pays themself what the tier would have paid.
+
+\textbf{The self-insure test.} A tier passes at a place when a 2015-type weather year pays back more than one year's premium. One year of saving is one premium. If the worst haze year on record pays less than that, a customer could pay for it from one year's savings, and the cover adds nothing for weather.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{|L{4.6cm}|Z|Z|Z|Z|}
+\hline
+\head & \multicolumn{2}{c|}{\textbf{Cooked food, Maxwell}} & \multicolumn{2}{c|}{\textbf{Packaged food, 380123}} \\
+\hline
+\head & \textbf{Tier 1} & \textbf{Tier 2} & \textbf{Tier 1} & \textbf{Tier 2} \\
+\hline
+Yearly price & \sgd 591 & \sgd 3,018 & \sgd 184 & \sgd 939 \\
+\hline
+A typical year paid & \sgd 103 & \sgd 576 & \sgd 11.63 & \sgd 64.81 \\
+\hline
+A 2015-type weather year & \sgd 578 & \sgd 3,221 & \sgd 56.54 & \sgd 315 \\
+\hline
+\quad as years of premium & 0.98 & 1.07 & 0.31 & 0.34 \\
+\hline
+A 40-day lockdown & \sgd 1,400 & \sgd 7,800 & \sgd 1,400 & \sgd 7,800 \\
+\hline
+\quad as years of premium & 2.4 & 2.6 & 7.6 & 8.3 \\
+\hline
+Self-insure test & \cellcolor{bad}fails & \cellcolor{good}passes & \cellcolor{bad}fails & \cellcolor{bad}fails \\
+\hline
+\end{tabularx}
+\end{center}
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{Across every place,} 541 of 3,680 tier and place pairs pass: 103 hawker centres and 81 postcode areas, 5 products, 4 tiers.\cite{team-data} Cooked food passes on Tier 1 at 26 of the 103 centres, on Tier 2 at 81, on Tier 3 at 84 and on Tier 4 at all 103. Flowers pass only on Tier 4, at 5 centres and 3 postcode areas. Fresh produce, packaged food and general goods pass nowhere.
+  \item \textbf{In the replay years, 2017 to 2026,} no centre had a year in which cooked food Tier 1, 2 or 3 paid back more than its premium. From weather alone, a customer who saved the premium would have kept more.
+  \item \textbf{Why shops fail.} The lockdown is priced at 2 full days a year for every product, because a closure stops all sales. Weather is scaled down by the product share. So for packaged food and general goods, 67\% to 80\% of the expected payout is the lockdown allowance. For a shop, Payung today is mostly lockdown cover.
+  \item \textbf{What savings cannot do} is meet a shock. A 40-day lockdown pays a Maxwell stall 2.4 years of its Tier 1 premium, and the shop 7.6 years.
+\end{itemize}
+
+\textbf{Options for the team, not yet decided.} Hiding every tier that fails would take cover away from most shops, so we do not propose it. Two changes would help. First, a selling cost at the 5\% commission Income quoted,\cite{income-qa} with the saving passed to payouts (payout shares of 67\%, 70\%, 73\% and 75\%): cooked food then passes at every centre on Tiers 2 to 4, and on Tier 1 at 96 of 103. Second, the lockdown priced by product, or sold as its own line, so that a shop's weather cover is priced on its own. The tiers and shares in this proposal are unchanged.
 
 % ---------------------------------------------------------------- 4e
 \subsection{What does Income keep, and what does it reinsure?}\label{sec:retention}
@@ -748,7 +821,7 @@ For Tier 1 at Maxwell, the \sgd 591.02 a year splits into \sgd 298.22 of expecte
   \item \textbf{These shares are our assumptions} until Income gives its own cost figures.
 \end{itemize}
 
-\textbf{When is a tier not sold directly?} A tier is not sold directly at a place where its yearly price is more than half its yearly limit. There it would pay back less than twice its price even in the worst year. The quote then shows ``refer to underwriter'' for that tier, and a request to buy it goes to Income's underwriting queue, with the reason, instead of starting a policy. At the final prices, every tier is sold directly at all 103 centres, for every product. The highest is Tier 1 cooked food, at 47\% of its limit.
+\textbf{When is a tier not offered?} In two cases. At a place, a tier is not offered where its yearly price is more than half its yearly limit, because there it would pay back less than twice its price even in the worst year. For a business, a tier is not offered where it pays more for a day with no sales than the business loses on one (Section \ref{sec:customer}). Either way the quote shows ``not offered here'' with the reason in plain words, and the platform refuses to sell it. No tier goes to Income's underwriter because of its price; an application goes to the underwriter only after a past decline. At the final prices, every tier is offered at all 103 centres and 81 postcode areas, for every product. The highest is Tier 1 cooked food, at 47\% of its limit.
 
 % ---------------------------------------------------------------- 4g
 \subsection{How is it sold?}\label{sec:sold}
@@ -773,7 +846,7 @@ For Tier 1 at Maxwell, the \sgd 591.02 a year splits into \sgd 298.22 of expecte
 
 \subsection{Where does each dollar go?}
 
-Of every \sgd 100 a customer pays, \sgd 8.26 is GST, which is passed on to IRAS. For Tier 1, the hawker plan, the remaining \sgd 91.74 is split like this:
+Of every \sgd 100 a customer pays, \sgd 8.26 is GST, which is passed on to IRAS. For Tier 1, the smallest tier, the remaining \sgd 91.74 is split like this:
 
 \begin{center}
 \small
@@ -803,7 +876,7 @@ Payouts and running costs come to 84\% of premium without GST at Tier 1, and 84\
 
 \subsection{How much does Income earn in an average year?}
 
-Tier 1 cooked food cover, one year, at the median hawker centre price:
+Tier 1 cooked food cover, one year, at the median hawker centre price. A stall with higher sales would be suggested a bigger tier, so this is the smallest book:
 
 \begin{center}
 \small
@@ -863,7 +936,7 @@ Income Droplet & Fares on rainy rides.\cite{ps} \\
   \item \textbf{Affordable for some, not yet for all.} Tier 1 for a cooked food stall costs \sgd 8.68 to \sgd 14.16 a week, or \sgd 1.24 to \sgd 2.02 a day, depending on the centre. That is about 3\% of a median month's rent, but more than the brief's ``few dollars a week''.\cite{ps} It is several times the \sgd 0.30 a day at which stall insurance starts.\cite{income-stall} For a shop selling packaged food, Tier 1 is about \sgd 3.50 a week, within the brief. Sections \ref{sec:customer} and \ref{sec:budget} give the evidence.
   \item \textbf{Fast.} Money arrives the same evening. India's SEWA heat cover took six to eight weeks.\cite{ps}
   \item \textbf{Real protection.} A Tier 1 cooked food stall would have been paid in each of the last 10 years at every one of the 103 centres. At the median centre it would have received about \sgd 363 in the 2026 haze year, against \sgd 121 in 2025.\cite{team-data} The yearly limit does not run out in a haze year, and a 40-day lockdown is paid in full.
-  \item \textbf{Honest value.} Every quote says that, on average, about 50\% to 64\% of what the customer pays comes back as payouts, by tier, and that a typical year pays back less. We make no ``pay \sgd 1, get \sgd 5 back'' claim, as MAS fair dealing expects.\cite{mas-fd}
+  \item \textbf{Honest value.} Every quote says that, on average, about 50\% to 64\% of what the customer pays comes back as payouts, by tier, and that a typical year pays back less. We make no ``pay \sgd 1, get \sgd 5 back'' claim, as MAS fair dealing expects.\cite{mas-fd} From weather alone, a customer who saved the premium would keep more at most places; the cover is worth most in a lockdown or a 2015-type year (Section \ref{sec:value}).
   \item \textbf{Understood.} The whole policy fits in one SMS in four languages. In the pilot we will ask every customer to say back what the product does, and aim for 90\% to get it right.
 \end{itemize}
 
@@ -884,7 +957,7 @@ The weather at the stall differs from the station & Rain is the middle of the 3 
 \hline
 A station reads far out of line & Heat stations S142 and S128 recorded far more hot days than any other. They are on hold until NEA confirms them, and stalls near them read the next nearest station. \\
 \hline
-Cover that costs too much for what it can pay & A tier priced above half its yearly limit is not sold directly. It goes to Income's underwriter. \\
+Cover that costs too much for what it can pay & A tier priced above half its yearly limit is not offered at that place. No tier is above it today. The self-insure test (Section \ref{sec:value}) shows where weather alone pays back less than saving would. \\
 \hline
 People buy cover only before bad weather & Cover runs for 12 or 24 months, a 30-day waiting period applies, and a move up a tier starts a new wait. The severe haze payout cannot be added from May to October. We also propose a sign-up pause during NEA advisories, not yet built. \\
 \hline
@@ -894,7 +967,7 @@ A data feed fails & We use the next nearest station, then MSS's published record
 \hline
 Few people buy, as in Korea & Payung is sold by the customer's own adviser at stall insurance renewal and through associations. Tier 1 is about 3\% of a median stall rent, but more than a few dollars a week for cooked food, so the pilot tests what stallholders will pay. \\
 \hline
-Customers buy more cover than their sales & Tiers 3 and 4 pay more for a lost day than many stalls take in. They are for businesses whose takings are above the daily amount, and we propose that the adviser checks this at sale. \\
+Customers buy more cover than their sales & A tier that pays more for a day with no sales than the business loses on one is not offered, and the platform refuses to sell it. The sales are declared by the customer; we propose that the adviser checks them at sale. \\
 \hline
 \end{xltabular}}
 
@@ -910,7 +983,7 @@ The product is designed around MAS's five fair dealing outcomes.\cite{mas-fd}
 \endhead
 1. Fair dealing is central to the culture & Every tariff change is reviewed, versioned and kept, along with the readings behind every payout. \\
 \hline
-2. Products suit their target customers & It is sold only to licensed, trading businesses, payouts are sized to what the business sells, and Tier 1 is set as the hawker plan. \\
+2. Products suit their target customers & It is sold only to licensed, trading businesses, payouts are sized to what the business sells, and no tier is offered that pays more than the business loses on a day with no sales. \\
 \hline
 3. Customers are served by competent people & It is sold by the customer's own Income adviser and by trained association partners, never directly. \\
 \hline
@@ -922,7 +995,7 @@ The product is designed around MAS's five fair dealing outcomes.\cite{mas-fd}
 
 \begin{itemize}[leftmargin=1.2em]
   \item \textbf{Fair prices (FEAT).} Prices use no age, gender, race or religion, and every price can be explained from public data.
-  \item \textbf{Minimal personal data (PDPA).} Only the postal code, licence, product and PayNow link are collected.
+  \item \textbf{Minimal personal data (PDPA).} Only the postal code, licence, product, normal weekday sales and PayNow link are collected.
 \end{itemize}
 
 % ---------------------------------------------------------------- 6
@@ -931,7 +1004,7 @@ The product is designed around MAS's five fair dealing outcomes.\cite{mas-fd}
 \textbf{Where do AI and data help?}
 \begin{itemize}[leftmargin=1.2em]
   \item \textbf{Forecasts warn, they never pay.} NEA and ECMWF forecasts power early warnings, and would power the proposed sales pause. In our test, a day-ahead ECMWF forecast caught only 52\% of heavy rain trigger days, and 49\% of its warnings were wrong.\cite{team-data}
-  \item \textbf{Sign-up help.} A small assistant reads the stallholder's description and suggests a product type, which the stallholder confirms.
+  \item \textbf{Sign-up help.} A small assistant reads the stallholder's description and suggests a product type, which the stallholder confirms. Given the daily sales, it names the tier the pricing rule suggests, and never one that is not offered.
   \item \textbf{No AI decides a price or a payout.}
   \item \textbf{No new hardware.} Everything runs on NEA's existing stations, PayNow and SMS.
 \end{itemize}
@@ -943,7 +1016,7 @@ The product is designed around MAS's five fair dealing outcomes.\cite{mas-fd}
   box/.style={draw=ink, rounded corners=3pt, fill=soft, align=center, font=\small, minimum height=1.05cm, text width=2.55cm},
   data/.style={draw=accent, rounded corners=3pt, fill=white, align=center, font=\small, minimum height=1.05cm, text width=2.55cm},
   arr/.style={-{Stealth[length=2.2mm]}, thick, color=ink}]
-  \node[box] (sign) {Sign up\\[-1pt]\scriptsize postal code, NEA licence, product, tier};
+  \node[box] (sign) {Sign up\\[-1pt]\scriptsize postal code, NEA licence, product, daily sales, tier};
   \node[box, right=of sign] (price) {Price\\[-1pt]\scriptsize every recorded day, read as a payout reads it};
   \node[box, right=of price] (start) {Cover starts\\[-1pt]\scriptsize after a 30-day wait};
   \node[data, right=of start] (feeds) {Live readings\\[-1pt]\scriptsize NEA PSI, rain, WBGT and PUB alerts};
@@ -1014,6 +1087,8 @@ Year 2 & \textbf{What happens:} Payung is offered with every SmartBiz 360 and St
   \item Lockdowns are priced at 2 days a year, one 40-day lockdown every 20 years, and the severe haze payout at a 5.5\% chance a year. Both are team assumptions until Income gives its view.
   \item The reinsurance structure is open. The 6\% share is our assumption, not a quote.
   \item We have no survey of what stallholders will pay. Tier 1 for cooked food is more than a few dollars a week, and the pilot must show whether stallholders buy it.
+  \item Daily sales are declared by the customer. The platform does not check them against records yet.
+  \item Most tiers fail the self-insure test on weather alone, and shop products fail it everywhere (Section \ref{sec:value}). The commission and the lockdown price are open decisions.
   \item The values marked ``Assumption'' in Appendix \ref{app:params} are starting values. They will be agreed with Income's actuaries and checked against real sales data in the pilot.
 \end{itemize}
 
@@ -1104,9 +1179,11 @@ Years without a feed & In a year before a hazard's feed started (rain before Dec
 {\small
 \begin{xltabular}{\textwidth}{|K{3.4cm}|Y|}
 \hline
-Tiers & \sgd 35, 195, 630 or 1,355 a day. Payout = day's loss $\times$ daily amount.\newline A product design choice, set by the team on 15 Nov 2026, to be agreed with Income. Tier 1 is the hawker plan (Section \ref{sec:customer}). \\
+Tiers & \sgd 35, 195, 630 or 1,355 a day. Payout = day's loss $\times$ daily amount.\newline A product design choice, set by the team on 15 Nov 2026, to be agreed with Income. \\
 \hline
-Yearly limit & 45 full days in any 365 days, in every tier: \sgd 1,575, 8,775, 28,350 or 60,975. A 40-day lockdown is paid in full. The limit sits above a cooked food stall's worst replayed year at every centre (14.9 full days, 2026) and above a 2015-like year with an average year of the other hazards (at most 20.9 full days, at Jurong West Street 52).\newline A product design choice, to be agreed with Income. \\
+Daily sales and the suggested tier & The business's normal sales on a weekday, \sgd 20 to \sgd 50,000, given at sign-up. A day with no sales costs those sales times the product share. The suggested tier is the biggest whose daily amount is at or below that; bigger tiers are not offered, and below \sgd 35 no tier is. Without the sales, every tier the place allows is shown and none is suggested. Rent is shown for information only.\newline A design choice by the team lead, 16 Nov 2026, so that cover never pays more than the loss (insurable interest). \\
+\hline
+Yearly limit & 45 full days in any 365 days, in every tier: \sgd 1,575, 8,775, 28,350 or 60,975. A 40-day lockdown is paid in full. The limit sits above a cooked food stall's worst replayed year at every centre (14.9 full days, 2026) and above a 2015-like weather year, with an average year of rain and heat (at most 18.9 full days, at Jurong West Street 52).\newline A product design choice, to be agreed with Income. \\
 \hline
 Waiting period & 30 days from the start of cover, and again for the whole cover after a move up a tier. A move down keeps the start date.\newline A design choice, so nobody buys or moves up only when a bad day is forecast. \\
 \hline
@@ -1124,7 +1201,7 @@ Selling and distribution & 17\%, 15\%, 13\% or 10\% of premium without GST, by t
 \hline
 Profit and risk margin & 10\%, 9\%, 8\% or 7\% of premium without GST, by tier.\newline \assumed\ The 15\% uncertainty load on a 60\% payout share, in line with ILO and World Bank practice.\cite{ilo,worldbank} \\
 \hline
-Underwriter referral & A tier whose yearly price is more than half its yearly limit is not sold directly. The quote shows ``refer to underwriter'', and a request to buy goes to Income's underwriting queue.\newline A design choice, so no customer buys cover that pays back less than twice its price in the worst year. \\
+Not offered at a place & A tier whose yearly price is more than half its yearly limit is not offered at that place. The quote shows ``not offered here'' with the reason, and the platform refuses to sell it. No tier is referred to the underwriter for its price.\newline A design choice, so no customer buys cover that pays back less than twice its price in the worst year. No tier is above it at the final prices. \\
 \hline
 GST & 9\%, added on top and passed to IRAS.\newline \measured\ IRAS.\cite{iras} \\
 \hline
