@@ -58,7 +58,7 @@ class Hazard(BaseModel):
 class Product(BaseModel):
     key: str
     label: str
-    shelf_life_days: float = Field(gt=0)
+    shelf_life_days: float = Field(ge=0, description="0 for work with no stock: nothing spoils.")
     restock_every_days: float = Field(gt=0)
     demand_sensitivity: Share = Field(
         description="How much of a bad day's demand this product loses."

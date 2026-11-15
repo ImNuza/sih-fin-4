@@ -85,9 +85,13 @@ def product_factor(product: Product) -> float:
 
     Two parts, as insurers split them: the gross profit on sales that never come back (business
     interruption cover), and the cost of stock that spoils before it can be sold (deterioration
-    of stock cover). Stock spoils when it waits longer for a sale than its shelf life.
+    of stock cover). Stock spoils when it waits longer for a sale than its shelf life. A product
+    with a shelf life of 0 holds no stock, so nothing spoils.
     """
-    wasted = min(1.0, product.restock_every_days / product.shelf_life_days)
+    if product.shelf_life_days == 0:
+        wasted = 0.0
+    else:
+        wasted = min(1.0, product.restock_every_days / product.shelf_life_days)
     lost_profit = product.gross_margin * (1 - product.recovered_share)
     spoiled_stock = wasted * (1 - product.gross_margin)
     return product.demand_sensitivity * (lost_profit + spoiled_stock)

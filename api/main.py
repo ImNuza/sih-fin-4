@@ -20,6 +20,7 @@ import os
 import re
 import secrets
 import statistics
+from calendar import monthrange
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -29,7 +30,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import numpy as np
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
@@ -38,7 +39,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
-from api import accounts, burn, calculator, kyc, payout_api, store, underwriting
+from api import accounts, burn, calculator, kyc, onboarding, payout_api, paynow_qr, postcodes, store, underwriting
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.day_history import day_readings
 from api.live import LiveFeed
@@ -578,6 +579,9 @@ def buy_policy(
 UEN = re.compile(r"^(\d{8}[A-Z]|\d{9}[A-Z]|[TSR]\d{2}[A-Z]{2}\d{4}[A-Z])$")
 # Singapore mobile and fixed-line numbers: 8 digits starting with 3, 6, 8 or 9.
 SG_PHONE = re.compile(r"^[3689]\d{7}$")
+CENTRE_POSTCODE = re.compile(r"Singapore (\d{6})\s*$")
+PAYMENT_REF = re.compile(r"^DEMO-[0-9A-F]{6}$")
+MAX_QR_AMOUNT_SGD = 1000
 
 
 SINGAPORE = ZoneInfo("Asia/Singapore")
@@ -588,18 +592,28 @@ class BuyRequest(BaseModel):
     """Everything the guided buy flow (/buy/) collects, sent once at the pay step.
 
     Email and password are only checked for being present: the demo fills them with made-up
-    values. An email that already has an account is still refused.
+    values. An email that already has an account is still refused. Each business class sends
+    only its own identifying fields; the others are dropped. See api/onboarding.py.
     """
 
+    business_class: onboarding.BusinessClass
     name: str = Field(min_length=1, max_length=120)
     email: str = Field(min_length=1, max_length=200)
     password: str = Field(min_length=1, max_length=200)
     business_name: str | None = Field(default=None, max_length=120)
-    centre: str
+    centre: str | None = None
     stall_unit: str | None = Field(default=None, max_length=20)
+    licence_no: str | None = None
+    ssic_code: str | None = None
+    platform: str | None = None
+    platform_worker_id: str | None = None
+    postcode: str | None = None
     product: str
+    staff_band: onboarding.StaffBand | None = None
+    sales_under_100m: bool | None = None
     designation: str | None = Field(default=None, max_length=60)
     cover_start: date | None = Field(default=None, description="Singapore date. Empty: today.")
+    term_months: Literal[12, 24] = 12
     applicant_type: Literal["individual", "company"]
     uen: str | None = None
     phone: str
@@ -612,6 +626,7 @@ class BuyRequest(BaseModel):
     marketing_email: bool = False
     marketing_sms: bool = False
     payment_method: Literal["paynow", "giro"] | None = None
+    payment_ref: str | None = Field(default=None, pattern=PAYMENT_REF.pattern)
 
     @field_validator("phone")
     @classmethod
@@ -631,6 +646,25 @@ class BuyRequest(BaseModel):
             raise ValueError("That UEN does not look right, e.g. 53123456A or 201912345K")
         return value
 
+    @field_validator("licence_no")
+    @classmethod
+    def licence_format(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.strip().upper()
+        if not onboarding.LICENCE_NO.match(value):
+            raise ValueError("A licence number has 5 to 20 letters, digits, '/' or '-'")
+        return value
+
+    @field_validator("postcode")
+    @classmethod
+    def known_postcode(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.strip()
+        postcodes.region_of(value)
+        return value
+
     @field_validator("cover_start")
     @classmethod
     def cover_start_soon(cls, value: date | None) -> date | None:
@@ -643,6 +677,21 @@ class BuyRequest(BaseModel):
 
     @model_validator(mode="after")
     def complete(self) -> BuyRequest:
+        {
+            "hawker": self.hawker_complete,
+            "shop": self.shop_complete,
+            "platform_worker": self.platform_worker_complete,
+        }[self.business_class]()
+        platform_product = self.product == onboarding.PLATFORM_PRODUCT
+        if platform_product != (self.business_class == "platform_worker"):
+            raise ValueError("Ride-hail and delivery work is the cover for platform workers only")
+        if self.staff_band is None:
+            raise ValueError("Say how many people work in the business")
+        if self.staff_band == onboarding.OVER_SME_STAFF_BAND:
+            if self.sales_under_100m is None:
+                raise ValueError("Say whether annual sales were under S$100 million")
+            if not self.sales_under_100m:
+                raise ValueError(onboarding.NOT_AN_SME)
         if self.applicant_type == "company" and self.uen is None:
             raise ValueError("A company needs its UEN")
         if not (self.accept_declaration and self.accept_pdpa):
@@ -653,6 +702,88 @@ class BuyRequest(BaseModel):
             raise ValueError("Say which insurer declined you and why")
         return self
 
+    def hawker_complete(self) -> None:
+        if self.licence_no is None:
+            raise ValueError("Enter your SFA food stall licence or NEA stall tenancy number")
+        self.ssic_code = self.platform = self.platform_worker_id = self.postcode = None
+
+    def shop_complete(self) -> None:
+        if self.postcode is None:
+            raise ValueError("Enter the shop's 6-digit postcode")
+        if not onboarding.SSIC_CODE.match(self.ssic_code or ""):
+            raise ValueError("Enter the shop's 5-digit SSIC code")
+        self.centre = self.stall_unit = self.licence_no = None
+        self.platform = self.platform_worker_id = None
+
+    def platform_worker_complete(self) -> None:
+        if self.platform not in onboarding.PLATFORMS:
+            raise ValueError("Pick the platform you work on")
+        worker_id = (self.platform_worker_id or "").strip()
+        if not 3 <= len(worker_id) <= 40:
+            raise ValueError("Enter your driver or rider ID, 3 to 40 characters")
+        if self.postcode is None:
+            raise ValueError("Enter your 6-digit home postcode")
+        if self.applicant_type != "individual":
+            raise ValueError("A platform worker applies as an individual")
+        self.platform_worker_id = worker_id
+        self.staff_band = self.staff_band or onboarding.PLATFORM_WORKER_STAFF_BAND
+        self.business_name = self.centre = self.stall_unit = None
+        self.licence_no = self.ssic_code = None
+
+
+def add_months(day: date, months: int) -> date:
+    """The same day of the month, months later; the month's last day if it is shorter."""
+    month_index = day.month - 1 + months
+    year, month = day.year + month_index // 12, month_index % 12 + 1
+    return day.replace(year=year, month=month, day=min(day.day, monthrange(year, month)[1]))
+
+
+def cover_dates(cover_start: date, term_months: int) -> dict:
+    """When payouts can start (after the waiting period) and when the term ends."""
+    return {
+        "term_months": term_months,
+        "waiting_ends": cover_start + timedelta(days=accounts.WAITING_PERIOD_DAYS),
+        "cover_ends": add_months(cover_start, term_months),
+    }
+
+
+def demo_payment_ref() -> str:
+    return f"DEMO-{secrets.token_hex(3).upper()}"
+
+
+def hawker_postcode(request: Request, centre: str) -> str | None:
+    """The postcode at the end of a hawker centre's address, if its address has one."""
+    found = next(c for c in request.app.state.map_static["hawker_centres"] if c["name"] == centre)
+    match = CENTRE_POSTCODE.search(found["address"])
+    return match.group(1) if match else None
+
+
+@app.get("/api/buy/options")
+def buy_options() -> dict:
+    """The choices the buy flow offers each business class, and the postal sector regions."""
+    return {
+        "business_classes": onboarding.BUSINESS_CLASSES,
+        "platform_product": onboarding.PLATFORM_PRODUCT,
+        "ssic_codes": [
+            {"code": code, "title": title} for code, title in onboarding.SHOP_SSIC_CODES.items()
+        ],
+        "platforms": onboarding.PLATFORMS,
+        "staff_bands": onboarding.STAFF_BANDS,
+        "not_an_sme": onboarding.NOT_AN_SME,
+        "terms_months": accounts.TERMS_MONTHS,
+        "waiting_period_days": accounts.WAITING_PERIOD_DAYS,
+        "postal_sector_regions": postcodes.SECTOR_REGION,
+    }
+
+
+@app.get("/api/paynow/qr")
+def paynow_qr_code(
+    amount_sgd: Annotated[float, Query(gt=0, le=MAX_QR_AMOUNT_SGD)],
+    reference: Annotated[str, Query(pattern=PAYMENT_REF.pattern)],
+) -> Response:
+    """A PayNow QR (SVG) for the first week's premium. Prototype: its proxy pays nobody."""
+    return Response(paynow_qr.paynow_svg(amount_sgd, reference), media_type="image/svg+xml")
+
 
 @app.post("/api/buy")
 def buy(
@@ -661,16 +792,18 @@ def buy(
     """Create the account, the application and, when SafeDay is added, its policy, then sign in.
 
     A past decline sends the application to an underwriter: no policy starts and nothing is
-    charged. Payment is a prototype step: no money moves, the reference is made up here.
+    charged. Payment is a prototype step: no money moves, the reference is made up.
     """
     engine = request.app.state.db
     calculator.find(tariff.products, body.product, "product")
+    hawker = body.business_class == "hawker"
     # model_construct skips Registration's email and password rules, which the demo does not need.
     account = Registration.model_construct(
         role="sme", name=body.name, email=body.email, password=body.password,
         business_name=body.business_name, centre=body.centre, product=body.product, insurer=None,
     )
-    user = accounts.user_values(account, request)
+    region = None if hawker else postcodes.region_of(body.postcode)
+    user = accounts.user_values(account, request, region)
     referred = body.declined_before
     pays = body.add_safeday and not referred
     if pays and body.payment_method is None:
@@ -706,7 +839,7 @@ def buy(
             "marketing_email": body.marketing_email,
             "marketing_sms": body.marketing_sms,
             "payment_method": body.payment_method if pays else None,
-            "payment_ref": f"DEMO-{secrets.token_hex(3).upper()}" if pays else None,
+            "payment_ref": (body.payment_ref or demo_payment_ref()) if pays else None,
             "created_at": now,
         }
         application["id"] = db.execute(
@@ -720,7 +853,19 @@ def buy(
         db.execute(
             sa_insert(accounts.application_details).values(application_id=application["id"], **details)
         )
-        application.update(details)
+        profile = {
+            "business_class": body.business_class,
+            "licence_no": body.licence_no,
+            "ssic_code": body.ssic_code,
+            "platform": body.platform,
+            "platform_worker_id": body.platform_worker_id,
+            "postcode": hawker_postcode(request, user["centre"]) if hawker else body.postcode,
+            "staff_band": body.staff_band,
+            **cover_dates(cover_start, body.term_months),
+        }
+        profile_row = {"application_id": application["id"], **profile}
+        db.execute(sa_insert(accounts.application_profile).values(**profile_row))
+        application.update(details, **profile)
     accounts.start_session(engine, user_id, response)
     return {
         "application": {k: v for k, v in application.items() if k != "user_id"},
@@ -729,10 +874,18 @@ def buy(
 
 
 def latest_application(engine, user_id: int) -> dict | None:
-    details = accounts.application_details
+    """The user's latest application with its details and profile, flat. Missing rows: nulls."""
+    details, profile = accounts.application_details, accounts.application_profile
     query = (
-        sa_select(accounts.applications, details.c.stall_unit, details.c.designation, details.c.cover_start)
+        sa_select(
+            accounts.applications,
+            details.c.stall_unit,
+            details.c.designation,
+            details.c.cover_start,
+            *(column for column in profile.c if column.name != "application_id"),
+        )
         .outerjoin(details, details.c.application_id == accounts.applications.c.id)
+        .outerjoin(profile, profile.c.application_id == accounts.applications.c.id)
         .where(accounts.applications.c.user_id == user_id)
         .order_by(accounts.applications.c.id.desc())
     )

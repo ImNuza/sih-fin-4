@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import insert
 
 from api import store
-from api.main import DEFAULT_TARIFF_PATH, SINGAPORE, app
+from api.main import DEFAULT_TARIFF_PATH, SINGAPORE, add_months, app
+from api.paynow_qr import crc16_ccitt, paynow_payload
 
 ADMIN = ("admin", "secret")
 
@@ -125,6 +125,9 @@ def test_rent_table_covers_every_map_centre(client):
 
 def buy_body(**changes) -> dict:
     body = {
+        "business_class": "hawker",
+        "licence_no": "DEMO/12345",
+        "staff_band": "1-4",
         "name": "Tan Ah Kow",
         "email": "tan@example.test",
         "password": "test-pass-123",
@@ -184,6 +187,11 @@ def test_past_decline_is_referred_and_cannot_buy_from_the_dashboard(client):
         {"centre": "Nowhere Food Centre"},
         {"cover_start": "2020-01-01"},
         {"email": ""},
+        {"licence_no": None},
+        {"licence_no": "AB"},
+        {"staff_band": None},
+        {"term_months": 6},
+        {"product": "platform_work"},
     ],
 )
 def test_buy_rejects_incomplete_applications(client, changes):
@@ -254,3 +262,173 @@ def test_demo_email_and_password_need_only_be_present(client):
     body = buy_body(email="not-an-email", password="x")
     assert client.post("/api/buy", json=body).status_code == 200
     assert client.post("/api/buy", json=body).status_code == 409
+
+
+def shop_body(**changes) -> dict:
+    shop = {
+        "business_class": "shop",
+        "centre": None,
+        "stall_unit": None,
+        "licence_no": None,
+        "postcode": "560123",
+        "ssic_code": "47102",
+        "business_name": "Ah Kow Minimart",
+        "product": "packaged_food",
+        "staff_band": "5-9",
+    }
+    return buy_body(**{**shop, **changes})
+
+
+def platform_worker_body(**changes) -> dict:
+    worker = {
+        "business_class": "platform_worker",
+        "centre": None,
+        "stall_unit": None,
+        "licence_no": None,
+        "business_name": None,
+        "designation": None,
+        "staff_band": None,
+        "platform": "Grab",
+        "platform_worker_id": "DEMO-RIDER-0042",
+        "postcode": "730123",
+        "product": "platform_work",
+    }
+    return buy_body(**{**worker, **changes})
+
+
+PROFILE_FIELDS = {
+    "business_class", "licence_no", "ssic_code", "platform", "platform_worker_id", "postcode",
+    "staff_band", "term_months", "waiting_ends", "cover_ends",
+}
+
+
+def test_a_hawker_needs_no_uen_and_takes_the_centre_postcode(client):
+    result = client.post("/api/buy", json=buy_body()).json()
+    application = result["application"]
+    assert (application["business_class"], application["uen"]) == ("hawker", None)
+    assert (application["licence_no"], application["postcode"]) == ("DEMO/12345", "069184")
+    mine = client.get("/api/applications/mine").json()
+    assert PROFILE_FIELDS <= set(mine)
+    assert mine["licence_no"] == "DEMO/12345"
+
+
+def test_a_shop_is_placed_by_its_postcode_and_has_no_centre(client):
+    result = client.post("/api/buy", json=shop_body()).json()
+    assert result["application"]["ssic_code"] == "47102"
+    assert result["policy"]["region"] == "central"
+    me = client.get("/api/auth/me").json()
+    assert (me["centre"], me["region"]) == (None, "central")
+    assert client.get("/api/applications/mine").json()["postcode"] == "560123"
+
+
+def test_a_platform_worker_is_an_individual_covered_for_platform_work(client):
+    result = client.post("/api/buy", json=platform_worker_body()).json()
+    application = result["application"]
+    assert (application["platform"], application["platform_worker_id"]) == (
+        "Grab", "DEMO-RIDER-0042"
+    )
+    assert application["staff_band"] == "1-4"
+    assert result["policy"]["product"] == "platform_work"
+    me = client.get("/api/auth/me").json()
+    assert (me["centre"], me["region"]) == (None, "north")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        platform_worker_body(applicant_type="company", uen="201912345K"),
+        platform_worker_body(platform="Uber"),
+        platform_worker_body(platform_worker_id="ab"),
+        platform_worker_body(postcode=None),
+        platform_worker_body(product="cooked_food"),
+        shop_body(ssic_code="4710"),
+        shop_body(postcode="12345"),
+    ],
+)
+def test_each_class_must_give_its_own_details(client, body):
+    assert client.post("/api/buy", json=body).status_code == 422
+
+
+def test_an_unknown_postal_sector_is_refused(client):
+    response = client.post("/api/buy", json=shop_body(postcode="990123"))
+    assert response.status_code == 422
+    assert "Postal sector 99 is not a Singapore postal sector" in response.text
+
+
+def test_a_business_over_200_workers_must_have_sales_under_100_million(client):
+    big = shop_body(staff_band="over-200", sales_under_100m=False)
+    response = client.post("/api/buy", json=big)
+    assert response.status_code == 422
+    assert "SafeDay is for small and medium enterprises" in response.text
+    assert client.post("/api/buy", json=shop_body(staff_band="over-200")).status_code == 422
+    assert client.post("/api/buy", json={**big, "sales_under_100m": True}).status_code == 200
+
+
+def test_job_title_and_stall_unit_are_optional(client):
+    body = buy_body(designation=None, stall_unit=None)
+    assert client.post("/api/buy", json=body).status_code == 200
+
+
+def test_payouts_wait_30_days_and_the_term_sets_the_end(client):
+    start = datetime.now(SINGAPORE).date() + timedelta(days=7)
+    body = buy_body(cover_start=start.isoformat(), term_months=24)
+    application = client.post("/api/buy", json=body).json()["application"]
+    assert application["waiting_ends"] == (start + timedelta(days=30)).isoformat()
+    assert application["cover_ends"] == add_months(start, 24).isoformat()
+    assert client.get("/api/applications/mine").json()["term_months"] == 24
+
+
+def test_a_term_defaults_to_12_months_at_the_same_weekly_price(client):
+    one_year = client.post("/api/buy", json=buy_body()).json()
+    two_years = client.post("/api/buy", json=buy_body(email="b@example.test", term_months=24)).json()
+    assert one_year["application"]["term_months"] == 12
+    assert one_year["policy"]["weekly_premium_sgd"] == two_years["policy"]["weekly_premium_sgd"]
+
+
+@pytest.mark.parametrize(
+    "start, months, end",
+    [(date(2026, 11, 15), 12, date(2027, 11, 15)), (date(2028, 2, 29), 12, date(2029, 2, 28)),
+     (date(2026, 12, 31), 24, date(2028, 12, 31))],
+)
+def test_add_months_keeps_the_day_or_takes_the_month_end(start, months, end):
+    assert add_months(start, months) == end
+
+
+def test_platform_work_quotes_and_assesses_without_stock(client):
+    quote = client.post("/api/quote", json={"region": "east", "product": "platform_work"}).json()
+    assert quote["tiers"][0]["weekly_premium_sgd"] > 0
+    body = {"product": "platform_work", "tier": "tier_1", "readings": {"rain": 50}}
+    day = client.post("/api/assess", json=body).json()
+    # rain weight 0.5 x severity 1.0 x (demand 0.6 x margin 0.7, nothing recovered, nothing spoils)
+    assert day["loss_percent"] == 21.0
+    assert day["payout_sgd"] == 4.2
+
+
+def test_crc_matches_the_ccitt_false_check_value():
+    assert crc16_ccitt(b"123456789") == 0x29B1
+
+
+def test_paynow_payload_pays_the_demo_proxy_a_fixed_amount():
+    payload = paynow_payload(12.3, "DEMO-ABC123")
+    assert "0009SG.PAYNOW" in payload and "0212SAFEDAY-DEMO" in payload
+    assert "540512.30" in payload and "03010" in payload and "0111DEMO-ABC123" in payload
+    assert int(payload[-4:], 16) == crc16_ccitt(payload[:-4].encode())
+
+
+def test_paynow_qr_is_an_svg_and_checks_its_inputs(client):
+    query = {"amount_sgd": 3.15, "reference": "DEMO-ABC123"}
+    response = client.get("/api/paynow/qr", params=query)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/svg+xml"
+    assert response.text.startswith("<svg")
+    assert client.get("/api/paynow/qr", params={**query, "reference": "x"}).status_code == 422
+    assert client.get("/api/paynow/qr", params={**query, "amount_sgd": 0}).status_code == 422
+
+
+def test_buy_options_list_each_class_and_every_postal_sector(client):
+    options = client.get("/api/buy/options").json()
+    assert options["business_classes"] == ["hawker", "shop", "platform_worker"]
+    minimart = {"code": "47102", "title": "Mini-marts, convenience stores and provision shops"}
+    assert minimart in options["ssic_codes"]
+    assert options["postal_sector_regions"]["56"] == "central"
+    assert len(options["postal_sector_regions"]) == 81

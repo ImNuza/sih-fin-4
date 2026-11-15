@@ -35,6 +35,8 @@ SESSION_COOKIE = "safeday_session"
 SESSION_DAYS = 7
 SCRYPT = {"n": 2**14, "r": 8, "p": 1}
 INSURERS = ("Income Insurance",)
+WAITING_PERIOD_DAYS = 30
+TERMS_MONTHS = (12, 24)
 
 users = Table(
     "users",
@@ -105,6 +107,23 @@ application_details = Table(
     Column("stall_unit", String),
     Column("designation", String),
     Column("cover_start", Date, nullable=False),
+)
+# Who the business is and how long it is covered, one row per application. business_class is
+# "hawker", "shop" or "platform_worker"; each class fills only its own identifying fields.
+application_profile = Table(
+    "application_profile",
+    metadata,
+    Column("application_id", Integer, primary_key=True),
+    Column("business_class", String, nullable=False),
+    Column("licence_no", String),
+    Column("ssic_code", String),
+    Column("platform", String),
+    Column("platform_worker_id", String),
+    Column("postcode", String),
+    Column("staff_band", String, nullable=False),
+    Column("term_months", Integer, nullable=False),
+    Column("waiting_ends", Date, nullable=False),
+    Column("cover_ends", Date, nullable=False),
 )
 
 
@@ -214,8 +233,22 @@ InsurerDep = Annotated[Account, Depends(require_role("insurer"))]
 router = APIRouter(prefix="/api/auth")
 
 
-def user_values(body: Registration, request: Request) -> dict:
-    """The users row for a new account, checked. Raises if the email or centre is wrong."""
+def sme_place(centre: str | None, region: str | None, request: Request) -> tuple[str | None, str]:
+    """Hawker centre and PSI region of a business. A business outside a hawker centre brings its
+    region (from its postcode) and has no centre. Raises if neither is known."""
+    if region is not None:
+        return None, region
+    centres = {c["name"]: c for c in request.app.state.map_static["hawker_centres"]}
+    if centre not in centres:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick your hawker centre")
+    return centre, centres[centre]["region"]
+
+
+def user_values(body: Registration, request: Request, region: str | None = None) -> dict:
+    """The users row for a new account, checked. Raises if the email or centre is wrong.
+
+    region: the PSI region of a shop or platform worker, who has no hawker centre.
+    """
     engine: Engine = request.app.state.db
     if find_by_email(engine, body.email) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email exists. Sign in")
@@ -231,12 +264,8 @@ def user_values(body: Registration, request: Request) -> dict:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick an insurer")
         values["insurer"] = body.insurer
     else:
-        centres = {c["name"]: c for c in request.app.state.map_static["hawker_centres"]}
-        if body.centre not in centres:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick your hawker centre")
         values["business_name"] = body.business_name or body.name
-        values["centre"] = body.centre
-        values["region"] = centres[body.centre]["region"]
+        values["centre"], values["region"] = sme_place(body.centre, region, request)
         values["product"] = body.product
     return values
 
