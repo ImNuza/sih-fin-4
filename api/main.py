@@ -906,9 +906,50 @@ def live_loss(
     return {"loss_percent": assessment.loss_percent, "readings": now}
 
 
-class PolicyRequest(BaseModel):
+class SellerFields(BaseModel):
+    """Who arranges the cover with the customer: their Income adviser (with the adviser's code) or
+    an association (with its name). SafeDay is never sold to the customer directly, because Income
+    sells SmartBiz 360 through intermediaries. See api/onboarding.py."""
+
+    sold_by: onboarding.SoldBy
+    adviser_code: str | None = None
+    association: str | None = Field(default=None, max_length=120)
+
+    @field_validator("adviser_code")
+    @classmethod
+    def adviser_code_format(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.strip().upper()
+        if not onboarding.ADVISER_CODE.match(value):
+            raise ValueError("An adviser code has 4 to 12 letters or digits")
+        return value
+
+    def channel_complete(self) -> None:
+        if self.sold_by == "adviser":
+            if self.adviser_code is None:
+                raise ValueError("Enter the code of the Income adviser who helps the customer")
+            self.association = None
+            return
+        shortest, longest = onboarding.ASSOCIATION_NAME_LENGTH
+        association = (self.association or "").strip()
+        if not shortest <= len(association) <= longest:
+            raise ValueError("Enter the name of the association that offers the cover")
+        self.association = association
+        self.adviser_code = None
+
+
+class PolicyRequest(SellerFields):
+    """A cover started or changed after the application, always with the customer's adviser or
+    association, who is recorded in policy_channel."""
+
     tier: str
     product: str | None = None
+
+    @model_validator(mode="after")
+    def seller_complete(self) -> PolicyRequest:
+        self.channel_complete()
+        return self
 
 
 def policy_values(
@@ -946,6 +987,9 @@ def buy_policy(
     A higher daily amount starts a new waiting period for the whole cover, so nobody moves up a
     tier when a bad day is forecast. The same or a lower amount keeps the cover's start. A cover
     bought after a cancelled one is new and waits again. Payouts already made are never taken back.
+
+    The customer's Income adviser or association always arranges it (PolicyRequest), and is kept
+    in policy_channel: there is no self-serve sale from the dashboard.
     """
     application = latest_application(request.app.state.db, user.id)
     cover_ends = application["cover_ends"] if application else None
@@ -977,6 +1021,17 @@ def buy_policy(
         policy_id = db.execute(
             sa_insert(accounts.policies).values(**values).returning(accounts.policies.c.id)
         ).scalar_one()
+        db.execute(
+            sa_insert(accounts.policy_channel).values(
+                policy_id=policy_id,
+                user_id=user.id,
+                tier=body.tier,
+                sold_by=body.sold_by,
+                adviser_code=body.adviser_code,
+                association=body.association,
+                created_at=datetime.now(UTC),
+            )
+        )
         payout_flow.send_welcome_if_due(db, user.id, tariff)
     return {"id": policy_id, **{k: v for k, v in values.items() if k != "user_id"}}
 
@@ -994,7 +1049,7 @@ SINGAPORE = ZoneInfo("Asia/Singapore")
 LATEST_COVER_START_DAYS = 90
 
 
-class BuyRequest(BaseModel):
+class BuyRequest(SellerFields):
     """Everything the guided buy flow (/buy/) collects, sent once at the pay step.
 
     The form is filled in with the customer by their Income adviser or by an association
@@ -1006,9 +1061,6 @@ class BuyRequest(BaseModel):
     """
 
     business_class: onboarding.BusinessClass
-    sold_by: onboarding.SoldBy
-    adviser_code: str | None = None
-    association: str | None = Field(default=None, max_length=120)
     name: str = Field(min_length=1, max_length=120)
     email: str = Field(min_length=1, max_length=200)
     password: str = Field(min_length=1, max_length=200)
@@ -1063,16 +1115,6 @@ class BuyRequest(BaseModel):
         value = value.strip().upper()
         if not UEN.match(value):
             raise ValueError("That UEN does not look right, e.g. 53123456A or 201912345K")
-        return value
-
-    @field_validator("adviser_code")
-    @classmethod
-    def adviser_code_format(cls, value: str | None) -> str | None:
-        if value is None or not value.strip():
-            return None
-        value = value.strip().upper()
-        if not onboarding.ADVISER_CODE.match(value):
-            raise ValueError("An adviser code has 4 to 12 letters or digits")
         return value
 
     @field_validator("licence_no")
@@ -1133,19 +1175,6 @@ class BuyRequest(BaseModel):
         if self.declined_before and not (self.declined_details or "").strip():
             raise ValueError("Say which insurer declined you and why")
         return self
-
-    def channel_complete(self) -> None:
-        if self.sold_by == "adviser":
-            if self.adviser_code is None:
-                raise ValueError("Enter the code of the Income adviser who helps the customer")
-            self.association = None
-            return
-        shortest, longest = onboarding.ASSOCIATION_NAME_LENGTH
-        association = (self.association or "").strip()
-        if not shortest <= len(association) <= longest:
-            raise ValueError("Enter the name of the association that offers the cover")
-        self.association = association
-        self.adviser_code = None
 
     def hawker_complete(self) -> None:
         if self.licence_no is None:

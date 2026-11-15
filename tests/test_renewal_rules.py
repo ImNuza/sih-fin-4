@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 from api import payout_flow
+from tests.test_api import SELLER
 from tests.test_payout_api import (  # noqa: F401  (client is a fixture)
     FLOOD_DAY,
     LONG_AGO,
@@ -47,7 +48,7 @@ def cancel_cover(client) -> None:
 
 
 def change_tier(client, tier: str) -> None:
-    assert client.post("/api/policies", json={"tier": tier}).status_code == 200
+    assert client.post("/api/policies", json={"tier": tier, **SELLER}).status_code == 200
 
 
 def test_a_higher_tier_starts_a_new_waiting_period_for_the_whole_cover(client):

@@ -135,6 +135,20 @@ application_channel = Table(
     Column("adviser_code", String),
     Column("association", String),
 )
+# Who started or changed a cover with the customer after the application, one row each time
+# (POST /api/policies). Same fields as application_channel: never sold to the customer directly.
+policy_channel = Table(
+    "policy_channel",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("policy_id", Integer, nullable=False),
+    Column("user_id", Integer, nullable=False),
+    Column("tier", String, nullable=False),
+    Column("sold_by", String, nullable=False),
+    Column("adviser_code", String),
+    Column("association", String),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
 
 
 def hash_password(password: str) -> str:

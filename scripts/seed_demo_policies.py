@@ -344,7 +344,7 @@ def remove(engine: Engine) -> int:
         ).scalars())
         db.execute(delete(payout_events).where(payout_events.c.payout_id.in_(payout_ids)))
         for table in (sms_messages, payouts, payout_accounts, sms_codes, accounts.policies,
-                      accounts.sessions, accounts.applications):
+                      accounts.policy_channel, accounts.sessions, accounts.applications):
             db.execute(delete(table).where(table.c.user_id.in_(user_ids)))
         for table in (underwriting_decisions, accounts.application_details,
                       accounts.application_profile, accounts.application_channel):

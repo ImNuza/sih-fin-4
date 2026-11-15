@@ -5,14 +5,16 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import insert, update
+from sqlalchemy import insert, select, update
 
 from api import burn, calculator, onboarding, postcodes, readings, store
-from api.accounts import application_profile
+from api.accounts import application_profile, policy_channel
 from api.main import DEFAULT_TARIFF_PATH, MAP_STATIC_PATH, SINGAPORE, add_months, app
 from api.paynow_qr import crc16_ccitt, paynow_payload
 
 ADMIN = ("admin", "secret")
+# Who starts or changes a cover with the customer: SafeDay is never sold to them directly.
+SELLER = {"sold_by": "adviser", "adviser_code": "DEMO1234"}
 
 
 @pytest.fixture
@@ -175,7 +177,7 @@ def test_past_decline_is_referred_and_cannot_buy_from_the_dashboard(client):
     result = client.post("/api/buy", json=body).json()
     assert result["application"]["status"] == "referred"
     assert result["policy"] is None
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 409
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 409
 
 
 @pytest.mark.parametrize(
@@ -308,7 +310,7 @@ def test_a_shop_is_charged_the_price_shown_for_its_postcode(client):
     by_region = client.post("/api/quote", json={"product": "packaged_food", "region": "north"})
     policy = client.post("/api/buy", json=shop_body()).json()["policy"]
     assert policy["weekly_premium_sgd"] == weekly(shown) != weekly(by_region.json())
-    again = client.post("/api/policies", json={"tier": "tier_2"}).json()
+    again = client.post("/api/policies", json={"tier": "tier_2", **SELLER}).json()
     assert again["weekly_premium_sgd"] == weekly(shown)
 
 
@@ -322,8 +324,46 @@ def test_a_platform_worker_is_charged_the_region_price(client, riders_open):
 
 def test_buying_again_from_the_dashboard_keeps_the_centre_price(client):
     first = client.post("/api/buy", json=buy_body()).json()["policy"]
-    again = client.post("/api/policies", json={"tier": "tier_2"}).json()
+    again = client.post("/api/policies", json={"tier": "tier_2", **SELLER}).json()
     assert again["weekly_premium_sgd"] == first["weekly_premium_sgd"]
+
+
+NO_SAFEDAY = {"add_safeday": False, "tier": None, "payment_method": None}
+
+
+@pytest.mark.parametrize(
+    "seller",
+    [
+        {},
+        {"sold_by": "adviser"},
+        {"sold_by": "association", "association": "x"},
+        {"sold_by": "customer"},
+    ],
+)
+def test_cover_does_not_start_without_an_adviser_or_association(client, seller):
+    client.post("/api/buy", json=buy_body(**NO_SAFEDAY))
+    response = client.post("/api/policies", json={"tier": "tier_1", **seller})
+    assert response.status_code == 422
+    assert client.get("/api/policies").json() == []
+
+
+@pytest.mark.parametrize(
+    ("seller", "kept"),
+    [
+        ({"sold_by": "adviser", "adviser_code": " demo1234 "}, ("adviser", "DEMO1234", None)),
+        (
+            {"sold_by": "association", "association": " Tiong Bahru Market Hawkers' Association "},
+            ("association", None, "Tiong Bahru Market Hawkers' Association"),
+        ),
+    ],
+)
+def test_starting_cover_records_who_arranged_it(client, seller, kept):
+    client.post("/api/buy", json=buy_body(**NO_SAFEDAY))
+    policy = client.post("/api/policies", json={"tier": "tier_1", **seller}).json()
+    with client.app.state.db.begin() as db:
+        [row] = db.execute(select(policy_channel)).mappings().all()
+    assert (row["policy_id"], row["tier"]) == (policy["id"], "tier_1")
+    assert (row["sold_by"], row["adviser_code"], row["association"]) == kept
 
 
 def test_the_map_prices_every_centre_as_its_stalls_are_charged(client):
@@ -818,13 +858,13 @@ def test_buying_again_after_the_term_ended_is_refused(client):
     client.post("/api/buy", json=buy_body())
     today = datetime.now(SINGAPORE).date()
     end_term_on(client, today)
-    response = client.post("/api/policies", json={"tier": "tier_2"})
+    response = client.post("/api/policies", json={"tier": "tier_2", **SELLER})
     assert response.status_code == 409
     assert response.json()["detail"] == (
         f"Your 12-month term ended on {today:%d %b %Y}; apply again to renew"
     )
     end_term_on(client, today + timedelta(days=1))
-    assert client.post("/api/policies", json={"tier": "tier_2"}).status_code == 200
+    assert client.post("/api/policies", json={"tier": "tier_2", **SELLER}).status_code == 200
 
 
 def test_a_new_tariff_version_reprices_the_map(client):

@@ -472,23 +472,23 @@ function policyCover({ user, policy, rent, application, decision }) {
 function chooseCover({ quote, rent, rentTable, rec }) {
   const rentShare = (payout) => Math.round((100 * payout) / rent.rent_per_day_sgd);
   const cards = quote.tiers.map((t) => `
-    <button class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}" type="button">
+    <div class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}">
       <span class="t">${t.label}${t.tier === rec ? ` <span class="chip accent">Recommended</span>` : ""}</span>
       <span class="p">${SGD(t.weekly_premium_sgd)}<small>/wk</small></span>
       <span class="d">${SGD(t.daily_payout_sgd)} a bad day · up to ${SGD(t.max_payout_per_year_sgd)} a year</span>
       ${rent ? `<span class="d">${rentShare(t.daily_payout_sgd)}% of a day's rent</span>` : ""}
-    </button>`).join("");
+    </div>`).join("");
   const why = !rent ? "We mark the recommended tier."
     : (rent.covers_rent
       ? `Recommended is the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
       : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Recommended is the biggest tier.`)
       + ` ${rentSource(rent, rentTable)}`;
-  return `<h2>Choose your cover</h2>
+  return `<h2>SafeDay prices for your stall</h2>
     <div class="tiers-row">${cards}</div>
-    <p class="fine">${why} Pick a tier to start cover.</p>
+    <p class="fine">${why}</p>
+    ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add SafeDay to your policy with you. SafeDay is not sold directly.")}
     <p class="fine">The recommended tier in one SMS, as we would text it to you:</p>
-    <div class="cover-sms" data-cover-tier="${rec}" data-cover-weekly="${quote.tiers.find((t) => t.tier === rec)?.weekly_premium_sgd ?? ""}"></div>
-    <p class="error" id="buy-error" role="alert"></p>`;
+    <div class="cover-sms" data-cover-tier="${rec}" data-cover-weekly="${quote.tiers.find((t) => t.tier === rec)?.weekly_premium_sgd ?? ""}"></div>`;
 }
 
 function burnCard({ site }) {
@@ -509,20 +509,6 @@ function burnSkeleton() {
 
 function wireSme(view) {
   const { user, policy, site, rec } = view;
-  document.querySelectorAll("#cover-card .tier-card").forEach((button) =>
-    button.addEventListener("click", async () => {
-      const cards = document.querySelectorAll("#cover-card .tier-card");
-      cards.forEach((card) => { card.disabled = true; });
-      button.setAttribute("aria-busy", "true");
-      try {
-        await post("/api/policies", { tier: button.dataset.tier });
-        await renderSme(user);
-      } catch (error) {
-        el("buy-error").textContent = `Could not start cover: ${error.message}. Try again.`;
-        cards.forEach((card) => { card.disabled = false; });
-        button.removeAttribute("aria-busy");
-      }
-    }));
   el("cancel-policy")?.addEventListener("click", () => confirmCancel(user, policy));
   el("retry-live")?.addEventListener("click", () => renderSme(user));
   const burnTier = policy ? policy.tier : rec;

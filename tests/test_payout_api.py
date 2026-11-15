@@ -9,7 +9,7 @@ from sqlalchemy import update
 from api import burn, payout_api, payout_flow, postcodes, readings, sms, sms_gateway
 from api.accounts import application_profile, policies
 from api.main import app
-from tests.test_api import buy_body, platform_worker_body, shop_body
+from tests.test_api import SELLER, buy_body, platform_worker_body, shop_body
 
 LONG_AGO = datetime(2026, 1, 1, 4, 0, tzinfo=UTC)
 CENTRE = "Commonwealth Crescent Market"
@@ -50,7 +50,7 @@ def stallholder_with_cover(
     client, mobile: str = GOOD_MOBILE, verify: bool = True, started_at: datetime = LONG_AGO
 ) -> None:
     register(client, "sme", "tan@example.com")
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 200
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 200
     start_cover_on(client, started_at)
     account = {"paynow_proxy_type": "mobile", "paynow_proxy": mobile, "sms_language": "en"}
     assert client.put("/api/payout-account", json=account).status_code == 200
@@ -430,7 +430,7 @@ def test_buying_cover_with_a_verified_mobile_sends_the_welcome_text(client):
     client.post("/api/payout-account/verify", json={"code": code})
     assert texts_of_kind(client, "welcome") == []
 
-    client.post("/api/policies", json={"tier": "tier_2"})
+    client.post("/api/policies", json={"tier": "tier_2", **SELLER})
     [welcome] = texts_of_kind(client, "welcome")
     assert "SafeDay Tier 2:" in welcome["body"]
     assert "up to S$40/day, S$600/yr" in welcome["body"]
@@ -446,7 +446,7 @@ def test_welcome_text_is_sent_once_per_cover(client):
 @pytest.mark.parametrize("language", ["zh", "ms", "ta"])
 def test_welcome_and_paid_texts_go_out_in_the_chosen_language(client, language):
     register(client, "sme", "tan@example.com")
-    client.post("/api/policies", json={"tier": "tier_1"})
+    client.post("/api/policies", json={"tier": "tier_1", **SELLER})
     start_cover_on(client, LONG_AGO)
     account = {"paynow_proxy_type": "mobile", "paynow_proxy": GOOD_MOBILE, "sms_language": language}
     client.put("/api/payout-account", json=account)
@@ -554,7 +554,7 @@ def test_a_text_textbee_refuses_still_leaves_the_payout_paid(client, monkeypatch
 
 def test_demo_payout_pays_and_texts_the_mobile_the_insurer_enters(client):
     register(client, "sme", "tan@example.com")
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 200
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 200
     user_id = insurer_sees_one_policyholder(client)
     response = client.post("/api/insurer/demo-payouts", json={
         "user_id": user_id, "readings": RAIN_STORM,
@@ -589,7 +589,7 @@ FALLBACK = {"DEMO_PAYOUT_MOBILE": "+6581112222"}
 def test_demo_payout_without_a_mobile_goes_to_the_fallback_phone(client, monkeypatch):
     monkeypatch.setattr(payout_api, "api_key", FALLBACK.get)
     register(client, "sme", "tan@example.com")
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 200
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 200
     user_id = insurer_sees_one_policyholder(client)
     listing = client.get("/api/insurer/policyholders").json()
     assert listing["fallback_mobile"] == "+6581112222"
@@ -610,7 +610,7 @@ def test_demo_payout_prefers_the_customers_verified_mobile_to_the_fallback(clien
 def test_demo_payout_without_any_mobile_is_held(client, monkeypatch):
     monkeypatch.setattr(payout_api, "api_key", lambda name: None)
     register(client, "sme", "tan@example.com")
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 200
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 200
     user_id = insurer_sees_one_policyholder(client)
     assert demo_payout(client, user_id).json()["payout"]["status"] == "held"
 
