@@ -49,10 +49,6 @@ HAZARD_NAMES = {
            "closure": "மூடல் உத்தரவு"},
 }
 
-# The heat readings count work hours at WBGT 32°C or more (scripts/heat_stats.py): MOM's
-# threshold for mandatory rest breaks in heavy outdoor work. Readings cover 07:00 to 19:00 SGT.
-HEAT_WBGT_C = 32
-WORK_HOURS = {"en": "7am-7pm", "ms": "7pg-7mlm", "zh": "7-19时", "ta": "காலை 7-மாலை 7"}
 MONTHS_ZH = "{month}月{day}日"
 MONTHS_MS = ("Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogo", "Sep", "Okt", "Nov", "Dis")
 
@@ -68,23 +64,6 @@ UCS2_SINGLE, UCS2_PART = 70, 67
 
 
 TEMPLATES = {
-    "welcome": {
-        # Payouts are graded: a Red day (loss 70%+, see DAY_COLOUR_FROM_PERCENT) pays most, a
-        # milder day a share, so the text says "up to" and never "no Red day, no pay". The PUB
-        # flood alert also pays; the team left it out of this text to keep one SMS readable.
-        "en": "SafeDay: Haze PSI {psi}+, rain {rain}mm/h+, Heat {heat_hours}h WBGT {wbgt}C+ "
-        "{hours}. Up to S${payout}, most on a Red day. {days} days/yr from {start}. "
-        "Else no pay, even if you lose income.",
-        # Mandarin leaves out the "SafeDay：" prefix to fit one 70-character SMS.
-        "zh": "{hours}烟霾PSI≥{psi}、雨≥{rain}mm/时、酷热WBGT≥{wbgt}达{heat_hours}时："
-        "红色日最多赔S${payout}，年限{days}天，{start}起，否则亏损也不赔",
-        "ms": "SafeDay: jerebu PSI {psi}+, hujan {rain}mm/j+, panas {heat_hours}j WBGT {wbgt}C+ "
-        "{hours}: hingga S${payout}, terbanyak Hari merah. {days} hari/thn dari {start}. "
-        "Lain tak dibayar walau rugi.",
-        "ta": "SafeDay: {hours} புகைமூட்டம் PSI {psi}+, மழை {rain}mm/மணி+, வெப்பம் WBGT {wbgt}C+ "
-        "{heat_hours} மணி: S${payout} வரை PayNow, சிவப்பு நாளில் அதிகம். ஆண்டுக்கு {days} நாள், "
-        "{start} முதல். இதற்குக் கீழே இழப்பிலும் பணம் இல்லை.",
-    },
     "payout_paid": {
         "en": "SafeDay: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
         "{hazard} at {centre} on {day}. Ref {ref}. No claim needed.",
@@ -147,6 +126,36 @@ WARNING_TIPS = {
 HAZARD_LIST_SEPARATOR = {"en": ", ", "zh": "、", "ms": ", ", "ta": ", "}
 
 
+# The welcome SMS, as the team approved it (16 Nov 2026), from the fullest wording to the
+# shortest: welcome_text takes the first that fits one SMS with the customer's own numbers.
+# Payouts are graded, so it says "up to"; the PUB flood alert is the "flood" trigger. Tamil
+# leaves out the price and tier to fit 70 characters, so they are said at the sale.
+WELCOME_PRICE = {"en": "S${price}/wk, ", "zh": "每周S${price}，", "ms": "S${price}/mgu, ", "ta": ""}
+WELCOME = {
+    "en": (
+        "SafeDay Tier {tier}: {price}cover from day {wait}. Haze, heavy rain, heat or flood alert "
+        "near your stall: up to S${daily}/day, S${year}/yr. Else no pay even if sales drop.",
+        "SafeDay Tier {tier}: {price}cover from day {wait}. Haze, rain, heat or flood alert "
+        "near your stall: up to S${daily}/day, S${year}/yr. Else no pay even if sales drop.",
+    ),
+    "zh": (
+        "SafeDay第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨、酷热或水灾："
+        "日赔≤S${daily}，年≤S${year}。否则生意差也不赔",
+        "第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨、酷热或水灾："
+        "日赔≤S${daily}，年≤S${year}。否则生意差也不赔",
+    ),
+    "ms": (
+        "SafeDay Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan lebat, panas atau banjir "
+        "dekat gerai: hingga S${daily}/hari, S${year}/thn. Lain tiada bayaran walau rugi.",
+        "SafeDay Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan, panas atau banjir "
+        "dekat gerai: hingga S${daily}/hari, S${year}/thn. Lain tiada bayaran walau rugi.",
+    ),
+    "ta": (
+        "{wait}நாள் பின் புகை/மழை/வெயில்/வெள்ளம்: S${daily}/நாள், S${year}/ஆ. இல்லையேல் 0",
+    ),
+}
+
+
 def segments(body: str) -> int:
     """How many SMS parts the text goes out as."""
     if all(c in GSM_BASIC or c in GSM_EXTENDED for c in body):
@@ -186,14 +195,21 @@ def payout_text(kind: str, language: str, hazard: str, **fields: str) -> str:
     return TEMPLATES[kind][language].format(hazard=hazard_name, **fields)
 
 
-def welcome_text(language: str, payout_sgd: float, heat_hours: float, rain_mm: float,
-                 psi: float, max_days: int, first_day: date) -> str:
-    """The cover in one SMS: what pays, how much, the cap, and that nothing else pays."""
-    return TEMPLATES["welcome"][language].format(
-        payout=number(payout_sgd), wbgt=HEAT_WBGT_C, heat_hours=number(heat_hours),
-        rain=number(rain_mm), psi=number(psi), hours=WORK_HOURS[language], days=max_days,
-        start=day_text(language, first_day),
-    )
+def welcome_text(language: str, tier: int, weekly_sgd: float | None, payout_sgd: float,
+                 max_days: int, wait_days: int) -> str:
+    """The cover in one SMS: tier, price, when it starts, what pays, how much, and that nothing
+    else pays. The first wording that fits one SMS wins (WELCOME). Without a price (a preview
+    with no place yet) the price is left out."""
+    price = "" if weekly_sgd is None else WELCOME_PRICE[language].format(price=f"{weekly_sgd:.2f}")
+    yearly = payout_sgd * max_days
+    body = ""
+    for wording in WELCOME[language]:
+        for year in (f"{yearly:,.0f}", f"{yearly:.0f}"):
+            body = wording.format(tier=tier, price=price, wait=wait_days,
+                                  daily=number(payout_sgd), year=year)
+            if segments(body) == 1:
+                return body
+    return body
 
 
 def warning_text(language: str, hazards: list[str], day: date) -> str:

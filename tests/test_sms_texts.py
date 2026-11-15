@@ -1,16 +1,14 @@
-"""The welcome SMS: one-SMS length in every language, and the cover text shown at the point of sale.
+"""The welcome SMS: one SMS in every language, and the cover text shown at the point of sale.
 
 The brief: the trigger, the payout and the exclusions must fit in one SMS in the customer's
-language. English and Malay fit one 160-character SMS. Chinese and Tamil need Unicode SMS
-(70 characters a part): Mandarin fits one, and the Tamil welcome is held to three until a
-native speaker shortens it. The payout texts are tested in tests/test_day_colour.py.
+language. English and Malay fit one 160-character SMS; Chinese and Tamil one 70-character
+Unicode SMS. The payout texts are tested in tests/test_day_colour.py.
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,8 +19,17 @@ from api.models import Tariff
 
 ROOT = Path(__file__).resolve().parent.parent
 TARIFF = Tariff.model_validate_json((ROOT / "api/default_tariff.json").read_text())
-WELCOME_PARTS = {"en": 1, "ms": 1, "zh": 1, "ta": 3}
-LAST_DAY_OF_YEAR = date(2026, 12, 31)
+WAIT_DAYS = 30
+# The cheapest and dearest weekly prices a tier can carry, and a preview with no place.
+PRICES = (None, 3.44, 99.99)
+APPROVED = {
+    "en": "SafeDay Tier 2: S$9.11/wk, cover from day 30. Haze, heavy rain, heat or flood alert "
+    "near your stall: up to S$40/day, S$1,400/yr. Else no pay even if sales drop.",
+    "zh": "SafeDay第2级每周S$9.11，买后30天生效。摊位附近烟霾、大雨、酷热或水灾：日赔≤S$40，"
+    "年≤S$1,400。否则生意差也不赔",
+    "ms": "SafeDay Tahap 2: S$9.11/mgu, mula hari ke-30. Jerebu, hujan lebat, panas atau banjir "
+    "dekat gerai: hingga S$40/hari, S$1,400/thn. Lain tiada bayaran walau rugi.",
+}
 
 
 @pytest.fixture
@@ -34,10 +41,10 @@ def client(tmp_path, monkeypatch):
         yield client
 
 
-def welcome(language: str, tier) -> str:
+def welcome(language: str, tier, weekly: float | None = 9.11) -> str:
     return sms.welcome_text(
-        language, payout_sgd=tier.daily_payout_sgd, heat_hours=2, rain_mm=20, psi=101,
-        max_days=tier.max_paid_days_per_year, first_day=LAST_DAY_OF_YEAR,
+        language, int(tier.key[-1]), weekly, tier.daily_payout_sgd,
+        tier.max_paid_days_per_year, WAIT_DAYS,
     )
 
 
@@ -53,17 +60,34 @@ def test_unicode_text_fits_70_characters_a_part():
 
 
 @pytest.mark.parametrize("language", sms.LANGUAGES)
-def test_welcome_text_fits_for_every_tier(language):
+@pytest.mark.parametrize("weekly", PRICES)
+def test_welcome_text_fits_one_sms_for_every_tier_and_price(language, weekly):
     for tier in TARIFF.tiers:
-        body = welcome(language, tier)
-        assert sms.segments(body) <= WELCOME_PARTS[language], (tier.key, len(body), body)
+        body = welcome(language, tier, weekly)
+        assert sms.segments(body) == 1, (tier.key, weekly, len(body), body)
 
 
-def test_welcome_text_names_every_trigger_and_the_no_pay_rule():
-    body = welcome("en", TARIFF.tiers[-1])
-    for phrase in ("Haze PSI 101+", "rain 20mm/h+", "Heat 2h WBGT 32C+", "7am-7pm",
-                   "Up to S$100", "most on a Red day", "30 days/yr", "no pay, even if you lose income"):
+@pytest.mark.parametrize("language", sorted(APPROVED))
+def test_welcome_text_is_the_approved_wording(language):
+    """Tier 2 at Maxwell in the proposal: S$9.11 a week, S$40 a day, 35 days a year."""
+    assert sms.welcome_text(language, 2, 9.11, 40, 35, WAIT_DAYS) == APPROVED[language]
+
+
+def test_tamil_welcome_names_the_wait_the_triggers_and_the_payout():
+    body = sms.welcome_text("ta", 2, 9.11, 40, 35, WAIT_DAYS)
+    for phrase in ("30நாள் பின்", "புகை/மழை/வெயில்/வெள்ளம்", "S$40/நாள்", "S$1,400", "இல்லையேல் 0"):
         assert phrase in body
+
+
+def test_a_long_price_shortens_the_wording_rather_than_send_two_sms():
+    body = sms.welcome_text("en", 4, 99.99, 100, 45, WAIT_DAYS)
+    assert sms.segments(body) == 1
+    assert "up to S$100/day" in body
+
+
+def test_a_preview_without_a_place_leaves_the_price_out():
+    body = sms.welcome_text("en", 1, None, 20, 10, WAIT_DAYS)
+    assert body.startswith("SafeDay Tier 1: cover from day 30.")
 
 
 def test_malay_texts_use_malay_month_names():
@@ -71,22 +95,17 @@ def test_malay_texts_use_malay_month_names():
     assert sms.day_text("ms", date(2026, 8, 1)) == "1 Ogo"
 
 
-def sgt_today() -> date:
-    return datetime.now(ZoneInfo("Asia/Singapore")).date()
-
-
 def test_cover_text_is_public_and_matches_the_welcome_sms(client):
-    response = client.get("/api/cover-text", params={"tier": "tier_4", "language": "en"})
-    assert response.status_code == 200
-    cover = response.json()
-    first_day = sgt_today() + timedelta(days=30)
-    assert cover["first_day"] == first_day.isoformat()
-    assert cover["body"] == sms.welcome_text(
-        "en", payout_sgd=100, heat_hours=2, rain_mm=20, psi=101, max_days=30,
-        first_day=first_day,
-    )
+    params = {"tier": "tier_2", "language": "en", "weekly": 9.11}
+    cover = client.get("/api/cover-text", params=params).json()
+    tier = next(t for t in TARIFF.tiers if t.key == "tier_2")
+    assert cover["body"] == welcome("en", tier, 9.11)
     assert cover["segments"] == 1
     assert cover["characters"] == len(cover["body"])
+
+
+def test_cover_text_refuses_a_price_out_of_range(client):
+    assert client.get("/api/cover-text", params={"weekly": -1}).status_code == 422
 
 
 def test_cover_text_comes_in_every_language(client):
@@ -101,17 +120,10 @@ def test_cover_text_rejects_an_unknown_tier_or_language(client):
     assert client.get("/api/cover-text", params={"language": "fr"}).status_code == 422
 
 
-def test_mandarin_welcome_keeps_every_part_of_the_cover():
-    body = welcome("zh", TARIFF.tiers[-1])
-    for phrase in ("7-19时", "烟霾PSI≥101", "雨≥20mm/时", "酷热WBGT≥32达2时", "红色日最多赔S$100",
-                   "年限30天", "12月31日起", "否则亏损也不赔"):
-        assert phrase in body
-
-
 @pytest.mark.parametrize("language", sms.LANGUAGES)
 def test_welcome_text_never_says_only_a_red_day_pays(language):
     """Payouts are graded: a milder day pays a share, so the text promises "up to"."""
     body = welcome(language, TARIFF.tiers[0])
     assert "S$20" in body
-    for wrong in ("No Red Day", "no Red day", "无红色日", "Tiada Hari"):
+    for wrong in ("No Red Day", "no Red day", "无红色日", "Tiada Hari", "Red Day = no pay"):
         assert wrong not in body

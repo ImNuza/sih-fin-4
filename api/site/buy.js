@@ -533,7 +533,7 @@ async function renderSummary() {
     <div class="cover-sms" id="buy-cover-sms"></div>` : "");
   if (tier) {
     showDue(tier.weekly_premium_sgd);
-    coverSms(el("buy-cover-sms"), tier.tier, chosen("sms_language") || "en");
+    coverSms(el("buy-cover-sms"), tier.tier, chosen("sms_language") || "en", tier.weekly_premium_sgd);
   }
 }
 

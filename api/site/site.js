@@ -487,7 +487,7 @@ function chooseCover({ quote, rent, rentTable, rec }) {
     <div class="tiers-row">${cards}</div>
     <p class="fine">${why} Pick a tier to start cover.</p>
     <p class="fine">The recommended tier in one SMS, as we would text it to you:</p>
-    <div class="cover-sms" data-cover-tier="${rec}"></div>
+    <div class="cover-sms" data-cover-tier="${rec}" data-cover-weekly="${quote.tiers.find((t) => t.tier === rec)?.weekly_premium_sgd ?? ""}"></div>
     <p class="error" id="buy-error" role="alert"></p>`;
 }
 
@@ -1363,10 +1363,11 @@ const SMS_LANGUAGES = { en: "English", zh: "中文", ms: "Melayu", ta: "தம�
 /** Draw the welcome SMS for a tier, exactly as /api/cover-text gives it, with a language switch.
     The landing page, the buy flow and the dashboard all show this one text, so what is sold is
     what is texted, with the no-pay sentence the brief asks for at the point of sale. */
-async function coverSms(slot, tier, language = "en") {
+async function coverSms(slot, tier, language = "en", weekly = null) {
   if (!slot) return;
   try {
     const params = new URLSearchParams({ tier, language });
+    if (weekly) params.set("weekly", weekly);
     const cover = await api(`/api/cover-text?${params}`);
     const switcher = document.createElement("div");
     switcher.className = "sms-langs";
@@ -1377,7 +1378,7 @@ async function coverSms(slot, tier, language = "en") {
       button.type = "button";
       button.textContent = label;
       button.setAttribute("aria-pressed", String(key === language));
-      button.addEventListener("click", () => coverSms(slot, tier, key));
+      button.addEventListener("click", () => coverSms(slot, tier, key, weekly));
       switcher.append(button);
     }
     const bubble = document.createElement("p");
@@ -1394,7 +1395,8 @@ async function coverSms(slot, tier, language = "en") {
 }
 
 function wireCoverSms() {
-  document.querySelectorAll("[data-cover-tier]").forEach((slot) => coverSms(slot, slot.dataset.coverTier));
+  document.querySelectorAll("[data-cover-tier]").forEach((slot) =>
+    coverSms(slot, slot.dataset.coverTier, "en", slot.dataset.coverWeekly || null));
 }
 
 wireTheme();

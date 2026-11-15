@@ -113,10 +113,6 @@ def text(db: Connection, payout, account, kind: str) -> None:
     sms.send(db, payout.user_id, kind, account.sms_mobile, account.sms_language, body, payout.id)
 
 
-def first_band(tariff: Tariff, hazard_key: str) -> float:
-    return calculator.find(tariff.hazards, hazard_key, "hazard").bands[0].at_least
-
-
 def welcome_contact(db: Connection, user_id: int) -> tuple[str, str] | None:
     """Where the welcome text goes, and in which language: the verified PayNow mobile, else the
     mobile given at sign-up (a landline is never texted). None when there is no mobile."""
@@ -169,23 +165,22 @@ def send_welcome_if_due(db: Connection, user_id: int, tariff: Tariff) -> None:
         return
     mobile, language = contact
     body = cover_text(
-        tariff, language, policy.daily_payout_sgd, policy.max_paid_days_per_year,
-        first_covered_day(policy.started_at),
+        language, policy.tier, policy.weekly_premium_sgd, policy.daily_payout_sgd,
+        policy.max_paid_days_per_year,
     )
     sms.send(db, user_id, "welcome", mobile, language, body)
 
 
-def cover_text(tariff: Tariff, language: str, payout_sgd: float, max_days: int,
-               first_day: date) -> str:
-    """The cover in one SMS, with the tariff's first trigger levels. Also shown at the sale."""
+def tier_number(tier_key: str) -> int:
+    """'tier_2' as the 2 a customer reads in the SMS."""
+    return int(tier_key.rsplit("_", 1)[-1])
+
+
+def cover_text(language: str, tier_key: str, weekly_sgd: float | None, payout_sgd: float,
+               max_days: int) -> str:
+    """The cover in one SMS. Sent after payment and shown wherever cover is sold."""
     return sms.welcome_text(
-        language,
-        payout_sgd=payout_sgd,
-        heat_hours=first_band(tariff, "heat"),
-        rain_mm=first_band(tariff, "rain"),
-        psi=first_band(tariff, "haze"),
-        max_days=max_days,
-        first_day=first_day,
+        language, tier_number(tier_key), weekly_sgd, payout_sgd, max_days, WAITING_PERIOD_DAYS
     )
 
 

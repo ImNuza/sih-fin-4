@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, date, datetime, timedelta
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import Connection, Engine, delete, insert, select, update
 
@@ -354,16 +354,18 @@ def cover_text(
     request: Request,
     tier: str = "tier_1",
     language: sms.SmsLanguage = "en",
+    weekly: Annotated[float | None, Query(gt=0, le=1000)] = None,
 ) -> dict:
     """The welcome SMS for a tier bought today: the same text the landing page, the risk atlas
-    and the dashboard show, so what is sold is what is texted. Public: it is the point of sale."""
+    and the dashboard show, so what is sold is what is texted. Public: it is the point of sale.
+    weekly is the customer's own price where the page knows their place; without it, no price."""
     tariff = store.latest(request.app.state.db).tariff
     chosen = next((t for t in tariff.tiers if t.key == tier), None)
     if chosen is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No tier {tier}")
     first_day = payout_flow.first_day_if_bought_now()
     body = payout_flow.cover_text(
-        tariff, language, chosen.daily_payout_sgd, chosen.max_paid_days_per_year, first_day
+        language, chosen.key, weekly, chosen.daily_payout_sgd, chosen.max_paid_days_per_year
     )
     return {
         "tier": chosen.key,
