@@ -94,6 +94,15 @@ function wireLogin() {
 function kpi(label, value, note) {
   return `<div class="kpi"><div class="k">${label}</div><div class="v">${value}</div>${note ? `<div class="n">${note}</div>` : ""}</div>`;
 }
+function mapPreview(params, caption) {
+  const src = "/map/?" + new URLSearchParams(params).toString();
+  return `<a class="mappreview" href="${src}" target="_blank" rel="noopener"
+    title="Open the full risk atlas in a new tab">
+    <iframe src="${src}" title="${caption}" loading="eager" tabindex="-1" aria-hidden="true"></iframe>
+    <span class="chip cap">${caption}</span>
+    <span class="chip open">Open the full atlas ↗</span>
+  </a>`;
+}
 function mapFrame(params, caption) {
   const src = "/map/?" + new URLSearchParams(params).toString();
   return `<section class="mapframe">
@@ -129,6 +138,7 @@ async function renderSme(user) {
   el("dash").innerHTML = `
     <h1>${user.business_name || user.name}</h1>
     <p class="sub">${user.centre} · ${user.region} region · priced from your region's own NEA history</p>
+    ${mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")}
     <div class="kpis">
       ${kpi("Today's loss score", todays ? `${todays.loss_percent.toFixed(0)}%` : "–", status.text)}
       ${kpi("Payout due today", policy ? (payoutToday != null ? SGD(payoutToday) : "–") : "no cover yet", policy ? `at ${policy.tier_label}` : underReview ? "after the underwriter replies" : "pick a tier below")}
@@ -182,7 +192,7 @@ async function renderSme(user) {
       </div>
       <div id="burn-body"><p class="fine">Computing…</p></div>
     </div>
-    ${mapFrame({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")}`;
+`;
 
   document.querySelectorAll(".tier-card").forEach((button) =>
     button.addEventListener("click", async () => {
