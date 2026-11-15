@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import numpy as np
 import optuna
 import pandas as pd
+from scipy.special import expit
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import (
     HistGradientBoostingClassifier,
@@ -222,7 +223,7 @@ class TorchMLP(BaseEstimator):
         return raw * self.target_std_ + self.target_mean_
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        share = 1 / (1 + np.exp(-self._raw(X)))
+        share = expit(self._raw(X))
         return np.column_stack([1 - share, share])
 
 
