@@ -115,7 +115,7 @@ async function renderSmePayouts(slot, hasPolicy) {
     <div class="card" id="day-check"></div>` : ""}`;
   if (!account) prefillPaynowMobile(application?.phone, demo.mobile);
   wireSmePayouts(slot, hasPolicy);
-  if (hasPolicy) await renderDayCheck(el("day-check"));
+  if (hasPolicy) await renderDayCheck(el("day-check"), payouts[0]?.loss_date);
   keepInboxFresh();
 }
 

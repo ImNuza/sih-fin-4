@@ -33,20 +33,31 @@ function outcomeNotice(check) {
   return notice(tone, icon, html);
 }
 
+const reading = (value) => value.toLocaleString("en-SG");
+
+/* The reading next to the next level up, so the gap reads at a glance: the first trigger until
+   it is reached, then each higher level (yellow, then red) in turn. The chip is the day colour of
+   the level reached; the line under it is what the next level brings. Levels score one hazard
+   alone, so several hazards on one day can make it redder. */
 function readingCell(h) {
-  if (h.value === null) return `<span class="fine">not reported yet</span>`;
-  const reached = h.crossed ? pill("warning", "reached") : pill("muted", "below");
-  return `<span class="num">${h.value.toLocaleString("en-SG")}</span> ${reached}`;
+  const reached = h.value === null ? null : h.levels.filter((l) => h.value >= l.at_least).at(-1);
+  const next = h.levels.find((l) => h.value === null || h.value < l.at_least);
+  const value = h.value === null ? `<span class="fine">not reported yet</span>` : `<b class="num">${reading(h.value)}</b>`;
+  const target = next ? `<span class="trigger">/ ${reading(next.at_least)}</span>` : "";
+  const now = reached ? dayChip(reached.loss_percent) : pill("muted", "below");
+  const ahead = next
+    ? `${reading(next.at_least)} or more: ${dayColour(next.loss_percent).label.toLowerCase()} (${next.loss_percent.toFixed(0)}% of the day)`
+    : "the highest level";
+  return `${value} ${target} ${now}<span class="fine block">${ahead}</span>`;
 }
 
 function readingRows(hazards) {
   if (!hazards.length) return "";
   return `<div class="table-wrap"><table class="data day-readings">
-    <thead><tr><th>Hazard</th><th class="num">Reading</th><th class="num">Pays from</th><th>Station and rule</th></tr></thead>
+    <thead><tr><th>Hazard</th><th class="num">Reading / next level</th><th>Station and rule</th></tr></thead>
     <tbody>${hazards.map((h) => `<tr>
       <td>${SafeUI.icon(ICON_FOR_HAZARD[h.hazard] || "info")} <b>${escapeHtml(h.label)}</b><span class="fine block">${escapeHtml(h.measures)}</span></td>
-      <td class="num">${readingCell(h)}</td>
-      <td class="num">${h.pays_from.toLocaleString("en-SG")}</td>
+      <td class="num nowrap">${readingCell(h)}</td>
       <td>${escapeHtml(h.basis || "")}</td>
     </tr>`).join("")}</tbody></table></div>`;
 }
@@ -98,8 +109,9 @@ function wireServiceRequest() {
   });
 }
 
-/* The card: a date box set to the latest day NEA has published, and the result below it. */
-async function renderDayCheck(slot) {
+/* The card: a date box and the readings below it, open from the start on the owner's latest
+   payout day, or else the latest day NEA has published. */
+async function renderDayCheck(slot, latestPayoutDay) {
   const history = await api("/api/map/day?date=0000-00-00");
   const latest = history.available.max;
   slot.innerHTML = `<form id="day-check-form" class="day-check-form">
@@ -112,4 +124,5 @@ async function renderDayCheck(slot) {
     event.preventDefault();
     showDay(el("day-check-date").value);
   });
+  await showDay(latestPayoutDay || latest);
 }

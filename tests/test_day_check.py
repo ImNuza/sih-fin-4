@@ -141,3 +141,13 @@ def test_a_service_request_is_only_for_a_data_error(client, kind):
 def test_business_owners_cannot_list_service_requests(client):
     stallholder_with_cover(client)
     assert client.get("/api/insurer/service-requests").status_code == 403
+
+
+def test_each_hazard_lists_its_levels_with_the_loss_each_counts(client):
+    stallholder_with_cover(client)
+    haze = hazard(my_day(client, QUIET_DAY), "haze")
+    readings_at = [level["at_least"] for level in haze["levels"]]
+    losses = [level["loss_percent"] for level in haze["levels"]]
+    assert readings_at[0] == haze["pays_from"]
+    assert readings_at == sorted(readings_at) and len(readings_at) > 1
+    assert losses == sorted(losses) and losses[0] > 0

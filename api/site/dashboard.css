@@ -191,6 +191,7 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
 .day-title { font: var(--w-bold) var(--t-md)/1.3 var(--sans); margin: var(--s-4) 0 var(--s-2); }
 .day-readings { margin-top: var(--s-3); }
 .day-readings .block { display: block; }
+.day-readings .trigger { color: var(--muted); }
 .day-report { margin-top: var(--s-4); }
 .day-report summary { cursor: pointer; color: var(--accent); font-size: var(--t-sm); }
 .day-report form { margin-top: var(--s-3); }

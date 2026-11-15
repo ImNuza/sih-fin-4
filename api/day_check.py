@@ -19,7 +19,7 @@ from sqlalchemy import insert, select
 from api import calculator, payout_api, payout_flow, readings, store
 from api.accounts import InsurerDep, SmeDep, policies, users
 from api.day_history import day_readings
-from api.models import Tariff
+from api.models import Hazard, Tariff
 from api.payouts import service_requests
 
 router = APIRouter(prefix="/api")
@@ -57,11 +57,25 @@ def hazard_rows(tariff: Tariff, values: dict[str, float | None], basis: dict[str
             "measures": hazard.reading,
             "value": value,
             "pays_from": pays_from,
+            "levels": levels(tariff, hazard, product, tier),
             "crossed": value is not None and value >= pays_from,
             "basis": basis.get(hazard.key),
             "loss_percent": losses.get(hazard.key),
         })
     return rows
+
+
+def levels(tariff: Tariff, hazard: Hazard, product: str, tier: str) -> list[dict]:
+    """Each band's reading and the share of the day it counts as lost on its own, lowest first."""
+    return [
+        {
+            "at_least": band.at_least,
+            "loss_percent": calculator.assess(
+                tariff, product, tier, {hazard.key: band.at_least}
+            ).loss_percent,
+        }
+        for band in hazard.bands
+    ]
 
 
 def unpaid_outcome(db, policy, tariff: Tariff, day: date, site: readings.SiteReadings) -> str:
