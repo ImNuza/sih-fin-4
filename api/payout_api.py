@@ -9,9 +9,11 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import Engine, delete, insert, select, update
 
-from api import paynow, payout_flow, sms, store
-from api.accounts import InsurerDep, SmeDep, UserDep, users
-from api.day_history import centre_readings, day_readings
+from api import paynow, payout_flow, postcodes, sms, store
+from api.accounts import (
+    InsurerDep, SmeDep, UserDep, application_profile, applications, policies, users,
+)
+from api.day_history import SiteReadings, day_readings, site_readings
 from api.payouts import payout_accounts, payout_events, payouts, sms_messages
 
 router = APIRouter(prefix="/api")
@@ -89,6 +91,7 @@ def payout_view(row, events: list) -> dict:
         "tier": row.tier,
         "source": row.source,
         "readings": row.readings,
+        "basis": next((e.detail.get("basis") for e in events if e.to_status == "assessed"), None),
         "main_hazard": row.main_hazard,
         "loss_percent": row.loss_percent,
         "daily_payout_sgd": row.daily_payout_cents / 100,
@@ -225,6 +228,35 @@ def list_texts(user: SmeDep, request: Request) -> list[dict]:
     ]
 
 
+def policy_places(
+    engine: Engine, map_static: dict, centres_by_sector: dict
+) -> dict[int, tuple[float, float]]:
+    """Where each policy's readings are taken: its hawker centre, else the area of the postcode
+    on its latest application (postcodes.area_point), else the middle of its PSI region."""
+    centres = {c["name"]: c for c in map_static["hawker_centres"]}
+    with engine.connect() as db:
+        postcode_of = dict(db.execute(
+            select(applications.c.user_id, application_profile.c.postcode)
+            .join(application_profile, application_profile.c.application_id == applications.c.id)
+            .where(application_profile.c.postcode.is_not(None))
+            .order_by(applications.c.id)
+        ).all())
+        in_force = db.execute(select(policies)).all()
+    places = {}
+    for policy in in_force:
+        if policy.centre in centres:
+            centre = centres[policy.centre]
+            places[policy.id] = (centre["lat"], centre["lng"])
+        elif policy.user_id in postcode_of:
+            area = postcodes.area_point(
+                postcode_of[policy.user_id], centres_by_sector, map_static["region_points"]
+            )
+            places[policy.id] = (area["lat"], area["lng"])
+        else:
+            places[policy.id] = tuple(map_static["region_points"][policy.region])
+    return places
+
+
 @router.post("/insurer/payout-runs")
 def run_payouts(body: RunIn, user: InsurerDep, request: Request) -> dict:
     """Assess every policy for one Singapore date and pay what the readings give."""
@@ -233,15 +265,24 @@ def run_payouts(body: RunIn, user: InsurerDep, request: Request) -> dict:
     if body.source == "nea_history":
         day = day_readings(request).get(body.loss_date.isoformat())
         if day is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, f"No NEA readings for {body.loss_date}")
-        centres = {c["name"]: c for c in request.app.state.map_static["hawker_centres"]}
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                f"No NEA readings for {body.loss_date} yet. Run the day again once NEA publishes "
+                "them. No policy is refused in the meantime.",
+            )
         map_static = request.app.state.map_static
+        places = policy_places(engine, map_static, request.app.state.centres_by_sector)
 
-        def readings_for(policy) -> dict[str, float]:
-            return centre_readings(day, centres[policy.centre], map_static)
+        def readings_for(policy) -> SiteReadings:
+            lat, lng = places[policy.id]
+            return site_readings(day, lat, lng, policy.region, map_static)
     else:
-        def readings_for(policy) -> dict[str, float]:
-            return body.readings
+        manual = SiteReadings(
+            readings=body.readings, basis=dict.fromkeys(body.readings, "entered by the insurer")
+        )
+
+        def readings_for(policy) -> SiteReadings:
+            return manual
 
     with engine.begin() as db:
         counts = payout_flow.run_day(

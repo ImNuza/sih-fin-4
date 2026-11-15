@@ -121,6 +121,27 @@ Append-only, one row per status change. A payout's history can always be read ba
 | `expires_at` | datetime | 10 minutes. |
 | `attempts` | int | Locked after 5. |
 
+## When a station's feed is missing (added 15 Nov 2026)
+
+The brief asks for "a fallback if the feed fails". A payout run from NEA history now reads each
+policy at its place (hawker centre, else its postcode area, else its region's middle) and, per
+hazard, takes the first of:
+
+1. the nearest station's own reading;
+2. the median of up to 3 stations within 5 km that did report (90% of rain gauges and WBGT
+   stations have another station within 3.1 km and 4.1 km);
+3. rain only: MSS's published highest 60-minute rain for the nearest gauge that day;
+4. nothing: the policy counts as `awaiting_data`. No payout row is made, so running the same day
+   again once the data arrives can still pay it. Late, never refused.
+
+Haze takes the region's PSI, else the median of the regions that reported. A station that sent
+under half its work-hour data counts as not reported (`scripts/build_day_readings.py` writes
+`rain_missing`, `heat_missing` and `rain_mss` rows; the readings rows themselves are unchanged).
+Each payout keeps its readings and, in the `assessed` event, the rule that gave each one, for
+example `median of S187, S150, S130 (S138 did not report)`. `GET /api/payouts` returns it as
+`basis`. Code: `api/day_history.py`. Before this, a missing station read as 0, so a broken feed
+meant no payout, and the nearest WBGT station of many centres had reported on few days.
+
 ## Example SMS (English, 1 segment)
 
 > SafeDay: S$62.40 sent to PayNow +65 ****4567 for heavy rain at Maxwell on 14 Nov. Ref SD-000123. No claim needed. Reply HELP for help.

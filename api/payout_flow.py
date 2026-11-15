@@ -14,6 +14,7 @@ from sqlalchemy import Connection, func, insert, select, update
 
 from api import calculator, paynow, sms
 from api.accounts import policies
+from api.day_history import SiteReadings
 from api.models import Tariff
 from api.payouts import payout_accounts, payout_events, payouts
 
@@ -26,6 +27,7 @@ COUNTED_TOWARDS_CAP = ("assessed", "approved", "held", "sending", "paid", "faile
 REJECTABLE = ("assessed", "approved", "held", "failed")
 RUN_OUTCOMES = (
     "paid", "held", "failed", "capped", "no_loss", "already_assessed", "waiting_period",
+    "awaiting_data",
 )
 
 
@@ -125,7 +127,9 @@ def send(db: Connection, payout_id: int, actor: str = "system") -> str:
 
 
 def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, loss_date: date,
-                  readings: dict[str, float], source: str) -> str:
+                  site: SiteReadings, source: str) -> str:
+    """Assess one policy for one day. A hazard with no reading yet makes no payout row, so a
+    later run of the same day can still pay it ('awaiting_data')."""
     already = db.execute(
         select(payouts.c.id).where(
             payouts.c.user_id == policy.user_id, payouts.c.loss_date == loss_date
@@ -135,6 +139,9 @@ def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, l
         return "already_assessed"
     if loss_date < first_covered_day(policy.started_at):
         return "waiting_period"
+    if site.waiting_for:
+        return "awaiting_data"
+    readings = site.readings
     assessment = calculator.assess(tariff, policy.product, policy.tier, readings)
     if assessment.payout_sgd <= 0:
         return "no_loss"
@@ -159,7 +166,7 @@ def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, l
         .returning(payouts.c.id)
     ).scalar_one()
     record(db, payout_id, None, "assessed", "system",
-           {"readings": readings, "loss_percent": assessment.loss_percent})
+           {"readings": readings, "basis": site.basis, "loss_percent": assessment.loss_percent})
     if amount_cents == 0:
         move(db, payout_id, "assessed", "capped", "system", {"cap_left_cents": cap_left})
         return "capped"
@@ -168,7 +175,7 @@ def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, l
 
 
 def run_day(db: Connection, tariff: Tariff, tariff_version: int, loss_date: date,
-            readings_for: Callable[[object], dict[str, float]], source: str,
+            readings_for: Callable[[object], SiteReadings], source: str,
             regions: set[str] | None) -> dict[str, int]:
     """Assess every policy in force for one day. readings_for gives each policy's readings."""
     counts = dict.fromkeys(RUN_OUTCOMES, 0)

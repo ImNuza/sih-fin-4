@@ -4,17 +4,25 @@ Usage:
     uv run scripts/build_day_readings.py      (run fetch scripts and heat_stats.py first)
 
 Reads  data/processed/psi_daily.parquet, data/processed/wbgt_station_days.parquet
-       data/rainfall/rain_hourly_*.parquet
+       data/rainfall/rain_hourly_*.parquet, data/mss_daily/mss_daily.parquet
+       data/processed/map_static.json (the gauges and stations a payout can read)
 Writes data/processed/day_readings.csv.gz   one row per day, kind and site:
-       haze  the day's highest 24-hour PSI per region
-       rain  the wettest work hour per gauge, mm (rows under RAIN_KEEP_MM are left out)
-       heat  work hours at WBGT 32°C or more per station (zero rows left out)
+       haze          the day's highest 24-hour PSI per region
+       rain          the wettest work hour per gauge, mm (rows under RAIN_KEEP_MM are left out)
+       heat          work hours at WBGT 32°C or more per station (zero rows left out)
+       rain_missing  a map gauge that reported under half the work hours that day (value 1)
+       heat_missing  a map WBGT station that reported under half the work-hour readings (value 1)
+       rain_mss      for a missing gauge, MSS's published highest 60-minute rain that day, mm
+Missing rows exist only from the first day of each feed in data/, so a day before the WBGT
+network data starts reads heat as 0, as before. api/day_history.py uses the missing rows to
+fall back to neighbouring stations, then MSS, then to wait for data.
 """
 
 from __future__ import annotations
 
 import csv
 import gzip
+import json
 
 import pandas as pd
 
@@ -25,6 +33,26 @@ PROC_DIR = REPO_ROOT / "data" / "processed"
 OUT_PATH = PROC_DIR / "day_readings.csv.gz"
 REGIONS = ("central", "east", "north", "south", "west")
 RAIN_KEEP_MM = 1.0
+WORK_HOURS = 12            # 07:00 to 19:00 SGT, as in hazard_stats.py and heat_stats.py
+WBGT_READINGS_PER_HOUR = 4
+MIN_REPORTED_SHARE = 0.5   # a station that sent under half its work-hour data did not report
+
+
+def map_station_ids(kind: str) -> set[str]:
+    map_static = json.loads((PROC_DIR / "map_static.json").read_text())
+    return {station["id"] for station in map_static[kind]}
+
+
+def missing_rows(
+    reported: pd.DataFrame, kind: str, stations: set[str]
+) -> list[tuple[str, str, str, float]]:
+    """Map stations with no full report on each day the feed covers. reported: day, station_id."""
+    by_day = reported.groupby("day")["station_id"].agg(set)
+    return [
+        (day.date().isoformat(), kind, station_id, 1)
+        for day, present in by_day.items()
+        for station_id in sorted(stations - present)
+    ]
 
 
 def haze_rows() -> list[tuple[str, str, str, float]]:
@@ -42,21 +70,43 @@ def haze_rows() -> list[tuple[str, str, str, float]]:
 def rain_rows() -> list[tuple[str, str, str, float]]:
     rain = load_rain()
     work = rain[rain["work_hour"]]
+    hours = work.groupby(["day", "station_id"]).size().reset_index(name="hours")
+    reported = hours[hours["hours"] >= WORK_HOURS * MIN_REPORTED_SHARE]
+    missing = missing_rows(reported, "rain_missing", map_station_ids("rain_stations"))
     wettest = work.groupby(["day", "station_id"])["rain_mm"].max().reset_index()
     wettest = wettest[wettest["rain_mm"] >= RAIN_KEEP_MM]
-    return [
+    values = [
         (record.day.date().isoformat(), "rain", record.station_id, round(float(record.rain_mm), 1))
         for record in wettest.itertuples()
+    ]
+    return values + missing + mss_rows(missing)
+
+
+def mss_rows(missing: list[tuple[str, str, str, float]]) -> list[tuple[str, str, str, float]]:
+    """MSS's published highest 60-minute rain for each gauge-day the live feed missed."""
+    mss = pd.read_parquet(REPO_ROOT / "data" / "mss_daily" / "mss_daily.parquet")
+    mss = mss.dropna(subset=["rain_max_60min_mm"])
+    published = {
+        (record.date.isoformat(), record.station_id): float(record.rain_max_60min_mm)
+        for record in mss.itertuples()
+    }
+    return [
+        (day, "rain_mss", station_id, round(published[(day, station_id)], 1))
+        for day, _, station_id, _ in missing
+        if (day, station_id) in published
     ]
 
 
 def heat_rows() -> list[tuple[str, str, str, float]]:
     days = pd.read_parquet(PROC_DIR / "wbgt_station_days.parquet")
+    full_readings = WORK_HOURS * WBGT_READINGS_PER_HOUR
+    reported = days[days["readings"] >= full_readings * MIN_REPORTED_SHARE]
     hot = days[days["hours_ge_32"] > 0]
-    return [
+    values = [
         (record.day.date().isoformat(), "heat", record.station_id, float(record.hours_ge_32))
         for record in hot.itertuples()
     ]
+    return values + missing_rows(reported, "heat_missing", map_station_ids("wbgt_stations"))
 
 
 def main() -> None:
