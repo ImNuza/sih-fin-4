@@ -221,10 +221,10 @@ def send(db: Connection, payout_id: int, actor: str = "system") -> str:
     return "failed"
 
 
-def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, loss_date: date,
-                  site: SiteReadings, source: str, apply_waiting_period: bool = True) -> str:
-    """Assess one policy for one day. A hazard with no reading yet makes no payout row, so a
-    later run of the same day can still pay it ('awaiting_data')."""
+def not_payable_reason(db: Connection, policy, loss_date: date, site: SiteReadings,
+                       apply_waiting_period: bool = True) -> str | None:
+    """Why a day is not assessed for this policy, before its readings are scored. None: the
+    readings decide. A hazard with no reading yet is 'awaiting_data', so a later run can pay."""
     already = db.execute(
         select(payouts.c.id).where(
             payouts.c.user_id == policy.user_id, payouts.c.loss_date == loss_date
@@ -239,6 +239,15 @@ def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, l
         return "cover_ended"
     if site.waiting_for:
         return "awaiting_data"
+    return None
+
+
+def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, loss_date: date,
+                  site: SiteReadings, source: str, apply_waiting_period: bool = True) -> str:
+    """Assess one policy for one day."""
+    reason = not_payable_reason(db, policy, loss_date, site, apply_waiting_period)
+    if reason is not None:
+        return reason
     readings = site.readings
     # The loss comes from today's tariff; the money from the daily amount the policy was sold with.
     assessment = calculator.assess(
