@@ -32,7 +32,7 @@ const SECTIONS = [
     label: "Pricing",
     icon: "sliders-horizontal",
     intro:
-      "When a tier is referred to an underwriter, GST, and the loads that price a tier without " +
+      "Where a tier is not offered, GST, and the loads that price a tier without " +
       "premium shares. Below them, the optional severe haze payout add-on.",
   },
   {
@@ -81,10 +81,10 @@ const PRICING_FIELDS = [
   },
   {
     key: "refer_above_limit_share",
-    label: "Refer to underwriter above",
+    label: "Not offered above",
     hint:
-      "A tier whose yearly premium is more than this share of its yearly limit is not sold " +
-      "directly: the application goes to an underwriter.",
+      "A tier whose yearly premium is more than this share of its yearly limit is not offered " +
+      "at that place. A tier whose premium reaches the whole limit is never offered.",
   },
   { key: "gst_rate", label: "GST", hint: "Quoted premiums include GST." },
 ];
@@ -1257,7 +1257,7 @@ function rung(tier, highest, before) {
     <span class="rung-name">${esc(tier.label)}</span>
     <span class="rung-bar"><i style="width: ${share}%"></i></span>
     <span class="rung-price">${was}<span class="num">${money(tier.weekly_premium_sgd)}</span><small>/wk</small></span>
-    <span class="rung-detail">${money(tier.price_per_day_sgd)} a day. Pays up to ${money(tier.daily_payout_sgd)} a day, ${money(tier.max_payout_per_year_sgd)} a year${tier.cover_multiple != null ? `: ${tier.cover_multiple} times the premium` : ""}${tier.best_value ? ". Best value" : ""}${tier.sold_directly === false ? ". Refer to underwriter" : ""}</span>
+    <span class="rung-detail">${money(tier.price_per_day_sgd)} a day. Pays up to ${money(tier.daily_payout_sgd)} a day, ${money(tier.max_payout_per_year_sgd)} a year${tier.cover_multiple != null ? `: ${tier.cover_multiple} times the premium` : ""}${tier.best_value ? ". Best value" : ""}${tier.offered === false ? ". Not offered at this place" : ""}</span>
   </li>`;
 }
 

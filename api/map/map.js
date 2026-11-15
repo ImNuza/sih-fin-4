@@ -136,25 +136,23 @@ function regionQuote(region) { return QUOTES.quotes[region]; }
 // A hawker centre is priced from its nearest NEA stations, as a stall there is charged.
 function centreQuote(centre) { return QUOTES.centres?.[centre.name] ?? regionQuote(centre.region); }
 function centreParts(centre) { return QUOTES.centre_loss_day_parts?.[centre.name] ?? QUOTES.loss_day_parts[centre.region]; }
-// Only a tier the quote sells directly is offered (sold_directly false: refer to underwriter).
-function directTiers(quote) { return quote.tiers.filter((t) => t.sold_directly !== false); }
+// Only a tier offered at the place can be recommended (offeredTiers, tier-proof.js).
 function recommendedTier(quote) {
-  const direct = directTiers(quote);
-  const affordable = direct.filter((t) => t.weekly_premium_sgd <= AFFORDABLE_WEEKLY_SGD);
-  return affordable.length ? affordable[affordable.length - 1] : direct[0] ?? quote.tiers[0];
+  const offered = offeredTiers(quote);
+  const affordable = offered.filter((t) => t.weekly_premium_sgd <= AFFORDABLE_WEEKLY_SGD);
+  return affordable.length ? affordable[affordable.length - 1] : offered[0] ?? quote.tiers[0];
 }
 function verdict(quote) {
   const tier = recommendedTier(quote);
-  if (!directTiers(quote).length)
-    return { cls: "serious", word: "Refer to underwriter", tier,
-      detail: `Every tier here costs more than ${Math.round(QUOTES.pricing.refer_above_limit_share * 100)}% of what it can pay in a year, so an Income underwriter must approve it.` };
+  if (!offeredTiers(quote).length)
+    return { cls: "serious", word: "Not offered here", tier, detail: notOfferedLine(quote) };
   if (tier.weekly_premium_sgd <= AFFORDABLE_WEEKLY_SGD)
     return { cls: "good", word: "Offer", tier,
       detail: `${tier.label} fits the brief's "few dollars a week": ${SGD(tier.weekly_premium_sgd)}/wk for ${SGD0(tier.daily_payout_sgd)}/day.` };
   if (tier.weekly_premium_sgd <= COPAY_WEEKLY_SGD)
     return { cls: "warning", word: "Offer with co-pay", tier,
       detail: `Cheapest tier is ${SGD(tier.weekly_premium_sgd)}/wk here - needs an operator, platform or NTUC co-payment to stay affordable.` };
-  // Above the co-pay level the tier is still sold directly: only sold_directly refers.
+  // Above the co-pay level the tier is still offered: only the price rule hides a tier.
   return { cls: "warning", word: "Offer with co-pay", tier,
     detail: `${quote.expected_loss_days.toFixed(1)} expected loss-days/yr price every tier above ${SGD0(COPAY_WEEKLY_SGD)}/wk here.` };
 }
@@ -718,7 +716,7 @@ function dayDetail(index, tier) {
     <div class="kv"><span class="k">Payout per stall at ${paid.tier}</span><span class="v" id="day-payout">${SGD(paid.perStall)}</span></div>
     <div class="kv"><span class="k">Whole centre (${centre.food_stalls} stalls)</span><span class="v">${SGD0(paid.perStall * centre.food_stalls)}</span></div>
     ${stressed ? `<div class="kv"><span class="k">Weekly premium if this grows ${state.extraDays} d/yr more frequent</span>
-      <span class="v">${SGD(stressed.weekly_baseline_sgd)} → <span class="delta-up">${SGD(stressed.weekly_stressed_sgd)}</span></span></div>` : ""}
+      <span class="v">${stressed.offered === false ? `${paid.tier} not offered here` : `${SGD(stressed.weekly_baseline_sgd)} → <span class="delta-up">${SGD(stressed.weekly_stressed_sgd)}</span>`}</span></div>` : ""}
     <p class="note">Paid automatically on NEA readings - no claim form, no loss adjuster.</p></div>`;
 }
 function rentSection(centre, quote) {
@@ -783,9 +781,10 @@ function renderDetail() {
         <p class="note">Day-weighted severity of the NEA readings at the stations nearest this centre (haze: the ${centre.region} zone), read as a payout reads them, × 365.25 × peril weight × product factor (cooked food keeps nothing overnight).</p></div>
       <div class="sec"><p class="cap">All tiers · weekly premium per stall</p>
         <table class="tiers"><tr><th>Tier</th><th>Payout/day</th><th>Cap</th><th>Max/yr</th><th>Weekly</th></tr>
-        ${quote.tiers.map((t) => `<tr class="${t.tier === rec.tier ? "rec" : ""}"><td>${t.label}</td><td>${SGD0(t.daily_payout_sgd)}</td><td>${tierDays(t)} d</td><td>${SGD0(t.max_payout_per_year_sgd)}</td><td>${SGD(t.weekly_premium_sgd)}${t.sold_directly === false ? " · refer" : ""}</td></tr>`).join("")}
+        ${quote.tiers.map((t) => `<tr class="${t.tier === rec.tier ? "rec" : ""}"><td>${t.label}</td><td>${SGD0(t.daily_payout_sgd)}</td><td>${tierDays(t)} d</td><td>${SGD0(t.max_payout_per_year_sgd)}</td><td>${t.offered === false ? "Not offered here" : SGD(t.weekly_premium_sgd)}</td></tr>`).join("")}
         </table>
-        ${quote.tiers.map((t) => `<p class="note">${t.label}${t.best_value ? " (best value)" : ""}: ${SGD(monthlyPrice(t))} a month, ${SGD(t.weekly_premium_sgd)} a week, ${dayPrice(t)}. ${fullLossLine(t, PARTIAL_DAYS[t.tier])} ${lockdownLine(t)}${t.tier === rec.tier ? ` ${lockdownExample(t)}` : ""} ${coverLine(t)} ${centsBack(t)}</p>`).join("")}</div>
+        ${notOfferedLine(quote) ? `<p class="note">${notOfferedLine(quote)}</p>` : ""}
+        ${offeredTiers(quote).map((t) => `<p class="note">${t.label}${t.best_value ? " (best value)" : ""}: ${SGD(monthlyPrice(t))} a month, ${SGD(t.weekly_premium_sgd)} a week, ${dayPrice(t)}. ${fullLossLine(t, PARTIAL_DAYS[t.tier])} ${lockdownLine(t)}${t.tier === rec.tier ? ` ${lockdownExample(t)}` : ""} ${coverLine(t)} ${centsBack(t)}</p>`).join("")}</div>
       ${rentSection(centre, quote)}
       <div class="sec"><p class="cap">Premium build-up · ${rec.label}</p>${premiumBuildup(rec)}
         <p class="note">Insurable interest (Insurance Act 1966 s151): the payout is a pre-estimate of a stall's lost daily takings, so this is insurance, not a wager.</p></div>

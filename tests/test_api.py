@@ -386,6 +386,24 @@ def test_the_what_if_circle_prices_each_centre_from_its_own_stations(client):
     shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
     assert scenario["centres"][MAXWELL]["weekly_baseline_sgd"] == weekly(shown)
     assert scenario["centres"][MAXWELL]["weekly_stressed_sgd"] > weekly(shown)
+    assert scenario["centres"][MAXWELL]["offered"] is True
+
+
+def test_the_what_if_circle_leaves_out_centres_where_the_tier_is_not_offered(client):
+    point = centre_point(client, MAXWELL)
+    body = {"lat": point["latitude"], "lng": point["longitude"], "radius_km": 0.3,
+            "readings": {"haze": 230}, "product": "cooked_food", "tier": "tier_2"}
+    before = client.post("/api/map/scenario", json=body).json()
+    assert before["totals"]["weekly_premium_baseline_sgd"] > 0
+    saved = client.get("/api/admin/tariff", auth=ADMIN).json()
+    saved["tariff"]["pricing"]["refer_above_limit_share"] = 0.01
+    change = {"based_on_version": saved["version"], "tariff": saved["tariff"]}
+    assert client.put("/api/admin/tariff", json=change, auth=ADMIN).status_code == 200
+    after = client.post("/api/map/scenario", json=body).json()
+    assert after["centres"][MAXWELL]["offered"] is False
+    assert after["totals"]["stalls"] == before["totals"]["stalls"]
+    assert after["totals"]["payout_today_sgd"] == 0
+    assert after["totals"]["weekly_premium_baseline_sgd"] == 0
 
 
 def test_a_tariff_saved_in_the_old_shape_is_replaced_by_the_default(tmp_path, monkeypatch):

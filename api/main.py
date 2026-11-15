@@ -579,6 +579,7 @@ class ScenarioRequest(BaseModel):
 
 SCENARIO_PRICES = (
     "expected_loss_days", "stressed_loss_days", "weekly_baseline_sgd", "weekly_stressed_sgd",
+    "offered",
 )
 
 
@@ -589,7 +590,8 @@ def map_scenario(body: ScenarioRequest, saved: SavedTariffDep, request: Request)
     The readings score one day's loss and payout (as /api/assess). Each centre's premium is
     its own, from its nearest stations (business_quote), stressed by assuming days like this
     hit it extra_days_per_year more times a year on top of its NEA history, then priced by
-    the same engine as every quote.
+    the same engine as every quote. A centre where the tier is not offered adds nothing to the
+    payout or the premium pool.
     """
     tariff = saved.tariff
     assessment = calculator.assess(tariff, body.product, body.tier, body.readings)
@@ -618,6 +620,7 @@ def map_scenario(body: ScenarioRequest, saved: SavedTariffDep, request: Request)
             "stressed_loss_days": round(stressed_days, 2),
             "weekly_baseline_sgd": baseline.weekly_premium_sgd,
             "weekly_stressed_sgd": round(stressed_yearly / calculator.WEEKS_PER_YEAR, 2),
+            "offered": baseline.offered,
         }
 
     affected = [
@@ -630,6 +633,7 @@ def map_scenario(body: ScenarioRequest, saved: SavedTariffDep, request: Request)
         for centre in centres
     ]
     stalls = sum(centre["food_stalls"] for centre in centres)
+    insured = [a for a in affected if a["offered"]]
     return {
         "assessment": assessment,
         "centres": {a["name"]: {k: a[k] for k in SCENARIO_PRICES} for a in affected},
@@ -637,12 +641,12 @@ def map_scenario(body: ScenarioRequest, saved: SavedTariffDep, request: Request)
         "totals": {
             "centres": len(centres),
             "stalls": stalls,
-            "payout_today_sgd": round(assessment.payout_sgd * stalls, 2),
+            "payout_today_sgd": round(assessment.payout_sgd * sum(c["stalls"] for c in insured), 2),
             "weekly_premium_baseline_sgd": round(
-                sum(c["stalls"] * c["weekly_baseline_sgd"] for c in affected), 2
+                sum(c["stalls"] * c["weekly_baseline_sgd"] for c in insured), 2
             ),
             "weekly_premium_stressed_sgd": round(
-                sum(c["stalls"] * c["weekly_stressed_sgd"] for c in affected), 2
+                sum(c["stalls"] * c["weekly_stressed_sgd"] for c in insured), 2
             ),
         },
     }
