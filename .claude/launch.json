@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "platform-api",
+      "runtimeExecutable": "/Users/rafael/.local/bin/uv",
+      "runtimeArgs": ["run", "--env-file", ".env", "uvicorn", "api.main:app", "--reload", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "dashboard",
+      "runtimeExecutable": "/Users/rafael/.local/bin/uv",
+      "runtimeArgs": ["run", "streamlit", "run", "app/app.py", "--server.headless", "true", "--server.port", "8501"],
+      "port": 8501
+    }
+  ]
+}

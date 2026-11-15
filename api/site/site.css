@@ -291,3 +291,28 @@ table.list td.num { color: var(--ink); }
 .mappreview .chip.open { bottom: 10px; right: 12px; background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .mappreview:hover .chip.open { filter: brightness(1.08); }
 .mappreview:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* payouts */
+.payout-form { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; margin-bottom: 12px; }
+.payout-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.payout-form label[hidden] { display: none; }
+.payout-form .fine, .payout-form .error { flex-basis: 100%; margin: 0; }
+.payout-form input, .payout-form select, .verify-row input {
+  font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 9px; min-width: 0;
+}
+.verify-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.verify-row input { width: 9em; }
+.status-pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
+  font-weight: 600; border: 1px solid currentColor; text-transform: capitalize; }
+.status-pill.good { color: var(--good); }
+.status-pill.warning { color: var(--warning); }
+.status-pill.critical { color: var(--critical); }
+.status-pill.muted { color: var(--muted); }
+.sms-inbox { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
+.sms { align-self: flex-start; max-width: 92%; background: var(--good-soft); border-radius: 14px 14px 14px 4px;
+  padding: 8px 12px; }
+.sms.payout_failed { background: var(--critical-soft); }
+.sms p { margin: 0 0 4px; font-size: 14px; line-height: 1.4; color: var(--ink); }
+.sms span { font-size: 11px; color: var(--muted); }
+.card table.list { width: 100%; overflow-x: auto; display: block; }

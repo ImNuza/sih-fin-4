@@ -38,8 +38,9 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
-from api import accounts, burn, calculator, kyc, store
+from api import accounts, burn, calculator, kyc, payout_api, store
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
+from api.day_history import day_readings
 from api.live import LiveFeed
 from api.calculator import BidRecord, History, Readings, Site, Sites
 from api.models import (
@@ -400,21 +401,6 @@ def map_kyc(body: KycRequest, tariff: TariffDep, request: Request) -> KycResult:
     so every payout still comes from the tariff and the day's readings. Nothing is stored.
     """
     return kyc.read_shop(body, tariff.products, request.app.state.places)
-
-
-DAY_READINGS_PATH = REPO_ROOT / "data" / "processed" / "day_readings.csv.gz"
-
-
-def day_readings(request: Request) -> dict[str, dict[str, dict[str, float]]]:
-    """All historical daily readings, loaded once: {day: {kind: {site: value}}}."""
-    if not hasattr(request.app.state, "day_readings"):
-        if not DAY_READINGS_PATH.exists():
-            raise HTTPException(
-                status.HTTP_404_NOT_FOUND,
-                "day_readings.csv.gz is missing. Run scripts/build_day_readings.py.",
-            )
-        request.app.state.day_readings = burn.load_day_table()
-    return request.app.state.day_readings
 
 
 @app.get("/api/map/burn")
@@ -851,6 +837,7 @@ def preview(request: PreviewRequest, _: AdminDep, history: HistoryDep) -> Previe
 
 
 app.include_router(accounts.router)
+app.include_router(payout_api.router)
 app.mount("/admin", StaticFiles(directory=API_DIR / "admin", html=True), name="admin")
 app.mount("/map", StaticFiles(directory=API_DIR / "map", html=True), name="map")
 app.mount("/", StaticFiles(directory=API_DIR / "site", html=True), name="site")

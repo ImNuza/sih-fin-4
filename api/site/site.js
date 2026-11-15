@@ -193,7 +193,11 @@ async function renderSme(user) {
       </div>
       <div id="burn-body"><p class="fine">Computing…</p></div>
     </div>
+    <div id="payouts-panel"></div>
 `;
+  renderSmePayouts(el("payouts-panel"), Boolean(policy)).catch((error) => {
+    el("payouts-panel").innerHTML = `<p class="error">Could not load payouts: ${error.message}</p>`;
+  });
 
   document.querySelectorAll(".tier-card").forEach((button) =>
     button.addEventListener("click", async () => {
@@ -293,7 +297,11 @@ async function renderInsurer(user) {
       ${Object.keys(portfolio.by_region).length ? `<p class="fine" style="margin-top:10px">By region: ${Object.entries(portfolio.by_region)
         .map(([region, r]) => `${region} ${r.policies} (${SGD(r.weekly_premium_sgd)}/wk)`).join(" · ")}</p>` : ""}
     </div>
+    <div id="payouts-panel"></div>
     ${mapFrame({ view: "insurer", mode: "live" }, "The book on the map, live")}`;
+  renderInsurerPayouts(el("payouts-panel")).catch((error) => {
+    el("payouts-panel").innerHTML = `<p class="error">Could not load payouts: ${error.message}</p>`;
+  });
 }
 
 async function wireDashboard() {
