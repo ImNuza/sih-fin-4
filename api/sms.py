@@ -133,6 +133,15 @@ TEMPLATES = {
         "ta": "SafeDay: உங்கள் கடும் புகைமூட்ட கொடுப்பனவு S${amount} காத்திருக்கிறது. செயலியில் "
         "கைபேசி எண்ணை உறுதிப்படுத்தவும். குறிப்பு {ref}.",
     },
+    "forecast_warning": {
+        "en": "SafeDay: {hazards} forecast {day}. {tip} A forecast is not a payout; payment "
+        "depends on the real reading.",
+        "zh": "SafeDay：{day}预报{hazards}。{tip}预报不等于赔付，赔付以实际读数为准。",
+        "ms": "SafeDay: ramalan {hazards} {day}. {tip} Ramalan bukan bayaran; bayaran ikut "
+        "bacaan sebenar.",
+        "ta": "SafeDay: {day} {hazards} முன்னறிவிப்பு. {tip} முன்னறிவிப்பு பணம் அல்ல; "
+        "உண்மையான அளவீட்டைப் பொறுத்தே பணம்.",
+    },
     "otp": {
         "en": "SafeDay code: {code}. It expires in 10 minutes. Do not share it.",
         "zh": "SafeDay验证码：{code}。10分钟内有效。请勿分享。",
@@ -140,6 +149,21 @@ TEMPLATES = {
         "ta": "SafeDay குறியீடு: {code}. 10 நிமிடங்களில் காலாவதியாகும். பகிர வேண்டாம்.",
     },
 }
+
+
+# One tip per early warning: the one for the first hazard forecast, in WARNED_HAZARDS order.
+WARNING_TIPS = {
+    "en": {"rain": "Tie down awnings, raise stock.", "haze": "Keep N95 masks ready, cover food.",
+           "heat": "Drink water often, rest in shade."},
+    "zh": {"rain": "请固定雨篷、垫高货物。", "haze": "备好N95口罩，盖好食物。",
+           "heat": "多喝水，在阴凉处休息。"},
+    "ms": {"rain": "Ikat kanopi, angkat stok.", "haze": "Sedia topeng N95, tutup makanan.",
+           "heat": "Minum air, rehat di tempat teduh."},
+    "ta": {"rain": "கூரையைக் கட்டி, பொருட்களை உயர்த்தவும்.",
+           "haze": "N95 முகக்கவசம் தயாராக வைக்கவும்.",
+           "heat": "நீர் அருந்தி, நிழலில் ஓய்வெடுக்கவும்."},
+}
+HAZARD_LIST_SEPARATOR = {"en": ", ", "zh": "、", "ms": ", ", "ta": ", "}
 
 
 def segments(body: str) -> int:
@@ -188,6 +212,15 @@ def welcome_text(language: str, payout_sgd: float, heat_hours: float, rain_mm: f
         payout=number(payout_sgd), wbgt=HEAT_WBGT_C, heat_hours=number(heat_hours),
         rain=number(rain_mm), psi=number(psi), hours=WORK_HOURS[language], days=max_days,
         start=day_text(language, first_day),
+    )
+
+
+def warning_text(language: str, hazards: list[str], day: date) -> str:
+    """The evening-before warning: what is forecast for which day, one tip, and that a forecast
+    pays nothing on its own."""
+    names = HAZARD_LIST_SEPARATOR[language].join(HAZARD_NAMES[language][h] for h in hazards)
+    return TEMPLATES["forecast_warning"][language].format(
+        hazards=names, day=day_text(language, day), tip=WARNING_TIPS[language][hazards[0]]
     )
 
 

@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import Connection, Engine, delete, insert, select, update
 
-from api import paynow, payout_flow, postcodes, readings, sms, sms_gateway, store
+from api import (
+    forecast_warning, live, paynow, payout_flow, postcodes, readings, sms, sms_gateway, store,
+)
 from api.accounts import (
     InsurerDep, SmeDep, UserDep, application_profile, applications, policies, users,
 )
@@ -89,6 +91,24 @@ class DemoPayoutIn(BaseModel):
         if not paynow.is_valid_mobile(cleaned):
             raise ValueError("Mobile must be +65 then 8 digits starting 8 or 9")
         return cleaned
+
+
+class DemoWarningIn(BaseModel):
+    user_id: int
+    hazards: list[Literal["rain", "haze", "heat"]] = Field(
+        min_length=1, description="What the demo forecast says, for example ['rain']."
+    )
+    mobile: str | None = Field(
+        default=None,
+        description="Singapore mobile to text. Leave out to use the customer's mobile, or else "
+        "the DEMO_PAYOUT_MOBILE fallback.",
+    )
+    sms_language: sms.SmsLanguage | None = None
+
+    @field_validator("mobile")
+    @classmethod
+    def mobile_is_singapore(cls, mobile: str | None) -> str | None:
+        return DemoPayoutIn.mobile_is_singapore(mobile)
 
 
 class RejectIn(BaseModel):
@@ -548,6 +568,42 @@ def send_demo_payout(body: DemoPayoutIn, user: InsurerDep, request: Request) -> 
         p for p in load_payouts(engine, body.user_id) if p["loss_date"] == loss_date.isoformat()
     )
     return {"outcome": outcome, "payout": paid}
+
+
+@router.post("/insurer/forecast-warnings")
+def send_forecast_warnings(user: InsurerDep, request: Request) -> dict:
+    """Read NEA's latest 24-hour forecast and text every customer in a region it warns of.
+    Meant for the evening, after NEA's late-afternoon issue; a customer gets one a day."""
+    try:
+        record = live.fetch_day_forecast()
+    except (SystemExit, RuntimeError) as error:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
+    with request.app.state.db.begin() as db:
+        return forecast_warning.send_warnings(db, record)
+
+
+@router.post("/insurer/demo-forecast-warnings")
+def send_demo_forecast_warning(body: DemoWarningIn, user: InsurerDep, request: Request) -> dict:
+    """Text one customer a warning for tomorrow now, on the hazards given: the demo button.
+    The one-a-day rule is skipped, so the demo can be shown again."""
+    tomorrow = datetime.now(payout_flow.SINGAPORE).date() + timedelta(days=1)
+    with request.app.state.db.begin() as db:
+        policy = db.execute(select(policies).where(policies.c.user_id == body.user_id)).first()
+        if policy is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "That customer has no cover")
+        contact = payout_flow.welcome_contact(db, body.user_id)
+        mobile = body.mobile or (contact[0] if contact else None) or fallback_mobile()
+        if mobile is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                "That customer has no mobile yet: type one on the card")
+        language = body.sms_language or customer_language(db, body.user_id)
+        forecast_warning.warn(db, body.user_id, mobile, language, body.hazards, tomorrow)
+        sent = db.execute(
+            select(sms_messages)
+            .where(sms_messages.c.user_id == body.user_id)
+            .order_by(sms_messages.c.id.desc())
+        ).first()
+    return {"day": tomorrow.isoformat(), "text": text_view(sent)}
 
 
 def fallback_mobile() -> str | None:

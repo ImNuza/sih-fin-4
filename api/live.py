@@ -144,6 +144,16 @@ def fetch_flood_alerts(client: DgsClient) -> list[dict]:
     return [alert if isinstance(alert, dict) else {"alert": str(alert)} for alert in alerts]
 
 
+def fetch_day_forecast() -> dict:
+    """NEA's latest 24-hour forecast record. Raises SystemExit when no API key is set and
+    RuntimeError when NEA sends no record or keeps refusing the call."""
+    body = DgsClient().get("twenty-four-hr-forecast", {})
+    records = (body or {}).get("data", {}).get("records", [])
+    if not records:
+        raise RuntimeError("NEA's 24-hour forecast returned no record")
+    return max(records, key=lambda record: record["timestamp"])
+
+
 class LiveFeed:
     """One shared snapshot of today's readings, refreshed by a daemon thread."""
 

@@ -11,6 +11,7 @@ const LANGUAGES = { en: "English", zh: "中文", ms: "Bahasa Melayu", ta: "த�
 const REJECTABLE = ["assessed", "approved", "held", "failed"];
 const INBOX_REFRESH_MS = 5000;
 const DEMO_READING = { hazard: "rain", reading: 50 };
+const WARNING_HAZARDS = { rain: "Heavy rain", haze: "Haze", heat: "Heat" };
 const TEXT_STATUS = {
   queued: "waiting for the sending phone", sent: "sent by the phone", delivered: "delivered",
   failed: "failed", unknown: "the phone did not report back",
@@ -228,6 +229,7 @@ async function renderInsurerPayouts(slot) {
       <p class="page-sub">Assesses every policy for that Singapore day and pays what the tariff gives, by PayNow, with an SMS. A day already run is never paid twice.</p></div>
       <p class="fine"><span class="num">${paid.length.toLocaleString("en-SG")}</span> paid · <span class="num">${SGD(paid.reduce((sum, p) => sum + p.amount_sgd, 0))}</span> sent in total</p></div>
     ${demoPayoutCard(holders, options.hazards)}
+    ${demoWarningCard(holders)}
     <form id="run-form" class="card run-form">
       <label>Day <input type="date" name="loss_date" value="${latest}" required /></label>
       <label>Readings
@@ -274,6 +276,51 @@ function demoPayoutCard(holders, hazards) {
     <p class="fine run-note">Pays today, skipping the 30-day waiting period, by PayNow, and texts the payment notice in the language the customer chose at sign-up, unless you pick another. A mobile entered here becomes the customer's PayNow and texting mobile, with no code to verify. Left blank: the customer's own verified mobile${fallback ? `, or ${escapeHtml(fallback)} if they have none` : ""}. ${how}</p>
     <p class="run-result" id="demo-result" aria-live="polite"></p><p class="error" id="demo-error" role="alert"></p>
   </form>`;
+}
+
+/* For a demo: text one customer tomorrow's warning now. The real run reads NEA's forecast. */
+function demoWarningCard(holders) {
+  const customers = holders.policyholders;
+  if (!customers.length) return "";
+  const hazardOptions = Object.entries(WARNING_HAZARDS)
+    .map(([key, label]) => `<option value="${key}">${escapeHtml(label)}</option>`).join("");
+  const languageOptions = `<option value="">Customer's choice</option>` +
+    Object.entries(LANGUAGES).map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
+  return `<form id="warning-form" class="card run-form">
+    <h3>Demo: send a forecast warning now</h3>
+    <label>Customer <select name="user_id">${customers.map(holderOption).join("")}</select></label>
+    <label>Forecast for tomorrow <select name="hazard">${hazardOptions}</select></label>
+    <label>Text mobile <input name="mobile" type="tel" placeholder="+6591234567" value="${escapeHtml(holders.fallback_mobile || "")}" autocomplete="off" /></label>
+    <label>SMS in <select name="sms_language">${languageOptions}</select></label>
+    <button class="btn primary" type="submit">Send warning SMS</button>
+    <button class="btn" id="warn-from-nea" type="button">Warn everyone from NEA's forecast</button>
+    <p class="fine run-note">The evening before a forecast bad day, each customer in the region gets one text: what is forecast, one safety tip, and that a forecast is not a payout. "Warn everyone" reads NEA's latest 24-hour forecast and texts each customer at most once a day. The demo button skips that limit and pays nothing.</p>
+    <p class="run-result" id="warning-result" aria-live="polite"></p><p class="error" id="warning-error" role="alert"></p>
+  </form>`;
+}
+
+function warningRunSummary(run) {
+  const regions = Object.entries(run.regions).map(([region, hazards]) => `${titleCase(region)}: ${hazards.map((h) => WARNING_HAZARDS[h]).join(", ")}`);
+  const parts = Object.entries(run.counts).filter(([, n]) => n).map(([outcome, n]) => `${n} ${outcome.replaceAll("_", " ")}`);
+  return `${dayLabel(run.day)}: ${regions.join(" · ") || "no bad day forecast"} · ${parts.join(" · ") || "no policies"}`;
+}
+
+function wireWarnings() {
+  el("warning-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = formData(event.target);
+    const body = { user_id: Number(data.user_id), hazards: [data.hazard] };
+    if (data.sms_language) body.sms_language = data.sms_language;
+    if (data.mobile.trim()) body.mobile = data.mobile.trim();
+    busy(event.submitter, "warning-error", async () => {
+      const sent = await post("/api/insurer/demo-forecast-warnings", body);
+      el("warning-result").innerHTML = notice("", "check", escapeHtml(`Warning for ${dayLabel(sent.day)} to ${sent.text.to}: ${TEXT_STATUS[sent.text.status] || sent.text.status}`));
+    });
+  });
+  el("warn-from-nea")?.addEventListener("click", (event) => busy(event.currentTarget, "warning-error", async () => {
+    const run = await post("/api/insurer/forecast-warnings", {});
+    el("warning-result").innerHTML = notice("", "check", escapeHtml(warningRunSummary(run)));
+  }));
 }
 
 function latestText(payout) {
@@ -344,6 +391,7 @@ function askRejectReason(slot, button) {
 }
 
 function wireInsurerPayouts(slot) {
+  wireWarnings();
   el("demo-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const data = formData(event.target);
