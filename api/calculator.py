@@ -296,7 +296,10 @@ def tier_proof(
     full = [year for year in replayed if year < latest]
     if not full:
         return None
-    other_hazards = sum(days for key, days in losses.parts.items() if key != HAZE)
+    # Weather only: a hazard priced on assumed days (a closure order) did not happen in 2015.
+    other_hazards = sum(
+        days for key, days in losses.parts.items() if key != HAZE and key in losses.hazard_years
+    )
     haze_years = losses.hazard_years.get(HAZE, {})
     haze_2015 = haze_years.get(HAZE_YEAR, losses.parts.get(HAZE, 0.0))
     limit_days = tier.max_paid_days_per_year

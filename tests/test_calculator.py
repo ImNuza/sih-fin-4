@@ -390,6 +390,17 @@ def test_the_proof_replays_what_the_tier_would_have_paid_each_year():
     assert proof.payback_share == pytest.approx(0.6 / 1.09, abs=0.001)
 
 
+def test_the_2015_estimate_is_weather_only_without_the_assumed_closure_days():
+    tariff = make_tariff(pricing=INCOME_PRICING)
+    places = replay((2015, 365, 40), (2017, 365, 4), (2018, 365, 0), (2019, 365, 6))
+    weather_only = calculator.quote(tariff, "cooked_food", "east", places).tiers[0]
+    closure = next(h for h in tariff.hazards if h.key == "closure")
+    closure.assumed_days_per_year = 2
+    with_closure = calculator.quote(tariff, "cooked_food", "east", places).tiers[0]
+    assert with_closure.yearly_premium_sgd > weather_only.yearly_premium_sgd
+    assert with_closure.proof.haze_2015_like_sgd == weather_only.proof.haze_2015_like_sgd
+
+
 def test_no_proof_without_a_full_replay_year():
     tier_1 = calculator.quote(make_tariff(), "cooked_food", "east", replay((2026, 300, 5))).tiers[0]
     assert tier_1.proof is None

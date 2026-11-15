@@ -295,8 +295,8 @@ class TierProof(BaseModel):
     )
     paid_2026_sgd: float = Field(description="Paid in 2026, to the last day of data.")
     haze_2015_like_sgd: float = Field(
-        description="A 2015 haze year plus the average year of the other hazards, within the "
-        "yearly limit."
+        description="A 2015 haze year plus the average year of the other recorded hazards (rain "
+        "and heat), within the yearly limit. Weather only: no closure order."
     )
     payback_share: float = Field(
         description="Expected yearly payout over the yearly premium, GST included."
