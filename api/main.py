@@ -41,8 +41,8 @@ from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
 from api import (
-    accounts, burn, calculator, kyc, onboarding, payout_api, payout_flow, paynow_qr,
-    postcodes, premium, readings, sms, store, underwriting,
+    accounts, assistant, burn, calculator, kyc, onboarding, payout_api, payout_flow,
+    paynow_qr, postcodes, premium, readings, sms, store, underwriting,
 )
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.calculator import BidRecord, History, Readings, Site, Sites
@@ -1465,6 +1465,7 @@ app.include_router(accounts.router)
 app.include_router(payout_api.router)
 app.include_router(underwriting.router)
 app.include_router(premium.router)
+app.include_router(assistant.router)
 app.mount("/admin", StaticFiles(directory=API_DIR / "admin", html=True), name="admin")
 app.mount("/map", StaticFiles(directory=API_DIR / "map", html=True), name="map")
 app.mount("/", StaticFiles(directory=API_DIR / "site", html=True), name="site")
