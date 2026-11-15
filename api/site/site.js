@@ -1,5 +1,6 @@
 /* Payung platform shell: auth, the login page and the two role dashboards.
-   All pricing and access control happen in the API; this file only draws the answers. */
+   All pricing and access control happen in the API; this file only draws the answers.
+   The dashboard also needs tier-proof.js (proofLines, directTier, bestValueLine). */
 "use strict";
 
 const el = (id) => document.getElementById(id);
@@ -355,9 +356,10 @@ async function renderSme(user) {
   const rent = rentTable.centres[user.centre];
   const index = staticData.hawker_centres.findIndex((c) => c.name === user.centre);
   const todays = !live?.available ? null : site?.kind !== "centre" ? live : index >= 0 ? live.hawker_losses[index] : null;
-  // Recommend the smallest tier that pays a full day's rent at this centre.
-  const rec = rent ? rent.recommended_tier : quote.tiers[0].tier;
-  const view = { user, quote, policy, rent, rentTable, application, decision, site, place, todays, rec, live };
+  // Recommend the smallest tier that pays a full day's rent at this centre, if it is sold directly.
+  const rec = directTier(quote, rent?.recommended_tier).tier;
+  const kind = application?.business_class || (user.centre ? "hawker" : null);
+  const view = { user, quote, policy, rent, rentTable, application, decision, site, place, todays, rec, live, kind };
 
   el("dash").innerHTML = `<div id="sme-dash">
     ${smeHead(view)}
@@ -409,8 +411,8 @@ function smeKpis({ quote, policy, rent, application, todays, rec, live }) {
       ? kpi("Payout due today", "None yet", `In the ${WAITING_PERIOD_DAYS}-day waiting period until ${dateValue(waitingEnds)}`)
       : kpi("Payout due today", policy ? (payoutToday != null ? `<span class="num">${SGD(payoutToday)}</span>` : "–") : "No cover yet", payoutNote),
     kpi("Your weekly premium",
-      `<span class="num">${SGD(policy ? policy.weekly_premium_sgd : quote.tiers.find((t) => t.tier === rec).weekly_premium_sgd)}</span>`,
-      policy ? policy.tier_label : "recommended tier"),
+      `<span class="num">${SGD(policy ? policy.weekly_total_sgd ?? policy.weekly_premium_sgd : quote.tiers.find((t) => t.tier === rec).weekly_premium_sgd)}</span>`,
+      policy ? `${policy.tier_label}${policy.haze_bonus ? " and severe haze payout" : ""}` : "recommended tier"),
     kpi("Expected trigger days", `<span class="num">${quote.expected_loss_days.toFixed(1)}</span>&nbsp;/&nbsp;yr`, "full-loss-day equivalents",
       "Days of full loss in an average year, from the NEA history where you are priced. Two half days count as one."),
     rent ? kpi("Your rent per trading day", `<span class="num">${SGD(rent.rent_per_day_sgd)}</span>`,
@@ -438,7 +440,31 @@ function coverCard(view) {
 
 function referredCover(application) {
   return `<div class="card-head"><h2>Your application</h2>${pill("warning", "With an underwriter")}</div>
-    <p class="fine">Application ${application.id}, sent ${String(application.created_at).slice(0, 10)}. Because an insurer declined cover for this business before, an underwriter reviews it first. Cover starts, and you pay, only after they reply. We will contact you on ${escapeHtml(application.phone)}.</p>`;
+    <p class="fine">Application ${application.id}, sent ${String(application.created_at).slice(0, 10)}. ${referralWhy(application)} Cover starts, and you pay, only after they reply. We will contact you on ${escapeHtml(application.phone)}.</p>`;
+}
+
+/* Why an application went to an underwriter, in the owner's words. */
+function referralWhy(application) {
+  if (application.declined_before || !application.referral_reason)
+    return "Because an insurer declined cover for this business before, an underwriter reviews it first.";
+  return `${escapeHtml(application.referral_reason)}.`;
+}
+
+/* Proof sentences as fine print, one paragraph each. */
+const fineLines = (lines) => lines.map((line) => `<p class="fine">${line}</p>`).join("");
+
+/* The severe haze payout add-on on a policy: what it pays, its price, the weekly total and the
+   day its haze count starts. "" without it. */
+function hazeBonusRows(policy, policyQuote) {
+  const bonus = policy.haze_bonus;
+  if (!bonus) return "";
+  const days = policyQuote?.haze_bonus?.trigger_days;
+  return [
+    kv("Severe haze payout", `<span class="num">${proofMoney(bonus.lump_sum_sgd)}</span> at once${days ? ` in a year with ${days} or more unhealthy-haze days` : ""}`),
+    kv("Add-on weekly price", `<span class="num">${SGD(bonus.weekly_sgd)}</span>`),
+    kv("Weekly total", `<span class="num">${SGD(policy.weekly_total_sgd ?? policy.weekly_premium_sgd + bonus.weekly_sgd)}</span>`),
+    kv("Haze days counted from", dateValue(bonus.starts_on)),
+  ].join("");
 }
 
 function declinedCover({ application, decision }) {
@@ -447,9 +473,12 @@ function declinedCover({ application, decision }) {
     ${decision?.note ? `<p class="fine">Their note: ${escapeHtml(decision.note)}</p>` : ""}`;
 }
 
-function policyCover({ user, policy, rent, application, decision }) {
+function policyCover({ user, quote, policy, rent, application, decision, kind }) {
   const waitingEnds = application?.waiting_ends;
   const rentShare = rent ? Math.round((100 * policy.daily_payout_sgd) / rent.rent_per_day_sgd) : null;
+  // The quote's tier for the policy: its proof, and its daily price while the price is unchanged.
+  const policyQuote = quote.tiers.find((t) => t.tier === policy.tier && t.daily_payout_sgd === policy.daily_payout_sgd);
+  const samePrice = policyQuote && Math.abs(policyQuote.weekly_premium_sgd - policy.weekly_premium_sgd) < 0.005;
   return `<div class="card-head"><h2>Your cover</h2>${pill("good", "Covered")}</div>
     ${waitingEnds && TODAY() < waitingEnds ? notice("warning", "clock",
       `<b>Waiting period.</b> Cover starts paying ${WAITING_PERIOD_DAYS} days after the start date, from ${SG_DATE(waitingEnds)}.`) : ""}
@@ -458,26 +487,36 @@ function policyCover({ user, policy, rent, application, decision }) {
     ${rent ? kv("Share of a day's rent", `<span class="num">${rentShare}%</span>`) : ""}
     ${kv("Cap", `${policy.max_paid_days_per_year} days / yr`)}
     ${kv("Weekly premium", `<span class="num">${SGD(policy.weekly_premium_sgd)}</span>`)}
+    ${samePrice ? kv("Price per day", `<span class="num">${proofMoney(policyQuote.price_per_day_sgd)}</span>`) : ""}
+    ${samePrice ? kv("Most it pays a year", coverLine(policyQuote)) : ""}
+    ${hazeBonusRows(policy, policyQuote)}
     ${kv("Started", dateValue(policy.started_at))}
     ${application?.term_months ? kv("Term", `${application.term_months} months`) : ""}
     ${waitingEnds ? kv("Payouts from", dateValue(waitingEnds)) : ""}
     ${application?.cover_ends ? kv("Cover ends", dateValue(application.cover_ends)) : ""}
     ${decision?.decision === "approve" && decision.note ? `<p class="fine">Underwriter's note: ${escapeHtml(decision.note)}</p>` : ""}
+    ${policyQuote ? fineLines(proofLines(policyQuote, kind)) : ""}
     <p class="fine card-foot">Pays when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${escapeHtml(user.centre) || `you, in the ${titleCase(user.region)} region`}. Below those levels nothing is paid.</p>
     <div class="cancel-row" id="cancel-row">
       <button class="btn small quiet" id="cancel-policy" type="button">Cancel cover</button>
     </div>`;
 }
 
-function chooseCover({ quote, rent, rentTable, rec }) {
+function chooseCover({ quote, rent, rentTable, rec, kind }) {
   const rentShare = (payout) => Math.round((100 * payout) / rent.rent_per_day_sgd);
   const cards = quote.tiers.map((t) => `
     <div class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}">
-      <span class="t">${t.label}${t.tier === rec ? ` <span class="chip accent">Recommended</span>` : ""}</span>
+      <span class="t">${t.label}${t.tier === rec ? ` <span class="chip accent">Recommended</span>` : ""}${t.best_value ? ` <span class="chip good">Best value</span>` : ""}${t.sold_directly === false ? ` <span class="chip warning">Refer to underwriter</span>` : ""}</span>
       <span class="p">${SGD(t.weekly_premium_sgd)}<small>/wk</small></span>
-      <span class="d">${SGD(t.daily_payout_sgd)} a bad day · up to ${SGD(t.max_payout_per_year_sgd)} a year</span>
+      <span class="d">${[dayPrice(t), `${SGD(t.daily_payout_sgd)} a bad day`].filter(Boolean).join(" · ")}</span>
+      <span class="d">${coverLine(t)}</span>
+      ${centsBack(t) ? `<span class="d">${centsBack(t)}</span>` : ""}
       ${rent ? `<span class="d">${rentShare(t.daily_payout_sgd)}% of a day's rent</span>` : ""}
     </div>`).join("");
+  const recTier = quote.tiers.find((t) => t.tier === rec);
+  const proof = proofLines(recTier, kind);
+  const refers = quote.tiers.some((t) => t.sold_directly === false)
+    ? " A tier marked Refer to underwriter costs a lot here compared with what it can pay in a year: choosing it sends your application to an Income underwriter before cover starts." : "";
   const why = !rent ? "We mark the recommended tier."
     : (rent.covers_rent
       ? `Recommended is the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
@@ -485,7 +524,8 @@ function chooseCover({ quote, rent, rentTable, rec }) {
       + ` ${rentSource(rent, rentTable)}`;
   return `<h2>Payung prices for your stall</h2>
     <div class="tiers-row">${cards}</div>
-    <p class="fine">${why}</p>
+    ${proof.length ? `<p class="fine"><b>What ${recTier.label} would have paid here</b></p>${fineLines(proof)}` : ""}
+    <p class="fine">${[why, bestValueLine(quote, rec)].filter(Boolean).join(" ")}${refers}</p>
     ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add Payung to your policy with you. Payung is not sold directly.")}
     <p class="fine">The recommended tier in one SMS, as we would text it to you:</p>
     <div class="cover-sms" data-cover-tier="${rec}" data-cover-weekly="${quote.tiers.find((t) => t.tier === rec)?.weekly_premium_sgd ?? ""}"></div>`;
@@ -924,7 +964,8 @@ function referralCard(application, quotes) {
         ${row("Cover asked for", cover)}
       </div>
       <div class="referral-decide">
-        ${notice("warning", "triangle-alert", `<b>Why an insurer declined before</b><br>${escapeHtml(application.declined_details)}`)}
+        ${application.declined_details ? notice("warning", "triangle-alert", `<b>Why an insurer declined before</b><br>${escapeHtml(application.declined_details)}`) : ""}
+        ${application.referral_reason ? notice("warning", "triangle-alert", `<b>Why it was referred</b><br>${escapeHtml(application.referral_reason)}`) : ""}
         <label class="field">Note for the owner (optional)
           <textarea maxlength="500" rows="2"></textarea></label>
         <div class="row-actions">
@@ -942,7 +983,7 @@ function underwriterQueue(queue, quotes) {
   const waiting = queue.waiting.length
     ? `<div class="card referrals">${queue.waiting.map((a) => referralCard(a, quotes)).join("")}</div>`
     : `<div class="card flush"><div class="empty">${SafeUI.icon("shield-check")}<h3>No applications are waiting</h3>
-        <p>When a business that an insurer declined before applies, it waits here until an underwriter approves or declines it.</p></div></div>`;
+        <p>When a business that an insurer declined before applies, or asks for a tier that is not sold directly, it waits here until an underwriter approves or declines it.</p></div></div>`;
   return `${waiting}
     ${decided.length ? `<h3 class="subhead">Recent decisions</h3><div class="table-wrap"><table class="data">
       <thead><tr><th>Business</th><th>Decision</th><th>Note</th><th>By</th><th class="num">Date</th></tr></thead>
@@ -1016,7 +1057,7 @@ function insurerShell(user) {
     </section>
     <section class="dash-section" aria-labelledby="queue-title">
       <div class="section-head"><div><h2 id="queue-title">Waiting for an underwriter</h2>
-        <p class="page-sub">Applications from businesses that an insurer declined before.</p></div></div>
+        <p class="page-sub">Applications from businesses that an insurer declined before, and for tiers that are not sold directly.</p></div></div>
       <div id="underwriting">${tableSkeleton(3)}</div>
     </section>
     <section class="dash-section" id="payouts-panel">${tableSkeleton(4)}</section>
@@ -1141,7 +1182,7 @@ function tierRow(tierKey, quotes, regions, book) {
   const priced = regions.map((region) => quotes.quotes[region].tiers.find((t) => t.tier === tierKey));
   const tier = priced[0];
   const dayCap = Math.round(tier.max_payout_per_year_sgd / tier.daily_payout_sgd);
-  const ratios = priced.map((t) => t.max_payout_per_year_sgd / t.yearly_premium_sgd);
+  const ratios = priced.map((t) => t.cover_multiple ?? t.max_payout_per_year_sgd / t.yearly_premium_sgd);
   const policies = book ? book.filter((p) => p.tier === tierKey).length.toLocaleString("en-SG") : "–";
   return `<tr>
     <td>${escapeHtml(tier.label)}</td>
@@ -1193,7 +1234,7 @@ function tierSection(quotes, options, book) {
       </tr></thead>
       <tbody>${options.tiers.map((t) => tierRow(t.key, quotes, regions, book)).join("")}</tbody>
     </table></div>
-    <p class="fine table-foot">Premiums for ${escapeHtml(product?.label || tierView.product).toLowerCase()} in ${tierView.region === "all" ? "all five regions" : `the ${titleCase(tierView.region)} region`}, from tariff pricing loads: uncertainty ${Math.round(quotes.pricing.uncertainty_load * 100)}%, bad years ${Math.round(quotes.pricing.catastrophe_load * 100)}%, expenses ${Math.round(quotes.pricing.expense_ratio * 100)}%, GST ${Math.round(quotes.pricing.gst_rate * 100)}%.</p>
+    <p class="fine table-foot">Premiums for ${escapeHtml(product?.label || tierView.product).toLowerCase()} in ${tierView.region === "all" ? "all five regions" : `the ${titleCase(tierView.region)} region`}, priced on the payout rule: each year's bad days up to the tier's yearly cap, averaged over the replay years. Each premium splits into expected payouts, reinsurance for haze years, management, selling and distribution, and profit, by the tier's premium shares, then GST ${Math.round(quotes.pricing.gst_rate * 100)}%. A tier costing more than ${Math.round(quotes.pricing.refer_above_limit_share * 100)}% of what it can pay in a year goes to an underwriter.</p>
     ${bandLegend(quotes)}`;
 }
 

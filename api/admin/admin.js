@@ -24,13 +24,16 @@ const SECTIONS = [
     icon: "banknote",
     intro:
       "What each tier pays for a day with no sales, and how many such days it pays a year. " +
-      "Each tier pays more than the one before it.",
+      "Each tier pays more than the one before it. Premium shares split a tier's premium before " +
+      "GST into Income's five parts and must add up to 100%.",
   },
   {
     key: "pricing",
     label: "Pricing",
     icon: "sliders-horizontal",
-    intro: "Loads that turn the expected payout into the premium the customer pays.",
+    intro:
+      "When a tier is referred to an underwriter, GST, and the loads that price a tier without " +
+      "premium shares. Below them, the optional severe haze payout add-on.",
   },
   {
     key: "rent",
@@ -55,19 +58,55 @@ const PRICING_FIELDS = [
   {
     key: "uncertainty_load",
     label: "Data uncertainty load",
-    hint: "Extra on the expected loss for short records, data gaps and rising extremes.",
+    hint:
+      "Extra on the expected loss for short records, data gaps and rising extremes. " +
+      "Prices only a tier without premium shares.",
   },
   {
     key: "catastrophe_load",
     label: "Catastrophe load",
-    hint: "Capital and reinsurance for a year like the 2026 haze.",
+    hint: "Capital and reinsurance for a year like the 2026 haze. Prices only a tier without premium shares.",
   },
   {
     key: "expense_ratio",
     label: "Expenses and commission",
-    hint: "Share of the premium for running costs, partner commission and margin.",
+    hint:
+      "Share of the premium for running costs, partner commission and margin. " +
+      "Prices only a tier without premium shares.",
+  },
+  {
+    key: "distribution_expense_ratio",
+    label: "Selling and distribution",
+    hint: "The part of the expenses above spent on selling and partner commission. The rest is management.",
+  },
+  {
+    key: "refer_above_limit_share",
+    label: "Refer to underwriter above",
+    hint:
+      "A tier whose yearly premium is more than this share of its yearly limit is not sold " +
+      "directly: the application goes to an underwriter.",
   },
   { key: "gst_rate", label: "GST", hint: "Quoted premiums include GST." },
+];
+
+// A tier's premium before GST in Income's five parts: shares that add up to 100%.
+const PREMIUM_SHARES = [
+  ["expected_payouts", "Expected payouts"],
+  ["reinsurance", "Reinsurance"],
+  ["management", "Management"],
+  ["distribution", "Distribution"],
+  ["profit", "Profit"],
+];
+
+// The optional severe haze payout add-on (tariff.haze_bonus): [key, label, hint, kind].
+const HAZE_BONUS_FIELDS = [
+  ["trigger_psi", "Haze reading that counts", "Daily highest 24-hour PSI in the policy's region, as payouts read it.", "number"],
+  ["trigger_days", "Days in a policy year", "The lump sum is paid on the day the count reaches this.", "int"],
+  ["lump_sum_daily_multiple", "Lump sum, times the daily amount", "25 gives S$1,000 on a S$40-a-day tier.", "number"],
+  ["payout_multiple", "Lump sum over the add-on price", "The add-on's yearly price with GST is the lump sum divided by this.", "number"],
+  ["payout_share", "Share of the add-on price paid out", "Priced yearly chance = this / ((1 + GST) x the multiple above).", "percent"],
+  ["no_sale_months", "Months it cannot be added", "Month numbers, 1 to 12, separated by commas.", "number-list"],
+  ["waiting_days", "Waiting days", "Days from purchase before a policy year's count starts.", "int"],
 ];
 
 const FIELD_LABELS = {
@@ -91,7 +130,11 @@ const FIELD_LABELS = {
   max_paid_days_per_year: "Paid days a year, at most",
   at_least_monthly_sgd: "From median monthly bid",
   trading_days_per_month: "Trading days a month",
+  stations_on_hold: "Stations on hold",
+  premium_shares: "Premium shares",
+  ...Object.fromEntries(PREMIUM_SHARES.map(([key, label]) => [key, `${label} share`])),
   ...Object.fromEntries(PRICING_FIELDS.map((f) => [f.key, f.label])),
+  ...Object.fromEntries(HAZE_BONUS_FIELDS.map(([key, label]) => [key, label])),
 };
 
 const FIELD_HELP = {
@@ -106,6 +149,9 @@ const FIELD_HELP = {
   recovered_share: "Share of lost sales made up on later days.",
   daily_payout_sgd: "What the tier pays for a day at 100% loss.",
   max_paid_days_per_year: "The most full days the tier pays in a year.",
+  stations_on_hold:
+    "Station ids read as if they did not report, for price and payout, separated by commas.",
+  premium_shares: "Share of the premium before GST that goes to this part.",
 };
 
 const PERCENT_FIELDS = new Set([
@@ -114,6 +160,8 @@ const PERCENT_FIELDS = new Set([
   "demand_sensitivity",
   "gross_margin",
   "recovered_share",
+  "payout_share",
+  ...PREMIUM_SHARES.map(([key]) => key),
   ...PRICING_FIELDS.map((f) => f.key),
 ]);
 
@@ -330,6 +378,12 @@ function readInput(input) {
   const { kind } = input.dataset;
   if (kind === "bool") return input.checked;
   if (kind === "text") return input.value;
+  const items = input.value.split(",").map((item) => item.trim()).filter(Boolean);
+  if (kind === "list") return items;
+  if (kind === "number-list") {
+    const months = items.map(Number);
+    return months.every((month) => Number.isInteger(month) && month >= 1 && month <= 12) ? months : NaN;
+  }
   if (input.value === "") return kind === "optional" && input.validity.valid ? null : NaN;
   if (!input.validity.valid) return NaN;
   const value = Number(input.value);
@@ -349,6 +403,7 @@ function invalidPaths(node = state.draft, path = "") {
 }
 
 function sectionOf(path) {
+  if (path.startsWith("haze_bonus.")) return "pricing";
   return path.startsWith("rent.") ? "rent" : path.split(".")[0];
 }
 
@@ -433,6 +488,7 @@ function newItem(path, list) {
     label: `Tier ${number}`,
     daily_payout_sgd: Math.round(top.daily_payout_sgd * 1.5),
     max_paid_days_per_year: top.max_paid_days_per_year,
+    ...(top.premium_shares ? { premium_shares: { ...top.premium_shares } } : {}),
   };
 }
 
@@ -490,6 +546,10 @@ function shown(field, value) {
       .join(", ");
   }
   if (typeof value === "boolean") return value ? "yes" : "no";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "none";
+  if (field === "premium_shares") {
+    return PREMIUM_SHARES.map(([key, label]) => `${label} ${percent(value[key] ?? 0)}`).join(", ");
+  }
   if (PERCENT_FIELDS.has(field)) return percent(value);
   return typeof value === "number" ? number(value) : String(value);
 }
@@ -529,6 +589,15 @@ function tariffChanges(before, after) {
     before: shown(key, before.pricing[key]),
     after: shown(key, after.pricing[key]),
   }));
+  const bonusBefore = before.haze_bonus ?? {};
+  const bonusAfter = after.haze_bonus ?? {};
+  const hazeBonus = [...HAZE_BONUS_FIELDS, ["source", "Source"]]
+    .filter(([key]) => shown(key, bonusBefore[key]) !== shown(key, bonusAfter[key]))
+    .map(([key, label]) => ({
+      where: `Pricing › Severe haze payout › ${label}`,
+      before: shown(key, bonusBefore[key]),
+      after: shown(key, bonusAfter[key]),
+    }));
   const rent = ["trading_days_per_month", "source"]
     .filter((key) => before.rent[key] !== after.rent[key])
     .map((key) => ({
@@ -541,6 +610,7 @@ function tariffChanges(before, after) {
     ...itemChanges("Products", before.products, after.products),
     ...itemChanges("Tiers", before.tiers, after.tiers),
     ...pricing,
+    ...hazeBonus,
     ...itemChanges("Rent classes", before.rent.classes, after.rent.classes),
     ...rent,
   ];
@@ -681,7 +751,7 @@ function initials(name) {
 }
 
 function isChanged(path) {
-  return pathIn(state.saved.tariff, path) !== getPath(path);
+  return JSON.stringify(pathIn(state.saved.tariff, path)) !== JSON.stringify(getPath(path));
 }
 
 function markInvalid(input, invalid) {
@@ -695,6 +765,9 @@ function field(path, kind, label) {
   const named = `data-path="${path}" data-kind="${kind}" aria-label="${esc(label)}" class="${changed}"`;
   if (kind === "bool") return `<input type="checkbox" ${named} ${value ? "checked" : ""}>`;
   if (kind === "text") return `<input ${named} value="${esc(value)}">`;
+  if (kind === "list" || kind === "number-list") {
+    return `<input ${named} value="${esc(Array.isArray(value) ? value.join(", ") : "")}">`;
+  }
   if (kind === "long-text") {
     return `<textarea data-path="${path}" data-kind="text" aria-label="${esc(label)}" class="${changed}">${esc(value)}</textarea>`;
   }
@@ -840,6 +913,7 @@ function hazardCard(hazard, i) {
       <label class="field"><span class="field-label">Assumed days a year${SafeUI.help(FIELD_HELP.assumed_days_per_year)}</span>
         ${field(`${base}.assumed_days_per_year`, "optional", `${hazard.label} assumed days a year`)}
         <span class="hint">${daysNote}</span></label>
+      ${"stations_on_hold" in hazard ? labelled("Stations on hold", field(`${base}.stations_on_hold`, "list", `${hazard.label} stations on hold`), FIELD_HELP.stations_on_hold) : ""}
     </div>
     <label class="check">
       ${field(`${base}.scaled_by_product`, "bool", `${hazard.label} loss depends on the product`)}
@@ -942,6 +1016,19 @@ function productsEditor() {
 }
 
 function tiersEditor() {
+  // Share columns show when the tariff has premium shares; a tier without them uses the loads.
+  const shares = state.draft.tiers.some((tier) => tier.premium_shares);
+  const shareCells = (tier, base) =>
+    shares
+      ? PREMIUM_SHARES.map(([key, label]) =>
+          tier.premium_shares
+            ? `<td>${withUnit(field(`${base}.premium_shares.${key}`, "percent", `${tier.label} ${label} share`), "%")}</td>`
+            : `<td><span class="fixed">Pricing loads</span></td>`,
+        ).join("")
+      : "";
+  const shareHeads = shares
+    ? PREMIUM_SHARES.map(([, label]) => `<th>${label} ${SafeUI.help(FIELD_HELP.premium_shares)}</th>`).join("")
+    : "";
   const rows = state.draft.tiers
     .map((tier, i) => {
       const base = `tiers.${i}`;
@@ -950,6 +1037,7 @@ function tiersEditor() {
         <td>${field(`${base}.key`, "text", "Tier key")}</td>
         <td>${withUnit(field(`${base}.daily_payout_sgd`, "number", `${tier.label} payout for a day with no sales`), "S$", "before")}</td>
         <td>${field(`${base}.max_paid_days_per_year`, "int", `${tier.label} paid days a year`)}</td>
+        ${shareCells(tier, base)}
         <td class="row-action">${removeButton("tiers", i, state.draft.tiers.length > 1, tier.label || "this tier")}</td>
       </tr>`;
     })
@@ -960,6 +1048,7 @@ function tiersEditor() {
         <th>Name</th><th>Key</th>
         <th>Payout a day ${SafeUI.help(FIELD_HELP.daily_payout_sgd)}</th>
         <th>Paid days a year ${SafeUI.help(FIELD_HELP.max_paid_days_per_year)}</th>
+        ${shareHeads}
         <th><span class="visually-hidden">Remove</span></th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -975,7 +1064,24 @@ function pricingEditor() {
       ${withUnit(field(`pricing.${key}`, "percent", label), "%")}
     </label>`,
   ).join("");
-  return `<section class="card settings">${rows}</section>`;
+  return `<section class="card settings">${rows}</section>${hazeBonusEditor()}`;
+}
+
+// Shown only when the tariff offers the add-on; a tariff without haze_bonus does not.
+function hazeBonusEditor() {
+  if (!state.draft.haze_bonus) return "";
+  const rows = HAZE_BONUS_FIELDS.map(([key, label, hint, kind]) => {
+    const input = field(`haze_bonus.${key}`, kind, label);
+    return `<label class="setting">
+      <span><b>${label}</b><span class="hint">${hint}</span></span>
+      ${kind === "percent" ? withUnit(input, "%") : input}
+    </label>`;
+  }).join("");
+  return `<section class="card settings">
+    <div class="card-head"><h3 class="card-title">Severe haze payout add-on</h3></div>
+    ${rows}
+    ${labelled("Source", field("haze_bonus.source", "long-text", "Severe haze payout source"))}
+  </section>`;
 }
 
 function rentSpread() {
@@ -1151,7 +1257,7 @@ function rung(tier, highest, before) {
     <span class="rung-name">${esc(tier.label)}</span>
     <span class="rung-bar"><i style="width: ${share}%"></i></span>
     <span class="rung-price">${was}<span class="num">${money(tier.weekly_premium_sgd)}</span><small>/wk</small></span>
-    <span class="rung-detail">Pays up to ${money(tier.daily_payout_sgd)} a day, ${money(tier.max_payout_per_year_sgd)} a year</span>
+    <span class="rung-detail">${money(tier.price_per_day_sgd)} a day. Pays up to ${money(tier.daily_payout_sgd)} a day, ${money(tier.max_payout_per_year_sgd)} a year${tier.cover_multiple != null ? `: ${tier.cover_multiple} times the premium` : ""}${tier.best_value ? ". Best value" : ""}${tier.sold_directly === false ? ". Refer to underwriter" : ""}</span>
   </li>`;
 }
 

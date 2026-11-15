@@ -135,19 +135,26 @@ function regionQuote(region) { return QUOTES.quotes[region]; }
 // A hawker centre is priced from its nearest NEA stations, as a stall there is charged.
 function centreQuote(centre) { return QUOTES.centres?.[centre.name] ?? regionQuote(centre.region); }
 function centreParts(centre) { return QUOTES.centre_loss_day_parts?.[centre.name] ?? QUOTES.loss_day_parts[centre.region]; }
+// Only a tier the quote sells directly is offered (sold_directly false: refer to underwriter).
+function directTiers(quote) { return quote.tiers.filter((t) => t.sold_directly !== false); }
 function recommendedTier(quote) {
-  const affordable = quote.tiers.filter((t) => t.weekly_premium_sgd <= AFFORDABLE_WEEKLY_SGD);
-  return affordable.length ? affordable[affordable.length - 1] : quote.tiers[0];
+  const direct = directTiers(quote);
+  const affordable = direct.filter((t) => t.weekly_premium_sgd <= AFFORDABLE_WEEKLY_SGD);
+  return affordable.length ? affordable[affordable.length - 1] : direct[0] ?? quote.tiers[0];
 }
 function verdict(quote) {
   const tier = recommendedTier(quote);
+  if (!directTiers(quote).length)
+    return { cls: "serious", word: "Refer to underwriter", tier,
+      detail: `Every tier here costs more than ${Math.round(QUOTES.pricing.refer_above_limit_share * 100)}% of what it can pay in a year, so an Income underwriter must approve it.` };
   if (tier.weekly_premium_sgd <= AFFORDABLE_WEEKLY_SGD)
     return { cls: "good", word: "Offer", tier,
       detail: `${tier.label} fits the brief's "few dollars a week": ${SGD(tier.weekly_premium_sgd)}/wk for ${SGD0(tier.daily_payout_sgd)}/day.` };
   if (tier.weekly_premium_sgd <= COPAY_WEEKLY_SGD)
     return { cls: "warning", word: "Offer with co-pay", tier,
       detail: `Cheapest tier is ${SGD(tier.weekly_premium_sgd)}/wk here - needs an operator, platform or NTUC co-payment to stay affordable.` };
-  return { cls: "serious", word: "Refer to underwriter", tier,
+  // Above the co-pay level the tier is still sold directly: only sold_directly refers.
+  return { cls: "warning", word: "Offer with co-pay", tier,
     detail: `${quote.expected_loss_days.toFixed(1)} expected loss-days/yr price every tier above ${SGD0(COPAY_WEEKLY_SGD)}/wk here.` };
 }
 function activeCircle() { return state.circles.find((c) => c.id === state.activeId) || null; }
@@ -667,18 +674,16 @@ function hazeYearChart() {
     <line x1="0" y1="${H - 16}" x2="${W}" y2="${H - 16}" style="stroke:var(--line)" stroke-width="1"/>${bars}</svg>
     <p class="note">Days per year with 24-hour PSI above 100. PSI is NEA's 0 to 500 air quality index; above 100 the air is officially unhealthy. NEA, Mar 2016 to Nov 2026.</p></div>`;
 }
+// The quote's own build-up (expected payouts, reinsurance, management, distribution, profit,
+// GST), in the server's order: no step is worked out here.
 function premiumBuildup(tier) {
-  const p = QUOTES.pricing;
-  const risk = tier.expected_paid_days * tier.daily_payout_sgd;
-  const loads = risk * (p.uncertainty_load + p.catastrophe_load);
-  const expenses = (risk + loads) / (1 - p.expense_ratio) - (risk + loads);
-  const gst = (risk + loads + expenses) * p.gst_rate;
-  return `<div class="buildup">
-    <div class="row"><span>Risk cost - ${tier.expected_paid_days.toFixed(2)} paid days × ${SGD0(tier.daily_payout_sgd)}</span><span>${SGD(risk)}</span></div>
-    <div class="row"><span>+ uncertainty load ${Math.round(p.uncertainty_load * 100)}% + catastrophe load ${Math.round(p.catastrophe_load * 100)}%</span><span>${SGD(loads)}</span></div>
-    <div class="row"><span>+ expenses (${Math.round(p.expense_ratio * 100)}% of gross)</span><span>${SGD(expenses)}</span></div>
-    <div class="row"><span>+ GST ${Math.round(p.gst_rate * 100)}%</span><span>${SGD(gst)}</span></div>
-    <div class="row total"><span>Yearly premium → ${SGD(tier.weekly_premium_sgd)}/week</span><span>${SGD(tier.yearly_premium_sgd)}</span></div>
+  const rows = tier.build_up.map((step, at) => {
+    const label = step.key === "expected_payouts"
+      ? `${step.label} · ${tier.expected_paid_days.toFixed(2)} paid days × ${SGD0(tier.daily_payout_sgd)}` : step.label;
+    return `<div class="row"><span>${at ? "+ " : ""}${label}</span><span>${SGD(step.amount_sgd)}</span></div>`;
+  }).join("");
+  return `<div class="buildup">${rows}
+    <div class="row total"><span>Yearly premium → ${SGD(tier.weekly_premium_sgd)}/week, ${dayPrice(tier)}</span><span>${SGD(tier.yearly_premium_sgd)}</span></div>
   </div>`;
 }
 function dayDetail(index, tier) {
@@ -764,18 +769,22 @@ function renderDetail() {
         ${rentOf(centre) ? `<span class="chip">${rentChip(rentOf(centre))}</span>` : ""}
       </div>
       <div class="verdict"><span class="chip ${v.cls}">${v.word}</span>
-        <div class="t1">${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week</div>
-        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. Paid on NEA readings, usually the same day, up to ${SGD0(rec.max_payout_per_year_sgd)} a year. <b>If readings stay below the trigger levels, nothing is paid, even if sales were down.</b> No payout in the first ${WAITING_PERIOD_DAYS} days of cover. Injury, medical costs and damaged goods are not covered.</div></div>
+        <div class="t1">${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week, ${dayPrice(rec)}${rec.best_value ? ` <span class="chip good">Best value</span>` : ""}</div>
+        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. ${coverLine(rec)} ${centsBack(rec)} Paid on NEA readings, usually the same day, up to ${SGD0(rec.max_payout_per_year_sgd)} a year. <b>If readings stay below the trigger levels, nothing is paid, even if sales were down.</b> No payout in the first ${WAITING_PERIOD_DAYS} days of cover. Injury, medical costs and damaged goods are not covered.${v.cls === "serious" ? ` ${v.detail}` : ""}${bestValueLine(quote, rec.tier) ? ` ${bestValueLine(quote, rec.tier)}` : ""}</div></div>
+      ${rec.proof ? `<div class="sec"><p class="cap">What ${rec.label} would have paid here</p>
+        ${proofLines(rec, "hawker").map((line) => `<p class="note">${line}</p>`).join("")}
+        ${rec.haze_bonus ? `<p class="note">Severe haze payout add-on: ${hazeBonusPitch(rec)}${rec.haze_bonus.on_sale_now ? "" : " It can be added from November to April."}</p>` : ""}</div>` : ""}
       <div class="sec"><p class="cap">The policy in one SMS</p>
         <p class="sms" id="atlas-cover-sms">Loading the SMS…</p>
         <p class="note">The welcome text a ${rec.label} customer gets, word for word. ${SGD(rec.weekly_premium_sgd)}/wk.</p></div>
       <div class="sec"><p class="cap">Expected loss · ${quote.expected_loss_days.toFixed(2)} full-loss days a year</p>
         ${stackBar(parts)}
-        <p class="note">Day-weighted severity of the NEA readings at the stations nearest this centre (haze: the ${centre.region} zone), blended with the zone's history where a station's record is short, × 365.25 × peril weight × product factor (cooked food keeps nothing overnight).</p></div>
+        <p class="note">Day-weighted severity of the NEA readings at the stations nearest this centre (haze: the ${centre.region} zone), read as a payout reads them, × 365.25 × peril weight × product factor (cooked food keeps nothing overnight).</p></div>
       <div class="sec"><p class="cap">All tiers · weekly premium per stall</p>
         <table class="tiers"><tr><th>Tier</th><th>Payout/day</th><th>Cap</th><th>Max/yr</th><th>Weekly</th></tr>
-        ${quote.tiers.map((t) => `<tr class="${t.tier === rec.tier ? "rec" : ""}"><td>${t.label}</td><td>${SGD0(t.daily_payout_sgd)}</td><td>${t.max_paid_days_per_year ?? Math.round(t.max_payout_per_year_sgd / t.daily_payout_sgd)} d</td><td>${SGD0(t.max_payout_per_year_sgd)}</td><td>${SGD(t.weekly_premium_sgd)}</td></tr>`).join("")}
-        </table></div>
+        ${quote.tiers.map((t) => `<tr class="${t.tier === rec.tier ? "rec" : ""}"><td>${t.label}</td><td>${SGD0(t.daily_payout_sgd)}</td><td>${tierDays(t)} d</td><td>${SGD0(t.max_payout_per_year_sgd)}</td><td>${SGD(t.weekly_premium_sgd)}${t.sold_directly === false ? " · refer" : ""}</td></tr>`).join("")}
+        </table>
+        ${quote.tiers.filter((t) => t.cover_multiple != null).map((t) => `<p class="note">${t.label}${t.best_value ? " (best value)" : ""}: ${dayPrice(t)}. ${coverLine(t)} ${centsBack(t)}</p>`).join("")}</div>
       ${rentSection(centre, quote)}
       <div class="sec"><p class="cap">Premium build-up · ${rec.label}</p>${premiumBuildup(rec)}
         <p class="note">Insurable interest (Insurance Act 1966 s151): the payout is a pre-estimate of a stall's lost daily takings, so this is insurance, not a wager.</p></div>
@@ -819,7 +828,7 @@ function renderDetail() {
       <div class="sec"><p class="cap">Expected full-loss days (cooked food)</p>
         ${stackBar(parts)}
         <p class="note">${quote.expected_loss_days.toFixed(2)} days/yr → ${tier2.label} (${SGD0(tier2.daily_payout_sgd)}/day) prices at ${SGD(tier2.weekly_premium_sgd)}/week here.</p></div>
-      <div class="sec"><p class="cap">Unhealthy haze days per year</p>${hazeYearChart()}<p class="note">Haze is the catastrophe peril: most years have a handful of bad days, then one year (like 2026, with 39) hits the whole island for weeks, so every policy pays at once. That is what the caps and the catastrophe load are for.</p></div>`;
+      <div class="sec"><p class="cap">Unhealthy haze days per year</p>${hazeYearChart()}<p class="note">Haze is the catastrophe peril: most years have a handful of bad days, then one year (like 2026, with 39) hits the whole island for weeks, so every policy pays at once. That is what the yearly caps and the reinsurance for haze years are for.</p></div>`;
   }
 }
 
@@ -870,7 +879,7 @@ function renderPortfolio() {
     setPortfolioPayout(state.mode === "live" ? "Payout for today so far" : "Payout on this day", SGD0(dayPayout));
     el("p-note").textContent = dayPayout > 0
       ? `This day consumes ${(dayPayout / premiumPool * 100).toFixed(1)}% of the annual premium pool. `
-        + "The Oct 2026 haze ran 23 unhealthy days - why payable days are capped and the catastrophe load buys reinsurance."
+        + "The Oct 2026 haze ran 23 unhealthy days - why payable days are capped and part of each premium buys reinsurance for haze years."
       : "No trigger level is reached on these readings, so nothing is paid.";
   }
 }
@@ -1248,14 +1257,14 @@ function aboutHtml() {
     <div class="module"><div class="m1" style="--dot:var(--haze)">1 · Hazard</div><div class="m2">Where and how often each peril strikes.</div><div class="m3">NEA WBGT, rain-gauge and 24-h PSI history 2016-2026, plus today's live readings.</div></div>
     <div class="module"><div class="m1" style="--dot:var(--ink)">2 · Exposure</div><div class="m2">Who is standing in the way, geocoded.</div><div class="m3">${STATIC.hawker_centres.length} hawker centres, ${STATIC.hawker_centres.reduce((a, c) => a + c.food_stalls, 0).toLocaleString("en-SG")} cooked-food stalls (NEA).</div></div>
     <div class="module"><div class="m1" style="--dot:var(--heat)">3 · Vulnerability</div><div class="m2">How much a reading hurts a given business.</div><div class="m3">Severity bands × product factor (shelf life, restock, demand).</div></div>
-    <div class="module"><div class="m1" style="--dot:var(--accent)">4 · Financial</div><div class="m2">Turning damage into premium and payout.</div><div class="m3">Day caps, loads, expenses, GST - the live tariff from the tariff desk.</div></div>
+    <div class="module"><div class="m1" style="--dot:var(--accent)">4 · Financial</div><div class="m2">Turning damage into premium and payout.</div><div class="m3">Day caps, the five-part premium, GST - the live tariff from the tariff desk.</div></div>
   </div>
   <p>This mirrors regulator-recognised practice (NAIC's description of property cat models) and the geospatial tools underwriters already use - Swiss Re CatNet and Munich Re Location Risk Intelligence score locations by stacking hazard layers over geocoded exposure. The difference here: the layers are open NEA data, so the customer sees the same map as the underwriter.</p>
   <h4>The premium, step by step (the Swiss Re and Munich Re recipe)</h4>
   <p>Swiss Re's CatNet and Munich Re's Location Risk Intelligence price a location by layering
   hazard frequency over geocoded exposure, applying a damage function, then adding the money
   terms. Payung runs the same four steps, with every input public:</p>
-  <p>Every number on this page comes from the pricing API (<code>/api/quote</code>, <code>/api/assess</code>) - the same engine the tariff desk edits. For a stall, the engine computes expected loss-days (day-weighted severity of the NEA readings at the stations nearest the stall, blended with its region where a record is short, × 365.25 × peril weight × product factor - classical burning-cost rating), caps paid days per tier, then loads: +15% uncertainty, +10% catastrophe (modest next to the 2-4× expected-loss multiples of the cat-bond market), ÷ (1-25%) expenses (the documented microinsurance average), +9% GST (IRAS).</p>
+  <p>Every number on this page comes from the pricing API (<code>/api/quote</code>, <code>/api/assess</code>) - the same engine the tariff desk edits. For a stall, the engine replays every recorded day (haze from April 2014, rain from December 2016, heat from 2025) at the stations nearest the stall, read as a payout reads them (day-weighted severity × peril weight × product factor - classical burning-cost rating), counts each year's loss-days up to the tier's yearly cap and averages the years: the expected paid days. Expected payouts are those days times the daily amount. The tier's premium shares turn them into the premium before GST, in Income's five parts: expected payouts, reinsurance for haze years, management expenses, selling and distribution, and expected profit and risk margin. Then +9% GST (IRAS).</p>
   <h4>Why a payout is insurance, not a bet</h4>
   <p>Insurance Act 1966 s151 voids cover without insurable interest. Tier payouts (S$20-100/day) sit below a stall's normal daily takings (triangulated S$400-800/day gross), so each payout is a pre-estimate of lost income, sold only to operating businesses. Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, we can show a customer exactly why they pay what they pay, and no personal data goes into any price.</p>
   <h4>The protection gap</h4>
@@ -1268,7 +1277,7 @@ function aboutHtml() {
   <h4>What is real and what is assumed</h4>
   <ul>
     <li><b>Real:</b> every hazard reading (NEA via data.gov.sg, Singapore Open Data Licence), live readings in Live mode, hawker centre locations and stall counts (NEA), planning areas (URA MP2019), the 19 PUB flood hotspots (2 Feb 2026 list; plotted points approximate), the Oct 2026 haze episode (PSI peak 230; estimated cost S$2.32 bn, NTU).</li>
-    <li><b>Assumed (team tariff, editable in the tariff desk):</b> severity bands, weights, product factors, tier payouts, caps and loads. Flood is priced at the tariff's assumed days/year; PUB records 2017-2023 suggest ~7 flash-flood days/yr island-wide (Li et al. 2024, Environ. Res. Lett.), and PUB's Flood Alerts feed (Oct 2025-) is the live trigger.</li>
+    <li><b>Assumed (team tariff, editable in the tariff desk):</b> severity bands, weights, product factors, tier payouts, caps and premium shares. Flood is priced at the tariff's assumed days/year; PUB records 2017-2023 suggest ~7 flash-flood days/yr island-wide (Li et al. 2024, Environ. Res. Lett.), and PUB's Flood Alerts feed (Oct 2025-) is the live trigger.</li>
     <li><b>Illustrative:</b> the portfolio ("every food stall buys one policy") sizes accumulation risk, not sales.</li>
   </ul>
   <p>No personal data is used anywhere: only aggregate NEA readings and public geography (PDPA-clean by construction).</p>`;
