@@ -41,8 +41,8 @@ from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
 from api import (
-    accounts, assistant, burn, calculator, kyc, onboarding, payout_api, payout_flow,
-    paynow_qr, postcodes, premium, readings, sms, store, underwriting,
+    accounts, assistant, burn, calculator, kyc, model_history, onboarding, payout_api,
+    payout_flow, paynow_qr, postcodes, premium, readings, sms, store, underwriting,
 )
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.calculator import BidRecord, History, Readings, Site, Sites
@@ -657,6 +657,109 @@ def map_burn(
         "weekly_premium_sgd": tier_quote.weekly_premium_sgd,
         **result,
     }
+
+
+def filled_history(request: Request) -> model_history.ModelHistory:
+    """The model-filled daily readings since 1980, loaded once per process."""
+    if not hasattr(request.app.state, "model_history"):
+        try:
+            request.app.state.model_history = model_history.load()
+        except FileNotFoundError as error:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
+    return request.app.state.model_history
+
+
+def model_insights_data(request: Request) -> dict:
+    if not hasattr(request.app.state, "model_insights"):
+        try:
+            request.app.state.model_insights = model_history.load_insights()
+        except FileNotFoundError as error:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
+    return request.app.state.model_insights
+
+
+@app.get("/api/model/history")
+def model_centre_history(
+    request: Request,
+    tariff: TariffDep,
+    history: HistoryDep,
+    centre: str | None = None,
+    lat: Annotated[float | None, Query(**SG_LAT)] = None,
+    lng: Annotated[float | None, Query(**SG_LNG)] = None,
+    product: str = "cooked_food",
+    tier: str = "tier_2",
+) -> dict:
+    """One business's payouts in every year since 1980, with model-filled years, and the
+    typical, bad and worst year that history implies.
+
+    A centre reads its own history. A point (lat, lng) reads its nearest hawker centre's and
+    is priced at the point, as /api/map/burn prices it.
+    """
+    centres = request.app.state.map_static["hawker_centres"]
+    if centre is not None:
+        place = next((c for c in centres if c["name"] == centre), None)
+        if place is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown hawker centre: {centre}")
+        lat, lng = place["lat"], place["lng"]
+    elif lat is not None and lng is not None:
+        place = min(centres, key=lambda c: (c["lat"] - lat) ** 2 + (c["lng"] - lng) ** 2)
+    else:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give a centre, or lat and lng")
+    priced = calculator.quote_at(tariff, history, request.app.state.sites, lat, lng, product)
+    tier_quote = next((t for t in priced.tiers if t.tier == tier), None)
+    if tier_quote is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier}")
+    filled = filled_history(request)
+    insights = model_insights_data(request)
+    return {
+        "centre": place["name"],
+        "read_from_nearest_centre": centre is None,
+        "region": place["region"],
+        "product": product,
+        "tier": tier,
+        "tier_label": tier_quote.label,
+        "daily_payout_sgd": tier_quote.daily_payout_sgd,
+        "max_payout_per_year_sgd": tier_quote.max_payout_per_year_sgd,
+        **model_history.centre_years(
+            filled, place["name"], tariff, product, tier, tier_quote.yearly_premium_sgd
+        ),
+        "haze_facts": insights["haze"],
+        "data_to": insights["data_to"],
+    }
+
+
+@app.get("/api/model/book")
+def model_book(
+    _: InsurerDep,
+    request: Request,
+    tariff: TariffDep,
+    history: HistoryDep,
+    product: str = "cooked_food",
+    tier: str = "tier_2",
+) -> dict:
+    """Every food stall in every hawker centre, one policy each, back-tested since 1980."""
+    centres = request.app.state.map_static["hawker_centres"]
+    region_quotes = {
+        region: calculator.quote(tariff, history, region, product)
+        for region in {c["region"] for c in centres}
+    }
+    premium_by_centre = {}
+    for c in centres:
+        tier_quote = next((t for t in region_quotes[c["region"]].tiers if t.tier == tier), None)
+        if tier_quote is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier}")
+        premium_by_centre[c["name"]] = tier_quote.yearly_premium_sgd
+    stalls = {c["name"]: c["food_stalls"] for c in centres}
+    book = model_history.book_years(
+        filled_history(request), tariff, product, tier, stalls, premium_by_centre
+    )
+    return {"product": product, "tier": tier, "tier_label": tier_quote.label, **book}
+
+
+@app.get("/api/model/insights")
+def model_insights(request: Request) -> dict:
+    """How each trained model scored against a simple guess, and what the product uses it for."""
+    return model_insights_data(request)
 
 
 @app.get("/api/map/day")
