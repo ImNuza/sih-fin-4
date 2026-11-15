@@ -47,6 +47,8 @@ services:
       XAI_API_KEY: ${XAI_API_KEY:-}
       # Optional: texts reach real phones through textbee.dev only when this is set.
       TEXTBEE_API_KEY: ${TEXTBEE_API_KEY:-}
+      # Optional: the demo phone a payout goes to when no mobile is typed or verified.
+      DEMO_PAYOUT_MOBILE: ${DEMO_PAYOUT_MOBILE:-}
     depends_on:
       db:
         condition: service_healthy
