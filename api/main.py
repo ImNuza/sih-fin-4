@@ -141,11 +141,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Saved before the tariff gained fields (product margins, stations per trigger). Older
         # versions stay in the database; pricing starts again from the default tariff.
         saved = None
+    default = Tariff.model_validate_json(DEFAULT_TARIFF_PATH.read_text())
     if saved is None:
-        tariff = Tariff.model_validate_json(DEFAULT_TARIFF_PATH.read_text())
-        store.save(app.state.db, tariff, saved_by="default")
+        store.save(app.state.db, default, saved_by="default")
+    elif with_new_products := add_missing_products(saved.tariff, default):
+        store.save(app.state.db, with_new_products, saved_by="default: new products")
     yield
     app.state.db.dispose()
+
+
+def add_missing_products(tariff: Tariff, default: Tariff) -> Tariff | None:
+    """The saved tariff plus any product the default tariff has and it lacks, or None.
+
+    A saved tariff outlives deploys, so a product added to default_tariff.json (such as
+    platform_work) would otherwise never reach a database that already holds a tariff.
+    """
+    known = {product.key for product in tariff.products}
+    missing = [product for product in default.products if product.key not in known]
+    if not missing:
+        return None
+    return tariff.model_copy(update={"products": [*tariff.products, *missing]})
 
 
 app = FastAPI(title="SafeDay pricing API", lifespan=lifespan)

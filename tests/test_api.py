@@ -244,6 +244,26 @@ def test_a_tariff_saved_in_the_old_shape_is_replaced_by_the_default(tmp_path, mo
     assert (saved["version"], saved["saved_by"]) == (2, "default")
 
 
+def test_a_saved_tariff_gains_products_added_to_the_default(tmp_path, monkeypatch):
+    database_url = f"sqlite:///{tmp_path / 'tariff.db'}"
+    old = default_tariff()
+    old["products"] = [p for p in old["products"] if p["key"] != "platform_work"]
+    old["products"][0]["gross_margin"] = 0.5
+    with store.connect(database_url).begin() as db:
+        db.execute(insert(store.tariff_versions).values(
+            saved_at=datetime.now(UTC), saved_by="admin", body=old
+        ))
+    monkeypatch.setenv("ADMIN_USERNAME", ADMIN[0])
+    monkeypatch.setenv("ADMIN_PASSWORD", ADMIN[1])
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    with TestClient(app) as client:
+        saved = client.get("/api/admin/tariff", auth=ADMIN).json()
+        quote = client.post("/api/quote", json={"region": "central", "product": "platform_work"})
+    assert (saved["version"], saved["saved_by"]) == (2, "default: new products")
+    assert saved["tariff"]["products"][0]["gross_margin"] == 0.5
+    assert quote.status_code == 200
+
+
 def test_buy_keeps_the_new_details_and_defaults_cover_to_today(client):
     result = client.post("/api/buy", json=buy_body()).json()
     application = result["application"]
