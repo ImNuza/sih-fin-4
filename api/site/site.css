@@ -260,3 +260,15 @@ table.list td.num { color: var(--ink); }
   main { padding: var(--s-4) var(--s-4) var(--s-6); }
   .mapframe iframe { height: 420px; }
 }
+
+/* ---------- the SME's ten-year burn ---------- */
+.burn-controls label { display: inline-block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; }
+.burn-controls input { width: 130px; }
+.burn-headline { font-size: 14px; line-height: 1.6; color: var(--ink-2); margin: 10px 0 6px; }
+.burn-headline b { color: var(--ink); }
+.burn-chart { display: flex; gap: 8px; align-items: flex-end; margin: 10px 0 4px; }
+.burn-year { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+.burn-year span { font: 10px var(--mono); color: var(--muted); }
+.burn-bars { display: flex; gap: 2px; align-items: flex-end; height: 76px; }
+.burn-lost { width: 14px; background: var(--line); border-radius: 3px 3px 0 0; }
+.burn-paid { width: 14px; background: var(--accent); border-radius: 3px 3px 0 0; }

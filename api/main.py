@@ -38,7 +38,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
-from api import accounts, calculator, kyc, store
+from api import accounts, burn, calculator, kyc, store
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.live import LiveFeed
 from api.calculator import BidRecord, History, Readings, Site, Sites
@@ -413,17 +413,63 @@ def day_readings(request: Request) -> dict[str, dict[str, dict[str, float]]]:
                 status.HTTP_404_NOT_FOUND,
                 "day_readings.csv.gz is missing. Run scripts/build_day_readings.py.",
             )
-        import csv as csv_module
-        import gzip
-
-        table: dict[str, dict[str, dict[str, float]]] = {}
-        with gzip.open(DAY_READINGS_PATH, "rt", newline="") as file:
-            for row in csv_module.DictReader(file):
-                table.setdefault(row["day"], {}).setdefault(row["kind"], {})[row["site"]] = float(
-                    row["value"]
-                )
-        request.app.state.day_readings = table
+        request.app.state.day_readings = burn.load_day_table()
     return request.app.state.day_readings
+
+
+@app.get("/api/map/burn")
+def map_burn(
+    centre: str,
+    request: Request,
+    tariff: TariffDep,
+    history: HistoryDep,
+    product: str = "cooked_food",
+    tier: str = "tier_2",
+    takings: float = 500.0,
+) -> dict:
+    """One business's last ten years: what it lost and what this cover would have paid.
+
+    takings is the business's own normal daily sales in SGD; every loss figure scales
+    with it, and the payouts do not.
+    """
+    if not 50 <= takings <= 20000:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "takings must be 50 to 20000")
+    if not hasattr(request.app.state, "burn_site_map"):
+        if not burn.SITE_MAP_PATH.exists():
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                "burn_site_map.json is missing. Run scripts/burn_analysis.py.",
+            )
+        request.app.state.burn_site_map = burn.load_site_map()
+    site = request.app.state.burn_site_map.get(centre)
+    if site is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown hawker centre: {centre}")
+    place = next(
+        (c for c in request.app.state.map_static["hawker_centres"] if c["name"] == centre), None
+    )
+    priced = (
+        calculator.quote_at(
+            tariff, history, request.app.state.sites, place["lat"], place["lng"], product
+        )
+        if place is not None
+        else calculator.quote(tariff, history, site["region"], product)
+    )
+    tier_quote = next((t for t in priced.tiers if t.tier == tier), None)
+    if tier_quote is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier}")
+    result = burn.site_burn(
+        day_readings(request), site, tariff, product, tier, takings, tier_quote.yearly_premium_sgd
+    )
+    return {
+        "centre": centre,
+        "region": site["region"],
+        "product": product,
+        "tier": tier,
+        "tier_label": tier_quote.label,
+        "daily_payout_sgd": tier_quote.daily_payout_sgd,
+        "weekly_premium_sgd": tier_quote.weekly_premium_sgd,
+        **result,
+    }
 
 
 @app.get("/api/map/day")
