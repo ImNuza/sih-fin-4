@@ -8,6 +8,7 @@ Usage:
 Reads  data/processed/site_hazard_readings.csv      (from scripts/region_hazard_readings.py)
        data/processed/map_static.json              (from scripts/build_map_static.py)
        data/processed/hawker_rent.csv              (from scripts/build_hawker_rent.py)
+       data/processed/burn_site_map.json, burn_active_stations.json (from scripts/burn_analysis.py)
        api/default_tariff.json                     (the first tariff, when the database is empty)
 Writes the tariff database at DATABASE_URL         (default sqlite:///api/tariff.db)
 """
@@ -132,6 +133,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         raise SystemExit(f"{MAP_STATIC_PATH} is missing. Run scripts/build_map_static.py first.")
     app.state.map_static = json.loads(MAP_STATIC_PATH.read_text())
     app.state.places = kyc.load_places(app.state.map_static)
+    app.state.centres_by_sector = postcodes.centres_by_sector(
+        app.state.map_static["hawker_centres"]
+    )
     app.state.rent = load_rent(RENT_PATH)
     app.state.live = LiveFeed()
     app.state.db = store.connect(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
@@ -336,9 +340,13 @@ def map_quotes(tariff: TariffDep, history: HistoryDep, product: str = "cooked_fo
 
 
 
+SG_LAT = {"ge": 1.1, "le": 1.6}
+SG_LNG = {"ge": 103.5, "le": 104.2}
+
+
 class ScenarioRequest(BaseModel):
-    lat: float = Field(ge=1.1, le=1.6)
-    lng: float = Field(ge=103.5, le=104.2)
+    lat: float = Field(**SG_LAT)
+    lng: float = Field(**SG_LNG)
     radius_km: float = Field(gt=0.05, le=15)
     readings: dict[str, float]
     extra_days_per_year: float = Field(default=5, ge=0, le=60)
@@ -419,31 +427,34 @@ def map_kyc(body: KycRequest, tariff: TariffDep, request: Request) -> KycResult:
     return kyc.read_shop(body, tariff.products, request.app.state.places)
 
 
-@app.get("/api/map/burn")
-def map_burn(
-    centre: str,
-    request: Request,
-    tariff: TariffDep,
-    history: HistoryDep,
-    product: str = "cooked_food",
-    tier: str = "tier_2",
-    takings: float = 500.0,
-) -> dict:
-    """One business's last ten years: what it lost and what this cover would have paid.
-
-    takings is the business's own normal daily sales in SGD; every loss figure scales
-    with it, and the payouts do not.
-    """
-    if not 50 <= takings <= 20000:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "takings must be 50 to 20000")
-    if not hasattr(request.app.state, "burn_site_map"):
-        if not burn.SITE_MAP_PATH.exists():
+def burn_file(request: Request, name: str, path: Path, load) -> dict:
+    """A burn_analysis.py output, loaded once per process. 404 when the file is missing."""
+    if not hasattr(request.app.state, name):
+        if not path.exists():
             raise HTTPException(
-                status.HTTP_404_NOT_FOUND,
-                "burn_site_map.json is missing. Run scripts/burn_analysis.py.",
+                status.HTTP_404_NOT_FOUND, f"{path.name} is missing. Run scripts/burn_analysis.py."
             )
-        request.app.state.burn_site_map = burn.load_site_map()
-    site = request.app.state.burn_site_map.get(centre)
+        setattr(request.app.state, name, load())
+    return getattr(request.app.state, name)
+
+
+def burn_active_stations(request: Request) -> burn.ActiveStations:
+    return burn_file(
+        request, "burn_active_stations", burn.ACTIVE_STATIONS_PATH, burn.load_active_stations
+    )
+
+
+def known_region(region: str, history: History) -> None:
+    if region not in history:
+        raise calculator.UnknownKey(f"Unknown region: {region}")
+
+
+def centre_burn_site(
+    centre: str, request: Request, tariff: Tariff, history: History, product: str
+) -> tuple[dict, Quote]:
+    """A hawker centre's burn site and its quote, priced at the centre when it is on the map."""
+    site_map = burn_file(request, "burn_site_map", burn.SITE_MAP_PATH, burn.load_site_map)
+    site = site_map.get(centre)
     if site is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown hawker centre: {centre}")
     place = next(
@@ -456,6 +467,52 @@ def map_burn(
         if place is not None
         else calculator.quote(tariff, history, site["region"], product)
     )
+    return site, priced
+
+
+def point_burn_site(
+    lat: float, lng: float, region: str, request: Request, tariff: Tariff, history: History,
+    product: str,
+) -> tuple[dict, Quote]:
+    """A point's burn site and its quote from its nearest stations, as quote_at prices a place."""
+    known_region(region, history)
+    site = burn.point_site(
+        lat, lng, region, request.app.state.map_static, burn_active_stations(request)
+    )
+    return site, calculator.quote_at(tariff, history, request.app.state.sites, lat, lng, product)
+
+
+@app.get("/api/map/burn")
+def map_burn(
+    request: Request,
+    tariff: TariffDep,
+    history: HistoryDep,
+    centre: str | None = None,
+    lat: Annotated[float | None, Query(**SG_LAT)] = None,
+    lng: Annotated[float | None, Query(**SG_LNG)] = None,
+    region: str | None = None,
+    product: str = "cooked_food",
+    tier: str = "tier_2",
+    takings: float = 500.0,
+) -> dict:
+    """One business's last ten years: what it lost and what this cover would have paid.
+
+    The business is a hawker centre, or a point (lat, lng) in a PSI region, such as the area
+    point of a shop's postcode. A point reads, each year, its nearest rain gauge and WBGT
+    station that reported enough of that year, as a centre does, and prices from its nearest
+    stations. takings is the business's own normal daily sales in SGD; every loss figure
+    scales with it, and the payouts do not.
+    """
+    if not 50 <= takings <= 20000:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "takings must be 50 to 20000")
+    if centre is not None:
+        site, priced = centre_burn_site(centre, request, tariff, history, product)
+    elif lat is not None and lng is not None and region is not None:
+        site, priced = point_burn_site(lat, lng, region, request, tariff, history, product)
+    else:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "Give a centre, or lat, lng and region"
+        )
     tier_quote = next((t for t in priced.tiers if t.tier == tier), None)
     if tier_quote is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier}")
@@ -464,6 +521,8 @@ def map_burn(
     )
     return {
         "centre": centre,
+        "lat": lat if centre is None else None,
+        "lng": lng if centre is None else None,
         "region": site["region"],
         "product": product,
         "tier": tier,
@@ -521,20 +580,54 @@ def map_live(request: Request, tariff: TariffDep, product: str = "cooked_food") 
     snapshot = live.read()
     if not snapshot.get("available"):
         return snapshot
-    haze = snapshot.get("haze") or {}
-    heat = snapshot.get("heat") or []
-    rain = snapshot.get("rain") or []
-    first_tier = tariff.tiers[0].key
-    losses = []
-    for centre in request.app.state.map_static["hawker_centres"]:
-        readings = {
-            "haze": float(haze.get(centre["region"], {}).get("max_today", 0.0)),
-            "rain": nearest_reading(rain, centre["lat"], centre["lng"], "wettest_work_hour_today"),
-            "heat": nearest_reading(heat, centre["lat"], centre["lng"], "hours_ge_32_today"),
-        }
-        assessment = calculator.assess(tariff, product, first_tier, readings)
-        losses.append({"loss_percent": assessment.loss_percent, "readings": readings})
+    losses = [
+        live_loss(snapshot, tariff, product, centre["region"], centre["lat"], centre["lng"])
+        for centre in request.app.state.map_static["hawker_centres"]
+    ]
     return {**snapshot, "product": product, "hawker_losses": losses}
+
+
+@app.get("/api/map/live/at")
+def map_live_at(
+    request: Request,
+    tariff: TariffDep,
+    history: HistoryDep,
+    lat: Annotated[float, Query(**SG_LAT)],
+    lng: Annotated[float, Query(**SG_LNG)],
+    region: str,
+    product: str = "cooked_food",
+) -> dict:
+    """Today's loss score at one point in a PSI region, scored as /api/map/live scores a centre.
+
+    Returns the feed's status until `available` is true, then one hawker_losses entry with the
+    feed's fetched_at.
+    """
+    known_region(region, history)
+    live: LiveFeed = request.app.state.live
+    live.ensure_started()
+    snapshot = live.read()
+    if not snapshot.get("available"):
+        return snapshot
+    return {
+        "available": True,
+        "fetched_at": snapshot.get("fetched_at"),
+        "product": product,
+        **live_loss(snapshot, tariff, product, region, lat, lng),
+    }
+
+
+def live_loss(
+    snapshot: dict, tariff: Tariff, product: str, region: str, lat: float, lng: float
+) -> dict:
+    """Loss score on the first tier from today's readings: the region's highest 24-hour PSI
+    and the nearest reporting rain gauge and WBGT station."""
+    readings = {
+        "haze": float((snapshot.get("haze") or {}).get(region, {}).get("max_today", 0.0)),
+        "rain": nearest_reading(snapshot.get("rain") or [], lat, lng, "wettest_work_hour_today"),
+        "heat": nearest_reading(snapshot.get("heat") or [], lat, lng, "hours_ge_32_today"),
+    }
+    assessment = calculator.assess(tariff, product, tariff.tiers[0].key, readings)
+    return {"loss_percent": assessment.loss_percent, "readings": readings}
 
 
 class PolicyRequest(BaseModel):
@@ -596,7 +689,6 @@ def buy_policy(
 UEN = re.compile(r"^(\d{8}[A-Z]|\d{9}[A-Z]|[TSR]\d{2}[A-Z]{2}\d{4}[A-Z])$")
 # Singapore mobile and fixed-line numbers: 8 digits starting with 3, 6, 8 or 9.
 SG_PHONE = re.compile(r"^[3689]\d{7}$")
-CENTRE_POSTCODE = re.compile(r"Singapore (\d{6})\s*$")
 PAYMENT_REF = re.compile(r"^DEMO-[0-9A-F]{6}$")
 MAX_QR_AMOUNT_SGD = 1000
 
@@ -771,7 +863,7 @@ def demo_payment_ref() -> str:
 def hawker_postcode(request: Request, centre: str) -> str | None:
     """The postcode at the end of a hawker centre's address, if its address has one."""
     found = next(c for c in request.app.state.map_static["hawker_centres"] if c["name"] == centre)
-    match = CENTRE_POSTCODE.search(found["address"])
+    match = postcodes.ADDRESS_POSTCODE.search(found["address"])
     return match.group(1) if match else None
 
 
@@ -913,8 +1005,29 @@ def latest_application(engine, user_id: int) -> dict | None:
 
 @app.get("/api/applications/mine")
 def my_application(user: SmeDep, request: Request) -> dict | None:
-    """The signed-in stallholder's latest buy-flow application, or null."""
-    return latest_application(request.app.state.db, user.id)
+    """The signed-in business's latest buy-flow application, or null.
+
+    area_lat, area_lng and area_basis place its postcode approximately: the mean of the hawker
+    centres in its postal sector, else district, else its region's point (postcodes.area_point).
+    """
+    application = latest_application(request.app.state.db, user.id)
+    if application is None:
+        return None
+    area = (
+        postcodes.area_point(
+            application["postcode"],
+            request.app.state.centres_by_sector,
+            request.app.state.map_static["region_points"],
+        )
+        if application["postcode"]
+        else {}
+    )
+    return {
+        **application,
+        "area_lat": area.get("lat"),
+        "area_lng": area.get("lng"),
+        "area_basis": area.get("basis"),
+    }
 
 
 @app.get("/api/policies")

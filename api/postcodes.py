@@ -5,13 +5,18 @@ https://ura.gov.sg/Corporate/-/media/Corporate/Property/PMI-Online/List_Of_Posta
 Each district takes the PSI region of the URA planning area that holds most of the general
 locations URA names for it, as data/processed/map_static.json assigns planning areas to regions
 (nearest NEA PSI label point). Sectors URA does not list (00, 74, 83 to 99) are refused.
+
+area_point places a postcode on the map without an address lookup, so it works offline and for
+made-up demo postcodes: see its docstring.
 """
 
 from __future__ import annotations
 
 import re
+from statistics import fmean
 
 POSTCODE = re.compile(r"^\d{6}$")
+ADDRESS_POSTCODE = re.compile(r"Singapore (\d{6})\s*$")
 
 DISTRICT_SECTORS = {
     "01": ("01", "02", "03", "04", "05", "06"),
@@ -63,6 +68,12 @@ SECTOR_REGION = {
     for sector in sectors
 }
 
+SECTOR_DISTRICT = {
+    sector: district for district, sectors in DISTRICT_SECTORS.items() for sector in sectors
+}
+
+Places = dict[str, list[tuple[float, float]]]
+
 
 class UnknownSector(ValueError):
     pass
@@ -78,3 +89,40 @@ def region_of(postcode: str) -> str:
             f"Postal sector {sector} is not a Singapore postal sector. Check the postcode"
         )
     return SECTOR_REGION[sector]
+
+
+def centres_by_sector(hawker_centres: list[dict]) -> Places:
+    """Location of every hawker centre whose address ends in a postcode, by postal sector."""
+    places: Places = {}
+    for centre in hawker_centres:
+        match = ADDRESS_POSTCODE.search(centre["address"])
+        if match:
+            places.setdefault(match.group(1)[:2], []).append((centre["lat"], centre["lng"]))
+    return places
+
+
+def mean_place(places: list[tuple[float, float]]) -> tuple[float, float]:
+    return round(fmean(lat for lat, _ in places), 5), round(fmean(lng for _, lng in places), 5)
+
+
+def area_point(
+    postcode: str, centres: Places, region_points: dict[str, list[float]]
+) -> dict:
+    """An approximate map point for a postcode: the area it is in, not its exact address.
+
+    The point is the mean location of the hawker centres in the postcode's postal sector. With
+    no centre in the sector, it is the mean of the centres in its postal district; with none
+    there either, the NEA PSI label point of its region. basis names which area was used.
+    Raises UnknownSector for a postcode region_of refuses.
+    """
+    region = region_of(postcode)
+    sector = postcode[:2]
+    district = SECTOR_DISTRICT[sector]
+    in_district = [place for s in DISTRICT_SECTORS[district] for place in centres.get(s, [])]
+    if sector in centres:
+        (lat, lng), basis = mean_place(centres[sector]), f"postal sector {sector}"
+    elif in_district:
+        (lat, lng), basis = mean_place(in_district), f"postal district {district}"
+    else:
+        (lat, lng), basis = region_points[region], f"middle of the {region} region"
+    return {"lat": lat, "lng": lng, "region": region, "basis": basis}

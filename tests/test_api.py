@@ -7,8 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import insert
 
-from api import store
-from api.main import DEFAULT_TARIFF_PATH, SINGAPORE, add_months, app
+from api import burn, postcodes, store
+from api.main import DEFAULT_TARIFF_PATH, MAP_STATIC_PATH, SINGAPORE, add_months, app
 from api.paynow_qr import crc16_ccitt, paynow_payload
 
 ADMIN = ("admin", "secret")
@@ -452,3 +452,121 @@ def test_buy_options_list_each_class_and_every_postal_sector(client):
     assert minimart in options["ssic_codes"]
     assert options["postal_sector_regions"]["56"] == "central"
     assert len(options["postal_sector_regions"]) == 81
+
+
+MAP_STATIC = json.loads(MAP_STATIC_PATH.read_text())
+CENTRES_BY_SECTOR = postcodes.centres_by_sector(MAP_STATIC["hawker_centres"])
+
+
+def centres_in(*sectors: str) -> list[dict]:
+    def sector(centre: dict) -> str | None:
+        match = postcodes.ADDRESS_POSTCODE.search(centre["address"])
+        return match.group(1)[:2] if match else None
+
+    return [centre for centre in MAP_STATIC["hawker_centres"] if sector(centre) in sectors]
+
+
+def area(postcode: str) -> dict:
+    return postcodes.area_point(postcode, CENTRES_BY_SECTOR, MAP_STATIC["region_points"])
+
+
+def test_a_postcode_sits_at_the_mean_of_its_sectors_hawker_centres():
+    centres = centres_in("56")
+    point = area("561965")
+    assert (point["basis"], point["region"], len(centres)) == ("postal sector 56", "central", 8)
+    assert point["lat"] == pytest.approx(sum(c["lat"] for c in centres) / 8, abs=1e-5)
+    assert point["lng"] == pytest.approx(sum(c["lng"] for c in centres) / 8, abs=1e-5)
+
+
+def test_a_sector_without_a_centre_falls_back_to_its_district():
+    centres = centres_in("53", "54", "55", "82")
+    point = area("540123")
+    assert point["basis"] == "postal district 19"
+    assert point["lat"] == pytest.approx(sum(c["lat"] for c in centres) / len(centres), abs=1e-5)
+
+
+def test_a_district_without_a_centre_falls_back_to_its_region_point():
+    point = area("730123")
+    assert (point["basis"], point["region"]) == ("middle of the north region", "north")
+    assert [point["lat"], point["lng"]] == MAP_STATIC["region_points"]["north"]
+
+
+def test_a_point_at_a_centre_gets_the_centres_gauges_and_stations():
+    site_map, active = burn.load_site_map(), burn.load_active_stations()
+    for centre in MAP_STATIC["hawker_centres"]:
+        site = burn.point_site(centre["lat"], centre["lng"], centre["region"], MAP_STATIC, active)
+        assert site == site_map[centre["name"]], centre["name"]
+
+
+def test_burn_replays_ten_years_at_a_point(client):
+    point = area("561965")
+    query = {
+        "lat": point["lat"], "lng": point["lng"], "region": point["region"],
+        "product": "packaged_food", "tier": "tier_2",
+    }
+    replay = client.get("/api/map/burn", params=query).json()
+    assert (replay["centre"], replay["region"], replay["lat"]) == (None, "central", point["lat"])
+    assert replay["years"][0]["year"] == 2017 and len(replay["years"]) >= 10
+    priced = client.post("/api/quote", json={
+        "latitude": point["lat"], "longitude": point["lng"], "product": "packaged_food",
+    }).json()
+    weekly = next(t["weekly_premium_sgd"] for t in priced["tiers"] if t["tier"] == "tier_2")
+    assert replay["weekly_premium_sgd"] == weekly
+
+
+def test_burn_needs_a_centre_or_a_whole_point(client):
+    assert client.get("/api/map/burn", params={"lat": 1.35, "lng": 103.85}).status_code == 422
+    query = {"lat": 1.35, "lng": 103.85, "region": "middle"}
+    assert client.get("/api/map/burn", params=query).status_code == 404
+
+
+class StubFeed:
+    def __init__(self, snapshot: dict) -> None:
+        self.snapshot = snapshot
+
+    def ensure_started(self) -> None:
+        pass
+
+    def read(self) -> dict:
+        return self.snapshot
+
+
+LIVE_SNAPSHOT = {
+    "available": True,
+    "status": "ok",
+    "fetched_at": "2026-11-15T12:00:00+08:00",
+    "haze": {"central": {"max_today": 150.0}},
+    "rain": [{"lat": 1.37, "lng": 103.85, "wettest_work_hour_today": 25.0}],
+    "heat": [{"lat": 1.37, "lng": 103.85, "hours_ge_32_today": 0.0}],
+    "flood_alerts": [],
+}
+
+
+def test_live_at_a_point_scores_it_as_the_live_feed_scores_a_centre(client):
+    client.app.state.live = StubFeed(LIVE_SNAPSHOT)
+    index, centre = next(
+        (i, c) for i, c in enumerate(MAP_STATIC["hawker_centres"]) if c["region"] == "central"
+    )
+    query = {"lat": centre["lat"], "lng": centre["lng"], "region": "central"}
+    today = client.get("/api/map/live/at", params=query).json()
+    assert today["loss_percent"] > 0
+    assert today["readings"] == {"haze": 150.0, "rain": 25.0, "heat": 0.0}
+    assert today["fetched_at"] == LIVE_SNAPSHOT["fetched_at"]
+    every_centre = client.get("/api/map/live").json()["hawker_losses"]
+    assert {k: today[k] for k in ("loss_percent", "readings")} == every_centre[index]
+
+
+def test_live_at_a_point_waits_for_the_feed(client):
+    client.app.state.live = StubFeed({"available": False, "status": "starting"})
+    query = {"lat": 1.35, "lng": 103.85, "region": "central"}
+    assert client.get("/api/map/live/at", params=query).json() == {
+        "available": False, "status": "starting"
+    }
+
+
+def test_a_shops_application_carries_its_area_point(client):
+    client.post("/api/buy", json=shop_body(postcode="561965"))
+    mine = client.get("/api/applications/mine").json()
+    point = area("561965")
+    assert (mine["area_lat"], mine["area_lng"]) == (point["lat"], point["lng"])
+    assert mine["area_basis"] == "postal sector 56"
