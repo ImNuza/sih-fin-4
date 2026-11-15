@@ -25,6 +25,8 @@ const DEFAULT_PRODUCT = "cooked_food";  // what a hand-drawn circle sells until 
 const WAITING_PERIOD_DAYS = 30;     // api/payout_flow.py: no payout in the first 30 days of cover
 const SHOP_RADIUS_KM = 0.5;
 const SHOP_ZOOM = 14;
+const PANELS_UNDER_MAP = window.matchMedia("(max-width: 720px)");   // map.css stacks the panels over the map's lower half
+const PANELS_CROWD_MAP = window.matchMedia("(max-width: 1024px)");  // the right-hand panels cover the middle of the map
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const BAD_DAYS = [
   { key: "haze230", hazard: "haze", label: "Haze day · PSI 230", sim: { psi: 230, rain: 0, heat: 0, flood: false } },
@@ -997,9 +999,25 @@ function showShopDraft() {
     draft.place ? "" : "We could not find that place. Click the map where your shop is instead.",
   ].filter(Boolean).join(" "));
 }
+/* The middle of the map still showing on a phone or tablet: above the panels when they sit under
+   the map, else left of the right-hand panels. */
+function middleOfVisibleMap() {
+  if (PANELS_UNDER_MAP.matches) {
+    const top = el("topbar").getBoundingClientRect().bottom;
+    const bottom = document.querySelector(".dock").getBoundingClientRect().top;
+    return [innerWidth / 2, (top + bottom) / 2];
+  }
+  return [document.querySelector(".dock-right").getBoundingClientRect().left / 2, innerHeight / 2];
+}
+/* The map centre that puts `point` at the screen position `pixel`. */
+function centreWithPointAt(view, point, pixel) {
+  return new deck.WebMercatorViewport({ ...view, width: innerWidth, height: innerHeight })
+    .panByPosition([point.lng, point.lat], pixel);
+}
 function focusOn(point) {
   if (state.orbit) toggleOrbit(false);
-  lastView = { ...lastView, longitude: point.lng, latitude: point.lat, zoom: Math.max(lastView.zoom, SHOP_ZOOM) };
+  const view = { ...lastView, longitude: point.lng, latitude: point.lat, zoom: Math.max(lastView.zoom, SHOP_ZOOM) };
+  lastView = PANELS_CROWD_MAP.matches ? { ...view, ...centreWithPointAt(view, point, middleOfVisibleMap()) } : view;
   state.zoom = lastView.zoom;
   deckgl.setProps({
     initialViewState: {
