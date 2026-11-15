@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from api import payout_flow
 from tests.test_payout_api import (  # noqa: F401  (client is a fixture)
@@ -16,6 +16,7 @@ from tests.test_payout_api import (  # noqa: F401  (client is a fixture)
 )
 
 STALLHOLDER = "tan@example.com"
+FIRST_CAPPED_DAY = date(2026, 9, 1)
 
 
 def yesterday() -> str:
@@ -75,8 +76,8 @@ def test_buying_again_after_a_lapse_starts_a_new_waiting_period(client):
 def test_the_yearly_cap_counts_payouts_made_before_a_lapse(client):
     stallholder_with_cover(client)
     max_days = own_policy(client)["max_paid_days_per_year"]
-    for day in range(1, max_days + 1):
-        run_day(client, f"2026-10-{day:02d}")
+    for day in range(max_days):
+        run_day(client, (FIRST_CAPPED_DAY + timedelta(days=day)).isoformat())
     cancel_cover(client)
     change_tier(client, "tier_1")
     start_cover_on(client, LONG_AGO)
