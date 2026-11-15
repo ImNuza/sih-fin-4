@@ -518,7 +518,9 @@ function chooseCover({ quote, rent, rentTable, rec, kind, examples }) {
   const refers = quote.tiers.some((t) => t.sold_directly === false)
     ? " A tier marked Refer to underwriter costs a lot here compared with what it can pay in a year: choosing it sends your application to an Income underwriter before cover starts." : "";
   const why = !rent ? "We mark the recommended tier."
-    : `Recommended is ${recTier.label}, the hawker plan: a full bad day pays ${rentShare(recTier.daily_payout_sgd, rent.rent_per_day_sgd)} here (about ${SGD(rent.rent_per_day_sgd)} a day). The higher tiers suit businesses with higher takings.`
+    : (rent.covers_rent
+      ? `Recommended is the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
+      : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Recommended is the biggest tier.`)
       + ` ${rentSource(rent, rentTable)}`;
   return `<h2>Payung prices for your stall</h2>
     <div class="tiers-row">${cards}</div>

@@ -439,8 +439,8 @@ class CentreRent(BaseModel):
     rent_class: str
     rent_class_label: str
     rent_per_day_sgd: float
-    recommended_tier: str = Field(description="The tier suggested to a stall: Tier 1, the hawker plan.")
-    covers_rent: bool = Field(description="True when the suggested tier's full-day payout covers a day's rent.")
+    recommended_tier: str = Field(description="Smallest tier whose payout covers a day's rent.")
+    covers_rent: bool = Field(description="False when even the biggest tier pays less than a day's rent.")
 
 
 class RentTable(BaseModel):

@@ -732,7 +732,7 @@ function rentSection(centre, quote) {
   return `<div class="sec"><p class="cap">Stall rent · ${rent.rent_class_label}</p>
     <div class="kv"><span class="k">Monthly rent</span><span class="v">${SGD0(rent.median_bid_sgd)}</span></div>
     <div class="kv"><span class="k">Per trading day (${RENT.trading_days_per_month} a month)</span><span class="v">${SGD(rent.rent_per_day_sgd)}</span></div>
-    <div class="kv"><span class="k">Suggested for a stall</span><span class="v">${tier.label} · ${share} at ${SGD(tier.weekly_premium_sgd)}/wk</span></div>
+    <div class="kv"><span class="k">${rent.covers_rent ? "Smallest tier that covers it" : "No tier covers it; biggest"}</span><span class="v">${tier.label} · ${share} at ${SGD(tier.weekly_premium_sgd)}/wk</span></div>
     <p class="note">${source} Rent sets the tier a stallholder is offered, not the premium.</p></div>`;
 }
 
