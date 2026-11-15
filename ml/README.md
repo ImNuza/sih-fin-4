@@ -109,17 +109,28 @@ uv run --group ml python -m ml.serving
 ```
 
 It writes `data/processed/model_history.npz`: every hawker centre, every day since 1980, with
-haze, rain and heat and where each came from (measured, or rebuilt by the heat or rain model).
-Measured readings always win. The heat rebuild alone predicts near-average hours every day, so
-its values are quantile-mapped to the measured 2025-2026 hours; on that overlap it gives 9.0
-hot days for 2025 against 9.0 measured. It also writes `model_insights.json`: each model's test
-score against the simple guess, its confusion counts, and the haze and El Niño facts.
+haze, rain and heat and where each came from (measured, rebuilt by a model, or measured by MSS
+as the whole day's wettest hour and matched to work hours). Measured readings always win. Rain
+is the tariff's reading, the wettest work hour at the gauge: NEA gauges give it from December
+2016, and MSS or rebuilt whole-day values before that are quantile-mapped to it. The heat
+rebuild alone predicts near-average hours every day, so its values are quantile-mapped to the
+measured 2025-2026 hours; on that overlap it gives 9.0 hot days for 2025 against 9.0 measured.
+It also writes `model_insights.json`: each model's test score against the simple guess, its
+confusion counts, the El Niño years since 1980 and the haze facts.
 
 `api/model_history.py` turns those readings into money with the live tariff, so a tariff change
 reprices every year without rerunning anything. The dashboards read it through
-`/api/model/history` (one stall since 1980, and its typical, bad and worst year),
-`/api/model/book` (the insurer's whole market back-tested) and `/api/model/insights`. Rerun
+`/api/model/history` (one stall since 1980: each year's payout and red, yellow and green days,
+the typical, bad and worst year, El Niño years against others, what every past decade paid, and
+what the next ten calendar days brought in past years), `/api/model/book` (the insurer's whole
+market, the same way, with the loss ratio per year) and `/api/model/insights`. Rerun
 `ml.serving` after new results are published or the data is refreshed.
+
+The outlooks are the record of those dates, not forecasts. The forecast models were tested and
+held back: next-day haze does not beat persistence, next-day heat and rain need ERA5, which
+arrives about five days late, and the monthly counts do no better than the monthly average. The
+dashboards say so. Nothing in the product multiplies a model by a chosen number to make a
+prediction; a figure Income's actuaries cannot trace to data would fail the brief's own test.
 
 On macOS, XGBoost and LightGBM need `brew install libomp`. PyTorch and XGBoost crash when loaded
 in one process there, so `ml.serving` loads neither neural network.
