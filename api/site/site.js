@@ -33,7 +33,11 @@ function formData(form) {
 function wireTheme() {
   const button = el("theme-toggle");
   if (!button) return;
-  const paint = () => { button.textContent = document.documentElement.dataset.theme === "dark" ? "\u2600" : "\u263e"; };
+  const paint = () => {
+    const dark = document.documentElement.dataset.theme === "dark";
+    button.innerHTML = SafeUI.icon(dark ? "sun" : "moon");
+    button.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+  };
   paint();
   button.addEventListener("click", () => {
     const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
@@ -49,7 +53,7 @@ async function updateNav() {
   if (!link) return;
   try {
     await api("/api/auth/me");
-    link.textContent = "Dashboard";
+    (link.querySelector(".label-wide") || link).textContent = "Dashboard";
     link.href = "/dashboard/";
   } catch { /* signed out: keep Sign in */ }
 }
