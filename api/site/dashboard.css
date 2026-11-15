@@ -154,6 +154,20 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
 .burn-legend span { display: inline-flex; align-items: center; gap: var(--s-2); }
 .burn-legend i { width: 10px; height: 10px; border-radius: 2px; }
 
+/* Every year since 1980, model-filled: one thin bar per year, tap one to see it */
+.burn-chart.dense { gap: 2px; overflow-x: auto; padding-bottom: 2px; }
+.burn-chart.dense .burn-year { min-width: 7px; cursor: pointer; border-radius: 3px; }
+.burn-chart.dense .burn-bars { height: 88px; }
+.burn-chart.dense .burn-bars > span { max-width: 9px; }
+.burn-chart.dense .burn-year.selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.burn-chart.dense .burn-paid.partial { opacity: 0.45; }
+.burn-paid.elnino { background: var(--ink); }
+.burn-chart.dense .burn-label { min-height: 10px; font-size: 9px; }
+.model-controls { margin: var(--s-4) 0 var(--s-3); }
+.model-controls input[type="range"] { width: 160px; vertical-align: middle; accent-color: var(--accent); }
+.model-controls .range-value { font-size: var(--t-sm); color: var(--ink-2); white-space: nowrap; }
+.kv .v .day-chip { margin-left: var(--s-1); }
+
 /* PayNow setup, texts and the owner's payouts */
 .payout-form label[hidden] { display: none; }
 .payout-form .fine { margin: var(--s-2) 0; }

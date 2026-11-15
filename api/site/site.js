@@ -372,6 +372,7 @@ async function renderSme(user) {
         : mapPreview({ view: "owner", camera: "city" }, `The ${titleCase(user.region)} region on the risk atlas`)}
     </section>
     ${site ? burnCard(view) : ""}
+    <div id="model-history"></div>
     <div id="payouts-panel" class="dash-section"></div>
   </div>`;
   wireCoverSms();
@@ -535,6 +536,9 @@ function wireSme(view) {
     }
   };
   if (!site) return;
+  renderModelHistory(el("model-history"), site.burn, burnTier, view.todays).catch((error) => {
+    el("model-history").innerHTML = loadError("your history since 1980", error);
+  });
   el("burn-takings").addEventListener("change", loadBurn);
   loadBurn();
 }
@@ -588,6 +592,273 @@ function renderBurn(burn, policy) {
     <p class="fine">Grey: estimated revenue lost each year. Blue: what this tier would have paid.
       Of the payouts, ${SGD(hz.rain)} came from heavy rain, ${SGD(hz.haze)} from haze and
       ${SGD(hz.heat)} from heat (heat readings exist from 2025).</p>`;
+}
+
+/* ---------- every year since 1980, filled in by the trained models (api/model_history.py) ---------- */
+const PCT = (share) => `${Math.round(share * 100)}%`;
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY_RANGE = (from, to) => `${new Date(from).toLocaleDateString("en-SG", { day: "numeric", month: "short" })} to ${new Date(to).toLocaleDateString("en-SG", { day: "numeric", month: "short" })}`;
+const ONE_DP = (v) => Number(v).toFixed(1).replace(/\.0$/, "");
+const colourDays = (r, y, g) => `<span class="day-chip day-red">${ONE_DP(r)} red</span> <span class="day-chip day-yellow">${ONE_DP(y)} yellow</span> <span class="day-chip day-green">${ONE_DP(g)} green</span>`;
+const TIER_KEYS = ["tier_1", "tier_2", "tier_3", "tier_4"];
+
+/* One thin bar per year since 1980, labelled every fifth year; hover or tap shows the year. */
+function yearBars(years, value, describe, selected) {
+  const max = Math.max(...years.map(value), 0.01);
+  return `<div class="burn-chart dense" role="img" aria-label="One bar per year since ${years[0].year}">${years.map((y) => {
+    const tip = `${y.year}: ${describe(y)}`;
+    return `<div class="burn-year${y.year === selected ? " selected" : ""}" data-year="${y.year}" data-tip="${tip}" aria-label="${tip}">
+      <div class="burn-bars"><span class="burn-paid${y.complete ? "" : " partial"}${y.el_nino ? " elnino" : ""}" style="height:${value(y) ? Math.max(value(y) / max * 88, 2) : 0}px"></span></div>
+      <span class="burn-label">${y.year % 5 === 0 ? String(y.year).slice(2) : ""}</span>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function hazeOutlook(haze) {
+  return `In El Niño years with haze data (${haze.haze_el_nino_years.join(", ")}) each region had about
+    ${haze.haze_days_el_nino} days above PSI 100, against ${haze.haze_days_other} in other years.
+    NOAA's latest El Niño index is ${haze.latest_oni} (${MONTH(haze.latest_oni_month)})${haze.el_nino_now
+      ? ", an El Niño, so expect more haze days than usual" : ", not an El Niño"}.
+    Once PSI passes 100, the next day is above 100 too in ${PCT(haze.next_day_bad_share)} of cases.`;
+}
+
+/* The filled-in history is measured where NEA measured it and model-filled before that. */
+function sourceNote(year) {
+  const m = year.measured_share;
+  const part = (share) => share >= 0.95 ? "measured" : share <= 0.05 ? "model-filled" : `${PCT(share)} measured`;
+  return `haze ${m.haze > 0 ? part(m.haze) : "no data"}, rain ${part(m.rain)}, heat ${part(m.heat)}`;
+}
+
+function yearDetail(h, year) {
+  const y = h.years.find((r) => r.year === year);
+  const hz = y.by_hazard_sgd;
+  return `
+    ${kv(`Paid in ${y.year}${y.complete ? "" : " so far"}`, `<b class="num">${SGD(y.paid_sgd)}</b>${y.capped ? " (yearly cap reached)" : ""}`)}
+    ${kv("Payout days", `<span class="num">${y.trigger_days}</span>: ${colourDays(y.red_days, y.yellow_days, y.green_days)}`)}
+    ${kv("From haze / rain / heat", `<span class="num">${SGD(hz.haze)} / ${SGD(hz.rain)} / ${SGD(hz.heat)}</span>`)}
+    ${kv("Premium at this tier", `<span class="num">${SGD(h.since_1980.premium_sgd)}</span> a year`)}
+    ${kv("Readings", `${sourceNote(y)}${y.el_nino ? " · El Niño year" : ""}`)}`;
+}
+
+function tenDaysText(h, todays) {
+  const w = h.next_10_days;
+  const a = w.all_years;
+  const r = w.recent;
+  const haze = h.haze_facts;
+  const psiNow = todays ? Math.round(todays.readings.haze) : null;
+  return `
+    <p class="burn-headline">${DAY_RANGE(w.from, w.to)}: in <b>${Math.round(a.share_years_with_payout * a.years_checked)} of the last
+      ${a.years_checked} years</b> these ten days brought at least one payout day here. On average they paid
+      <b>${SGD(a.average_paid_sgd)}</b> at ${h.tier_label} over ${ONE_DP(a.average_trigger_days)} payout days
+      (${colourDays(a.average_red_days, a.average_yellow_days, a.average_green_days)}). The most was ${SGD(a.highest_paid_sgd)} in ${a.highest_year}.</p>
+    <p class="fine">Over the last ${r.years_checked} years alone: ${SGD(r.average_paid_sgd)} on average, a payout day in
+      ${PCT(r.share_years_with_payout)} of them.</p>
+    ${psiNow != null && psiNow >= haze.trigger_psi
+      ? notice("warning", "clock", `<b>Today the 24-hour PSI in your region is ${psiNow}.</b> After a day above 100, the next day is above 100 too ${PCT(haze.next_day_bad_share)} of the time, so a haze payout tomorrow is likely.`)
+      : psiNow != null ? `<p class="fine">Today the 24-hour PSI in your region is ${psiNow}, below the payout level.</p>` : ""}
+    ${haze.el_nino_now ? notice("accent", "info", "An El Niño is under way. El Niño years bring far more haze days than other years.") : ""}
+    <p class="fine card-foot">This is what these dates did in past years, not a weather forecast. Our next-day models were tested and
+      do not beat "same as yesterday", so we show the record instead.</p>`;
+}
+
+function tenYearsText(h) {
+  const d = h.next_10_years;
+  const e = h.el_nino;
+  return `
+    <p class="burn-headline">Every ten-year stretch since 1980 paid between <b>${SGD(d.lowest_sgd)}</b> and <b>${SGD(d.highest_sgd)}</b>
+      here at ${h.tier_label}, typically <b>${SGD(d.typical_sgd)}</b>, for ${SGD(d.premium_sgd)} of premium
+      (${SGD(h.weekly_premium_sgd)} a week).</p>
+    ${kv("Payout days in a typical decade", `<span class="num">${Math.round(d.typical_trigger_days)}</span>: ${colourDays(d.typical_red_days, d.typical_yellow_days, d.typical_green_days)}`)}
+    ${kv(`El Niño years (${e.years.join(", ")})`, `<span class="num">${SGD(e.average_paid_sgd)}</span> a year on average`)}
+    ${kv("Other years", `<span class="num">${SGD(e.average_paid_other_sgd)}</span> a year on average`)}
+    <p class="fine">A red day loses most of a day's sales, a yellow day a third to two thirds, a green day less; each pays that
+      share of ${SGD(h.daily_payout_sgd)}. ${hazeOutlook(h.haze_facts)}</p>
+    <p class="fine card-foot">Expect the next ten years to look like these, not better: Singapore is getting hotter and wetter.
+      This is history, not a promise. SafeDay pays only when the readings reach a payout level, so a year can bring
+      losses and no payout.</p>`;
+}
+
+async function renderModelHistory(target, place, tier, todays) {
+  const h = await api(`/api/model/history?${place}&tier=${tier}`);
+  const all = h.since_1980;
+  const recent = h.recent;
+  const big = h.haze_year;
+  const from = h.read_from_nearest_centre
+    ? `the readings at ${escapeHtml(h.centre)}, the hawker centre nearest you` : escapeHtml(h.centre);
+  const complete = h.years.filter((y) => y.complete);
+  let picked = complete[complete.length - 1].year;
+  const describe = (y) => `${SGD(y.paid_sgd)} paid over ${y.trigger_days} payout days`
+    + `${y.capped ? ", yearly cap reached" : ""}${y.complete ? "" : " (year so far)"}`;
+  target.innerHTML = `
+    <section class="card dash-section" id="model-years">
+      <div class="card-head"><div><h2>Every year since 1980 at your stall</h2>
+        <p class="fine">What ${h.tier_label} would have paid each year, from ${from}, scored by the live tariff.</p></div></div>
+      <p class="burn-headline">With ${h.tier_label} (${SGD(h.daily_payout_sgd)} for a full bad day, up to
+        ${SGD(h.max_payout_per_year_sgd)} a year), SafeDay would have paid you about <b>${SGD(all.typical_sgd)}</b>
+        in a typical year since ${all.from_year}, and the full <b>${SGD(all.worst_sgd)}</b> in ${all.worst_year}.
+        ${all.years_without_payout ? `It paid nothing in ${all.years_without_payout} of ${all.years} years.`
+          : `It paid something in every one of the ${all.years} years.`}</p>
+      <div id="model-bars">${yearBars(h.years, (y) => y.paid_sgd, describe, picked)}</div>
+      <div class="burn-legend"><span><i class="burn-paid"></i>Paid that year</span><span><i class="burn-paid elnino"></i>El Niño year</span></div>
+      <div class="table-tools model-controls">
+        <label class="tool-select">Year <select id="model-year">${[...h.years].reverse().map((y) =>
+          `<option value="${y.year}"${y.year === picked ? " selected" : ""}>${y.year}${y.complete ? "" : " (so far)"}</option>`).join("")}</select></label>
+        <span class="count">or tap a bar</span>
+      </div>
+      <div id="model-year-detail">${yearDetail(h, picked)}</div>
+      ${notice("accent", "info", `<b>Measured</b> readings are used wherever they exist: haze from 2014, the wettest work hour of
+        rain from 2017, heat from 2025. <b>Older years are filled in by our models</b>: heat is rebuilt from ERA5
+        weather, and the wettest rain hour from each gauge's daily total, both matched to the measured years.
+        Heat before 2025 is the least certain part. The money follows today's tariff and the yearly cap.`)}
+    </section>
+    <section class="card dash-section">
+      <h2>What a year could look like for you</h2>
+      <div class="kpis">
+        ${kpi("Typical year", `<span class="num">${SGD(recent.typical_sgd)}</span>`, `paid, over the last ${recent.years} years`)}
+        ${kpi("Bad year (1 in 10)", `<span class="num">${SGD(recent.bad_year_sgd)}</span>`, "paid")}
+        ${kpi("Worst year", `<span class="num">${SGD(all.worst_sgd)}</span>`, `${all.worst_year}${big && big.year === all.worst_year ? ", the big haze" : ""}`)}
+        ${kpi("Your premium", `<span class="num">${SGD(recent.premium_sgd)}</span>`, `a year, ${SGD(h.weekly_premium_sgd)} a week`)}
+      </div>
+      ${kv("Payout days in a typical year", colourDays(recent.typical_red_days, recent.typical_yellow_days, recent.typical_green_days))}
+      ${kv("In a bad year (1 in 10)", colourDays(recent.bad_year_red_days, recent.bad_year_yellow_days, recent.bad_year_green_days))}
+      <p class="fine card-foot">In ${recent.years_paid_more_than_premium} of the last ${recent.years} years the cover paid
+        back more than its premium.${big ? ` A year like ${big.year} would pay you ${SGD(big.paid_sgd)}:
+        ${SGD(big.by_hazard_sgd.haze)} for haze, ${SGD(big.by_hazard_sgd.rain)} for rain and
+        ${SGD(big.by_hazard_sgd.heat)} for heat, over ${big.trigger_days} payout days.` : ""}</p>
+    </section>
+    <section class="card dash-section">
+      <h2>The next 10 days</h2>
+      ${tenDaysText(h, todays)}
+    </section>
+    <section class="card dash-section">
+      <h2>The next 10 years</h2>
+      ${tenYearsText(h)}
+    </section>`;
+  const pick = (year) => {
+    picked = year;
+    el("model-year").value = String(year);
+    el("model-year-detail").innerHTML = yearDetail(h, year);
+    el("model-bars").innerHTML = yearBars(h.years, (y) => y.paid_sgd, describe, picked);
+    wireBars();
+  };
+  const wireBars = () => el("model-bars").querySelectorAll(".burn-year").forEach((bar) =>
+    bar.addEventListener("click", () => pick(+bar.dataset.year)));
+  el("model-year").addEventListener("change", (event) => pick(+event.target.value));
+  wireBars();
+}
+
+function modelRow(m) {
+  const score = (value) => (value == null ? "–" : Number(value).toFixed(value >= 10 ? 1 : 3));
+  const caught = m.confusion ? `${m.confusion.TP} of ${m.confusion.TP + m.confusion.FN}` : "–";
+  return `<tr><td>${m.name}</td><td>${m.target}</td><td>${m.model.replace("_", " ")}</td>
+    <td class="num">${score(m.score)}</td><td class="num">${score(m.baseline_score)}</td>
+    <td class="num">${caught}</td><td class="num">${m.confusion ? m.confusion.FP : "–"}</td><td class="note-cell">${m.use}</td></tr>`;
+}
+
+/* The market figures at a premium of `m` times the tariff's. Payouts do not move; the premium does. */
+function bookFigures(book, m) {
+  const premium = book.premium_sgd * m;
+  const years = book.years.map((y) => ({ ...y, loss_ratio: y.loss_ratio / m }));
+  const complete = years.filter((y) => y.complete);
+  const losing = complete.filter((y) => y.loss_ratio > 1).length;
+  const average = complete.reduce((a, y) => a + y.loss_ratio, 0) / complete.length;
+  const worst = complete.reduce((a, y) => (y.paid_sgd > a.paid_sgd ? y : a), complete[0]);
+  const shortfall = Math.max(0, worst.paid_sgd - premium);
+  const decade = book.next_10_years;
+  const typical = complete[Math.floor(complete.length / 2)];
+  const busiest = book.month_share.map((share, i) => [share, MONTH_NAMES[i]])
+    .sort((a, b) => b[0] - a[0]).slice(0, 3);
+  const e = book.el_nino;
+  return `
+    <div class="kpis">
+      ${kpi("Premium pool", `<span class="num">${SGD_KPI(premium)}</span><wbr>/yr`, `${SGD(book.weekly_premium_per_policy_sgd * m)} a week per stall`)}
+      ${kpi("Average loss ratio", `<span class="num">${PCT(average)}</span>`, "payouts ÷ premium, per year",
+        "Every food stall in every hawker centre with one policy, run through every day since 1980 with today's tariff. Below 100% the premium covered the year's payouts.")}
+      ${kpi("Years losing money", `<span class="num">${losing}</span> of ${complete.length}`, "loss ratio above 100%")}
+      ${kpi("Worst year", `<span class="num">${worst.year}</span>`, `loss ratio ${PCT(worst.loss_ratio)}`)}
+      ${kpi("Worst single day", `<span class="num">${SGD_KPI(book.worst_day.paid_sgd)}</span>`, `${SG_DATE(book.worst_day.day)}, ${PCT(book.worst_day.share_of_centres_paying)} of centres paid`)}
+    </div>
+    ${yearBars(years, (y) => y.loss_ratio, (y) => `loss ratio ${PCT(y.loss_ratio)}, ${SGD(y.paid_sgd)} paid, `
+      + `${ONE_DP(y.yellow_days)} yellow and ${ONE_DP(y.green_days)} green days per stall${y.complete ? "" : " (year so far)"}`)}
+    <div class="burn-legend"><span><i class="burn-paid"></i>Loss ratio that year</span><span><i class="burn-paid elnino"></i>El Niño year</span></div>
+    <p class="fine">${shortfall > 0
+      ? `In ${worst.year} payouts beat the premium by ${SGD(shortfall)}: that is the capital or reinsurance to hold.`
+      : `Even ${worst.year} stayed within the premium${worst.loss_ratio > 0.85 ? ", but only just" : ""}: a worse year needs reinsurance.`}
+      Haze hits every centre on the same day, so the worst day sets the cash you need at once.</p>
+    ${kv("El Niño years against other years", `loss ratio <span class="num">${PCT(e.average_loss_ratio / m)}</span> against <span class="num">${PCT(e.average_loss_ratio_other / m)}</span>`)}
+    ${kv("Payout days per stall in a typical year", colourDays(book.typical_red_days, book.typical_yellow_days, typical.green_days))}
+    ${kv("Any ten years since 1980, loss ratio", `<span class="num">${PCT(decade.lowest_loss_ratio / m)}</span> to <span class="num">${PCT(decade.highest_loss_ratio / m)}</span>, typically ${PCT(decade.typical_loss_ratio / m)}`)}
+    ${kv("When payouts come", `${busiest.map(([share, month]) => `${month} ${PCT(share)}`).join(", ")} of a year's`)}`;
+}
+
+function bookTenDays(book) {
+  const w = book.next_10_days;
+  const a = w.all_years;
+  const r = w.recent;
+  return `
+    <p class="burn-headline">${DAY_RANGE(w.from, w.to)}: in <b>${Math.round(a.share_years_with_payout * a.years_checked)} of the last
+      ${a.years_checked} years</b> these ten days paid at least one stall. Across the whole book they paid
+      <b>${SGD(a.average_paid_sgd * book.policies)}</b> on average (${SGD(a.average_paid_sgd)} per policy), and the most was
+      ${SGD(a.highest_paid_sgd * book.policies)} in ${a.highest_year}. Over the last ${r.years_checked} years: ${SGD(r.average_paid_sgd * book.policies)} on average.</p>`;
+}
+
+async function renderModelBook(target, live, staticData, tier = "tier_2") {
+  const [book, insights] = await Promise.all([api(`/api/model/book?tier=${tier}`), api("/api/model/insights")]);
+  const haze = insights.haze;
+  const hazyNow = live?.available
+    ? [...new Set(live.hawker_losses
+        .map((loss, i) => (loss.readings.haze > haze.trigger_psi - 1 ? staticData.hawker_centres[i].region : null))
+        .filter(Boolean))] : null;
+  target.innerHTML = `
+    <section class="card">
+      <div class="card-head"><div><h2>The whole market, back-tested since 1980</h2>
+        <p class="fine">Every food stall in every hawker centre (${book.policies.toLocaleString("en-SG")}) with one
+          cooked-food policy each, run through every day since 1980 with today's tariff. Measured readings where
+          they exist; older heat and rain filled in by our models.</p></div></div>
+      <div class="table-tools model-controls">
+        <label class="tool-select">Tier <select id="book-tier">${TIER_KEYS.map((t) =>
+          `<option value="${t}"${t === tier ? " selected" : ""}>${t.replace("tier_", "Tier ")}</option>`).join("")}</select></label>
+        <label class="tool-select">Premium <input type="range" id="book-premium" min="50" max="150" step="5" value="100" aria-describedby="book-premium-label" />
+          <span id="book-premium-label" class="range-value">100% of the tariff's</span></label>
+        <span class="count">Payouts do not move with the slider; the premium does.</span>
+      </div>
+      <div id="book-figures">${bookFigures(book, 1)}</div>
+    </section>
+    <section class="card dash-section">
+      <h2>Outlook: the next 10 days, and when to pause sales</h2>
+      ${bookTenDays(book)}
+      ${kv(`El Niño index (NOAA, ${MONTH(haze.latest_oni_month)})`, `<span class="num">${haze.latest_oni}</span>${haze.el_nino_now ? " · El Niño" : ""}`)}
+      ${kv("Days above PSI 100 per region", `<span class="num">${haze.haze_days_el_nino}</span> in El Niño years, <span class="num">${haze.haze_days_other}</span> in others`)}
+      ${kv("A day above PSI 100 is followed by another", `<span class="num">${PCT(haze.next_day_bad_share)}</span> of the time`)}
+      ${kv("Regions above PSI 100 now", hazyNow == null ? "live feed not ready" : hazyNow.length ? hazyNow.map(titleCase).join(", ") : "none")}
+      ${notice("warning", "clock", `<b>Pause rule:</b> stop new sales in a region while its 24-hour PSI is above 100. The next day
+        pays again ${PCT(haze.next_day_bad_share)} of the time, so a buyer then is buying a known loss.
+        ${haze.el_nino_now ? "With an El Niño under way, hold extra reserve for the haze season (August to October)." : ""}`)}
+      <p class="fine card-foot"><b>Forecasts, tested and held back:</b> our next-day haze model does not beat "same as today",
+        next-day heat and rain need ERA5 weather that arrives about five days late, and the monthly models do no
+        better than the long-run monthly average. The outlook above is the record of these dates, which is what
+        a premium is priced on. The table below shows each model.</p>
+    </section>
+    <section class="card dash-section">
+      <div class="card-head"><div><h2>How good are the models</h2>
+        <p class="fine">Each model was tuned on older years and scored on years it never saw (2023 on; heat from
+          May 2026) against a simple guess: the same month's average, or the last reading. A payout day is a day
+          whose reading reaches the first payout band. Data to ${SG_DATE(insights.data_to)}.</p></div></div>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Model</th><th>Predicts</th><th>Algorithm</th><th class="num">Score</th><th class="num">Simple guess</th><th class="num">Payout days caught</th><th class="num">False alarms</th><th>Status</th></tr></thead>
+        <tbody>${insights.models.map(modelRow).join("")}</tbody>
+      </table></div>
+      <p class="fine table-foot">Score: average error for a reading (lower is better), average precision for payout days
+        (1 is perfect, higher is better), Poisson deviance for monthly counts (lower is better). Payout days
+        caught: real payout days the model flagged, out of all of them, on the test years. Payouts always follow
+        the measured NEA readings, never a model.</p>
+    </section>`;
+  el("book-tier").addEventListener("change", (event) => renderModelBook(target, live, staticData, event.target.value));
+  el("book-premium").addEventListener("input", (event) => {
+    const m = +event.target.value / 100;
+    el("book-premium-label").textContent = `${event.target.value}% of the tariff's`;
+    el("book-figures").innerHTML = bookFigures(book, m);
+  });
 }
 
 /* ---------- insurer: underwriter queue ---------- */
@@ -712,6 +983,11 @@ function insurerShell(user) {
       <div id="underwriting">${tableSkeleton(3)}</div>
     </section>
     <section class="dash-section" id="payouts-panel">${tableSkeleton(4)}</section>
+    <section class="dash-section" aria-labelledby="model-title">
+      <div class="section-head"><div><h2 id="model-title">Every year since 1980, and what comes next</h2>
+        <p class="page-sub">The whole market back-tested with today's tariff, the premium you could charge, and what the trained models are good for.</p></div></div>
+      <div id="model-book">${tableSkeleton(6)}</div>
+    </section>
     <section class="dash-section" aria-labelledby="map-title">
       <div class="section-head"><div><h2 id="map-title">The book on the map, live</h2>
         <p class="page-sub">Where the policies sit and what NEA reads there now.</p></div>
@@ -749,6 +1025,9 @@ async function renderInsurer(user) {
       () => wireReferrals(user)),
     renderInsurerPayouts(el("payouts-panel")).catch((error) => {
       el("payouts-panel").innerHTML = loadError("the payouts", error);
+    }),
+    (async () => renderModelBook(el("model-book"), await data.live, await data.staticData))().catch((error) => {
+      el("model-book").innerHTML = loadError("the back-test", error);
     }),
   ]);
 }
