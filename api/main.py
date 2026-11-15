@@ -199,24 +199,51 @@ def current_tariff(saved: Annotated[SavedTariff, Depends(saved_tariff)]) -> Tari
     return saved.tariff
 
 
-def admin(
-    request: Request, credentials: Annotated[HTTPBasicCredentials | None, Depends(basic_auth)]
-) -> str:
-    # No WWW-Authenticate header on purpose: it would make browsers open their own login box
-    # over the admin panel's login form.
-    if credentials is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Admin login required")
+class TariffEditor(BaseModel):
+    """Who is using the tariff desk, and the name a save is recorded under."""
+
+    name: str
+    organisation: str
+    signed_in_with: Literal["session", "password"]
+    saved_by: str
+
+
+def admin_by_password(request: Request, credentials: HTTPBasicCredentials) -> TariffEditor:
     username, password = request.app.state.admin_login
     valid_username = secrets.compare_digest(credentials.username.encode(), username.encode())
     valid_password = secrets.compare_digest(credentials.password.encode(), password.encode())
     if not (valid_username and valid_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong username or password")
-    return credentials.username
+    return TariffEditor(
+        name=credentials.username,
+        organisation="Tariff desk login",
+        signed_in_with="password",
+        saved_by=credentials.username,
+    )
+
+
+def admin(
+    request: Request, credentials: Annotated[HTTPBasicCredentials | None, Depends(basic_auth)]
+) -> TariffEditor:
+    """An insurer signed in to SafeDay, or anyone with the tariff desk login."""
+    # No WWW-Authenticate header on purpose: it would make browsers open their own login box
+    # over the admin panel's login form.
+    if credentials is not None:
+        return admin_by_password(request, credentials)
+    user = accounts.current_user(request)
+    if user.role != "insurer":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only insurer accounts can edit the tariff")
+    return TariffEditor(
+        name=user.name,
+        organisation=user.insurer or "Insurer",
+        signed_in_with="session",
+        saved_by=f"{user.name} ({user.email})",
+    )
 
 
 HistoryDep = Annotated[History, Depends(history)]
 TariffDep = Annotated[Tariff, Depends(current_tariff)]
-AdminDep = Annotated[str, Depends(admin)]
+AdminDep = Annotated[TariffEditor, Depends(admin)]
 
 
 @app.get("/api/options")
@@ -1083,6 +1110,11 @@ def insurer_portfolio(user: InsurerDep, request: Request) -> dict:
     }
 
 
+@app.get("/api/admin/me")
+def tariff_editor(editor: AdminDep) -> TariffEditor:
+    return editor
+
+
 @app.get("/api/admin/tariff")
 def get_tariff(_: AdminDep, saved: Annotated[SavedTariff, Depends(saved_tariff)]) -> SavedTariff:
     return saved
@@ -1091,7 +1123,7 @@ def get_tariff(_: AdminDep, saved: Annotated[SavedTariff, Depends(saved_tariff)]
 @app.put("/api/admin/tariff")
 def put_tariff(
     change: TariffChange,
-    username: AdminDep,
+    editor: AdminDep,
     saved: Annotated[SavedTariff, Depends(saved_tariff)],
     history: HistoryDep,
     request: Request,
@@ -1104,7 +1136,7 @@ def put_tariff(
             "Reload to see it, then make your change again.",
         )
     calculator.check_prices(change.tariff, history)
-    return store.save(request.app.state.db, change.tariff, saved_by=username)
+    return store.save(request.app.state.db, change.tariff, saved_by=editor.saved_by)
 
 
 @app.post("/api/admin/preview")
