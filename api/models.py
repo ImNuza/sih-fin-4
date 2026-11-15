@@ -179,12 +179,21 @@ class QuoteRequest(BaseModel):
     region: str | None = Field(default=None, description="Price for the region as a whole.")
     latitude: float | None = Field(default=None, description="Price for this exact place.")
     longitude: float | None = None
+    centre: str | None = Field(
+        default=None, description="Price at this NEA hawker centre, as a stall there is charged."
+    )
+    postcode: str | None = Field(
+        default=None, description="Price at this postcode's area, as a shop there is charged."
+    )
 
     @model_validator(mode="after")
-    def region_or_place(self) -> QuoteRequest:
-        has_place = self.latitude is not None and self.longitude is not None
-        if (self.region is None) == (not has_place):
-            raise ValueError("Give either a region, or a latitude and longitude")
+    def one_place(self) -> QuoteRequest:
+        has_point = self.latitude is not None and self.longitude is not None
+        places = (self.region, self.centre, self.postcode)
+        if sum(place is not None for place in places) + has_point != 1:
+            raise ValueError(
+                "Give one of: a region, a latitude and longitude, a hawker centre or a postcode"
+            )
         return self
 
 

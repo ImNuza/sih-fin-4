@@ -2,9 +2,11 @@
 
 Runs the live tariff over the actual NEA readings of 2016-2026 for every hawker centre:
 each day's loss score, the payout at a chosen tier with the yearly cap applied in order,
-and the estimated revenue the business lost that day. This is the back-test the brief
-demands ("show, from past NEA and PUB data, how often target customers would have lost
-income with no payout").
+and the estimated revenue the business lost that day. Each day is read as a payout reads it
+(api/readings.py), and a hazard a payout would wait for reads 0. Each centre is priced as a
+stall there is charged (api/main.py business_quote). Loss ratios are payouts over the premium
+before GST. This is the back-test the brief demands ("show, from past NEA and PUB data, how
+often target customers would have lost income with no payout").
 
 Usage:
     uv run scripts/burn_analysis.py           (run build_day_readings.py first)
@@ -12,9 +14,7 @@ Usage:
 Reads  data/processed/day_readings.csv.gz, data/processed/map_static.json
        data/processed/site_hazard_readings.csv, api/default_tariff.json
        data/mss_daily/mss_daily.parquet
-Writes data/processed/burn_active_stations.json  the gauges and WBGT stations active each year
-       data/processed/burn_site_map.json       each centre's active gauge and station per year
-       data/processed/burn_yearly_hero.csv     the hero stall, year by year
+Writes data/processed/burn_yearly_hero.csv     the hero stall, year by year
        data/processed/burn_yearly_island.csv   all 103 centres summed, year by year
        data/processed/burn_daily_hero.csv      the hero stall, every day with a payout
        docs/figures/burn_hero_yearly.png, burn_2026_episode.png, burn_loss_ratio.png
@@ -22,8 +22,6 @@ Writes data/processed/burn_active_stations.json  the gauges and WBGT stations ac
 
 from __future__ import annotations
 
-import csv
-import gzip
 import json
 import sys
 from collections import defaultdict
@@ -40,9 +38,10 @@ from dgs import REPO_ROOT
 sys.path.insert(0, str(REPO_ROOT))
 
 from api import calculator  # noqa: E402
-from api.burn import point_site  # noqa: E402
+from api.burn import load_day_table, lowest_bands  # noqa: E402
 from api.main import load_history  # noqa: E402
 from api.models import Tariff  # noqa: E402
+from api.readings import Place, day_readings_at, history_place, stations_read  # noqa: E402
 
 PROC_DIR = REPO_ROOT / "data" / "processed"
 FIG_DIR = REPO_ROOT / "docs" / "figures"
@@ -57,28 +56,6 @@ DAILY_TAKINGS_SGD = 500.0
 HAZE_COLOR, RAIN_COLOR, HEAT_COLOR, LOST_COLOR = "#6f63c8", "#2a78d6", "#d95926", "#b9b7ae"
 
 
-def active_stations_by_year(parquet: str, min_days: int) -> dict[str, list[str]]:
-    """Which stations reported enough of each year to serve as a site's trigger station."""
-    days = pd.read_parquet(PROC_DIR / parquet, columns=["station_id", "day"])
-    days["year"] = pd.to_datetime(days["day"]).dt.year
-    counts = days.groupby(["year", "station_id"]).size()
-    active: dict[str, list[str]] = defaultdict(list)
-    for (year, station), count in counts.items():
-        if count >= min_days:
-            active[str(year)].append(station)
-    return dict(active)
-
-
-def load_day_table() -> dict[str, dict[str, dict[str, float]]]:
-    table: dict[str, dict[str, dict[str, float]]] = {}
-    with gzip.open(PROC_DIR / "day_readings.csv.gz", "rt", newline="") as file:
-        for row in csv.DictReader(file):
-            table.setdefault(row["day"], {}).setdefault(row["kind"], {})[row["site"]] = float(
-                row["value"]
-            )
-    return table
-
-
 def burn() -> None:
     tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
     static = json.loads((PROC_DIR / "map_static.json").read_text())
@@ -87,21 +64,18 @@ def burn() -> None:
     cap_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
 
     centres = static["hawker_centres"]
-    active = {
-        "rain": active_stations_by_year("rain_station_days.parquet", 300),
-        "heat": active_stations_by_year("wbgt_station_days.parquet", 150),
-    }
-    (PROC_DIR / "burn_active_stations.json").write_text(json.dumps(active, separators=(",", ":")))
-    site_map = {
-        centre["name"]: point_site(centre["lat"], centre["lng"], centre["region"], static, active)
+    gst = 1 + tariff.pricing.gst_rate
+    lowest = lowest_bands(tariff)
+    read_counts = stations_read(tariff)
+    places = {
+        centre["name"]: history_place(centre["region"], centre["lat"], centre["lng"], sites)
         for centre in centres
     }
-    (PROC_DIR / "burn_site_map.json").write_text(json.dumps(site_map, separators=(",", ":")))
     premiums = {
         centre["name"]: next(
             t
             for t in calculator.quote_at(
-                tariff, history, sites, centre["lat"], centre["lng"], PRODUCT
+                tariff, history, sites, centre["lat"], centre["lng"], PRODUCT, centre["region"]
             ).tiers
             if t.tier == TIER
         ).yearly_premium_sgd
@@ -121,15 +95,8 @@ def burn() -> None:
         readings_of_day = table[day]
         year = int(day[:4])
         for centre in centres:
-            site = site_map[centre["name"]]
-            gauge = site["gauge_by_year"].get(str(year))
-            station = site["station_by_year"].get(str(year))
-            readings = {
-                "haze": readings_of_day.get("haze", {}).get(site["region"], 0.0),
-                "rain": readings_of_day.get("rain", {}).get(gauge, 0.0),
-                "heat": readings_of_day.get("heat", {}).get(station, 0.0),
-            }
-            if readings["haze"] < 101 and readings["rain"] < 20 and readings["heat"] < 2:
+            readings = day_readings_at(readings_of_day, places[centre["name"]], *read_counts)
+            if all(readings[key] < level for key, level in lowest.items()):
                 continue
             assessment = calculator.assess(tariff, PRODUCT, TIER, readings)
             loss = assessment.loss_percent / 100
@@ -167,7 +134,8 @@ def burn() -> None:
             "payout_heat_sgd": round(entry["heat"], 2),
             "est_lost_sgd": round(entry["lost"], 2),
             "premium_sgd": round(premium, 2),
-            "loss_ratio": round(entry["paid"] / premium, 3),
+            "premium_before_gst_sgd": round(premium / gst, 2),
+            "loss_ratio": round(entry["paid"] * gst / premium, 3),
             "recovered_share": round(entry["paid"] / entry["lost"], 3) if entry["lost"] else 0.0,
         })
         stalls = premium_pool = paid_total = lost_total = 0.0
@@ -180,17 +148,18 @@ def burn() -> None:
         island_rows.append({
             "year": year, "stalls": int(stalls),
             "premium_pool_sgd": round(premium_pool),
+            "premium_pool_before_gst_sgd": round(premium_pool / gst),
             "payout_sgd": round(paid_total),
             "est_lost_sgd": round(lost_total),
-            "loss_ratio": round(paid_total / premium_pool, 3),
+            "loss_ratio": round(paid_total * gst / premium_pool, 3),
         })
 
     pd.DataFrame(hero_rows).to_csv(PROC_DIR / "burn_yearly_hero.csv", index=False)
     pd.DataFrame(island_rows).to_csv(PROC_DIR / "burn_yearly_island.csv", index=False)
     pd.DataFrame(hero_days).to_csv(PROC_DIR / "burn_daily_hero.csv", index=False)
     figures(hero_rows, hero_days)
-    summary(hero_rows, island_rows, hero_days)
-    sensitivity(table, hero, site_map[HERO], history, sites, premiums[HERO] / 52)
+    summary(hero_rows, island_rows, hero_days, gst)
+    sensitivity(table, hero, places[HERO], history, sites, premiums[HERO] / 52)
 
 
 def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
@@ -237,14 +206,14 @@ def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
     ax.text(years[0] - 0.4, mean + 3, f"10-year average {mean:.0f}%", fontsize=8)
     ax.axhline(100, color="#b4512c", linewidth=1)
     ax.text(years[-1] - 1.6, 103, "100% = payouts eat the whole premium", fontsize=7, color="#b4512c")
-    ax.set_title("Loss ratio by year: payouts as a share of the premium (one stall, Tier 2)")
+    ax.set_title("Loss ratio by year: payouts as a share of the premium before GST (one stall, Tier 2)")
     ax.set_ylabel("%")
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "burn_loss_ratio.png", dpi=200)
 
 
-def sensitivity(table, hero, hero_site, history, sites, premiums_base) -> None:
+def sensitivity(table, hero, hero_place: Place, history, sites, premiums_base) -> None:
     """The same burn with haze severities raised to 0.5/0.8/1.0: the tariff desk's one knob
     that most changes what haze pays. Labelled a what-if; the base tariff stays the truth."""
     tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
@@ -256,22 +225,18 @@ def sensitivity(table, hero, hero_site, history, sites, premiums_base) -> None:
     premium = next(
         t
         for t in calculator.quote_at(
-            tariff, history, sites, hero["lat"], hero["lng"], PRODUCT
+            tariff, history, sites, hero["lat"], hero["lng"], PRODUCT, hero["region"]
         ).tiers
         if t.tier == TIER
     ).yearly_premium_sgd
     paid_by_year: dict[int, float] = defaultdict(float)
     lost_by_year: dict[int, float] = defaultdict(float)
+    lowest = lowest_bands(tariff)
+    read_counts = stations_read(tariff)
     for day in sorted(table):
         year = int(day[:4])
-        gauge = hero_site["gauge_by_year"].get(str(year))
-        station = hero_site["station_by_year"].get(str(year))
-        readings = {
-            "haze": table[day].get("haze", {}).get(hero_site["region"], 0.0),
-            "rain": table[day].get("rain", {}).get(gauge, 0.0),
-            "heat": table[day].get("heat", {}).get(station, 0.0),
-        }
-        if readings["haze"] < 101 and readings["rain"] < 20 and readings["heat"] < 2:
+        readings = day_readings_at(table[day], hero_place, *read_counts)
+        if all(readings[key] < level for key, level in lowest.items()):
             continue
         assessment = calculator.assess(tariff, PRODUCT, TIER, readings)
         room = max(0.0, cap_sgd - paid_by_year[year])
@@ -285,14 +250,15 @@ def sensitivity(table, hero, hero_site, history, sites, premiums_base) -> None:
           f"premium S${premium:,.2f}/yr (S${premium / 52:.2f}/wk, base S${premiums_base:.2f}/wk)")
 
 
-def summary(hero_rows: list[dict], island_rows: list[dict], hero_days: list[dict]) -> None:
+def summary(hero_rows: list[dict], island_rows: list[dict], hero_days: list[dict], gst: float) -> None:
     full = [r for r in hero_rows if 2017 <= r["year"] <= 2026]
     paid = sum(r["payout_sgd"] for r in full)
     lost = sum(r["est_lost_sgd"] for r in full)
     premium = sum(r["premium_sgd"] for r in full)
     print(f"Hero: {HERO}, {PRODUCT}, {TIER}, takings S${DAILY_TAKINGS_SGD:.0f}/day")
     print(f"2017-2026: paid S${paid:,.0f} of S${lost:,.0f} estimated losses "
-          f"({paid / lost:.0%}) for S${premium:,.0f} premium (loss ratio {paid / premium:.0%})")
+          f"({paid / lost:.0%}) for S${premium:,.0f} premium "
+          f"(loss ratio {paid * gst / premium:.0%} of premium before GST)")
     worst = max(full, key=lambda r: r["payout_sgd"])
     print(f"Worst year {worst['year']}: {worst['trigger_days']} trigger days, "
           f"paid S${worst['payout_sgd']:,.0f}, est. lost S${worst['est_lost_sgd']:,.0f}")

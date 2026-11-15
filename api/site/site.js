@@ -177,39 +177,77 @@ function liveStatus(live) {
   return { ok: true, text: `NEA readings as of ${String(live.fetched_at).slice(11, 16)} SGT` };
 }
 
-/* A business outside a hawker centre, placed at its postcode's area point, or null. */
-function areaOf(user, application) {
-  if (user.centre || application?.area_lat == null) return null;
+/* A shop, placed at its postcode's area point, or null. */
+function areaOf(user, application, product) {
+  if (user.centre || application?.business_class !== "shop" || application.area_lat == null) return null;
   return {
     query: new URLSearchParams({
-      lat: application.area_lat, lng: application.area_lng, region: user.region,
-      product: user.product || "cooked_food",
+      lat: application.area_lat, lng: application.area_lng, region: user.region, product,
     }).toString(),
     label: `around postcode ${escapeHtml(application.postcode)} (${escapeHtml(application.area_basis)})`,
   };
 }
 
+/* Where today's score and the ten-year replay are read, as a payout reads them: a hawker at its
+   centre, a shop at its postcode's area point, anyone else (a platform worker) at its region's point. */
+function scoringSite(user, application, staticData, product) {
+  if (user.centre) {
+    const query = new URLSearchParams({ centre: user.centre, product }).toString();
+    return { kind: "centre", live: `/api/map/live?product=${encodeURIComponent(product)}`, burn: query,
+             heading: "Today at your stall", label: `at ${escapeHtml(user.centre)}` };
+  }
+  const area = areaOf(user, application, product);
+  if (area) {
+    return { kind: "area", live: `/api/map/live/at?${area.query}`, burn: area.query,
+             heading: "Today around your postcode", label: area.label };
+  }
+  const point = staticData.region_points?.[user.region];
+  if (!point) return null;
+  const [lat, lng] = point;
+  return {
+    kind: "region",
+    live: `/api/map/live/at?${new URLSearchParams({ lat, lng, region: user.region, product })}`,
+    burn: new URLSearchParams({ region: user.region, product }).toString(),
+    heading: "Today in your region", label: `in the ${escapeHtml(user.region)} region`,
+  };
+}
+
+/* Where the business is priced, as the server charges it: a hawker at its centre, a shop at its
+   postcode's area, anyone else (a platform worker) by region. */
+function pricedPlace(user, application) {
+  if (user.centre) return { centre: user.centre };
+  if (application?.business_class === "shop" && application.postcode) return { postcode: application.postcode };
+  return { region: user.region };
+}
+function priceBasis(place) {
+  if (place.centre) return "priced from the NEA stations nearest your centre";
+  if (place.postcode) return "priced from the NEA stations nearest your postcode's area";
+  return "priced from your region's NEA history";
+}
+
 async function renderSme(user) {
-  const [quote, policies, staticData, centreLive, rentTable, application] = await Promise.all([
-    post("/api/quote", { region: user.region, product: user.product || "cooked_food" }),
+  const [policies, staticData, rentTable, application] = await Promise.all([
     api("/api/policies"),
     api("/api/map/static"),
-    user.centre ? api("/api/map/live").catch(() => null) : null,
     api("/api/rent"),
     api("/api/applications/mine").catch(() => null),
   ]);
-  const area = areaOf(user, application);
-  const live = user.centre ? centreLive
-    : await api(area ? `/api/map/live/at?${area.query}` : "/api/map/live").catch(() => null);
+  const policy = policies[0] || null;
+  const product = policy?.product || user.product || "cooked_food";
+  const place = pricedPlace(user, application);
+  const site = scoringSite(user, application, staticData, product);
+  const [quote, live] = await Promise.all([
+    post("/api/quote", { ...place, product }),
+    site ? api(site.live).catch(() => null) : null,
+  ]);
   const decision = application?.declined_before
     ? await api("/api/applications/mine/decision").catch(() => null) : null;
   const underReview = application?.status === "referred";
   const declined = application?.status === "declined";
   const proof = businessProof(application);
   const rent = rentTable.centres[user.centre];
-  const policy = policies[0] || null;
   const index = staticData.hawker_centres.findIndex((c) => c.name === user.centre);
-  const todays = !live?.available ? null : area ? live : index >= 0 ? live.hawker_losses[index] : null;
+  const todays = !live?.available ? null : site.kind !== "centre" ? live : index >= 0 ? live.hawker_losses[index] : null;
   const status = liveStatus(live);
   // Recommend the smallest tier that pays a full day's rent at this centre.
   const rec = rent ? rent.recommended_tier : quote.tiers[0].tier;
@@ -222,7 +260,7 @@ async function renderSme(user) {
   el("dash").innerHTML = `
     <h1>${user.business_name || user.name}</h1>
     ${proof ? `<p class="sub proof">${escapeHtml(proof)}</p>` : ""}
-    <p class="sub">${[user.centre || area?.label, `${user.region} region`, "priced from your region's own NEA history"].filter(Boolean).join(" · ")}</p>
+    <p class="sub">${[user.centre || (site?.kind === "area" ? site.label : null), `${user.region} region`, priceBasis(place)].filter(Boolean).join(" · ")}</p>
     ${user.centre
       ? mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")
       : mapPreview({ view: "owner", camera: "city" }, `The ${user.region} region on the risk atlas`)}
@@ -236,11 +274,11 @@ async function renderSme(user) {
       ${rent ? kpi("Your rent per trading day", SGD(rent.rent_per_day_sgd), `${rent.rent_class_label} centre${rent.estimated ? " · estimated" : ""}`) : ""}
     </div>
     <div class="grid">
-      <div class="card"><h2>${area ? "Today around your postcode" : "Today at your stall"}</h2>
+      <div class="card"><h2>${site ? site.heading : "Today at your stall"}</h2>
         ${todays ? `
         <div class="kv"><span class="k">24-h PSI (your region)</span><span class="v">${Math.round(todays.readings.haze)}</span></div>
-        <div class="kv"><span class="k">Wettest work hour (nearest gauge)</span><span class="v">${todays.readings.rain.toFixed(1)} mm</span></div>
-        <div class="kv"><span class="k">Hours at WBGT ≥32 °C (nearest station)</span><span class="v">${todays.readings.heat} h</span></div>
+        <div class="kv"><span class="k">Wettest work hour (middle of the 3 nearest rain gauges that reported)</span><span class="v">${todays.readings.rain.toFixed(1)} mm</span></div>
+        <div class="kv"><span class="k">Hours at WBGT ≥32 °C (nearest heat station that reported)</span><span class="v">${todays.readings.heat} h</span></div>
         <p class="fine">Readings refresh every 5 minutes from NEA. A payout needs no claim. It follows these numbers.</p>`
         : `<p class="fine">${status.text}</p><button class="btn small" id="retry-live" type="button">Refresh</button>`}
       </div>
@@ -279,9 +317,9 @@ async function renderSme(user) {
         <p class="error" id="buy-error"></p>`}
       </div>
     </div>
-    ${user.centre || area ? `<div class="card" id="burn-card">
+    ${site ? `<div class="card" id="burn-card">
       <h2>Your last ten years, replayed</h2>
-      <p class="fine">Every NEA reading since 2017 ${user.centre ? `at ${user.centre}` : area.label}, scored by the live tariff.
+      <p class="fine">Every NEA reading since 2017 ${site.label}, scored by the live tariff.
         Set your normal daily sales; the losses scale with it, the payouts do not.</p>
       <div class="burn-controls">
         <label>My daily sales (S$)
@@ -311,15 +349,13 @@ async function renderSme(user) {
   const loadBurn = async () => {
     const takings = +el("burn-takings").value || 500;
     try {
-      const place = user.centre ? `centre=${encodeURIComponent(user.centre)}`
-        + `&product=${user.product || "cooked_food"}` : area.query;
-      const burn = await api(`/api/map/burn?${place}&tier=${burnTier}&takings=${takings}`);
+      const burn = await api(`/api/map/burn?${site.burn}&tier=${burnTier}&takings=${takings}`);
       el("burn-body").innerHTML = renderBurn(burn, policy);
     } catch (error) {
       el("burn-body").innerHTML = `<p class="error">${error.message}</p>`;
     }
   };
-  if (!user.centre && !area) return;
+  if (!site) return;
   el("burn-takings").addEventListener("change", loadBurn);
   loadBurn();
 }
@@ -427,7 +463,7 @@ async function renderInsurer(user) {
   const stalls = staticData.hawker_centres.reduce((a, c) => a + c.food_stalls, 0);
   let marketPool = 0;
   for (const centre of staticData.hawker_centres) {
-    const tier = quotesData.quotes[centre.region].tiers[1];
+    const tier = (quotesData.centres?.[centre.name] ?? quotesData.quotes[centre.region]).tiers[1];
     marketPool += tier.yearly_premium_sgd * centre.food_stalls;
   }
   const maxLoss = live?.available ? Math.max(...live.hawker_losses.map((l) => l.loss_percent)) : null;

@@ -344,3 +344,29 @@ def test_each_tier_shows_the_steps_that_build_its_premium():
             tier.expected_paid_days * tier.daily_payout_sgd, rel=1e-4)
         assert steps["uncertainty"] == pytest.approx(0.15 * steps["expected_payouts"], abs=0.01)
         assert round(sum(steps.values()), 2) == tier.yearly_premium_sgd
+
+
+def test_a_place_paid_on_another_region_is_priced_on_that_regions_haze():
+    clean = site("east", 1.30, {50.0: 10}, region="east")
+    hazy = site("central", 1.45, {250.0: 10}, region="central")
+    history = {"east": {"haze": pooled([clean])}, "central": {"haze": pooled([hazy])}}
+    sites = {"haze": [clean, hazy]}
+    nearest = calculator.quote_at(make_tariff(), history, sites, 1.30, 103.9, "cooked_food")
+    paid_on = calculator.quote_at(
+        make_tariff(), history, sites, 1.30, 103.9, "cooked_food", "central"
+    )
+    assert (nearest.region, nearest.local_risks[0].stations) == ("east", ["east"])
+    assert (paid_on.region, paid_on.local_risks[0].stations) == ("central", ["central"])
+    assert paid_on.expected_loss_days > nearest.expected_loss_days
+    assert paid_on.loss_day_parts["haze"] == pytest.approx(
+        paid_on.local_risks[0].loss_days, abs=0.01
+    )
+
+
+def test_an_unknown_region_cannot_be_quoted_at_a_place():
+    stations = [site("east", 1.30, {50.0: 10})]
+    with pytest.raises(calculator.UnknownKey):
+        calculator.quote_at(
+            make_tariff(), {"east": {"haze": pooled(stations)}}, {"haze": stations},
+            1.30, 103.9, "cooked_food", "middle",
+        )

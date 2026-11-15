@@ -9,11 +9,11 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import Engine, delete, insert, select, update
 
-from api import paynow, payout_flow, postcodes, sms, store
+from api import paynow, payout_flow, postcodes, readings, sms, store
 from api.accounts import (
-    InsurerDep, SmeDep, UserDep, application_profile, applications, policies, users,
+    InsurerDep, SmeDep, UserDep, application_profile, applications, users,
 )
-from api.day_history import SiteReadings, day_readings, site_readings
+from api.day_history import day_readings
 from api.payouts import payout_accounts, payout_events, payouts, sms_messages
 
 router = APIRouter(prefix="/api")
@@ -228,33 +228,41 @@ def list_texts(user: SmeDep, request: Request) -> list[dict]:
     ]
 
 
-def policy_places(
-    engine: Engine, map_static: dict, centres_by_sector: dict
-) -> dict[int, tuple[float, float]]:
-    """Where each policy's readings are taken: its hawker centre, else the area of the postcode
-    on its latest application (postcodes.area_point), else the middle of its PSI region."""
-    centres = {c["name"]: c for c in map_static["hawker_centres"]}
+def shop_postcodes(engine: Engine) -> dict[int, str]:
+    """Each shop owner's postcode from their latest shop application, by user id."""
+    query = (
+        select(applications.c.user_id, application_profile.c.postcode)
+        .join(applications, applications.c.id == application_profile.c.application_id)
+        .where(application_profile.c.business_class == "shop")
+        .order_by(applications.c.id)
+    )
     with engine.connect() as db:
-        postcode_of = dict(db.execute(
-            select(applications.c.user_id, application_profile.c.postcode)
-            .join(application_profile, application_profile.c.application_id == applications.c.id)
-            .where(application_profile.c.postcode.is_not(None))
-            .order_by(applications.c.id)
-        ).all())
-        in_force = db.execute(select(policies)).all()
-    places = {}
-    for policy in in_force:
-        if policy.centre in centres:
-            centre = centres[policy.centre]
-            places[policy.id] = (centre["lat"], centre["lng"])
-        elif policy.user_id in postcode_of:
-            area = postcodes.area_point(
-                postcode_of[policy.user_id], centres_by_sector, map_static["region_points"]
-            )
-            places[policy.id] = (area["lat"], area["lng"])
-        else:
-            places[policy.id] = tuple(map_static["region_points"][policy.region])
-    return places
+        return {row.user_id: row.postcode for row in db.execute(query) if row.postcode}
+
+
+def policy_point(policy, shops: dict[int, str], request: Request) -> tuple[float, float]:
+    """Where a policy is paid from, as it is priced (main.business_quote): its hawker centre,
+    else its shop's postcode area, else its region's point (a platform worker, who works across
+    an area). A centre the map no longer has, or a postcode with no postal sector, falls back
+    to the region's point, so one bad policy never stops a run for every other policy."""
+    state = request.app.state
+    centre = state.centres_by_name.get(policy.centre)
+    if centre is not None:
+        return centre["lat"], centre["lng"]
+    postcode = shops.get(policy.user_id)
+    if postcode is not None and postcodes.is_known(postcode):
+        point = postcodes.area_point(
+            postcode, state.centres_by_sector, state.map_static["region_points"]
+        )
+        return point["lat"], point["lng"]
+    lat, lng = state.map_static["region_points"][policy.region]
+    return lat, lng
+
+
+def policy_place(policy, shops: dict[int, str], request: Request) -> readings.Place:
+    """A policy's place, its stations ranked against the network the price reads."""
+    lat, lng = policy_point(policy, shops, request)
+    return readings.history_place(policy.region, lat, lng, request.app.state.sites)
 
 
 @router.post("/insurer/payout-runs")
@@ -270,18 +278,18 @@ def run_payouts(body: RunIn, user: InsurerDep, request: Request) -> dict:
                 f"No NEA readings for {body.loss_date} yet. Run the day again once NEA publishes "
                 "them. No policy is refused in the meantime.",
             )
-        map_static = request.app.state.map_static
-        places = policy_places(engine, map_static, request.app.state.centres_by_sector)
+        shops = shop_postcodes(engine)
+        gauges_read, heat_read = readings.stations_read(saved.tariff)
 
-        def readings_for(policy) -> SiteReadings:
-            lat, lng = places[policy.id]
-            return site_readings(day, lat, lng, policy.region, map_static)
+        def readings_for(policy) -> readings.SiteReadings:
+            where = policy_place(policy, shops, request)
+            return readings.site_readings(day, where, gauges_read, heat_read)
     else:
-        manual = SiteReadings(
+        manual = readings.SiteReadings(
             readings=body.readings, basis=dict.fromkeys(body.readings, "entered by the insurer")
         )
 
-        def readings_for(policy) -> SiteReadings:
+        def readings_for(policy) -> readings.SiteReadings:
             return manual
 
     with engine.begin() as db:

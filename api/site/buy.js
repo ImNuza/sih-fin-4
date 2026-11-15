@@ -45,11 +45,32 @@ function ssicCode() {
   return choice === "other" ? field("ssic_other").value.trim() : choice;
 }
 
-async function quoteFor(region, product) {
-  if (!region || !product) return null;
-  const key = `${region}/${product}`;
-  buyState.quotes[key] ??= post("/api/quote", { region, product });
+// Where the business is priced, as the server charges it: a hawker at its centre's nearest NEA
+// stations, a shop at its postcode's area, a platform worker (who moves around) by region.
+function businessPlace() {
+  if (isHawker()) {
+    const centre = field("centre").value;
+    return centreOf(centre) ? { centre } : null;
+  }
+  if (isPlatformWorker()) {
+    const region = businessRegion();
+    return region ? { region } : null;
+  }
+  const postcode = field("postcode").value.trim();
+  return sectorRegion(postcode) ? { postcode } : null;
+}
+
+async function quoteFor(place, product) {
+  if (!place || !product) return null;
+  const key = `${JSON.stringify(place)}/${product}`;
+  buyState.quotes[key] ??= post("/api/quote", { ...place, product });
   return buyState.quotes[key];
+}
+
+function priceBasis() {
+  if (isHawker()) return "The price comes from the NEA weather stations nearest your hawker centre.";
+  if (isPlatformWorker()) return "The price comes from your region's NEA weather history.";
+  return "The price comes from the NEA weather stations nearest your shop's area.";
 }
 
 /* ---------- dates ---------- */
@@ -244,7 +265,9 @@ function checkPostcode() {
   const region = sectorRegion(postcode);
   const unknown = /^\d{6}$/.test(postcode) && !region;
   input.setCustomValidity(unknown ? `Postal sector ${postcode.slice(0, 2)} is not a Singapore postal sector. Check the postcode` : "");
-  el("postcode-region").textContent = region ? `NEA region: ${region}. Your price comes from this region's weather history.` : "";
+  el("postcode-region").textContent = region
+    ? `NEA region: ${region}. ${isPlatformWorker() ? "Your price comes from this region's weather history." : "Your price comes from the NEA stations nearest your shop's area."}`
+    : "";
 }
 
 /* ---------- step 2: cover ---------- */
@@ -260,7 +283,7 @@ async function renderTiers() {
   el("addon").classList.toggle("on", addsSafeDay());
   body.hidden = !addsSafeDay();
   if (!addsSafeDay()) return;
-  const quote = await quoteFor(businessRegion(), businessProduct());
+  const quote = await quoteFor(businessPlace(), businessProduct());
   const rent = currentRent();
   if (!quote) {
     el("buy-tiers").innerHTML = "";
@@ -281,8 +304,8 @@ async function renderTiers() {
     ? (rent.covers_rent
       ? `Suggested: the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
       : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Suggested: the biggest tier.`)
-      + " The price comes from your region's NEA weather history."
-    : "The price comes from your region's NEA weather history.";
+      + ` ${priceBasis()}`
+    : priceBasis();
   el("what-pays").innerHTML = whatPays(quote, buyState.tier);
   el("why-price").innerHTML = whyPrice(quote, buyState.tier);
 }
@@ -294,7 +317,7 @@ const DAYS = (days) => days.toFixed(1);
 // not a climate trigger and are paid only by an insurer's manual run.
 const TRIGGER_WORDS = {
   haze: (level) => `24-hour PSI of ${level} or more in your region`,
-  rain: (level) => `${level} mm of rain or more in one work hour at the nearest gauge`,
+  rain: (level) => `${level} mm of rain or more in one work hour at your nearest rain gauges (the middle reading)`,
   heat: (level) => `${level} work hours or more at WBGT 32 °C at the nearest station`,
   flood: () => "a PUB flood alert at your place",
 };
@@ -319,14 +342,17 @@ function whyPrice(quote, tierKey) {
   const product = buyState.options.productLabels[quote.product] || quote.product;
   const parts = Object.entries(quote.loss_day_parts).filter(([, days]) => days > 0)
     .map(([hazard, days]) => `${HAZARD_WORDS[hazard] || hazard} ${DAYS(days)}`).join(", ");
+  const records = quote.local_risks.length
+    ? `NEA's records from the stations nearest ${isHawker() ? "your hawker centre" : "your shop's area"} in the ${quote.region} region`
+    : `NEA's records for the ${quote.region} region`;
   const steps = tier.build_up.map((step, at) => `<tr><td>${at ? "+ " : ""}${step.label}</td><td class="num">${SGD(step.amount_sgd)}</td></tr>`).join("");
   return `
-    <p>1. In an average year, NEA's records for the ${quote.region} region show ${DAYS(quote.expected_loss_days)} days of full loss for ${product.toLowerCase()} (${parts}). The count already allows for what you sell: on a full bad day it loses about ${Math.round(quote.product_factor * 100)}% of its normal sales for good.</p>
+    <p>1. In an average year, ${records} show ${DAYS(quote.expected_loss_days)} days of full loss for ${product.toLowerCase()} (${parts}). The count already allows for what you sell: on a full bad day it loses about ${Math.round(quote.product_factor * 100)}% of its normal sales for good.</p>
     <p>2. ${tier.label} pays ${SGD(tier.daily_payout_sgd)} a day, for up to ${SGD(tier.max_payout_per_year_sgd)} a year. In an average year that is ${DAYS(tier.expected_paid_days)} paid days.</p>
     <table class="list why-steps">${steps}
       <tr class="total"><td>Yearly premium</td><td class="num">${SGD(tier.yearly_premium_sgd)}</td></tr>
       <tr><td>Weekly premium</td><td class="num">${SGD(tier.weekly_premium_sgd)}</td></tr></table>
-    <p class="fine">No personal data goes into this price: only the region, what you sell and the tier you pick. The same inputs give the same price for everyone.</p>`;
+    <p class="fine">No personal data goes into this price: only where the business is, what you sell and the tier you pick. The same inputs give the same price for everyone.</p>`;
 }
 
 /* ---------- step 4: confirm ---------- */
@@ -353,7 +379,7 @@ function placeRows(row) {
 }
 
 async function renderSummary() {
-  const quote = addsSafeDay() ? await quoteFor(businessRegion(), businessProduct()) : null;
+  const quote = addsSafeDay() ? await quoteFor(businessPlace(), businessProduct()) : null;
   const tier = quote?.tiers.find((t) => t.tier === buyState.tier);
   const productLabel = buyState.options.productLabels[businessProduct()] || "";
   const dates = coverDates();
