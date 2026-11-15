@@ -1,4 +1,4 @@
-/* SafeDay day colours: one label for a day's loss score, shared by the dashboards, the risk map
+/* Payung day colours: one label for a day's loss score, shared by the dashboards, the risk map
    and the tariff desk. Served at /day-colour.js. The bands were set by the team on 15 Nov 2026:
    green under 30%, yellow 30% to under 70%, red 70% to 100%. A day with no loss gets its own grey
    label, because a green day still pays. The label sits next to the % and the payout, never

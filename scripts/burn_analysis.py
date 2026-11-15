@@ -1,4 +1,4 @@
-"""Burn analysis: what SafeDay would have paid on every recorded day since 2016.
+"""Burn analysis: what Payung would have paid on every recorded day since 2016.
 
 Runs the live tariff over the actual NEA readings of 2016-2026 for every hawker centre:
 each day's loss score, the payout at a chosen tier with the yearly cap applied in order,

@@ -11,7 +11,7 @@
 const params = new URLSearchParams(location.search);
 const token = params.get("t") || "";
 const payUrl = `/api/premium-payments/${encodeURIComponent(token)}/pay`;
-const PAYEE = "SafeDay by Income";
+const PAYEE = "Payung by Income";
 const MAX_AMOUNT_SGD = 500;
 const REFERENCE = /^SDP-[0-9A-F]{6}$/;
 
@@ -59,7 +59,7 @@ function showSuccess({ amount, reference }) {
     make("h1", "bank-title", "Payment successful"),
     make("p", "bank-amount", `S$${amount.toFixed(2)}`),
     card,
-    make("p", "bank-done", "You can go back to SafeDay. Your cover is being set up."),
+    make("p", "bank-done", "You can go back to Payung. Your cover is being set up."),
   );
 }
 
@@ -78,5 +78,5 @@ if (payment) {
   showSuccess(payment);
   markPaid();
 } else {
-  showProblem("This payment link is not complete. Go back to SafeDay and scan the QR again.");
+  showProblem("This payment link is not complete. Go back to Payung and scan the QR again.");
 }

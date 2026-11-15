@@ -1,4 +1,4 @@
-/* SafeDay risk atlas: a full-bleed 3D map with panels floating over it. The page always runs the
+/* Payung risk atlas: a full-bleed 3D map with panels floating over it. The page always runs the
    dark theme from /theme.css, because the map is a night map; the shared parts come from /ui.css.
    Every panel, floating card and tooltip shares the panel tokens below. */
 :root {
@@ -373,7 +373,7 @@ table.tiers tr.rec td { background: var(--accent-soft); color: var(--ink); font-
 }
 @media (max-width: 720px) {
   .topbar { gap: var(--s-2); padding: var(--s-2) var(--s-3) var(--s-3); }
-  .topbar .label-wide { display: none; }
+  .topbar .label-wide, .topbar .brand span { display: none; }
   .actions .btn { width: 40px; padding: 0; }
   .topbar .modes { order: 5; width: 100%; }
   .modes button { flex: 1 1 auto; justify-content: center; padding: 9px 8px; white-space: nowrap; }
@@ -388,7 +388,4 @@ table.tiers tr.rec td { background: var(--accent-soft); color: var(--ink); font-
   .layers, .detail, .sim { flex: none; overflow: visible; }
   .portfolio { margin-top: 0; }
   .t-controls { grid-template-columns: 1fr; }
-}
-@media (max-width: 420px) {
-  .brand-sub { display: none; }
 }

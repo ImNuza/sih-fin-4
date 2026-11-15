@@ -1,7 +1,7 @@
 """The underwriter queue: applications referred by a past decline, and the decision on each.
 
 An insurer approves or declines a referred application. Approval accepts it and, when the owner
-added SafeDay and has no cover yet, starts the policy priced server-side as the buy flow does.
+added Payung and has no cover yet, starts the policy priced server-side as the buy flow does.
 Decline starts nothing. The owner reads the decision and its note from their dashboard.
 """
 
@@ -161,7 +161,7 @@ def cover_starts_at(cover_start: date | None) -> datetime:
 def start_policy(
     db: Connection, application: dict, tariff: Tariff, request: Request
 ) -> dict | None:
-    """The approved owner's SafeDay policy, priced as the buy flow does. None when not wanted."""
+    """The approved owner's Payung policy, priced as the buy flow does. None when not wanted."""
     from api.main import business_quote, policy_values
 
     policies, users = accounts.policies, accounts.users

@@ -1,8 +1,8 @@
-# Expected impact: who SafeDay protects, how fast it pays, and what a haze year looks like (deliverable 5)
+# Expected impact: who Payung protects, how fast it pays, and what a haze year looks like (deliverable 5)
 
 Updated 15 Nov 2026 after Deval's commit `16ec056`: the burn numbers below come from the rebuilt burn files, and loss ratios divide by the premium before GST, as those files do.
 
-Research note for the SIH FIN-4 team, 15 Nov 2026. SafeDay, offered with Income Insurance. Brief: `/Users/dewa/Documents/Projects/SIH/sih-fin-4/docs/problem-statements.md`, section 1. This note covers the first half of deliverable 5: "Expected impact in terms of improved financial protection for groups". The affordability half (premium against income) is a separate parked task. This note quotes premium values only.
+Research note for the SIH FIN-4 team, 15 Nov 2026. Payung, offered with Income Insurance. Brief: `/Users/dewa/Documents/Projects/SIH/sih-fin-4/docs/problem-statements.md`, section 1. This note covers the first half of deliverable 5: "Expected impact in terms of improved financial protection for groups". The affordability half (premium against income) is a separate parked task. This note quotes premium values only.
 
 This note changes no number in the product and does not edit the tariff.
 
@@ -85,7 +85,7 @@ Money that would reach stallholders (illustration, stalls only, Tier 2, island-a
 
 ## B. Time to payout against today
 
-### B.1 What SafeDay does today and what the design intends
+### B.1 What Payung does today and what the design intends
 
 | Item | What the code does today | What the design intends |
 |---|---|---|
@@ -93,7 +93,7 @@ Money that would reach stallholders (illustration, stalls only, Tier 2, island-a
 | Schedule | None. "No scheduled job for now" (`docs/notes/payout-flow-design-2026-11-15.md`, Decisions, item 3). | A scheduled run. Not built. |
 | Approval | Automatic. A payout moves from assessed to approved with no click (payout-flow-design, Decisions, item 2). The insurer can still reject one with a written reason before it is sent. | The same. |
 | Money | PayNow is a simulator. It settles at once in the same request (payout-flow-design, lifecycle section). No money moves. | A real PayNow transfer through a bank corporate account. Not built. |
-| Message | The SMS is simulated. Example text: "SafeDay: S$62.40 sent to PayNow +65 ****4567 ... No claim needed." | A real SMS. Not built. |
+| Message | The SMS is simulated. Example text: "Payung: S$62.40 sent to PayNow +65 ****4567 ... No claim needed." | A real SMS. Not built. |
 | Missing data | The run reads the stations that reported among the nearest and every other within 5 km (rain: median of the first 3, heat: the first one), then (rain only) the MSS record (`api/readings.py`). Otherwise the policy waits as `awaiting_data` and a later run can pay it (payout-flow-design, "When a station's feed is missing"). | The same. "Late, never refused." |
 | Elapsed time | Not measured. No timing log exists. No source found. | Draft target "Under 1 hour" (SafeDay Hackathon Plan, section 14, page 27). The draft SMS says "usually within the hour" (claims note, item D15). |
 
@@ -185,7 +185,7 @@ Method (script, section "C2"): take the highest hourly value of the 24-hour PSI 
 | Data days, south region | 365 | 365 | 274 |
 
 For 2015:
-- The estimate is 2015 haze under the 2026 tariff and the Tier 2 cap. It is not what SafeDay would have paid in 2015, because the product did not exist and it adds no rain or heat.
+- The estimate is 2015 haze under the 2026 tariff and the Tier 2 cap. It is not what Payung would have paid in 2015, because the product did not exist and it adds no rain or heat.
 - The island total (S$2,624,054) equals 109.7% of the S$2,391,355 pool before GST.
 - The per-stall payout is 75% of the S$600 cap. The largest single-region payout is S$492.80.
 - The south region had 42 haze days and a peak of 322. The north had 43 days and a peak of 302. The west had 45 days and a peak of 321.
@@ -207,7 +207,7 @@ Do not write any pass percentage in the proposal. Write "Not tested yet. Target 
 
 The test to run (it covers Rafael's one-SMS TODO and the draft plan's week-4 step "Talk to at least 10 riders and 10 hawkers"):
 1. Show each person the one-SMS policy in their language (English, Chinese, Malay or Tamil). Give them one minute to read it.
-2. Take the SMS away. Ask three questions: "When does SafeDay pay you?", "How much, at most?" and "If it rains a little and you stop work, do you get paid?" (the answer is no, from the draft plan, page 12).
+2. Take the SMS away. Ask three questions: "When does Payung pay you?", "How much, at most?" and "If it rains a little and you stop work, do you get paid?" (the answer is no, from the draft plan, page 12).
 3. A person passes when all three answers are right in their own words.
 4. Record language, role (hawker, shop owner, rider), pass or fail, and which question failed. Keep names and photos out of git (`AGENTS.md`, rule "Personal data").
 5. Report passes out of people tested, for example "7 of 10". With 10 per group the result shows direction and not a rate.
@@ -223,8 +223,8 @@ The test to run (it covers Rafael's one-SMS TODO and the draft plan's week-4 ste
 | Workers, total policyholders | 800 / 6,152 / 16,722 | Sum of the three rows above (script, section A). |
 | Households protected | 800 / 6,152 / 16,722 | Assumption A6 and A8. One household per policyholder. |
 | Persons in those households | 2,448 / 18,825 / 51,169 | Assumption A8. Policyholders x 3.06 (SingStat, resident households 2025). |
-| Time to payout, SafeDay today | An insurer starts a run for one date. PayNow and SMS are simulated. No time measured. | `api/payout_api.py` (`run_payouts`), payout-flow-design Decisions 1 to 3. |
-| Time to payout, SafeDay design | Automatic, same day. Recommended line: "money within 24 hours of the trigger day". | Master list section 1. Notion page "Insurance Payout Speed and Frictions". The "under 1 hour" draft target is not supported (section B.1). |
+| Time to payout, Payung today | An insurer starts a run for one date. PayNow and SMS are simulated. No time measured. | `api/payout_api.py` (`run_payouts`), payout-flow-design Decisions 1 to 3. |
+| Time to payout, Payung design | Automatic, same day. Recommended line: "money within 24 hours of the trigger day". | Master list section 1. Notion page "Insurance Payout Speed and Frictions". The "under 1 hour" draft target is not supported (section B.1). |
 | Time to payout, fast-track claim today | 92% within three days (MSIG) | MSIG Singapore claims report, 17 Aug 2026. |
 | Time to payout, Singapore standard | Pay within 10 business days after settlement is agreed | GIA Code of Practice. Notion page "Insurance Payout Speed and Frictions". |
 | Time to payout, property damage today | Typically 30 to 60 days | Notion page, citing MoneySmart. Not checked. |
@@ -240,7 +240,7 @@ The test to run (it covers Rafael's one-SMS TODO and the draft plan's week-4 ste
 
 ## F. Three sentences for the proposal
 
-SafeDay would protect about 800 to 16,700 hawkers, shop owners and riders in year 1 (middle case 6,152, an Assumption), which reaches about 2,400 to 51,000 people in their households. In a 2026-type haze year the Tier 2 cover pays about S$437 a stall against about S$146 in a normal year, which replaces about 8% of the estimated lost sales and takes the island loss ratio to 107% (haze alone in 2015, estimated, gives 110%). The payout is automatic by PayNow with no claim form and is designed for the same day, against days for a fast-track claim and nothing at all from SmartBiz 360 on a haze day, but the speed is not yet measured and the say-it-back test has not been run.
+Payung would protect about 800 to 16,700 hawkers, shop owners and riders in year 1 (middle case 6,152, an Assumption), which reaches about 2,400 to 51,000 people in their households. In a 2026-type haze year the Tier 2 cover pays about S$437 a stall against about S$146 in a normal year, which replaces about 8% of the estimated lost sales and takes the island loss ratio to 107% (haze alone in 2015, estimated, gives 110%). The payout is automatic by PayNow with no claim form and is designed for the same day, against days for a fast-track claim and nothing at all from SmartBiz 360 on a haze day, but the speed is not yet measured and the say-it-back test has not been run.
 
 ## G. Open items for the team
 
@@ -267,7 +267,7 @@ The working copy of the script was kept at `/private/tmp/claude-501/-Users-dewa-
 ### Script `impact_calc.py`
 
 ```python
-"""Expected-impact numbers for the SafeDay proposal. Read-only: writes nothing to the repo.
+"""Expected-impact numbers for the Payung proposal. Read-only: writes nothing to the repo.
 
 Run:  cd /Users/dewa/Documents/Projects/SIH/sih-fin-4
       PYTHONDONTWRITEBYTECODE=1 .venv/bin/python <this file>

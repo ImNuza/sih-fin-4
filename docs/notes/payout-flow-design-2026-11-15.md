@@ -163,7 +163,7 @@ of many centres had reported on few days.
 
 ## Example SMS (English, 1 segment)
 
-> SafeDay: S$62.40 sent to PayNow +65 ****4567 for heavy rain at Maxwell on 14 Nov. Ref SD-000123. No claim needed. Reply HELP for help.
+> Payung: S$62.40 sent to PayNow +65 ****4567 for heavy rain at Maxwell on 14 Nov. Ref SD-000123. No claim needed. Reply HELP for help.
 
 ## Decisions
 

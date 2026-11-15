@@ -1,4 +1,4 @@
-/* SafeDay shared behaviour for /ui.css: icons, tooltips, the side drawer and sortable tables.
+/* Payung shared behaviour for /ui.css: icons, tooltips, the side drawer and sortable tables.
    Load with <script src="/ui.js" defer></script> before the page script. Exposes window.SafeUI. */
 (() => {
   const SPRITE = "/vendor/icons.svg";

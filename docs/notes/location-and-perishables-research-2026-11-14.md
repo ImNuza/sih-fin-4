@@ -46,7 +46,7 @@ Trigger rates differ a lot between stations in the same region:
 
 Pricing by region, as the API does today, charges all of these stalls the same.
 
-### Proposed method for SafeDay (design A)
+### Proposed method for Payung (design A)
 
 1. The customer gives a postal code. OneMap turns it into coordinates.
 2. Look up the nearest 3 rain gauges (median, matching the trigger rule in Bhoomi's doc), the nearest WBGT station, and the PSI region.
@@ -69,7 +69,7 @@ Spoiled stock is a **separate cover**, "Deterioration of Stock", usually tied to
 - [Zurich Malaysia](https://zurich.com.my/insurance-products/business/for-my-assets/engineering/deterioration-of-stocks-insurance)
 - [Munich Re](https://www.munichre.com/specialty/global-markets-uk/en/solutions/construction-engineering-insurance/deterioration-of-stock-insurance.html)
 
-Hard assets (the stall, equipment) are property cover, which Income already sells through Stallholder Insurance and SmartBiz 360. SafeDay must not pay for them.
+Hard assets (the stall, equipment) are property cover, which Income already sells through Stallholder Insurance and SmartBiz 360. Payung must not pay for them.
 
 ### Proposed loss per bad day
 

@@ -1,4 +1,4 @@
-/* SafeDay platform shell: auth, the login page and the two role dashboards.
+/* Payung platform shell: auth, the login page and the two role dashboards.
    All pricing and access control happen in the API; this file only draws the answers. */
 "use strict";
 
@@ -149,7 +149,7 @@ function wireLogin() {
     el(errorId).innerHTML = message ? `${SafeUI.icon("circle-alert")}<span>${message}</span>` : "";
   };
   const serverProblem = (formId, error) => {
-    if (error instanceof TypeError) return "Could not reach SafeDay. Check your connection and try again.";
+    if (error instanceof TypeError) return "Could not reach Payung. Check your connection and try again.";
     if (formId === "ins-register" && /exists/i.test(error.message))
       return "An account with this email already exists. Sign in with it instead, or use another email.";
     if (/wrong email or password/i.test(error.message))
@@ -483,10 +483,10 @@ function chooseCover({ quote, rent, rentTable, rec }) {
       ? `Recommended is the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
       : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Recommended is the biggest tier.`)
       + ` ${rentSource(rent, rentTable)}`;
-  return `<h2>SafeDay prices for your stall</h2>
+  return `<h2>Payung prices for your stall</h2>
     <div class="tiers-row">${cards}</div>
     <p class="fine">${why}</p>
-    ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add SafeDay to your policy with you. SafeDay is not sold directly.")}
+    ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add Payung to your policy with you. Payung is not sold directly.")}
     <p class="fine">The recommended tier in one SMS, as we would text it to you:</p>
     <div class="cover-sms" data-cover-tier="${rec}" data-cover-weekly="${quote.tiers.find((t) => t.tier === rec)?.weekly_premium_sgd ?? ""}"></div>`;
 }
@@ -532,7 +532,7 @@ function wireSme(view) {
 /* Cancelling stops cover at once, so it asks once, in place, before it acts. */
 function confirmCancel(user, policy) {
   const row = el("cancel-row");
-  row.innerHTML = `<p class="fine">Cancel your cover? It stops now, and SafeDay pays nothing for bad days after this.</p>
+  row.innerHTML = `<p class="fine">Cancel your cover? It stops now, and Payung pays nothing for bad days after this.</p>
     <div class="row-actions">
       <button class="btn small danger" id="cancel-confirm" type="button">Yes, cancel cover</button>
       <button class="btn small ghost" id="cancel-keep" type="button">Keep my cover</button>
@@ -558,7 +558,7 @@ function renderBurn(burn, policy) {
   const maxLost = Math.max(...burn.years.map((y) => Math.max(y.est_lost_sgd, y.paid_sgd)), 1);
   const height = (value, floor) => Math.max((value / maxLost) * BURN_CHART_PX, floor);
   const bars = burn.years.map((y) => {
-    const tip = `${y.year}: lost about ${SGD(y.est_lost_sgd)}, SafeDay would have paid ${SGD(y.paid_sgd)}`;
+    const tip = `${y.year}: lost about ${SGD(y.est_lost_sgd)}, Payung would have paid ${SGD(y.paid_sgd)}`;
     return `<div class="burn-year" data-tip="${tip}" aria-label="${tip}">
       <div class="burn-bars">
         <span class="burn-lost" style="height:${height(y.est_lost_sgd, 2)}px"></span>
@@ -570,7 +570,7 @@ function renderBurn(burn, policy) {
   const hz = t.by_hazard_sgd;
   return `
     <p class="burn-headline">Weather took about <b>${SGD(t.est_lost_sgd)}</b> from a business like
-      yours since ${t.from_year}. With ${burn.tier_label}, SafeDay would have paid you
+      yours since ${t.from_year}. With ${burn.tier_label}, Payung would have paid you
       <b>${SGD(t.paid_sgd)}</b> across <b>${t.trigger_days} bad days</b>, for
       ${SGD(t.premium_sgd)} of premium${policy ? "" : " (you are not covered yet)"}.</p>
     <div class="burn-chart" role="img" aria-label="Revenue lost and payouts per year since ${t.from_year}">${bars}</div>
@@ -659,7 +659,7 @@ function tenYearsText(h) {
     <p class="fine">A red day loses most of a day's sales, a yellow day a third to two thirds, a green day less; each pays that
       share of ${SGD(h.daily_payout_sgd)}. ${hazeOutlook(h.haze_facts)}</p>
     <p class="fine card-foot">Expect the next ten years to look like these, not better: Singapore is getting hotter and wetter.
-      This is history, not a promise. SafeDay pays only when the readings reach a payout level, so a year can bring
+      This is history, not a promise. Payung pays only when the readings reach a payout level, so a year can bring
       losses and no payout.</p>`;
 }
 
@@ -679,7 +679,7 @@ async function renderModelHistory(target, place, tier, todays) {
       <div class="card-head"><div><h2>Every year since 1980 at your stall</h2>
         <p class="fine">What ${h.tier_label} would have paid each year, from ${from}, scored by the live tariff.</p></div></div>
       <p class="burn-headline">With ${h.tier_label} (${SGD(h.daily_payout_sgd)} for a full bad day, up to
-        ${SGD(h.max_payout_per_year_sgd)} a year), SafeDay would have paid you about <b>${SGD(all.typical_sgd)}</b>
+        ${SGD(h.max_payout_per_year_sgd)} a year), Payung would have paid you about <b>${SGD(all.typical_sgd)}</b>
         in a typical year since ${all.from_year}, and the full <b>${SGD(all.worst_sgd)}</b> in ${all.worst_year}.
         ${all.years_without_payout ? `It paid nothing in ${all.years_without_payout} of ${all.years} years.`
           : `It paid something in every one of the ${all.years} years.`}</p>
@@ -830,7 +830,7 @@ function referralCard(application, quotes) {
     ? [tier ? tier.label : application.tier,
        application.term_months && `${application.term_months} months`,
        application.cover_start && `from ${SG_DATE(application.cover_start)}`].filter(Boolean).join(" · ")
-    : "Business account only, no SafeDay";
+    : "Business account only, no Payung";
   const place = [application.centre, application.stall_unit && `unit ${application.stall_unit}`,
     `${titleCase(application.region)} region`, application.postcode && `postcode ${application.postcode}`].filter(Boolean).join(" · ");
   const applicant = application.applicant_type === "company" ? `Company, UEN ${application.uen}` : "Individual";
@@ -1198,7 +1198,7 @@ function bookSection(book, options) {
         ${sortHeader("Business type")}
         ${sortHeader("Tier")}
         ${sortHeader("Weekly", { num: true, help: "Premium the business pays each week." })}
-        ${sortHeader("Payout/day", { num: true, help: "What SafeDay pays on a full bad day. A partial day pays its share." })}
+        ${sortHeader("Payout/day", { num: true, help: "What Payung pays on a full bad day. A partial day pays its share." })}
         ${sortHeader("Started", { num: true })}
         ${sortHeader("Status", { help: `Waiting period: the first ${WAITING_PERIOD_DAYS} days, when nothing is paid. Active: payouts follow NEA readings. Ended: the term is over.` })}
       </tr></thead>

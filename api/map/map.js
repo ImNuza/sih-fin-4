@@ -1,4 +1,4 @@
-/* SafeDay risk atlas: 3D map of SME climate-risk exposure and pricing over Singapore.
+/* Payung risk atlas: 3D map of SME climate-risk exposure and pricing over Singapore.
    Data: /api/map/static (geography, exposure, hazard stats), /api/map/quotes (pricing),
    /api/map/live (today's NEA readings), POST /api/assess (one day's loss score).
    All pricing comes from the server's calculator; this file only draws it. */
@@ -1216,7 +1216,7 @@ async function runTimeMachine() {
         <output>${SGD0(hz[k])}</output></div>`).join("")}
       <div class="t-hz"><span>Flash flood</span><div class="bar"></div><output>S$0</output></div>
       <h3>Year by year</h3>
-      <p class="t-key"><span><i class="lost"></i>Lost to weather</span><span><i class="paid"></i>Paid by SafeDay</span></p>
+      <p class="t-key"><span><i class="lost"></i>Lost to weather</span><span><i class="paid"></i>Paid by Payung</span></p>
       <div class="t-years">${burn.years.map((y) => `
         <div class="t-year"><div class="bars">
           <div class="lost" style="height:${Math.max(y.est_lost_sgd / lostMax * 60, 2)}px" title="Lost ~${SGD0(y.est_lost_sgd)}"></div>
@@ -1254,7 +1254,7 @@ function aboutHtml() {
   <h4>The premium, step by step (the Swiss Re and Munich Re recipe)</h4>
   <p>Swiss Re's CatNet and Munich Re's Location Risk Intelligence price a location by layering
   hazard frequency over geocoded exposure, applying a damage function, then adding the money
-  terms. SafeDay runs the same four steps, with every input public:</p>
+  terms. Payung runs the same four steps, with every input public:</p>
   <p>Every number on this page comes from the pricing API (<code>/api/quote</code>, <code>/api/assess</code>) - the same engine the tariff desk edits. For a stall, the engine computes expected loss-days (day-weighted severity of the NEA readings at the stations nearest the stall, blended with its region where a record is short, × 365.25 × peril weight × product factor - classical burning-cost rating), caps paid days per tier, then loads: +15% uncertainty, +10% catastrophe (modest next to the 2-4× expected-loss multiples of the cat-bond market), ÷ (1-25%) expenses (the documented microinsurance average), +9% GST (IRAS).</p>
   <h4>Why a payout is insurance, not a bet</h4>
   <p>Insurance Act 1966 s151 voids cover without insurable interest. Tier payouts (S$20-100/day) sit below a stall's normal daily takings (triangulated S$400-800/day gross), so each payout is a pre-estimate of lost income, sold only to operating businesses. Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, we can show a customer exactly why they pay what they pay, and no personal data goes into any price.</p>
@@ -1263,7 +1263,7 @@ function aboutHtml() {
     <li>Singapore has ~369,500 SMEs - 99% of enterprises (SingStat, 2025); NEA manages 123 markets and hawker centres.</li>
     <li>About two-thirds of cooked-food stallholders hold insurance, but it is fire and liability cover; nothing covers weather-driven income loss without physical damage (MSE written parliamentary reply, 4 Aug 2026).</li>
     <li>~74% of SMEs worry about business-interruption income loss; only ~23% hold BI cover (QBE Singapore SME surveys 2024-2025).</li>
-    <li>The payout shape already exists: Income's Stallholder Insurance paid S$100-200 per closure day after fire-type loss. SafeDay extends that familiar shape to haze, rain, heat and flood days.</li>
+    <li>The payout shape already exists: Income's Stallholder Insurance paid S$100-200 per closure day after fire-type loss. Payung extends that familiar shape to haze, rain, heat and flood days.</li>
   </ul>
   <h4>What is real and what is assumed</h4>
   <ul>

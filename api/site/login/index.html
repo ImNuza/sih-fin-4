@@ -3,21 +3,26 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sign in · SafeDay</title>
+    <title>Sign in · Payung</title>
+    <link rel="icon" href="/favicon.ico?v=1" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png?v=1" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16.png?v=1" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png?v=1" />
+    <link rel="manifest" href="/site.webmanifest?v=1" />
     <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
     <link rel="preload" href="/vendor/fonts/ubuntu-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/theme.css?v=7" />
-    <link rel="stylesheet" href="/ui.css?v=6" />
-    <link rel="stylesheet" href="/auth.css?v=2" />
-    <script src="/ui.js?v=3" defer></script>
-    <script src="/site.js?v=22" defer></script>
-    <link rel="stylesheet" href="/assistant.css?v=6" />
-    <script src="/assistant.js?v=3" defer></script>
+    <link rel="stylesheet" href="/theme.css?v=8" />
+    <link rel="stylesheet" href="/ui.css?v=8" />
+    <link rel="stylesheet" href="/auth.css?v=3" />
+    <script src="/ui.js?v=4" defer></script>
+    <script src="/site.js?v=23" defer></script>
+    <link rel="stylesheet" href="/assistant.css?v=8" />
+    <script src="/assistant.js?v=4" defer></script>
   </head>
   <body>
     <header class="topnav">
-      <a class="brand" href="/"><span class="brand-mark"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg></span>SafeDay</a>
+      <a class="brand" href="/"><img class="brand-logo on-light" src="/brand/payung-logo.png?v=1" alt="Payung" width="2482" height="792" /><img class="brand-logo on-dark" src="/brand/payung-logo-white.png?v=1" alt="Payung" width="2482" height="792" /></a>
       <nav aria-label="Main">
         <a href="/map/" aria-label="Risk atlas"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#map"/></svg><span class="label-wide">Risk atlas</span></a>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#moon"/></svg></button>
@@ -26,7 +31,7 @@
     </header>
 
     <main class="auth">
-      <h1 class="page-title">Sign in to SafeDay</h1>
+      <h1 class="page-title">Sign in to Payung</h1>
       <p class="page-sub">Pick who you are. Each role has its own dashboard.</p>
 
       <div class="segmented roletabs" role="tablist" aria-label="Who are you?">
@@ -53,7 +58,7 @@
             </form>
           </div>
         </div>
-        <p class="switchline">New to SafeDay? <a class="linklike" href="/buy/">Apply with your Income adviser</a></p>
+        <p class="switchline">New to Payung? <a class="linklike" href="/buy/">Apply with your Income adviser</a></p>
       </section>
 
       <section id="pane-insurer" class="pane" role="tabpanel" aria-labelledby="tab-insurer" hidden>

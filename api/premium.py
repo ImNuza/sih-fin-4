@@ -38,7 +38,7 @@ from api.store import metadata
 
 PAYMENT_LIFETIME = timedelta(minutes=10)
 MAX_WEEKLY_PREMIUM_SGD = 500
-PAYEE = "SafeDay by Income (demo)"
+PAYEE = "Payung by Income (demo)"
 BANK_PAGE = "/paynow-demo/"
 # The phone that scans the QR opens the success page on the public demo site, so it shows on any
 # network with internet, even when the buy flow runs on a laptop the phone cannot reach.

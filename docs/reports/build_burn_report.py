@@ -115,9 +115,9 @@ def build() -> None:
 
     story = [
         Spacer(1, 8 * mm),
-        para("SafeDay burn analysis", "title"),
+        para("Payung burn analysis", "title"),
         para("Ten years of Singapore's real weather, priced day by day through the live tariff. "
-             "What one hawker stall lost, what SafeDay would have paid, and what the whole book "
+             "What one hawker stall lost, what Payung would have paid, and what the whole book "
              "would have carried. For team and Income review before it goes onto the risk atlas.",
              "subtitle"),
         Spacer(1, 5 * mm),
@@ -175,7 +175,7 @@ def build() -> None:
         Image(str(FIGS / "burn_2026_episode.png"), width=170 * mm, height=68 * mm),
         Spacer(1, 2 * mm),
         para(f"The 2026 haze season put {money(island_2026.est_lost_sgd)} of estimated revenue "
-             f"losses across all 5,837 stalls. SafeDay would have paid {money(island_2026.payout_sgd)} "
+             f"losses across all 5,837 stalls. Payung would have paid {money(island_2026.payout_sgd)} "
              f"against a premium pool of {money(island_2026.premium_pool_sgd)}: a {island_lr:.0%} "
              "loss ratio in the worst haze year since 2015. One season fractionally exceeding its "
              "own year's premium is what the 10% catastrophe load and a reinsurance line exist to "
@@ -183,7 +183,7 @@ def build() -> None:
              "years the book remains firmly profitable. That is what the brief means by keeping "
              "mass events insurable."),
         para("Speed is the other half. SEWA's 2024 payouts took six to eight weeks; BlockBima "
-             "settled in a day and kept 86% preference. SafeDay's trigger is the same NEA feed the "
+             "settled in a day and kept 86% preference. Payung's trigger is the same NEA feed the "
              "public already watches, so every one of those 52 payable days would have paid the "
              "same day, while the stall's rent (median S$1,250 a month) kept falling due."),
 
@@ -258,13 +258,13 @@ def build() -> None:
              "its own ten-year lost-vs-paid record, and the replay-a-day picker shows the payout "
              "that date would have produced, live beside today's readings."),
         Spacer(1, 4 * mm),
-        para("SafeDay burn analysis, 14 Nov 2026. Data: NEA via data.gov.sg (Singapore Open Data "
+        para("Payung burn analysis, 14 Nov 2026. Data: NEA via data.gov.sg (Singapore Open Data "
              "Licence), MSS daily records, PUB. Engine: api/calculator.py at the current default "
              "tariff. Reproduce: uv run scripts/burn_analysis.py, then this script.", "foot"),
     ]
 
     doc = SimpleDocTemplate(str(OUT), pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm,
-                            topMargin=16 * mm, bottomMargin=16 * mm, title="SafeDay burn analysis")
+                            topMargin=16 * mm, bottomMargin=16 * mm, title="Payung burn analysis")
     doc.build(story)
     print(f"Wrote {OUT.relative_to(REPO_ROOT)} ({OUT.stat().st_size:,} bytes)")
 

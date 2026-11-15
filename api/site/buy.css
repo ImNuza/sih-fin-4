@@ -93,7 +93,7 @@
 }
 .field-error .i { flex: none; width: 16px; height: 16px; margin-top: 2px; }
 
-/* ---------- cover: base package, SafeDay add-on, tiers ---------- */
+/* ---------- cover: base package, Payung add-on, tiers ---------- */
 .package { padding: var(--s-4); border-radius: var(--r-md); background: var(--surface-2); margin-bottom: var(--s-3); }
 .package-head { display: flex; align-items: center; gap: var(--s-2); font-weight: var(--w-bold); margin-bottom: var(--s-1); }
 .package .tick { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--good-soft); color: var(--good); }

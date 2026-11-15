@@ -1,13 +1,13 @@
-# Market competitiveness of SafeDay (deliverable 6)
+# Market competitiveness of Payung (deliverable 6)
 
-Research note for the SIH FIN-4 team, 15 Nov 2026. SafeDay is offered with Income Insurance. Brief: `/Users/dewa/Documents/Projects/SIH/sih-fin-4/docs/problem-statements.md`, section 1. This note recommends only. It changes no number in the product.
+Research note for the SIH FIN-4 team, 15 Nov 2026. Payung is offered with Income Insurance. Brief: `/Users/dewa/Documents/Projects/SIH/sih-fin-4/docs/problem-statements.md`, section 1. This note recommends only. It changes no number in the product.
 
 ## How to read this note
 
 - A source tag like [W3] points to the list at the end. "Date read" for every web source is 15 Nov 2026.
 - "No source found" means we searched and found nothing. It does not prove that the fact is false.
 - "Draft" means "SafeDay doc section 13" (and the section 3 table) in `/Users/dewa/Documents/Projects/SIH/whatsapp/2026-11-15 SIH FIN-4/00003068-SafeDay-Hackathon-Plan.pdf`, dated 7 Nov 2026.
-- SafeDay facts come from four notes written today. Paths are in the list at the end [N1] to [N4]. They are not re-derived here.
+- Payung facts come from four notes written today. Paths are in the list at the end [N1] to [N4]. They are not re-derived here.
 - Three Notion pages hold only an attached .docx file: "Success in Insurance Doc", "Insurance Payout Speed and Frictions" and "SIH2026 Singapore Market Basics". The Notion tool shows the file name and no text. Downloading the file needs permission, so we did not read them. We read "Pitch, Features & Proposal - Master List" in full [N5].
 - "Pays weather income loss without physical damage" is the test the brief sets. The answer is yes, no or partly.
 
@@ -15,13 +15,13 @@ Research note for the SIH FIN-4 team, 15 Nov 2026. SafeDay is offered with Incom
 
 Every product named in the Notion row exists. Nothing in the team draft was invented. But the draft is wrong or unproven on several details, listed in section 6.
 
-The most important finding is that SafeDay is not the first weather income cover in Singapore. Swiss Re HazeShield (2018) already pays businesses for lost income from haze, with no physical damage [W9][W10]. The defensible claim is narrower. We found no product on sale in Singapore that pays hawkers, small shops or platform workers for lost income from heat, rain or haze. That absence is a search result and not a proof.
+The most important finding is that Payung is not the first weather income cover in Singapore. Swiss Re HazeShield (2018) already pays businesses for lost income from haze, with no physical damage [W9][W10]. The defensible claim is narrower. We found no product on sale in Singapore that pays hawkers, small shops or platform workers for lost income from heat, rain or haze. That absence is a search result and not a proof.
 
-SafeDay is stronger on reach (small traders and workers), on breadth (haze, rain, heat and flood in one policy), on trigger transparency and on a low entry price. SafeDay is weaker on basis risk, on proof (no sales, no claims history, prototype only) and on distribution (it needs Income to add it, and for workers it needs a platform to pay half).
+Payung is stronger on reach (small traders and workers), on breadth (haze, rain, heat and flood in one policy), on trigger transparency and on a low entry price. Payung is weaker on basis risk, on proof (no sales, no claims history, prototype only) and on distribution (it needs Income to add it, and for workers it needs a platform to pay half).
 
-## 2. SafeDay in one block (for comparison)
+## 2. Payung in one block (for comparison)
 
-| Item | SafeDay | Source |
+| Item | Payung | Source |
 |---|---|---|
 | Pays | S$20, S$40, S$70 or S$100 a bad day by tier. A share of that amount, from 0 to 100%. | [N1] section 2 and 4 |
 | Triggers | Highest 24-hour PSI of the day 101 or more. Rain 20 mm or more in the wettest work hour. 2 work hours at WBGT 32 C or more. A PUB flood alert (pays only by an insurer action today). | [N1] section 2 |
@@ -51,7 +51,7 @@ Nine products. Each sheet answers the seven questions in the brief. The "Own wor
 | Price | No price on the product page [W1]. The draft says "from $180 a year". No source found. |
 | Source | [W1] page, "Information is correct as at 05 November 2026". [W2] Terms and Conditions. |
 
-Own words: this is the cover SafeDay plugs into. It is built for damage, and it has a daily-benefit mechanic that Income already runs.
+Own words: this is the cover Payung plugs into. It is built for damage, and it has a daily-benefit mechanic that Income already runs.
 
 ### P2. Income Stallholder Insurance
 
@@ -166,13 +166,13 @@ Related: Income and Grab launched "Critical Illness: Pay Per Trip" on 1 Aug 2019
 
 Allianz Singapore pays up to S$50 for haze-related outpatient treatment. It runs 16 Oct to 15 Nov 2026 for holders of Accident Protect Plus and Hospital Income Protect [W22]. It is medical and not income cover. The draft describes it correctly.
 
-## 4. Where SafeDay is better, worse and what to learn
+## 4. Where Payung is better, worse and what to learn
 
 ### Better
 
-1. **It reaches the right buyers.** HazeShield is a bespoke business cover with no published price [W10]. SmartBiz 360 and Stallholder pay for damage [W2][W3]. Grab, Etiqa and ComfortDelGro pay for illness and injury [W5][W6][W11]. Only SafeDay is built for hawkers, shops and platform workers who lose sales with no damage.
+1. **It reaches the right buyers.** HazeShield is a bespoke business cover with no published price [W10]. SmartBiz 360 and Stallholder pay for damage [W2][W3]. Grab, Etiqa and ComfortDelGro pay for illness and injury [W5][W6][W11]. Only Payung is built for hawkers, shops and platform workers who lose sales with no damage.
 2. **It covers four hazards in one policy.** HazeShield covers haze only [W10]. Singlife covers rain only and only for trips [W15].
-3. **It pays from the first bad day with no loss proof.** HazeShield needs 20 bad days before it pays 20% [W10]. SafeDay pays 30% of the daily amount at PSI 101 (code-checked, [N1]). SmartBiz 360 needs a covered loss first [W2].
+3. **It pays from the first bad day with no loss proof.** HazeShield needs 20 bad days before it pays 20% [W10]. Payung pays 30% of the daily amount at PSI 101 (code-checked, [N1]). SmartBiz 360 needs a covered loss first [W2].
 4. **The trigger is public and checkable.** NEA and PUB readings with years of history. SEWA's members doubted a satellite trigger they could not see [W18].
 5. **The entry price is low.** Platform Tier 1 is about S$6.6 to S$12 a month. Grab's Basic Partner Cover is S$9 to S$11.50 a month [W5]. A hawker Tier 1 is about S$189 to S$342 a year by region, near Stallholder Plan C cooked food at S$261.60 [W3].
 6. **It rides on Income's rails.** Income already runs an online SME sale, a daily-benefit product, PayNow rain payouts (Droplet) and a per-trip deduction with Grab [W1][W7][W17].
@@ -180,7 +180,7 @@ Allianz Singapore pays up to S$50 for haze-related outpatient treatment. It runs
 ### Worse or riskier
 
 1. **Basis risk is high, and we state it.** At the nearest-station rule, rain at 20 mm misses 37.7% of the bad days a stall had and 38.5% of the days it pays are fine at the stall. Heat at WBGT 32 C for 2 hours misses 85.6% of bad days. These are upper bounds, because real stalls sit about half as far from a station [N4]. Haze has no measurable gap inside a region [N4]. No competitor in this note publishes a number like this.
-2. **No sales history and no claims data.** SafeDay is a prototype. No policy is sold and no money moves [N5]. The back-test is in-sample [N5] section 8. Droplet, SEWA and the Jakarta flood card show that first-year take-up and renewals are unproven.
+2. **No sales history and no claims data.** Payung is a prototype. No policy is sold and no money moves [N5]. The back-test is in-sample [N5] section 8. Droplet, SEWA and the Jakarta flood card show that first-year take-up and renewals are unproven.
 3. **It depends on partners.** For hawkers it needs Income to allow an add-on to Stallholder or SmartBiz 360, and Income has not confirmed this [N5]. For workers it needs a platform to pay half. No law requires the platform to do so [N5]. The platform channel is the weakest of the three [N6].
 4. **Price can look high against the cap.** Tier 1 cooked food costs about S$189 to S$342 a year by region, while the Tier 1 yearly cap is S$200 [N1][N3]. A buyer can pay more in a year than the most the product can pay. This is Deval's pricing page to check. This note changes no number.
 5. **Speed is a design claim.** The code needs an insurer to start a run. Competitor speeds are Droplet 3 days, Partner Cover 5 to 7 working days after approval, SEWA 2 to 3 weeks. "Within the hour" is not supported today [N1] item D15.
@@ -190,9 +190,9 @@ Allianz Singapore pays up to S$50 for haze-related outpatient treatment. It runs
 
 ### What to learn from each product
 
-| Product | Lesson for SafeDay |
+| Product | Lesson for Payung |
 |---|---|
-| SmartBiz 360 BI | Reuse Income's daily-benefit and 100-days-a-year wording style. Offer SafeDay as a sibling to the damage-based BI so one policy explains both. Keep the line "this pays when there is no damage". |
+| SmartBiz 360 BI | Reuse Income's daily-benefit and 100-days-a-year wording style. Offer Payung as a sibling to the damage-based BI so one policy explains both. Keep the line "this pays when there is no damage". |
 | Stallholder | Match the Plan A, B, C ladder and the annual price band (S$109 to S$262). Offer the 10% no-claim discount idea as a no-payout-year rebate. The "Closure of Stall" benefit shows hawkers already accept a flat daily amount. |
 | Grab Partner Cover | Collect through the wallet and keep the price near S$9 a month. Their claims need documents and 5 to 7 working days, so automatic payment is a real gap to point at. |
 | Etiqa and ComfortDelGro | The employer or platform can pay the whole premium and the insurer still covers income loss. That supports the 50/50 design, and it shows the platform can carry more. |
@@ -208,7 +208,7 @@ Seven columns. Sources are in the first column.
 
 | Product (source) | Insurer | For whom | Pays weather income loss, no damage? | Trigger or basis | Speed | Who pays and price |
 |---|---|---|---|---|---|---|
-| SafeDay (prototype) [N1][N3] | Income (design) | Hawkers, shops, platform workers | Yes: haze, rain, heat, flood alert | NEA and PUB readings, no claim form | Designed same day, automatic | SME 100% as add-on. Workers 50/50 with platform. Tier 1 from S$2.85 a week |
+| Payung (prototype) [N1][N3] | Income (design) | Hawkers, shops, platform workers | Yes: haze, rain, heat, flood alert | NEA and PUB readings, no claim form | Designed same day, automatic | SME 100% as add-on. Workers 50/50 with platform. Tier 1 from S$2.85 a week |
 | SmartBiz 360 BI [W1][W2] | Income | SMEs in listed sectors | No | Covered physical damage first. Daily benefit, up to 100 days a year | No source found | Owner. Price not published on page |
 | Stallholder Insurance [W3] | Income | NEA licensed hawkers | No (no weather trigger shown) | Closure of Stall S$100 to S$200 a day. Cause not stated | No source found | Hawker. S$109 to S$262 a year |
 | Grab Partner Cover [W5] | Chubb | Grab drivers and riders | No | Accident claim. S$100 a day if hospitalised | 5 to 7 working days after approval | Driver. S$9 to S$29.20 a month |
@@ -253,7 +253,7 @@ Checked and confirmed: Stallholder price band S$109 to S$261.60 and Closure of S
 
 ## 7. Three sentences for the proposal
 
-Hawkers, small shops and platform workers in Singapore can buy cover for property damage, accidents or illness today, but we found no product on sale that pays them for sales lost to haze, heavy rain or heat when nothing is damaged. The only weather income cover we found in Singapore is Swiss Re's HazeShield for businesses, which covers haze only and publishes no price, and Income's own business interruption cover pays only after covered physical damage. SafeDay pays a fixed daily amount from public NEA and PUB readings, from S$2.85 a week at Tier 1, and we state its weak points openly: some stalls will lose sales and receive nothing, and the product needs Income and a platform partner to launch.
+Hawkers, small shops and platform workers in Singapore can buy cover for property damage, accidents or illness today, but we found no product on sale that pays them for sales lost to haze, heavy rain or heat when nothing is damaged. The only weather income cover we found in Singapore is Swiss Re's HazeShield for businesses, which covers haze only and publishes no price, and Income's own business interruption cover pays only after covered physical damage. Payung pays a fixed daily amount from public NEA and PUB readings, from S$2.85 a week at Tier 1, and we state its weak points openly: some stalls will lose sales and receive nothing, and the product needs Income and a platform partner to launch.
 
 ## Sources
 

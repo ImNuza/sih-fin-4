@@ -195,7 +195,7 @@ function loginMessage(error) {
   if (error.status === 401) return "";
   if (error.status === 403) {
     return (
-      "You are signed in to SafeDay as a business owner. The tariff desk is for insurer " +
+      "You are signed in to Payung as a business owner. The tariff desk is for insurer " +
       "staff: sign in as an insurer, or use the tariff desk login."
     );
   }

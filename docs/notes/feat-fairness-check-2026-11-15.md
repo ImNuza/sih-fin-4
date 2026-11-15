@@ -64,7 +64,7 @@ Findings:
    more a year than the S$200 the tier can ever pay out. At Tier 2, 9 centres pay more than
    S$600. Tier 3 and Tier 4 have 1 centre each (Telok Blangah Rise). An average year at these
    centres uses nearly all of the tier's capped days, and the loads, expenses and GST come on
-   top. A customer there pays more than SafeDay can pay back
+   top. A customer there pays more than Payung can pay back
    (`centres_premium_over_yearly_cap` in `price_spread.csv`). In region prices, cooked food Tier 1
    is above the cap in 4 of 5 regions (south: S$341.61 a year).
 6. **Lower-rent centres pay slightly more.** The rank correlation between centre price and rent is
@@ -87,4 +87,4 @@ Findings:
 4. Show the "Why this price?" build-up in the deck as the answer to "explainable". It is a formula
    anyone can check, with no personal data and no AI in it.
 
-These touch pricing, so they go to Deval's "SafeDay pricing for review" page before any change.
+These touch pricing, so they go to Deval's "Payung pricing for review" page before any change.

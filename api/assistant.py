@@ -1,4 +1,4 @@
-"""SafeDay's one assistant: a chat that answers owners, insurers and visitors from the platform's
+"""Payung's one assistant: a chat that answers owners, insurers and visitors from the platform's
 own numbers.
 
 POST /api/assistant/chat. A language model picks which tool to run; the tools call the same
@@ -618,7 +618,7 @@ def system_prompt(ctx: Context) -> str:
     who = {"sme": f"a signed-in business owner ({ctx.user.name if ctx.user else ''})",
            "insurer": "an Income underwriter", "visitor": "a visitor who has not signed in"}[ctx.role]
     return (
-        "You are SafeDay's assistant. SafeDay is parametric climate-income cover for Singapore "
+        "You are Payung's assistant. Payung is parametric climate-income cover for Singapore "
         "hawker stalls and small shops, offered by Income Insurance. When NEA's published "
         "readings near a business cross a trigger (haze, heavy rain, heat stress, a PUB flood "
         "alert), it pays a share of a fixed daily amount by PayNow the same day, with no claim "

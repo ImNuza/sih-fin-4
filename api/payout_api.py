@@ -307,7 +307,7 @@ def list_texts(user: SmeDep, request: Request) -> list[dict]:
         ).all()
     return [
         {**text_view(row), "id": row.id,
-         "body": row.body or "SafeDay code: ****** (codes are not stored)"}
+         "body": row.body or "Payung code: ****** (codes are not stored)"}
         for row in rows
     ]
 

@@ -1,4 +1,4 @@
-"""SafeDay platform: pricing API, SME and insurer dashboards, risk map and admin panel.
+"""Payung platform: pricing API, SME and insurer dashboards, risk map and admin panel.
 
 Usage:
     ADMIN_USERNAME=admin ADMIN_PASSWORD=... uv run uvicorn api.main:app --reload
@@ -173,7 +173,7 @@ def add_missing_products(tariff: Tariff, default: Tariff) -> Tariff | None:
     return tariff.model_copy(update={"products": [*tariff.products, *missing]})
 
 
-app = FastAPI(title="SafeDay pricing API", lifespan=lifespan)
+app = FastAPI(title="Payung pricing API", lifespan=lifespan)
 basic_auth = HTTPBasic(auto_error=False)
 
 
@@ -231,7 +231,7 @@ def admin_by_password(request: Request, credentials: HTTPBasicCredentials) -> Ta
 def admin(
     request: Request, credentials: Annotated[HTTPBasicCredentials | None, Depends(basic_auth)]
 ) -> TariffEditor:
-    """An insurer signed in to SafeDay, or anyone with the tariff desk login."""
+    """An insurer signed in to Payung, or anyone with the tariff desk login."""
     # No WWW-Authenticate header on purpose: it would make browsers open their own login box
     # over the admin panel's login form.
     if credentials is not None:
@@ -908,7 +908,7 @@ def live_loss(
 
 class SellerFields(BaseModel):
     """Who arranges the cover with the customer: their Income adviser (with the adviser's code) or
-    an association (with its name). SafeDay is never sold to the customer directly, because Income
+    an association (with its name). Payung is never sold to the customer directly, because Income
     sells SmartBiz 360 through intermediaries. See api/onboarding.py."""
 
     sold_by: onboarding.SoldBy
@@ -1082,7 +1082,7 @@ class BuyRequest(SellerFields):
     uen: str | None = None
     phone: str
     sms_language: sms.SmsLanguage = Field(
-        default="en", description="The language of every text SafeDay sends this customer."
+        default="en", description="The language of every text Payung sends this customer."
     )
     add_safeday: bool
     tier: str | None = None
@@ -1171,7 +1171,7 @@ class BuyRequest(SellerFields):
         if not (self.accept_declaration and self.accept_pdpa):
             raise ValueError("Tick the declaration and the personal data consent to continue")
         if self.add_safeday and self.tier is None:
-            raise ValueError("Pick a SafeDay tier")
+            raise ValueError("Pick a Payung tier")
         if self.declined_before and not (self.declined_details or "").strip():
             raise ValueError("Say which insurer declined you and why")
         return self
@@ -1267,7 +1267,7 @@ def paynow_qr_code(
 def buy(
     body: BuyRequest, tariff: TariffDep, history: HistoryDep, request: Request, response: Response
 ) -> dict:
-    """Create the account, the application and, when SafeDay is added, its policy, then sign in.
+    """Create the account, the application and, when Payung is added, its policy, then sign in.
 
     A past decline sends the application to an underwriter: no policy starts and nothing is
     charged. Payment is simulated, and no money moves. PayNow needs a payment paid on the demo bank

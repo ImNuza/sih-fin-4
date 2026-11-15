@@ -1,6 +1,6 @@
 # Claim parameters and exclusions list (deliverable 4)
 
-Research note for the SIH FIN-4 team, 15 Nov 2026. SafeDay by Income Insurance. Brief: `docs/problem-statements.md`, section 1.
+Research note for the SIH FIN-4 team, 15 Nov 2026. Payung by Income Insurance. Brief: `docs/problem-statements.md`, section 1.
 
 How to read the sources in this note:
 - All file paths are inside `/Users/dewa/Documents/Projects/SIH/sih-fin-4`. A path with a line number looks like `api/payout_flow.py:24`.
@@ -62,7 +62,7 @@ Tests: `tests/test_renewal_rules.py`, one or more per rule.
 
 ## 1. Summary
 
-SafeDay pays a share of a fixed daily amount when a public NEA or PUB reading crosses a trigger level. The tariff has four paid tiers (S$20, S$40, S$70 and S$100 a day). The tariff sets the trigger levels for haze, heavy rain, heat and flash flood, plus a closure order. The code enforces a 30-day waiting period, one payout per customer per day, and a yearly money cap per tier over a rolling 365 days. The code does not enforce the activity rule, the end of the 12 or 24-month term, a sales freeze, an unpaid-plan exclusion or a customer challenge route. The draft doc and the code disagree with each other or with the Notion decisions on 20 points (section 5). The most serious are the waiting period (7 days in the draft, 30 days now), the haze day-2 rule (dropped), the payout amounts (draft Red and Amber days, code tiers) and the flood trigger (the code does not pay on a live PUB alert without an insurer action). The buy flow does not yet say that a customer can lose sales and receive nothing.
+Payung pays a share of a fixed daily amount when a public NEA or PUB reading crosses a trigger level. The tariff has four paid tiers (S$20, S$40, S$70 and S$100 a day). The tariff sets the trigger levels for haze, heavy rain, heat and flash flood, plus a closure order. The code enforces a 30-day waiting period, one payout per customer per day, and a yearly money cap per tier over a rolling 365 days. The code does not enforce the activity rule, the end of the 12 or 24-month term, a sales freeze, an unpaid-plan exclusion or a customer challenge route. The draft doc and the code disagree with each other or with the Notion decisions on 20 points (section 5). The most serious are the waiting period (7 days in the draft, 30 days now), the haze day-2 rule (dropped), the payout amounts (draft Red and Amber days, code tiers) and the flood trigger (the code does not pay on a live PUB alert without an insurer action). The buy flow does not yet say that a customer can lose sales and receive nothing.
 
 ## 2. What pays
 
@@ -161,7 +161,7 @@ Total listed: 20 items. D2, D3, D4 and D5 say the draft doc is wrong and Notion 
 
 ## 6. Short version for the buy flow (5 lines)
 
-1. SafeDay pays you up to S$20, S$40, S$70 or S$100 for a bad day, by your plan.
+1. Payung pays you up to S$20, S$40, S$70 or S$100 for a bad day, by your plan.
 2. A bad day is when official NEA or PUB readings pass a public line: PSI 101 or more, rain 20 mm or more in one work hour, 2 hours at WBGT 32°C or more, or a PUB flood alert.
 3. Cover starts after 30 days. It pays up to a yearly limit.
 4. You can lose sales and receive nothing if readings stay below the trigger.

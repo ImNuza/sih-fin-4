@@ -1,10 +1,10 @@
-# SafeDay distribution proposal: sold through the customer's agent or an association
+# Payung distribution proposal: sold through the customer's agent or an association
 
 Date: 15 Nov 2026, revised the same evening after Income's private mentoring session [S27]. This is problem-statement deliverable 7. It recommends only. It changes no number in the product.
 
-**What changed in the revision.** Income's product lead said SmartBiz 360 is sold through intermediaries (agents). A direct sale to those customers goes around the agent. She called that "an absolute no-no" [S27]. So SafeDay has no direct sale. Every sale goes through one of two routes:
-1. **The customer's own Income agent** adds SafeDay to the customer's SmartBiz 360 or Stallholder policy. For a cheap product that does good, Income could pay about 5% commission instead of the usual 15%. She quoted a range of 5% to 20% [S27].
-2. **An association** offers SafeDay to its members as a group scheme. Each member still pays the member's own premium [S23].
+**What changed in the revision.** Income's product lead said SmartBiz 360 is sold through intermediaries (agents). A direct sale to those customers goes around the agent. She called that "an absolute no-no" [S27]. So Payung has no direct sale. Every sale goes through one of two routes:
+1. **The customer's own Income agent** adds Payung to the customer's SmartBiz 360 or Stallholder policy. For a cheap product that does good, Income could pay about 5% commission instead of the usual 15%. She quoted a range of 5% to 20% [S27].
+2. **An association** offers Payung to its members as a group scheme. Each member still pays the member's own premium [S23].
 
 The prototype buy flow (`/buy/`) now shows this. The adviser or the association fills in the form with the customer. The form saves who did it (the adviser code, or the association name), and the insurer desk shows it.
 Brief: `/Users/dewa/Documents/Projects/SIH/sih-fin-4/docs/problem-statements.md`, section 1.
@@ -16,11 +16,11 @@ Source tags like [S3] point to the list at the end. A claim with no tag is our o
 
 | Customer group | Launch channel (who sells) | Second channel | Later |
 |---|---|---|---|
-| Hawker stallholders (pilot) | The stallholder's Income agent adds SafeDay to Stallholder Insurance or SmartBiz 360 | Group scheme through the centre's hawkers' association, or through FMAS | NEA-appointed social-enterprise operators |
-| Neighbourhood shops | The shop's Income agent adds SafeDay to SmartBiz 360 | Group scheme through the precinct's merchants' association (FMAS members) | HDB or town council partners |
+| Hawker stallholders (pilot) | The stallholder's Income agent adds Payung to Stallholder Insurance or SmartBiz 360 | Group scheme through the centre's hawkers' association, or through FMAS | NEA-appointed social-enterprise operators |
+| Neighbourhood shops | The shop's Income agent adds Payung to SmartBiz 360 | Group scheme through the precinct's merchants' association (FMAS members) | HDB or town council partners |
 | Platform workers (next phase, not in the pilot) | NTUC associations NDCA and NPHVA as group scheme | One platform's in-app deduction (Grab has an Income pay-per-trip precedent) | Employers |
 
-**Assumption we record (P1 "SmartBiz 360 add-on vs standalone"):** SafeDay is an add-on to SmartBiz 360, sold through the customer's existing Income agent or an association. Not a standalone direct product.
+**Assumption we record (P1 "SmartBiz 360 add-on vs standalone"):** Payung is an add-on to SmartBiz 360, sold through the customer's existing Income agent or an association. Not a standalone direct product.
 
 Three reasons drive this choice.
 1. It respects Income's agents. The agent keeps the customer and earns the commission. A direct tick-box would go around the agent [S27].
@@ -38,7 +38,7 @@ The platform channel is not in the pilot. It needs a signed partner. Section 5 l
 | Hawker association group "commits a budget" | Conflicts with the locked rule. SMEs pay 100% [S23]. An association can enrol and collect. It does not pay. Ask the team to reword. |
 | "Income and Grab already do pay-per-trip cover" | Supported for 2019. Income and Grab launched critical illness cover paid per trip [S9]. No source found that it is still on sale. Droplet (2018) covered passengers, not drivers [S26]. Income says Droplet died off for weak demand [S21]. |
 | "Platforms are recognised partners of NTA, NPHVA and NDCA" | Partly supported. Grab recognised NDCA and NPHVA on 7 Mar 2025 [S16]. No source found for NTA. No source found for other platforms. NTUC only "encourages" operators to partner [S8]. |
-| NTUC associations "could co-fund the start-up subsidy" | No source found. NTUC pays the premium for NTUC GIFT [S14]. That shows NTUC funds group cover. It does not show NTUC will fund SafeDay. |
+| NTUC associations "could co-fund the start-up subsidy" | No source found. NTUC pays the premium for NTUC GIFT [S14]. That shows NTUC funds group cover. It does not show NTUC will fund Payung. |
 | "Union membership benefit (like NTUC GIFT)" | The name is right. NTUC calls it NTUC GIFT [S13]. The page does not spell out the letters. |
 | Employers of cleaners and construction workers | Outside the three groups in this note. See channel F. |
 
@@ -71,7 +71,7 @@ Each sheet answers the seven questions. The last row of each sheet is the cost c
 | Who sells it | The stallholder's Income agent. Income's page shows "Buy now" and "Speak with an advisor" for it [S2]. The Jan 2024 application form has a field for the intermediary's name and code [S28]. So agents sell it too. Whether the "no direct sale" rule also covers Stallholder Insurance: ask Income (section 7). Until then we treat it as SmartBiz 360. |
 | How the premium is collected | Annual premium of S$109.00 to S$261.60 with 9% GST, not guaranteed [S3]. The Jan 2024 application form also allows a posted cheque [S28]. |
 | What Income already has | A live product, a licence-based eligibility rule, a closure-of-stall benefit of S$100 to S$200 a day up to 120 days [S3], a no-claim discount at renewal [S3], and online sale [S2]. The brochure text we read states no weather trigger. NEA may require stallholders to hold insurance in future [S4]. |
-| What must be built | An add-on option on the Stallholder quote and renewal screens. Alignment of the annual renewal with the SafeDay 12 or 24 month term. Licence check against NEA. SMS and PayNow payout. Income must confirm that the current wording allows an add-on [S24]. |
+| What must be built | An add-on option on the Stallholder quote and renewal screens. Alignment of the annual renewal with the Payung 12 or 24 month term. Licence check against NEA. SMS and PayNow payout. Income must confirm that the current wording allows an add-on [S24]. |
 | Main risk | Unknown base size. If the base is under 300 policies, the 300-stall pilot needs channel E. Annual renewals do not match a 24-month term. |
 | Priority | First for hawkers |
 | Cost per channel | See Deval's distribution-cost row |
@@ -124,7 +124,7 @@ Each sheet answers the seven questions. The last row of each sheet is the cost c
 | Field | Answer |
 |---|---|
 | Group | None of the three. |
-| Who it reaches | Platform workers have no employer. They are own-account workers [S7]. Hawker assistants and shop staff work for the stallholder or shop owner. SafeDay insures the owner's takings, not staff wages. |
+| Who it reaches | Platform workers have no employer. They are own-account workers [S7]. Hawker assistants and shop staff work for the stallholder or shop owner. Payung insures the owner's takings, not staff wages. |
 | How many (cited) | Not sized, because the channel does not fit. |
 | How the premium is collected | No source found for any Income weather cover paid by an employer. |
 | What Income already has | Employer products such as Work Injury Compensation [S2]. |
@@ -159,7 +159,7 @@ Use NDCA or NPHVA as the enrolment route. Members pay by PayNow. Proof of activi
 
 ## 7. Open questions for Income
 
-1. Can SafeDay be an endorsement on SmartBiz 360 and on Stallholder Insurance, or must it be a separate policy?
+1. Can Payung be an endorsement on SmartBiz 360 and on Stallholder Insurance, or must it be a separate policy?
 2. How many SmartBiz 360 and Stallholder Insurance policies are in force, and how many renew each year? The answer sizes channels A and B.
 3. Can a licensed hawker hold SmartBiz 360 as well as Stallholder Insurance, or does one exclude the other?
 4. Is the 2019 pay-per-trip plan with Grab still on sale? Which platforms integrate with Income today?
@@ -168,7 +168,7 @@ Use NDCA or NPHVA as the enrolment route. Members pay by PayNow. Proof of activi
 7. Would Income write a group policy with a hawker association or an NEA-appointed operator? What PDPA terms apply to member lists?
 8. Would NTUC carry part of the premium for a fixed period with an end date? Or must members pay in full?
 9. Who owns the customer record and consent in each channel?
-10. Partly answered [S27]: about 5% to the agent for SafeDay, against a usual 15%. Still open: does the 5% hold for Stallholder Insurance, and what does an association scheme cost?
+10. Partly answered [S27]: about 5% to the agent for Payung, against a usual 15%. Still open: does the 5% hold for Stallholder Insurance, and what does an association scheme cost?
 12. Does the "no direct sale" rule cover Stallholder Insurance too, which Income's site sells with "Buy now" [S2]?
 11. Which sign-up channel does Income prefer: My Income app, WhatsApp, Telegram or SMS? (Question 10 in the team list [S24].)
 

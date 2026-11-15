@@ -1,6 +1,6 @@
-# SafeDay design system
+# Payung design system
 
-SafeDay is an add-on inside Income Insurance's SmartBiz 360. It must look like it belongs inside Income's site, made with more care. Live reference: `/styleguide/` on the running API.
+Payung is an add-on inside Income Insurance's SmartBiz 360. It must look like it belongs inside Income's site, made with more care. Live reference: `/styleguide/` on the running API.
 
 ## Scene
 
@@ -67,7 +67,7 @@ Lucide, from the sprite: `<svg class="i" aria-hidden="true"><use href="/vendor/i
 
 ## Components (markup in /styleguide/)
 
-- **Header**: `header.topnav` with `a.brand` (`.brand-mark` + "SafeDay"), then `nav` holding links (icon + `span.label-wide`), `.who` (`.avatar` initials + `span.who-text`), the theme toggle (`.theme-toggle` with the moon or sun icon) and Sign out (`.btn.small`). Below 720px the text labels hide and only the icons stay. Mark the current page with `aria-current="page"`.
+- **Header**: `header.topnav` with `a.brand` (`img.brand-mark`, the umbrella from `/brand/payung-icon-96.png`, + "Payung"; the landing and login headers and the footer use the full logo instead, two `img.brand-logo`: `.on-light` with `/brand/payung-logo.png` and `.on-dark` with `/brand/payung-logo-white.png`), then `nav` holding links (icon + `span.label-wide`), `.who` (`.avatar` initials + `span.who-text`), the theme toggle (`.theme-toggle` with the moon or sun icon) and Sign out (`.btn.small`). Below 720px the text labels hide and only the icons stay. Mark the current page with `aria-current="page"`.
 - **Buttons**: `.btn` (secondary), `.btn.primary` (one per view), `.btn.secondary` (soft orange), `.btn.ghost`, `.btn.quiet` (link-style), `.btn.danger`, sizes `.small` and `.large`, `.icon-btn`. Loading: `aria-busy="true"`. They scale to 0.97 on press.
 - **Fields**: a `label` wraps its text and its control. Hint text goes in `span.hint`. An invalid field gets `aria-invalid="true"` and the error says what to do. Search fields use `.input-icon`.
 - **Segmented control**: `.segmented` with buttons. Selected: `.on` or `aria-selected` or `aria-pressed`.

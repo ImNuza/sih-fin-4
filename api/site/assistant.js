@@ -1,4 +1,4 @@
-/* SafeDay's one assistant: a chat button at the bottom of every page (/api/assistant/chat).
+/* Payung's one assistant: a chat button at the bottom of every page (/api/assistant/chat).
    Pick English, Chinese, Malay or Tamil: replies come back in that language whatever you type
    or say. The server runs the tools and returns actions the page carries out: fill the sign-up
    form, or start sign-up with details the chat worked out. The conversation lives in this tab
@@ -58,11 +58,12 @@
   root.className = `sd-widget sd-${PAGE}`;
   root.innerHTML = `
     <button class="sd-launch" type="button" aria-expanded="false" aria-controls="sd-panel">
-      <span class="sd-dot" aria-hidden="true"></span> Ask SafeDay
+      <span class="sd-dot" aria-hidden="true"></span> Ask Payung
     </button>
-    <section class="sd-panel" id="sd-panel" role="dialog" aria-label="SafeDay assistant" hidden>
+    <section class="sd-panel" id="sd-panel" role="dialog" aria-label="Payung assistant" hidden>
       <header>
-        <b>SafeDay assistant</b>
+        <img class="sd-mark" src="/brand/payung-icon-96.png?v=1" alt="" width="22" height="22" />
+        <b>Payung assistant</b>
         <select class="sd-lang" aria-label="Language">
           ${LANGS.map((l) => `<option value="${l.key}">${l.label}</option>`).join("")}
         </select>
@@ -77,7 +78,7 @@
         <button class="sd-icon sd-mic" type="button" title="Speak">🎤</button>
         <button class="sd-send" type="submit">Send</button>
       </form>
-      <p class="sd-fine">Answers use SafeDay's own numbers. The assistant never sets a price or decides a payout.</p>
+      <p class="sd-fine">Answers use Payung's own numbers. The assistant never sets a price or decides a payout.</p>
     </section>`;
   document.body.appendChild(root);
   const $ = (sel) => root.querySelector(sel);

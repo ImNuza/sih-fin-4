@@ -13,7 +13,7 @@ from api.main import DEFAULT_TARIFF_PATH, MAP_STATIC_PATH, SINGAPORE, add_months
 from api.paynow_qr import crc16_ccitt, paynow_payload
 
 ADMIN = ("admin", "secret")
-# Who starts or changes a cover with the customer: SafeDay is never sold to them directly.
+# Who starts or changes a cover with the customer: Payung is never sold to them directly.
 SELLER = {"sold_by": "adviser", "adviser_code": "DEMO1234"}
 
 
@@ -549,7 +549,7 @@ def test_a_business_over_200_workers_must_have_sales_under_100_million(client):
     big = shop_body(staff_band="over-200", sales_under_100m=False)
     response = client.post("/api/buy", json=big)
     assert response.status_code == 422
-    assert "SafeDay is for small and medium enterprises" in response.text
+    assert "Payung is for small and medium enterprises" in response.text
     assert client.post("/api/buy", json=shop_body(staff_band="over-200")).status_code == 422
     assert client.post("/api/buy", json={**big, "sales_under_100m": True}).status_code == 200
 
@@ -600,7 +600,7 @@ def test_crc_matches_the_ccitt_false_check_value():
 
 def test_paynow_payload_pays_the_demo_proxy_a_fixed_amount():
     payload = paynow_payload(12.3, "DEMO-ABC123")
-    assert "0009SG.PAYNOW" in payload and "0212SAFEDAY-DEMO" in payload
+    assert "0009SG.PAYNOW" in payload and "0211PAYUNG-DEMO" in payload
     assert "540512.30" in payload and "03010" in payload and "0111DEMO-ABC123" in payload
     assert int(payload[-4:], 16) == crc16_ccitt(payload[:-4].encode())
 

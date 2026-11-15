@@ -69,14 +69,14 @@ PLATFORM_WORKER_STAFF_BAND = "1-4"
 # on the distribution of SMEs, 3 Mar 2026, mom.gov.sg/newsroom/parliament-questions-and-replies).
 OVER_SME_STAFF_BAND = "over-200"
 NOT_AN_SME = (
-    "SafeDay is for small and medium enterprises: annual sales up to S$100 million or up to "
+    "Payung is for small and medium enterprises: annual sales up to S$100 million or up to "
     "200 workers (Enterprise Singapore and SingStat definition)"
 )
 
 # Income sells SmartBiz 360 through intermediaries, and a sale around the customer's agent is not
 # allowed (Income product lead, private mentoring session, 15 Nov 2026). So every application
 # names who arranged it with the customer: their Income adviser, or an association that offers
-# SafeDay to its members as a group scheme.
+# Payung to its members as a group scheme.
 SoldBy = Literal["adviser", "association"]
 SOLD_BY = {
     "adviser": "Income adviser",

@@ -1,8 +1,8 @@
-/* SafeDay guided buy flow (/buy/): a SmartBiz 360-style application with SafeDay as an add-on,
+/* Payung guided buy flow (/buy/): a SmartBiz 360-style application with Payung as an add-on,
    filled in with the customer by their Income adviser or by an association (sold_by). Income
    sells SmartBiz 360 through intermediaries, so the flow never reads as a direct sale.
    /buy/?via=adviser or ?via=association picks who fills it in.
-   Steps: business, cover, details, confirm, pay. Pay is skipped when SafeDay is not added or a
+   Steps: business, cover, details, confirm, pay. Pay is skipped when Payung is not added or a
    past decline sends the application to an underwriter. Three business classes, one path each:
    hawker stall, neighbourhood shop, platform worker (the choices come from /api/buy/options).
    The pilot sells only the open_classes; the platform worker card shows as coming next.
@@ -114,7 +114,7 @@ const FIELD_PROBLEMS = {
   accept_pdpa: "Tick the data protection consent to go on.",
   payment_method: "Pick how you want to pay.",
 };
-const OFFLINE_PROBLEM = "Could not reach SafeDay. Check your connection and try again.";
+const OFFLINE_PROBLEM = "Could not reach Payung. Check your connection and try again.";
 
 function showBuyError(message) {
   el("buy-error").innerHTML = message ? `${SafeUI.icon("circle-alert")}<span></span>` : "";
@@ -469,7 +469,7 @@ function whatPays(quote, tierKey) {
       <li>Cover stops if the weekly premium is not paid. If you buy again later, the new cover waits ${wait} days, and the yearly limit still counts what was paid in the last ${buyState.options.cap_window_days} days.</li>
       <li>Payouts already made are yours to keep.</li>
       <li><b>You can lose sales and receive nothing if the readings stay below these levels.</b></li>
-      <li>There is no claim form. Injury, medical costs and damaged goods are not covered by SafeDay.</li>
+      <li>There is no claim form. Injury, medical costs and damaged goods are not covered by Payung.</li>
     </ul>`;
 }
 
@@ -529,7 +529,7 @@ async function renderSummary() {
     ...placeRows(row),
     isPlatformWorker() ? "" : row("People in the business", STAFF_LABELS[field("staff_band").value]),
     row("SmartBiz 360", "Priced by Income"),
-    row("SafeDay", tier ? `${tier.label} · ${SGD(tier.weekly_premium_sgd)} a week · ${SGD(tier.daily_payout_sgd)} a bad day` : "Not added"),
+    row("Payung", tier ? `${tier.label} · ${SGD(tier.weekly_premium_sgd)} a week · ${SGD(tier.daily_payout_sgd)} a bad day` : "Not added"),
     row("Cover starts", dates ? DATE(dates.start) : "Today"),
     row("Term", `${chosen("term_months")} months`),
     dates ? row("Payouts from", `${DATE(dates.payoutsFrom)} (after the ${buyState.options.waiting_period_days}-day waiting period)`) : "",
@@ -594,7 +594,7 @@ function stepIsValid(step) {
     return false;
   }
   if (step === "cover" && addsSafeDay() && !buyState.tier) {
-    showBuyError("Pick a SafeDay tier, or untick SafeDay to apply for SmartBiz 360 alone.");
+    showBuyError("Pick a Payung tier, or untick Payung to apply for SmartBiz 360 alone.");
     return false;
   }
   if (step === "confirm" && referred() && !field("declined_details").value.trim()) {
@@ -673,13 +673,13 @@ function doneHtml({ application, policy }) {
   if (!policy)
     return `<span class="done-mark">${SafeUI.icon("check", "i-lg")}</span>
       <h2>Application received</h2>
-      <p>Income will send your SmartBiz 360 quote. You did not add SafeDay. You can add it any time from your dashboard.</p>
+      <p>Income will send your SmartBiz 360 quote. You did not add Payung. You can add it any time from your dashboard.</p>
       <a class="btn primary" href="/dashboard/">Go to your dashboard</a>`;
   const starts = application.cover_start > todayIso() ? `on ${DATE(localDate(application.cover_start))}` : "today";
   return `<span class="done-mark">${SafeUI.icon("check", "i-lg")}</span>
-    <h2>Your SafeDay cover starts ${starts}</h2>
-    <p>The first ${buyState.options.waiting_period_days} days are a waiting period: SafeDay pays for bad days from ${DATE(localDate(application.waiting_ends))}. Your ${application.term_months}-month cover ends on ${DATE(localDate(application.cover_ends))}.</p>
-    <p>SafeDay ${policy.tier_label} pays up to ${SGD(policy.daily_payout_sgd)} on a bad day ${coverPlace(application, policy)}, for ${SGD(policy.weekly_premium_sgd)} a week. There is nothing to claim: we pay when NEA readings cross the trigger levels.</p>
+    <h2>Your Payung cover starts ${starts}</h2>
+    <p>The first ${buyState.options.waiting_period_days} days are a waiting period: Payung pays for bad days from ${DATE(localDate(application.waiting_ends))}. Your ${application.term_months}-month cover ends on ${DATE(localDate(application.cover_ends))}.</p>
+    <p>Payung ${policy.tier_label} pays up to ${SGD(policy.daily_payout_sgd)} on a bad day ${coverPlace(application, policy)}, for ${SGD(policy.weekly_premium_sgd)} a week. There is nothing to claim: we pay when NEA readings cross the trigger levels.</p>
     <div class="done-facts">
       <div class="kv"><span class="k">Payment reference (prototype)</span><span class="v num">${application.payment_ref}</span></div>
       <div class="kv"><span class="k">Paid by</span><span class="v">${application.payment_method === "giro" ? "GIRO, every week" : "PayNow"}</span></div>

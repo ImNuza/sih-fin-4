@@ -1,4 +1,4 @@
-"""The texts SafeDay sends, and one-time codes for verifying a mobile.
+"""The texts Payung sends, and one-time codes for verifying a mobile.
 
 Every text is a row in sms_messages; the dashboard shows them as the stallholder's phone.
 api/sms_gateway.py delivers each one, to the real phone when textbee is set up.
@@ -65,48 +65,48 @@ UCS2_SINGLE, UCS2_PART = 70, 67
 
 TEMPLATES = {
     "payout_paid": {
-        "en": "SafeDay: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
+        "en": "Payung: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
         "{hazard} at {centre} on {day}. Ref {ref}. No claim needed.",
-        "zh": "SafeDay：{day_colour}，损失{loss}%。因{day}{centre}{hazard}，S${amount}已转入您的"
+        "zh": "Payung：{day_colour}，损失{loss}%。因{day}{centre}{hazard}，S${amount}已转入您的"
         "PayNow {proxy}。编号{ref}。无需索赔。",
-        "ms": "SafeDay: {day_colour}, kerugian {loss}%. S${amount} dihantar ke PayNow {proxy} "
+        "ms": "Payung: {day_colour}, kerugian {loss}%. S${amount} dihantar ke PayNow {proxy} "
         "kerana {hazard} di {centre} pada {day}. Ruj {ref}. Tiada tuntutan diperlukan.",
-        "ta": "SafeDay: {day_colour}, இழப்பு {loss}%. {day} {centre} {hazard} காரணமாக "
+        "ta": "Payung: {day_colour}, இழப்பு {loss}%. {day} {centre} {hazard} காரணமாக "
         "S${amount} உங்கள் PayNow {proxy} க்கு அனுப்பப்பட்டது. குறிப்பு {ref}.",
     },
     "payout_failed": {
-        "en": "SafeDay: we could not send S${amount} for {day} to PayNow {proxy}. Update your "
+        "en": "Payung: we could not send S${amount} for {day} to PayNow {proxy}. Update your "
         "PayNow number in the app and we will retry. Ref {ref}.",
-        "zh": "SafeDay：{day}的S${amount}未能转入PayNow {proxy}。"
+        "zh": "Payung：{day}的S${amount}未能转入PayNow {proxy}。"
         "请在应用中更新PayNow号码，我们会重试。编号{ref}。",
-        "ms": "SafeDay: S${amount} untuk {day} gagal dihantar ke PayNow {proxy}. Kemas kini "
+        "ms": "Payung: S${amount} untuk {day} gagal dihantar ke PayNow {proxy}. Kemas kini "
         "nombor PayNow dalam aplikasi. Ruj {ref}.",
-        "ta": "SafeDay: {day} க்கான S${amount} PayNow {proxy} க்கு அனுப்ப முடியவில்லை. "
+        "ta": "Payung: {day} க்கான S${amount} PayNow {proxy} க்கு அனுப்ப முடியவில்லை. "
         "செயலியில் எண்ணைப் புதுப்பிக்கவும். குறிப்பு {ref}.",
     },
     "payout_held": {
-        "en": "SafeDay: S${amount} for {day} is waiting for you. Verify your mobile in the app to "
+        "en": "Payung: S${amount} for {day} is waiting for you. Verify your mobile in the app to "
         "receive it. Ref {ref}.",
-        "zh": "SafeDay：{day}的S${amount}正在等您领取。请在应用中验证手机号码。编号{ref}。",
-        "ms": "SafeDay: S${amount} untuk {day} sedang menunggu. Sahkan nombor telefon dalam "
+        "zh": "Payung：{day}的S${amount}正在等您领取。请在应用中验证手机号码。编号{ref}。",
+        "ms": "Payung: S${amount} untuk {day} sedang menunggu. Sahkan nombor telefon dalam "
         "aplikasi. Ruj {ref}.",
-        "ta": "SafeDay: {day} க்கான S${amount} காத்திருக்கிறது. செயலியில் கைபேசி எண்ணை "
+        "ta": "Payung: {day} க்கான S${amount} காத்திருக்கிறது. செயலியில் கைபேசி எண்ணை "
         "உறுதிப்படுத்தவும். குறிப்பு {ref}.",
     },
     "forecast_warning": {
-        "en": "SafeDay: {hazards} forecast {day}. {tip} A forecast is not a payout; payment "
+        "en": "Payung: {hazards} forecast {day}. {tip} A forecast is not a payout; payment "
         "depends on the real reading.",
-        "zh": "SafeDay：{day}预报{hazards}。{tip}预报不等于赔付，赔付以实际读数为准。",
-        "ms": "SafeDay: ramalan {hazards} {day}. {tip} Ramalan bukan bayaran; bayaran ikut "
+        "zh": "Payung：{day}预报{hazards}。{tip}预报不等于赔付，赔付以实际读数为准。",
+        "ms": "Payung: ramalan {hazards} {day}. {tip} Ramalan bukan bayaran; bayaran ikut "
         "bacaan sebenar.",
-        "ta": "SafeDay: {day} {hazards} முன்னறிவிப்பு. {tip} முன்னறிவிப்பு பணம் அல்ல; "
+        "ta": "Payung: {day} {hazards} முன்னறிவிப்பு. {tip} முன்னறிவிப்பு பணம் அல்ல; "
         "உண்மையான அளவீட்டைப் பொறுத்தே பணம்.",
     },
     "otp": {
-        "en": "SafeDay code: {code}. It expires in 10 minutes. Do not share it.",
-        "zh": "SafeDay验证码：{code}。10分钟内有效。请勿分享。",
-        "ms": "Kod SafeDay: {code}. Tamat dalam 10 minit. Jangan kongsi.",
-        "ta": "SafeDay குறியீடு: {code}. 10 நிமிடங்களில் காலாவதியாகும். பகிர வேண்டாம்.",
+        "en": "Payung code: {code}. It expires in 10 minutes. Do not share it.",
+        "zh": "Payung验证码：{code}。10分钟内有效。请勿分享。",
+        "ms": "Kod Payung: {code}. Tamat dalam 10 minit. Jangan kongsi.",
+        "ta": "Payung குறியீடு: {code}. 10 நிமிடங்களில் காலாவதியாகும். பகிர வேண்டாம்.",
     },
 }
 
@@ -133,21 +133,21 @@ HAZARD_LIST_SEPARATOR = {"en": ", ", "zh": "、", "ms": ", ", "ta": ", "}
 WELCOME_PRICE = {"en": "S${price}/wk, ", "zh": "每周S${price}，", "ms": "S${price}/mgu, ", "ta": ""}
 WELCOME = {
     "en": (
-        "SafeDay Tier {tier}: {price}cover from day {wait}. Haze, heavy rain, heat or flood alert "
+        "Payung Tier {tier}: {price}cover from day {wait}. Haze, heavy rain, heat or flood alert "
         "near your stall: up to S${daily}/day, S${year}/yr. Else no pay even if sales drop.",
-        "SafeDay Tier {tier}: {price}cover from day {wait}. Haze, rain, heat or flood alert "
+        "Payung Tier {tier}: {price}cover from day {wait}. Haze, rain, heat or flood alert "
         "near your stall: up to S${daily}/day, S${year}/yr. Else no pay even if sales drop.",
     ),
     "zh": (
-        "SafeDay第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨、酷热或水灾："
+        "Payung第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨、酷热或水灾："
         "日赔≤S${daily}，年≤S${year}。否则生意差也不赔",
         "第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨、酷热或水灾："
         "日赔≤S${daily}，年≤S${year}。否则生意差也不赔",
     ),
     "ms": (
-        "SafeDay Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan lebat, panas atau banjir "
+        "Payung Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan lebat, panas atau banjir "
         "dekat gerai: hingga S${daily}/hari, S${year}/thn. Lain tiada bayaran walau rugi.",
-        "SafeDay Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan, panas atau banjir "
+        "Payung Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan, panas atau banjir "
         "dekat gerai: hingga S${daily}/hari, S${year}/thn. Lain tiada bayaran walau rugi.",
     ),
     "ta": (

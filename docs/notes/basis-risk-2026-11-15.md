@@ -1,7 +1,7 @@
 # Basis risk: missed losses and false alarms per trigger option (15 Nov 2026)
 
 The brief asks us to "show, from past NEA and PUB data, how often target customers would have
-lost income or property with no payout". The burn analysis shows what SafeDay pays. This note
+lost income or property with no payout". The burn analysis shows what Payung pays. This note
 shows the other half: how often a payout misses a bad day at the stall, and how often it pays a
 day that was fine at the stall. Ashutosh (14 Nov) asked for it as a confusion matrix per
 trigger option.

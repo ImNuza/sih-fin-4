@@ -23,11 +23,11 @@ WAIT_DAYS = 30
 # The cheapest and dearest weekly prices a tier can carry, and a preview with no place.
 PRICES = (None, 3.44, 99.99)
 APPROVED = {
-    "en": "SafeDay Tier 2: S$9.11/wk, cover from day 30. Haze, heavy rain, heat or flood alert "
+    "en": "Payung Tier 2: S$9.11/wk, cover from day 30. Haze, heavy rain, heat or flood alert "
     "near your stall: up to S$40/day, S$1,400/yr. Else no pay even if sales drop.",
-    "zh": "SafeDay第2级每周S$9.11，买后30天生效。摊位附近烟霾、大雨、酷热或水灾：日赔≤S$40，"
+    "zh": "Payung第2级每周S$9.11，买后30天生效。摊位附近烟霾、大雨、酷热或水灾：日赔≤S$40，"
     "年≤S$1,400。否则生意差也不赔",
-    "ms": "SafeDay Tahap 2: S$9.11/mgu, mula hari ke-30. Jerebu, hujan lebat, panas atau banjir "
+    "ms": "Payung Tahap 2: S$9.11/mgu, mula hari ke-30. Jerebu, hujan lebat, panas atau banjir "
     "dekat gerai: hingga S$40/hari, S$1,400/thn. Lain tiada bayaran walau rugi.",
 }
 
@@ -87,7 +87,7 @@ def test_a_long_price_shortens_the_wording_rather_than_send_two_sms():
 
 def test_a_preview_without_a_place_leaves_the_price_out():
     body = sms.welcome_text("en", 1, None, 20, 10, WAIT_DAYS)
-    assert body.startswith("SafeDay Tier 1: cover from day 30.")
+    assert body.startswith("Payung Tier 1: cover from day 30.")
 
 
 def test_malay_texts_use_malay_month_names():

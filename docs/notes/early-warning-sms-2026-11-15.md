@@ -1,6 +1,6 @@
 # Early-warning SMS (15 Nov 2026)
 
-The evening before NEA forecasts a bad day, SafeDay texts each customer in that region. The text says what is forecast, gives one safety tip, and says that a forecast is not a payout. This is the product's risk-reduction element (Notion TODO "Add one risk-reduction / safer-behaviour element", P1, https://app.notion.com/p/a2decd5c15be83aeb2f601ab9482b904).
+The evening before NEA forecasts a bad day, Payung texts each customer in that region. The text says what is forecast, gives one safety tip, and says that a forecast is not a payout. This is the product's risk-reduction element (Notion TODO "Add one risk-reduction / safer-behaviour element", P1, https://app.notion.com/p/a2decd5c15be83aeb2f601ab9482b904).
 
 Code: `api/forecast_warning.py` (which regions to warn, who gets a text), `api/sms.py` (`warning_text`, the four languages), `api/live.py` (`fetch_day_forecast`), `api/payout_api.py` (two insurer endpoints), `api/site/payouts.js` (insurer desk card). Tests: `tests/test_forecast_warning.py`.
 
@@ -76,7 +76,7 @@ The run returns counts: `sent`, `already_warned`, `not_warned`, `cover_ended`, `
 
 One tip, for the first hazard in the order rain, haze, heat. Example for heavy rain on 16 Nov:
 
-> SafeDay: heavy rain forecast 16 Nov. Tie down awnings, raise stock. A forecast is not a payout; payment depends on the real reading.
+> Payung: heavy rain forecast 16 Nov. Tie down awnings, raise stock. A forecast is not a payout; payment depends on the real reading.
 
 | Language | Length (heavy rain only) | Length (rain, haze and heat) | SMS parts |
 | --- | --- | --- | --- |

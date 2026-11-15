@@ -409,7 +409,7 @@ def test_welcome_text_explains_the_cover_with_the_customers_numbers(client):
     [policy] = client.get("/api/policies").json()
     body = welcome["body"]
     yearly = round(policy["daily_payout_sgd"] * policy["max_paid_days_per_year"])
-    phrases = ("SafeDay Tier 1:", f"S${policy['weekly_premium_sgd']:.2f}/wk", "cover from day 30",
+    phrases = ("Payung Tier 1:", f"S${policy['weekly_premium_sgd']:.2f}/wk", "cover from day 30",
                "Haze", "flood alert", "up to S$20/day", f"S${yearly:,}/yr",
                "Else no pay even if sales drop")
     for phrase in phrases:
@@ -432,7 +432,7 @@ def test_buying_cover_with_a_verified_mobile_sends_the_welcome_text(client):
 
     client.post("/api/policies", json={"tier": "tier_2", **SELLER})
     [welcome] = texts_of_kind(client, "welcome")
-    assert "SafeDay Tier 2:" in welcome["body"]
+    assert "Payung Tier 2:" in welcome["body"]
     assert "up to S$40/day, S$600/yr" in welcome["body"]
 
 

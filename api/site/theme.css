@@ -1,8 +1,8 @@
-/* SafeDay shared theme: fonts, colour, type, spacing, shape and motion tokens for the landing,
+/* Payung shared theme: fonts, colour, type, spacing, shape and motion tokens for the landing,
    login, buy flow, dashboards, risk map and tariff desk. Served at /theme.css; every page links it
    first, then /ui.css for the shared components. The full rules are in DESIGN.md.
 
-   SafeDay is pitched as an add-on inside Income Insurance's SmartBiz 360, so the brand scales come
+   Payung is pitched as an add-on inside Income Insurance's SmartBiz 360, so the brand scales come
    from Income's own design tokens in https://www.income.com.sg/assets/css/main.css (read 15 Nov
    2026): --color-orange-100 to -900, --color-blue-100 to -900, green, red and yellow. Income's type
    is Ubuntu; it ships here as self-hosted files in /vendor/fonts (Ubuntu Font Licence), so it shows

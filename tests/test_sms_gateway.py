@@ -44,11 +44,11 @@ def test_without_textbee_the_text_is_simulated_as_delivered():
 def test_textbee_gets_the_mobile_and_body(monkeypatch):
     accepted = {"data": {"success": True, "smsBatchId": "b1", "recipientCount": 1}}
     calls = answer_with(monkeypatch, FakeResponse(201, accepted))
-    delivery = sms_gateway.send_by_textbee("key1", "+6591234567", "SafeDay paid S$40")
+    delivery = sms_gateway.send_by_textbee("key1", "+6591234567", "Payung paid S$40")
     assert delivery == sms_gateway.Delivery("queued", "TBb1", None)
     [call] = calls
     assert call["url"] == sms_gateway.TEXTBEE_SEND_URL
-    assert call["json"] == {"recipients": ["+6591234567"], "message": "SafeDay paid S$40"}
+    assert call["json"] == {"recipients": ["+6591234567"], "message": "Payung paid S$40"}
     assert call["headers"] == {"x-api-key": "key1"}
 
 

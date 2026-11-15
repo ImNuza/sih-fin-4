@@ -3,27 +3,32 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Risk atlas · SafeDay</title>
+    <title>Risk atlas · Payung</title>
+    <link rel="icon" href="/favicon.ico?v=1" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png?v=1" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16.png?v=1" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png?v=1" />
+    <link rel="manifest" href="/site.webmanifest?v=1" />
     <link rel="preload" href="/vendor/fonts/ubuntu-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/theme.css?v=7" />
-    <link rel="stylesheet" href="/ui.css?v=6" />
-    <link rel="stylesheet" href="map.css?v=24" />
+    <link rel="stylesheet" href="/theme.css?v=8" />
+    <link rel="stylesheet" href="/ui.css?v=8" />
+    <link rel="stylesheet" href="map.css?v=26" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="/ui.js?v=3" defer></script>
-    <script src="/day-colour.js?v=2" defer></script>
-    <script src="map.js?v=27" defer></script>
-    <link rel="stylesheet" href="/assistant.css?v=6" />
-    <script src="/assistant.js?v=3" defer></script>
+    <script src="/ui.js?v=4" defer></script>
+    <script src="/day-colour.js?v=3" defer></script>
+    <script src="map.js?v=28" defer></script>
+    <link rel="stylesheet" href="/assistant.css?v=8" />
+    <script src="/assistant.js?v=4" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
     <div id="float-layer" hidden></div>
 
     <header class="topbar" id="topbar">
-      <a class="brand" href="/">
-        <span class="brand-mark"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg></span>
-        <span>SafeDay</span><span class="brand-sub">Risk atlas</span>
+      <a class="brand" href="/" aria-label="Payung risk atlas">
+        <img class="brand-mark" src="/brand/payung-icon-96.png?v=1" alt="" width="28" height="28" />
+        <span>Payung</span><span class="brand-sub">Risk atlas</span>
       </a>
       <div class="segmented modes" role="group" aria-label="Data mode">
         <button id="mode-history" type="button" aria-pressed="true">History</button>
@@ -245,7 +250,7 @@
     </dialog>
 
     <div id="boot">
-      <p class="brand"><span class="brand-mark"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg></span>SafeDay <span class="brand-sub">Risk atlas</span></p>
+      <p class="brand"><img class="brand-mark" src="/brand/payung-icon-96.png?v=1" alt="" width="28" height="28" />Payung <span class="brand-sub">Risk atlas</span></p>
       <p class="loading" id="boot-msg">Loading Singapore: planning areas, hawker centres, NEA stations…</p>
     </div>
   </body>

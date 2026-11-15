@@ -20,12 +20,12 @@ PayNow and the SMS gateway are simulated (design decision 1). A PayNow proxy end
 **Languages for the demo: English and Mandarin.** Customers can pick only these two; the API refuses
 `ms` and `ta`. The Malay and Tamil texts stay in `api/sms.py`, still tested for length, to switch
 back on (one line: `sms.LANGUAGES`) once a native speaker has checked them. Every English and
-Mandarin text fits one SMS. Mandarin texts leave out the "SafeDay：" prefix to fit 70 characters:
-the phone shows SafeDay as the registered sender ID. The one-time code text keeps the brand.
+Mandarin text fits one SMS. Mandarin texts leave out the "Payung：" prefix to fit 70 characters:
+the phone shows Payung as the registered sender ID. The one-time code text keeps the brand.
 
 ## 2. Brief requirements and how each is checked
 
-| Requirement (problem statement / team decision) | How SafeDay meets it | Checked by |
+| Requirement (problem statement / team decision) | How Payung meets it | Checked by |
 | --- | --- | --- |
 | Pay when claimants need it; no slow loss assessment | Automatic payout on the day's reading; no claim form | `test_closure_day_pays_by_paynow_and_texts_the_stallholder`, manual step C |
 | Triggers on independent, verifiable data | Paid text quotes the NEA/PUB reading, e.g. "NEA rain 52.4mm/h" | `test_paid_text_quotes_the_nea_reading_that_triggered_it`, `test_history_run_records_the_readings_it_used` |
@@ -81,7 +81,7 @@ policy in the local `api/tariff.db` (gitignored), for example
 
 **F. Point-of-sale text (same text everywhere)**
 1. Landing page: the bubble shows the Tier 1 text. Switch English / 中文 and check the part count under it (both "one SMS").
-2. Buy flow (`/buy/`): add SafeDay, pick a tier and reach "Check and confirm". Expect "What you are buying, in the SMS we will send you" with that tier's text.
+2. Buy flow (`/buy/`): add Payung, pick a tier and reach "Check and confirm". Expect "What you are buying, in the SMS we will send you" with that tier's text.
 3. Risk atlas: click a hawker centre. Expect "The policy in one SMS" with the same words as the cover-text endpoint.
 4. Compare all three with `GET /api/cover-text?tier=<tier>&language=<lang>`: the words must match.
 
@@ -90,15 +90,15 @@ policy in the local `api/tariff.db` (gitignored), for example
 2. Send `sms_language: "ms"` to `PUT /api/payout-account`: expect 422.
 
 **H. Paying the first premium by PayNow (simulated)**
-1. Open `/buy/`, click Next to the Pay step and keep PayNow. Click "Pay S$…". Expect a QR, the payee "SafeDay by Income (demo)", the amount, a reference `SDP-…` and "paying by itself in 20 s".
+1. Open `/buy/`, click Next to the Pay step and keep PayNow. Click "Pay S$…". Expect a QR, the payee "Payung by Income (demo)", the amount, a reference `SDP-…` and "paying by itself in 20 s".
 2. Without scanning: after about 20 seconds the page shows "You are covered" with that reference and "Paid by PayNow".
 3. Start again and scan the QR with the phone's camera app (or click "open it here") within 20 seconds. Expect a "Payment successful" screen with the same amount and reference, and the laptop finishes straight away.
 4. Pick GIRO instead: the QR disappears and the purchase finishes with a `DEMO-` reference.
 
 ## 5. Known gaps (say so in the demo; don't claim them)
 
-- **Mandarin wording is compressed:** to fit 70 characters it uses 7-19时, 日赔≤ and 否则亏损也不赔, and has no "SafeDay：" prefix. A native speaker should check it reads naturally.
-- **Sender ID:** the Mandarin texts rely on the phone showing "SafeDay" as the sender. That needs the name registered with the Singapore SMS Sender ID Registry; the demo's simulated gateway doesn't show a sender.
+- **Mandarin wording is compressed:** to fit 70 characters it uses 7-19时, 日赔≤ and 否则亏损也不赔, and has no "Payung：" prefix. A native speaker should check it reads naturally.
+- **Sender ID:** the Mandarin texts rely on the phone showing "Payung" as the sender. That needs the name registered with the Singapore SMS Sender ID Registry; the demo's simulated gateway doesn't show a sender.
 - **Malay and Tamil are off for the demo:** the brief asks for the customer's language; say these come after the demo.
 - **"Say it back" test:** the brief asks that customers can say back what the product does. This hasn't been done with a hawker or rider yet; it needs one English and one Mandarin speaker.
 - **The premium QR is not a PayNow code:** it links to the simulated bank screen, so it can't move real money, and a real banking app won't recognise it. On a laptop, the QR uses the laptop's Wi-Fi address instead of `127.0.0.1`, so start the server with `--host 0.0.0.0` and put the phone on the same Wi-Fi. Networks that keep devices apart (some venue or guest Wi-Fi) block this; then use a phone hotspot.

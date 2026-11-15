@@ -100,7 +100,7 @@ sms_messages = Table(
     UniqueConstraint("payout_id", "kind", name="one_text_per_payout_and_kind"),
 )
 
-# The language a customer picked at sign-up for every text SafeDay sends them.
+# The language a customer picked at sign-up for every text Payung sends them.
 sms_preferences = Table(
     "sms_preferences",
     metadata,

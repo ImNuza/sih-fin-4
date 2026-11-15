@@ -86,7 +86,7 @@ function textBubble(t) {
 }
 
 function phoneInbox(texts) {
-  if (!texts.length) return `<p class="fine">Texts from SafeDay will show here.</p>`;
+  if (!texts.length) return `<p class="fine">Texts from Payung will show here.</p>`;
   return `<div class="sms-inbox">${texts.map(textBubble).join("")}</div>`;
 }
 
@@ -101,7 +101,7 @@ async function renderSmePayouts(slot, hasPolicy) {
   ]);
   const editing = !account || slot.dataset.editing === "1";
   slot.innerHTML = `<div class="section-head"><div><h2>Payouts</h2>
-      <p class="page-sub">When NEA readings cross your trigger, SafeDay pays by PayNow and sends you a text. There is no claim to make.</p></div></div>
+      <p class="page-sub">When NEA readings cross your trigger, Payung pays by PayNow and sends you a text. There is no claim to make.</p></div></div>
     <div class="sme-grid">
       <div class="card"><h2>Get paid by PayNow</h2>
         ${editing ? accountForm(account, preference.language) : accountSummary(account)}

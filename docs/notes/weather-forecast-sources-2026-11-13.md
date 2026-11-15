@@ -1,4 +1,4 @@
-# Weather forecast sources for SafeDay (13 Nov 2026)
+# Weather forecast sources for Payung (13 Nov 2026)
 
 What forecast data exists for Singapore, how fine it is, and what we can use it for. Our triggers pay on **observed** NEA readings, so forecasts are only for early warnings, for stopping people from buying cover just before a storm or a haze, and for pricing. Never for payouts.
 
