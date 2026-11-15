@@ -12,15 +12,15 @@
     <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
     <link rel="preload" href="/vendor/fonts/ubuntu-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/theme.css?v=12" />
-    <link rel="stylesheet" href="/ui.css?v=12" />
-    <link rel="stylesheet" href="/buy.css?v=10" />
-    <script src="/ui.js?v=8" defer></script>
-    <script src="/site.js?v=27" defer></script>
+    <link rel="stylesheet" href="/theme.css?v=13" />
+    <link rel="stylesheet" href="/ui.css?v=13" />
+    <link rel="stylesheet" href="/buy.css?v=11" />
+    <script src="/ui.js?v=9" defer></script>
+    <script src="/site.js?v=28" defer></script>
     <script src="/tier-proof.js?v=5" defer></script>
-    <script src="/buy.js?v=20" defer></script>
-    <link rel="stylesheet" href="/assistant.css?v=12" />
-    <script src="/assistant.js?v=8" defer></script>
+    <script src="/buy.js?v=23" defer></script>
+    <link rel="stylesheet" href="/assistant.css?v=13" />
+    <script src="/assistant.js?v=9" defer></script>
   </head>
   <body>
     <header class="topnav">
@@ -130,6 +130,9 @@
               <input name="postcode" inputmode="numeric" autocomplete="postal-code" required pattern="\d{6}" maxlength="6" placeholder="e.g. 560123" />
               <span class="hint" id="postcode-region"></span></label>
             <label id="product-field">What you sell <select name="product" id="buy-product" required></select></label>
+            <label id="daily-sales-field">Normal sales on a weekday (S$)
+              <input name="daily_sales_sgd" type="number" inputmode="numeric" min="20" max="50000" step="1" required placeholder="e.g. 500" />
+              <span class="hint">What the business sells on a normal weekday. Payung never pays more for a bad day than the business loses.</span></label>
             <div id="staff-box">
               <label>How many people work in the business, you included?
                 <select name="staff_band" id="buy-staff" required></select></label>

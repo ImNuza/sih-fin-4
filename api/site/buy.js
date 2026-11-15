@@ -7,7 +7,7 @@
    hawker stall, neighbourhood shop, platform worker (the choices come from /api/buy/options).
    The pilot sells only the open_classes; the platform worker card shows as coming next.
    Prices and rent come from the API; nothing is saved until POST /api/buy at the last step.
-   Needs site.js (el, api, post, SGD) and tier-proof.js (proofLines, proofMoney, offeredTier).
+   Needs site.js (el, api, post, SGD) and tier-proof.js (proofLines, proofMoney, offeredTiers).
    For the demo every field starts filled with made-up details (fillRandom), so the whole flow is
    Next, Next, Next. "New random details" draws a new set; "Clear" empties every field. */
 "use strict";
@@ -56,6 +56,13 @@ function businessProduct() {
   return isPlatformWorker() ? buyState.options.platform_product : field("product").value;
 }
 function currentRent() { return isHawker() ? buyState.rent?.centres[field("centre").value] || null : null; }
+/* The normal weekday sales typed in, or null when empty or out of range. Platform workers are not
+   asked. */
+function dailySales() {
+  const input = field("daily_sales_sgd");
+  if (isPlatformWorker() || input.value === "" || !input.checkValidity()) return null;
+  return Number(input.value);
+}
 function ssicCode() {
   const choice = field("ssic_choice").value;
   return choice === "other" ? field("ssic_other").value.trim() : choice;
@@ -76,10 +83,10 @@ function businessPlace() {
   return sectorRegion(postcode) ? { postcode } : null;
 }
 
-async function quoteFor(place, product) {
+async function quoteFor(place, product, sales) {
   if (!place || !product) return null;
-  const key = `${JSON.stringify(place)}/${product}`;
-  buyState.quotes[key] ??= post("/api/quote", { ...place, product }).catch((error) => {
+  const key = `${JSON.stringify(place)}/${product}/${sales}`;
+  buyState.quotes[key] ??= post("/api/quote", { ...place, product, daily_sales_sgd: sales }).catch((error) => {
     delete buyState.quotes[key];
     throw error;
   });
@@ -110,6 +117,7 @@ const FIELD_PROBLEMS = {
   platform_worker_id: "Enter the driver or rider ID from your platform app, 3 to 40 characters.",
   postcode: "Enter the 6-digit postcode, for example 560123.",
   product: "Pick what you sell.",
+  daily_sales_sgd: "Enter the normal sales on a weekday in S$, from 20 to 50,000.",
   staff_band: "Pick how many people work in the business.",
   sales_under_100m: "Say whether annual sales were under S$100 million.",
   term_months: "Pick 12 or 24 months.",
@@ -236,6 +244,12 @@ const COMPANY_SHARE = { hawker: 0.25, shop: 0.5, platform_worker: 0 };
 /* The form opens on this applicant, so the demo shows the same price in every run. */
 const DEMO_APPLICANT = {
   business_class: "hawker", centre: "Maxwell Food Centre (Kim Hua Market)", product: "cooked_food", tier: "tier_2",
+  daily_sales_sgd: 600,
+};
+/* Plausible normal weekday sales by what the business sells, lowest and highest, in S$. */
+const SALES_RANGE = {
+  cooked_food: [150, 1800], fresh_produce: [300, 1500], flowers: [200, 1000],
+  packaged_food: [800, 4000], general_goods: [800, 4000],
 };
 const ADVISER_SHARE = 0.7;
 
@@ -263,6 +277,10 @@ function fillHawker(short, fixedProduct) {
   field("business_name").value = `${short} ${pick(DISHES[product] || ["Stall"])}`;
   field("staff_band").value = pick(["1-4", "1-4", "1-4", "5-9"]);
 }
+function demoSales(product) {
+  const [low, high] = SALES_RANGE[product] || [300, 1500];
+  return Math.round((low + Math.random() * (high - low)) / 10) * 10;
+}
 function fillShop(short) {
   const codes = Object.keys(SHOP_KINDS).filter((c) => [...field("ssic_choice").options].some((o) => o.value === c));
   const code = pick(codes);
@@ -286,7 +304,7 @@ function fillAssociation() {
   field("association").value = buyState.options.centre_associations[centre] || buyState.options.associations[0];
 }
 
-/* Made-up details in every field. `applicant` fixes the class, centre, product or tier. */
+/* Made-up details in every field. `applicant` fixes the class, centre, product, daily sales or tier. */
 function fillRandom(applicant = {}) {
   const [name, short] = pick(OWNERS);
   fillChannel();
@@ -303,6 +321,7 @@ function fillRandom(applicant = {}) {
   const [other, own] = kind === "shop" ? [fillHawker, fillShop] : [fillShop, fillHawker];
   other(short);
   own(short, applicant.product);
+  field("daily_sales_sgd").value = applicant.daily_sales_sgd ?? demoSales(field("product").value);
   const company = Math.random() < COMPANY_SHARE[kind];
   setRadio("applicant_type", company ? "company" : "individual");
   field("uen").value = company ? demoUen() : "";
@@ -373,6 +392,7 @@ function showClassFields() {
   el("postcode-label").textContent = kind === "shop" ? "Shop postcode" : "Home postcode";
   el("applicant-box").hidden = kind === "platform_worker";
   el("product-field").hidden = kind === "platform_worker";
+  el("daily-sales-field").hidden = kind === "platform_worker";
   el("staff-box").hidden = kind === "platform_worker";
   el("ssic-other-field").hidden = field("ssic_choice").value !== "other";
   el("sales-box").hidden = field("staff_band").value !== "over-200";
@@ -417,7 +437,7 @@ async function renderTiers() {
   if (!addsSafeDay()) { buyState.tierQuote = null; return; }
   let quote, examples = {};
   try {
-    quote = await quoteFor(businessPlace(), businessProduct());
+    quote = await quoteFor(businessPlace(), businessProduct(), dailySales());
     if (quote) examples = await partialExamples(quote.product, quote.product_factor, quote.tiers.map((t) => t.tier));
     if (run !== renderTiers.latest) return; // a newer change is drawing the tiers
   } catch (error) {
@@ -440,40 +460,33 @@ async function renderTiers() {
     return;
   }
   const offered = offeredTiers(quote);
+  const lossLine = fullLossDayLine(quote);
   if (!offered.length) {
     buyState.tier = buyState.tierQuote = null;
     el("buy-tiers").innerHTML = "";
     showCoverBoxes("", "", "");
     el("why-price").innerHTML = "";
-    el("tier-note").textContent = notOfferedLine(quote);
+    const nothingFits = quote.tiers.every((t) => t.fits_business === false);
+    el("tier-note").textContent = [lossLine, quote.suggestion, nothingFits ? "" : notOfferedLine(quote)]
+      .filter(Boolean).join(" ");
     return;
   }
-  const suggested = offeredTier(quote, rent?.recommended_tier).tier;
-  if (!offered.some((t) => t.tier === buyState.tier)) buyState.tier = suggested;
-  const marked = rent ? suggested : null; // only rent suggests a tier
+  const suggested = quote.suggested_tier;
+  if (!offered.some((t) => t.tier === buyState.tier)) buyState.tier = suggested ?? offered[0].tier;
   buyState.tierQuote = offered.find((t) => t.tier === buyState.tier);
-  const share = (t) => rent ? rentShare(t.daily_payout_sgd, rent.rent_per_day_sgd) : "";
   el("buy-tiers").innerHTML = offered.map((t) => `
-    <button class="tier-card ${t.tier === marked ? "rec" : ""}" type="button" role="radio"
+    <button class="tier-card ${t.tier === suggested ? "rec" : ""}" type="button" role="radio"
       aria-checked="${t.tier === buyState.tier}" data-tier="${t.tier}">
       <span class="tier-check">${SafeUI.icon("check")}</span>
-      <span class="t">${t.label}${t.tier === marked ? ' <span class="chip accent">Suggested</span>' : ""}${t.best_value ? ' <span class="chip good">Best value</span>' : ""}</span>
+      <span class="t">${t.label}${t.tier === suggested ? ' <span class="chip accent">Suggested for your sales</span>' : ""}${t.best_value ? ' <span class="chip good">Best value</span>' : ""}</span>
       <span class="p">${SGD(monthlyPrice(t))}<small>/mo</small></span>
       <span class="d">${[`${SGD(t.weekly_premium_sgd)} a week`, dayPrice(t)].filter(Boolean).join(" · ")}</span>
       <span class="d">${fullLossLine(t, examples[t.tier])}</span>
       <span class="d">${lockdownLine(t)}</span>
       ${t.tier === buyState.tier ? `<span class="d">${lockdownExample(t)}</span>` : ""}
-      ${rent ? `<span class="d">${share(t)}</span>` : ""}
+      ${rent ? `<span class="d">A full bad day pays ${rentShare(t.daily_payout_sgd, rent.rent_per_day_sgd)} here.</span>` : ""}
     </button>`).join("");
-  const suggestion = rent
-    ? (rent.covers_rent
-      ? `Suggested: the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
-      : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Suggested: the biggest tier.`)
-    : "";
-  const labelOf = (key) => quote.tiers.find((t) => t.tier === key)?.label;
-  const moved = rent && suggested !== rent.recommended_tier
-    ? `${labelOf(rent.recommended_tier)} is not offered here, so we suggest ${labelOf(suggested)}.` : "";
-  el("tier-note").textContent = [suggestion, moved, bestValueLine(quote, suggested), priceBasis(),
+  el("tier-note").textContent = [lossLine, quote.suggestion, bestValueLine(quote, suggested), priceBasis(),
     notOfferedLine(quote)].filter(Boolean).join(" ");
   const tier = buyState.tierQuote;
   showCoverBoxes(proofBox(tier), hazeBonusBox(tier), whatPays(quote, buyState.tier));
@@ -592,7 +605,7 @@ function placeRows(row) {
 }
 
 async function renderSummary() {
-  const quote = addsSafeDay() ? await quoteFor(businessPlace(), businessProduct()) : null;
+  const quote = addsSafeDay() ? await quoteFor(businessPlace(), businessProduct(), dailySales()) : null;
   const tier = quote?.tiers.find((t) => t.tier === buyState.tier);
   const productLabel = buyState.options.productLabels[businessProduct()] || "";
   const dates = coverDates();
@@ -602,6 +615,7 @@ async function renderSummary() {
     row("Applying as", isPlatformWorker() ? "Individual platform worker"
       : chosen("applicant_type") === "company" ? `Company · UEN ${field("uen").value.toUpperCase()}` : "Individual"),
     row("Business", isPlatformWorker() ? productLabel : `${field("business_name").value} · ${productLabel}`),
+    isPlatformWorker() ? "" : row("Normal sales on a weekday", SGD(dailySales())),
     ...placeRows(row),
     isPlatformWorker() ? "" : row("People in the business", STAFF_LABELS[field("staff_band").value]),
     row("SmartBiz 360", "Priced by Income"),
@@ -707,6 +721,7 @@ function requestBody() {
     platform_worker_id: platformWorker ? data.platform_worker_id : null,
     postcode: hawker ? null : data.postcode.trim(),
     product: businessProduct(),
+    daily_sales_sgd: dailySales(),
     staff_band: platformWorker ? null : data.staff_band,
     sales_under_100m: overSmeStaff() ? data.sales_under_100m === "yes" : null,
     designation: data.designation || null,
@@ -953,7 +968,7 @@ function onChange(event) {
   const typed = field("association").value.trim();
   if (["business_class", "centre"].includes(name) && (!typed || buyState.options.associations.includes(typed))) fillAssociation();
   if (["business_class", "applicant_type", "ssic_choice", "staff_band", "centre", "postcode"].includes(name)) showClassFields();
-  if (["business_class", "centre", "postcode", "product"].includes(name)) { buyState.tier = null; renderTiers(); }
+  if (["business_class", "centre", "postcode", "product", "daily_sales_sgd"].includes(name)) { buyState.tier = null; renderTiers(); }
   if (name === "add_safeday") renderTiers();
   if (name === "add_haze_bonus") { buyState.hazeBonus = event.target.checked; renderTiers(); }
   if (name === "cover_start" || name === "term_months") showWaitingNote();

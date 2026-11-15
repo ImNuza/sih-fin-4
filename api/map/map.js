@@ -136,14 +136,15 @@ function regionQuote(region) { return QUOTES.quotes[region]; }
 // A hawker centre is priced from its nearest NEA stations, as a stall there is charged.
 function centreQuote(centre) { return QUOTES.centres?.[centre.name] ?? regionQuote(centre.region); }
 function centreParts(centre) { return QUOTES.centre_loss_day_parts?.[centre.name] ?? QUOTES.loss_day_parts[centre.region]; }
-// Only a tier offered at the place can be recommended (offeredTiers, tier-proof.js).
-function recommendedTier(quote) {
+// The tier the atlas headlines for a centre, from the tiers offered there (offeredTiers,
+// tier-proof.js). Not a suggestion: that needs the business's own daily sales.
+function headlineTier(quote) {
   const offered = offeredTiers(quote);
   const affordable = offered.filter((t) => t.weekly_premium_sgd <= AFFORDABLE_WEEKLY_SGD);
   return affordable.length ? affordable[affordable.length - 1] : offered[0] ?? quote.tiers[0];
 }
 function verdict(quote) {
-  const tier = recommendedTier(quote);
+  const tier = headlineTier(quote);
   if (!offeredTiers(quote).length)
     return { cls: "serious", word: "Not offered here", tier, detail: notOfferedLine(quote) };
   if (tier.weekly_premium_sgd <= AFFORDABLE_WEEKLY_SGD)
@@ -361,7 +362,7 @@ function redraw() { state.rev += 1; deckgl.setProps({ layers: buildLayers() }); 
 function tooltip({ object, layer, index }) {
   if (!object) return null;
   if (layer.id === "sme") {
-    const quote = centreQuote(object), tier = recommendedTier(quote);
+    const quote = centreQuote(object), tier = headlineTier(quote);
     const live = state.mode !== "history"
       ? ` · today's loss ${(currentLossFraction(index) * 100).toFixed(0)}% ${dayChip(currentLossFraction(index) * 100)}` : "";
     const rent = rentOf(object);
@@ -733,16 +734,15 @@ function dayDetail(index, tier) {
 function rentSection(centre, quote) {
   const rent = rentOf(centre);
   if (!rent) return "";
-  const tier = quote.tiers.find((t) => t.tier === rent.recommended_tier);
-  const share = rentShare(tier.daily_payout_sgd, rent.rent_per_day_sgd);
+  const shares = offeredTiers(quote).map((t) => `${t.label} ${rentShare(t.daily_payout_sgd, rent.rent_per_day_sgd)}`).join(" · ");
   const source = rent.estimated
     ? `No NEA bid on record for this centre, so it borrows the median of all centres (${SGD0(RENT.all_centre_median_sgd)} a month).`
     : `Median of ${rent.bids} winning NEA bid${rent.bids === 1 ? "" : "s"} for a cooked-food stall, ${rent.first_month} to ${rent.last_month}.`;
   return `<div class="sec"><p class="cap">Stall rent · ${rent.rent_class_label}</p>
     <div class="kv"><span class="k">Monthly rent</span><span class="v">${SGD0(rent.median_bid_sgd)}</span></div>
     <div class="kv"><span class="k">Per trading day (${RENT.trading_days_per_month} a month)</span><span class="v">${SGD(rent.rent_per_day_sgd)}</span></div>
-    <div class="kv"><span class="k">${rent.covers_rent ? "Smallest tier that covers it" : "No tier covers it; biggest"}</span><span class="v">${tier.label} · ${share} at ${SGD(tier.weekly_premium_sgd)}/wk</span></div>
-    <p class="note">${source} Rent sets the tier a stallholder is offered, not the premium.</p></div>`;
+    <div class="kv"><span class="k">A full bad day pays</span><span class="v">${shares}</span></div>
+    <p class="note">${source} Rent is shown for information. It sets neither the premium nor the tier a stall is offered: that comes from the stall's own daily sales.</p></div>`;
 }
 
 /** Fill the card's SMS with the real welcome text, so the atlas sells what is texted. */
@@ -780,7 +780,7 @@ function renderDetail() {
       </div>
       <div class="verdict"><span class="chip ${v.cls}">${v.word}</span>
         <div class="t1">${rec.label} at ${SGD(monthlyPrice(rec))} a month (${SGD(rec.weekly_premium_sgd)} a week)${rec.best_value ? ` <span class="chip good">Best value</span>` : ""}</div>
-        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. ${coverLine(rec)} ${centsBack(rec)} Paid on NEA readings, usually the same day, up to ${SGD0(rec.max_payout_per_year_sgd)} a year. <b>If readings stay below the trigger levels, nothing is paid, even if sales were down.</b> No payout in the first ${WAITING_PERIOD_DAYS} days of cover. Injury, medical costs and damaged goods are not covered.${v.cls === "serious" ? ` ${v.detail}` : ""}${bestValueLine(quote, rec.tier) ? ` ${bestValueLine(quote, rec.tier)}` : ""}</div></div>
+        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. ${coverLine(rec)} ${centsBack(rec)} Paid on NEA readings, usually the same day, up to ${SGD0(rec.max_payout_per_year_sgd)} a year. <b>If readings stay below the trigger levels, nothing is paid, even if sales were down.</b> No payout in the first ${WAITING_PERIOD_DAYS} days of cover. Injury, medical costs and damaged goods are not covered. ${quote.suggestion}${v.cls === "serious" ? ` ${v.detail}` : ""}${bestValueLine(quote, rec.tier) ? ` ${bestValueLine(quote, rec.tier)}` : ""}</div></div>
       ${rec.proof ? `<div class="sec"><p class="cap">What ${rec.label} would have paid here</p>
         ${proofLines(rec, "hawker").map((line) => `<p class="note">${line}</p>`).join("")}
         ${rec.haze_bonus ? `<p class="note">Severe haze payout add-on: ${hazeBonusPitch(rec)}${rec.haze_bonus.on_sale_now ? "" : " It can be added from November to April."}</p>` : ""}</div>` : ""}
@@ -1277,7 +1277,7 @@ function aboutHtml() {
   terms. Payung runs the same four steps, with every input public:</p>
   <p>Every number on this page comes from the pricing API (<code>/api/quote</code>, <code>/api/assess</code>) - the same engine the tariff desk edits. For a stall, the engine replays every recorded day (haze from April 2014, rain from December 2016, heat from 2025) at the stations nearest the stall, read as a payout reads them (day-weighted severity × peril weight × product factor - classical burning-cost rating), counts each year's loss-days up to the tier's yearly cap and averages the years: the expected paid days. Expected payouts are those days times the daily amount. The tier's premium shares turn them into the premium before GST, in Income's five parts: expected payouts, reinsurance for haze years, management expenses, selling and distribution, and expected profit and risk margin. Then +9% GST (IRAS).</p>
   <h4>Why a payout is insurance, not a bet</h4>
-  <p>Insurance Act 1966 s151 voids cover without insurable interest. Tier payouts run from S$35 to S$1,355 a day. Each payout is a pre-estimate of lost income, sold only to operating businesses. Tier 1 and Tier 2 sit below a stall's normal daily takings (triangulated S$400-800/day gross); Tier 3 and Tier 4 can pass them, so they fit businesses with higher takings. Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, we can show a customer exactly why they pay what they pay, and no personal data goes into any price.</p>
+  <p>Insurance Act 1966 s151 voids cover without insurable interest. Tier payouts run from S$35 to S$1,355 a day. Each payout is a pre-estimate of lost income, sold only to operating businesses. Tier 1 and Tier 2 sit below a stall's normal daily takings (triangulated S$400-800/day gross); Tier 3 and Tier 4 can pass them, so they fit businesses with higher takings. A tier is sold to a business only when it pays no more than that business loses on a day with no sales: its normal weekday sales times its product factor. Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, we can show a customer exactly why they pay what they pay, and no personal data goes into any price.</p>
   <h4>The protection gap</h4>
   <ul>
     <li>Singapore has ~369,500 SMEs - 99% of enterprises (SingStat, 2025); NEA manages 123 markets and hawker centres.</li>

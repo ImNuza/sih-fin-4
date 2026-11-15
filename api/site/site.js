@@ -1,6 +1,6 @@
 /* Payung platform shell: auth, the login page and the two role dashboards.
    All pricing and access control happen in the API; this file only draws the answers.
-   The dashboard also needs tier-proof.js (proofLines, offeredTier, bestValueLine). */
+   The dashboard also needs tier-proof.js (proofLines, offeredTiers, bestValueLine). */
 "use strict";
 
 const el = (id) => document.getElementById(id);
@@ -347,8 +347,9 @@ async function renderSme(user) {
   const product = policy?.product || user.product || "cooked_food";
   const place = pricedPlace(user, application);
   const site = scoringSite(user, application, staticData, product);
+  const sales = application?.daily_sales_sgd ?? null;
   const [quote, live] = await Promise.all([
-    post("/api/quote", { ...place, product }),
+    post("/api/quote", { ...place, product, daily_sales_sgd: sales }),
     site ? api(site.live).catch(() => null) : null,
   ]);
   const decision = application?.declined_before
@@ -356,8 +357,8 @@ async function renderSme(user) {
   const rent = rentTable.centres[user.centre];
   const index = staticData.hawker_centres.findIndex((c) => c.name === user.centre);
   const todays = !live?.available ? null : site?.kind !== "centre" ? live : index >= 0 ? live.hawker_losses[index] : null;
-  // Recommend the smallest tier that pays a full day's rent at this centre, if it is offered here.
-  const rec = offeredTier(quote, rent?.recommended_tier)?.tier ?? null;
+  // The biggest tier that pays no more than the business loses on a day with no sales.
+  const rec = quote.suggested_tier;
   const kind = application?.business_class || (user.centre ? "hawker" : null);
   const examples = policy ? {} : await partialExamples(quote.product, quote.product_factor, quote.tiers.map((t) => t.tier));
   const view = { user, quote, policy, rent, rentTable, application, decision, site, place, todays, rec, live, kind, examples };
@@ -413,7 +414,7 @@ function smeKpis({ quote, policy, rent, application, todays, rec, live }) {
       : kpi("Payout due today", policy ? (payoutToday != null ? `<span class="num">${SGD(payoutToday)}</span>` : "–") : "No cover yet", payoutNote),
     kpi("Your weekly premium",
       policy || rec ? `<span class="num">${SGD(policy ? policy.weekly_total_sgd ?? policy.weekly_premium_sgd : quote.tiers.find((t) => t.tier === rec).weekly_premium_sgd)}</span>` : "–",
-      policy ? `${policy.tier_label}${policy.haze_bonus ? " and severe haze payout" : ""}` : rec ? "recommended tier" : "no tier offered here"),
+      policy ? `${policy.tier_label}${policy.haze_bonus ? " and severe haze payout" : ""}` : rec ? "suggested for your sales" : "no tier suggested"),
     kpi("Expected trigger days", `<span class="num">${quote.expected_loss_days.toFixed(1)}</span>&nbsp;/&nbsp;yr`, "full-loss-day equivalents",
       "Days of full loss in an average year, from the NEA history where you are priced. Two half days count as one."),
     rent ? kpi("Your rent per trading day", `<span class="num">${SGD(rent.rent_per_day_sgd)}</span>`,
@@ -485,6 +486,7 @@ function policyCover({ user, quote, policy, rent, application, decision, kind })
     ${kv("Tier", policy.tier_label)}
     ${kv("Pays per bad day", `<span class="num">${SGD(policy.daily_payout_sgd)}</span>`)}
     ${rent ? kv("A bad day pays", rentShare(policy.daily_payout_sgd, rent.rent_per_day_sgd)) : ""}
+    ${application?.daily_sales_sgd != null ? kv("Your normal weekday sales", `<span class="num">${SGD(application.daily_sales_sgd)}</span>`) : ""}
     ${kv("Cap", `${policy.max_paid_days_per_year} days / yr`)}
     ${kv("Weekly premium", `<span class="num">${SGD(policy.weekly_premium_sgd)}</span>`)}
     ${samePrice ? kv("Price per day", `<span class="num">${proofMoney(policyQuote.price_per_day_sgd)}</span>`) : ""}
@@ -503,41 +505,55 @@ function policyCover({ user, quote, policy, rent, application, decision, kind })
 }
 
 function chooseCover({ quote, rent, rentTable, rec, kind, examples }) {
-  if (!rec) return `<h2>Choose your cover</h2><p class="fine">${escapeHtml(notOfferedLine(quote))}</p>`;
-  const cards = offeredTiers(quote).map((t) => `
+  const offered = offeredTiers(quote);
+  const lossLine = fullLossDayLine(quote);
+  if (!offered.length) {
+    const nothingFits = quote.tiers.every((t) => t.fits_business === false);
+    const why = [lossLine, quote.suggestion, nothingFits ? "" : notOfferedLine(quote)].filter(Boolean).join(" ");
+    return `<h2>Choose your cover</h2><p class="fine">${escapeHtml(why)}</p>`;
+  }
+  // The tier whose proof and SMS are shown: the suggested one, else the smallest offered.
+  const shown = rec ?? offered[0].tier;
+  const cards = offered.map((t) => `
     <div class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}">
-      <span class="t">${t.label}${t.tier === rec ? ` <span class="chip accent">Recommended</span>` : ""}${t.best_value ? ` <span class="chip good">Best value</span>` : ""}</span>
+      <span class="t">${t.label}${t.tier === rec ? ` <span class="chip accent">Suggested for your sales</span>` : ""}${t.best_value ? ` <span class="chip good">Best value</span>` : ""}</span>
       <span class="p">${SGD(monthlyPrice(t))}<small>/mo</small></span>
       <span class="d">${[`${SGD(t.weekly_premium_sgd)} a week`, dayPrice(t)].filter(Boolean).join(" · ")}</span>
       <span class="d">${fullLossLine(t, examples[t.tier])}</span>
       <span class="d">${lockdownLine(t)}</span>
-      ${t.tier === rec ? `<span class="d">${lockdownExample(t)}</span>` : ""}
+      ${t.tier === shown ? `<span class="d">${lockdownExample(t)}</span>` : ""}
       ${rent ? `<span class="d">A full bad day pays ${rentShare(t.daily_payout_sgd, rent.rent_per_day_sgd)} here.</span>` : ""}
     </div>`).join("");
-  const recTier = quote.tiers.find((t) => t.tier === rec);
-  const proof = [coverLine(recTier), centsBack(recTier), ...proofLines(recTier, kind)].filter(Boolean);
+  const shownTier = quote.tiers.find((t) => t.tier === shown);
+  const proof = [coverLine(shownTier), centsBack(shownTier), ...proofLines(shownTier, kind)].filter(Boolean);
   const hidden = notOfferedLine(quote);
-  const why = !rent ? "We mark the recommended tier."
-    : (rent.covers_rent
-      ? `Recommended is the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
-      : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Recommended is the biggest tier.`)
-      + ` ${rentSource(rent, rentTable)}`;
+  const sales = quote.daily_sales_sgd == null ? "" : `You told us the business sells about ${SGD(quote.daily_sales_sgd)} on a normal weekday.`;
+  const rentNote = rent ? `Rent here is about ${SGD(rent.rent_per_day_sgd)} a trading day. ${rentSource(rent, rentTable)}` : "";
   return `<h2>Payung prices for your stall</h2>
     <div class="tiers-row">${cards}</div>
-    <p class="fine"><b>What ${recTier.label} gives you here</b></p>${fineLines(proof)}
-    <p class="fine">${[why, bestValueLine(quote, rec)].filter(Boolean).join(" ")}${hidden ? ` ${escapeHtml(hidden)}` : ""}</p>
+    <p class="fine"><b>What ${shownTier.label} gives you here</b></p>${fineLines(proof)}
+    <p class="fine">${escapeHtml([sales, lossLine, quote.suggestion, bestValueLine(quote, rec)].filter(Boolean).join(" "))}${hidden ? ` ${escapeHtml(hidden)}` : ""}</p>
+    ${rentNote ? `<p class="fine">${rentNote}</p>` : ""}
     ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add Payung to your policy with you. Payung is not sold directly.")}
-    <p class="fine">The recommended tier in one SMS, as we would text it to you:</p>
-    <div class="cover-sms" data-cover-tier="${rec}" data-cover-weekly="${quote.tiers.find((t) => t.tier === rec)?.weekly_premium_sgd ?? ""}"></div>`;
+    <p class="fine">${shownTier.label} in one SMS, as we would text it to you:</p>
+    <div class="cover-sms" data-cover-tier="${shown}" data-cover-weekly="${shownTier.weekly_premium_sgd ?? ""}"></div>`;
 }
 
-function burnCard({ site }) {
+/* The replay's daily sales: the declared sales, within what the replay takes. */
+const BURN_SALES_SGD = { min: 50, max: 20000, fallback: 500 };
+function burnSales(application) {
+  const sales = application?.daily_sales_sgd;
+  if (sales == null) return BURN_SALES_SGD.fallback;
+  return Math.min(BURN_SALES_SGD.max, Math.max(BURN_SALES_SGD.min, sales));
+}
+
+function burnCard({ site, application }) {
   return `<section class="card dash-section" id="burn-card">
     <div class="card-head"><div><h2>Your last ten years, replayed</h2>
       <p class="fine">Every NEA reading since 2017 ${site.label}, scored by the live tariff.
         Set your normal daily sales; the losses scale with it, the payouts do not.</p></div></div>
     <label class="burn-takings">My daily sales (S$)
-      <input type="number" id="burn-takings" min="50" max="20000" step="50" value="500" inputmode="numeric" /></label>
+      <input type="number" id="burn-takings" min="${BURN_SALES_SGD.min}" max="${BURN_SALES_SGD.max}" step="50" value="${burnSales(application)}" inputmode="numeric" /></label>
     <div id="burn-body" aria-live="polite">${burnSkeleton()}</div>
   </section>`;
 }
@@ -551,9 +567,9 @@ function wireSme(view) {
   const { user, policy, site, rec } = view;
   el("cancel-policy")?.addEventListener("click", () => confirmCancel(user, policy));
   el("retry-live")?.addEventListener("click", () => renderSme(user));
-  const burnTier = policy ? policy.tier : rec ?? view.quote.tiers[0].tier;
+  const burnTier = policy ? policy.tier : rec ?? offeredTiers(view.quote)[0]?.tier ?? view.quote.tiers[0].tier;
   const loadBurn = async () => {
-    const takings = +el("burn-takings").value || 500;
+    const takings = +el("burn-takings").value || burnSales(view.application);
     try {
       const burn = await api(`/api/map/burn?${site.burn}&tier=${burnTier}&takings=${takings}`);
       el("burn-body").innerHTML = renderBurn(burn, policy);
@@ -961,6 +977,7 @@ function referralCard(application, quotes) {
         ${row("Where", place)}
         ${row("Applicant", applicant)}
         ${row("Staff", application.staff_band)}
+        ${row("Normal weekday sales", application.daily_sales_sgd != null ? SGD(application.daily_sales_sgd) : "")}
         ${row("Cover asked for", cover)}
       </div>
       <div class="referral-decide">
@@ -1398,6 +1415,7 @@ function policyDrawer(p, status) {
       ${kv("Business type", BUSINESS_CLASSES[businessClassOf(p)] || "Not recorded")}
       ${kv(p.centre ? "Hawker centre" : "Postcode", escapeHtml(p.centre || p.postcode || "Not recorded"))}
       ${kv("Region", titleCase(p.region))}
+      ${kv("Normal weekday sales", p.daily_sales_sgd != null ? `<span class="num">${SGD(p.daily_sales_sgd)}</span>` : "Not recorded")}
       ${kv("Owner", escapeHtml(p.name))}
       ${kv("Filled in with", escapeHtml(channelOf(p)))}
     </section>

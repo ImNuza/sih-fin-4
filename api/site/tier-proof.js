@@ -1,7 +1,8 @@
 /* Payung proof lines: what a tier would have paid at the customer's own place, in plain words,
    shared by the buy page, the dashboard and the risk atlas. Served at /tier-proof.js. Every number
    comes from the quote's TierQuote (price_per_day_sgd, cover_multiple, proof, best_value,
-   haze_bonus, offered, not_offered_reason); nothing is worked out here, only worded. */
+   haze_bonus, offered, not_offered_reason) and the Quote (full_loss_day_sgd, suggested_tier,
+   suggestion); nothing is worked out here, only worded. */
 "use strict";
 
 /* S$1.30 for small amounts, S$1,400 or S$432 for whole or large ones. */
@@ -127,19 +128,16 @@ function proofLines(tier, businessClass) {
   return lines;
 }
 
-/* The tiers a business can buy at this place: a tier priced too high for what it can pay in a
-   year is not offered here (offered false). */
+/* The tiers a business can buy: a tier priced too high for what it can pay in a year at this
+   place, or one that pays more than the business loses on a day with no sales, is not offered
+   (offered false). */
 function offeredTiers(quote) { return quote.tiers.filter((t) => t.offered !== false); }
 
-/* The tier to suggest: the wanted one (by default the first) when it is offered here, else the
-   nearest smaller tier offered, else the smallest one that is. null when no tier is offered. */
-function offeredTier(quote, wantedKey) {
-  const keys = quote.tiers.map((t) => t.tier);
-  const wanted = Math.max(0, keys.indexOf(wantedKey ?? keys[0]));
-  const offered = quote.tiers.map((t, at) => ({ t, at })).filter(({ t }) => t.offered !== false);
-  if (!offered.length) return null;
-  const below = offered.filter(({ at }) => at <= wanted);
-  return (below.length ? below.at(-1) : offered[0]).t;
+/* "A day with no sales costs this business about S$500.", from the quote's full_loss_day_sgd
+   (the business's daily sales x the product factor), or "" when the sales are not known. */
+function fullLossDayLine(quote) {
+  if (quote.full_loss_day_sgd == null) return "";
+  return `A day with no sales costs this business about ${yearMoney(quote.full_loss_day_sgd)}.`;
 }
 
 /* "Tier 1 is not offered here. The weather recorded here ...", one sentence set per tier the
