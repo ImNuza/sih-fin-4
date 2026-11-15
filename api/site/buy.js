@@ -459,9 +459,7 @@ async function renderTiers() {
       ${rent ? `<span class="d">${share(t)}</span>` : ""}
     </button>`).join("");
   const suggestion = rent
-    ? (rent.covers_rent
-      ? `Suggested: the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
-      : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Suggested: the biggest tier.`)
+    ? `Suggested: ${quote.tiers.find((t) => t.tier === rent.recommended_tier)?.label}, the hawker plan. A full bad day pays ${share(quote.tiers.find((t) => t.tier === rent.recommended_tier))} here (about ${SGD(rent.rent_per_day_sgd)} a day). The higher tiers suit businesses with higher takings.`
     : "";
   const labelOf = (key) => quote.tiers.find((t) => t.tier === key)?.label;
   const moved = rent && suggested !== rent.recommended_tier

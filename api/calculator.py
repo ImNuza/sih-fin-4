@@ -508,11 +508,13 @@ def rent_class(rent: Rent, monthly_sgd: float) -> RentClass:
 
 
 def rent_tier(tiers: list[Tier], rent_per_day_sgd: float) -> tuple[Tier, bool]:
-    """The smallest tier whose full-day payout covers a day's rent, else the biggest tier."""
-    for tier in tiers:
-        if tier.daily_payout_sgd >= rent_per_day_sgd:
-            return tier, True
-    return tiers[-1], False
+    """Tier 1, the hawker plan, and whether its full-day payout covers a day's rent.
+
+    The higher tiers pay more than many stalls take in a day, so they suit businesses with
+    higher takings; a stall is suggested the first tier whatever its rent.
+    """
+    hawker_plan = tiers[0]
+    return hawker_plan, hawker_plan.daily_payout_sgd >= rent_per_day_sgd
 
 
 def centre_rent(tariff: Tariff, record: BidRecord, fallback_sgd: float) -> CentreRent:

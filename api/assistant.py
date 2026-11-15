@@ -525,8 +525,9 @@ def tool_describe_business(ctx: Context, description: str, postcode: str | None 
         "tiers": tier_rows(quote, where.who),
         "recommended_tier": rent.recommended_tier if rent else quote.tiers[0].tier,
         "why_recommended": (
-            f"the smallest tier that pays a day's rent at this centre (about "
-            f"S${rent.rent_per_day_sgd:.0f} a day)" if rent else "the lowest-cost tier"
+            f"the hawker plan: a full bad day pays about "
+            f"{round(100 * quote.tiers[0].daily_payout_sgd / rent.rent_per_day_sgd)}% of a day's rent "
+            f"here (about S${rent.rent_per_day_sgd:.0f} a day)" if rent else "the lowest-cost tier"
         ),
         "triggers": trigger_levels(ctx.tariff),
         "cover_rules": [facts[k] for k in ("daily_amounts", "partial_days", "yearly_limit",

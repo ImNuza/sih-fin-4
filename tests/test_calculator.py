@@ -246,17 +246,19 @@ def test_rent_class_is_the_highest_limit_reached():
     assert calculator.rent_class(tariff.rent, 400).key == "high"
 
 
-def test_recommended_tier_is_the_smallest_that_covers_a_days_rent():
+def test_a_stall_is_suggested_tier_1_whatever_its_rent():
+    tariff = make_tariff(rent=RENT)
+    for monthly in (250, 300, 1000):
+        assert calculator.centre_rent(tariff, bid_record(monthly), 0).recommended_tier == "tier_1"
+
+
+def test_covers_rent_says_whether_tier_1_pays_a_days_rent():
     tariff = make_tariff(rent=RENT)
     # 250 a month over 25 days is 10 a day: Tier 1 pays exactly that.
-    assert calculator.centre_rent(tariff, bid_record(250), 0).recommended_tier == "tier_1"
-    # 300 a month is 12 a day: only Tier 2 (20) covers it.
-    assert calculator.centre_rent(tariff, bid_record(300), 0).recommended_tier == "tier_2"
-
-
-def test_rent_above_every_tier_picks_the_biggest_and_says_so():
-    rent = calculator.centre_rent(make_tariff(rent=RENT), bid_record(1000), 0)
-    assert (rent.recommended_tier, rent.covers_rent, rent.rent_per_day_sgd) == ("tier_2", False, 40)
+    assert calculator.centre_rent(tariff, bid_record(250), 0).covers_rent is True
+    # 1,000 a month is 40 a day, more than Tier 1 pays for a full day.
+    rent = calculator.centre_rent(tariff, bid_record(1000), 0)
+    assert (rent.covers_rent, rent.rent_per_day_sgd) == (False, 40)
 
 
 def test_centre_with_no_bid_borrows_the_fallback_and_is_marked_estimated():
