@@ -342,6 +342,38 @@ def not_offered_reason(tariff: Tariff, tier: Tier, yearly_premium_sgd: float) ->
     )
 
 
+def fits_business(tier: Tier, full_loss_day_sgd: float | None) -> bool | None:
+    """Whether a tier pays no more for a day with no sales than the business loses on such a
+    day. Cover must not pay more than the loss (insurable interest). None without the loss."""
+    if full_loss_day_sgd is None:
+        return None
+    return tier.daily_payout_sgd <= full_loss_day_sgd
+
+
+def too_big_reason(tier: Tier, full_loss_day_sgd: float) -> str:
+    return (
+        f"{tier.label} pays S${tier.daily_payout_sgd:,.0f} for a day with no sales, more than "
+        f"this business loses on such a day (about S${full_loss_day_sgd:,.0f})"
+    )
+
+
+def suggestion(tiers: list[TierQuote], full_loss_day_sgd: float | None) -> tuple[str | None, str]:
+    """The suggested tier and the sentence that says why: the biggest tier offered that pays no
+    more than the business loses on a day with no sales."""
+    if full_loss_day_sgd is None:
+        return None, "Tell us your normal daily sales to see which tier fits."
+    if not any(t.fits_business for t in tiers):
+        return None, "Payung's smallest tier pays more than this business loses on a bad day."
+    offered = [t for t in tiers if t.offered]
+    if not offered:
+        return None, "No tier that fits this business is offered here."
+    best = max(offered, key=lambda t: t.daily_payout_sgd)
+    return best.tier, (
+        f"Suggested for your sales: {best.label}, the biggest tier that pays no more than this "
+        f"business loses on a day with no sales (about S${full_loss_day_sgd:,.0f})."
+    )
+
+
 def on_sale(bonus: HazeBonus, today: date) -> bool:
     return today.month not in bonus.no_sale_months
 
@@ -403,14 +435,22 @@ def singapore_today() -> date:
 
 
 def tier_quote(
-    tariff: Tariff, tier: Tier, losses: ReplayLosses, replay: Replay, today: date
+    tariff: Tariff, tier: Tier, losses: ReplayLosses, replay: Replay, today: date,
+    full_loss_day_sgd: float | None = None,
 ) -> TierQuote:
+    """One tier's price at a place. A tier that pays more than the business loses on a day with
+    no sales is not offered, and that reason comes first: it is about this business, so it is
+    the clearer one."""
     paid_days = float(np.minimum(losses.loss_days, tier.max_paid_days_per_year).mean())
     risk_cost = paid_days * tier.daily_payout_sgd
     premium = yearly_premium(risk_cost, tariff.pricing, tier.premium_shares)
     yearly = round(premium, 2)
     limit_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
-    reason = not_offered_reason(tariff, tier, yearly)
+    fits = fits_business(tier, full_loss_day_sgd)
+    if fits is False:
+        reason = too_big_reason(tier, full_loss_day_sgd)
+    else:
+        reason = not_offered_reason(tariff, tier, yearly)
     return TierQuote(
         tier=tier.key,
         label=tier.label,
@@ -424,6 +464,7 @@ def tier_quote(
         cover_multiple=round(limit_sgd / premium, 1) if premium > 0 else None,
         offered=reason is None,
         not_offered_reason=reason,
+        fits_business=fits,
         proof=tier_proof(tier, losses, risk_cost, premium),
         cost_per_sgd_of_daily_cover=round(yearly / tier.daily_payout_sgd, 2),
         haze_bonus=haze_bonus_quote(tariff, tier, replay, today),
@@ -467,12 +508,15 @@ def quote(
     region_replay: Replay | None = None,
     stations: dict[str, list[str]] | None = None,
     today: date | None = None,
+    daily_sales_sgd: float | None = None,
 ) -> Quote:
     """Every tier's price for one product at one place, from the replay of its recorded days.
 
     With the region's replay and the stations the place reads, the quote also says how each
     hazard was priced at the place (local_risks); a region's own quote has none. today, by
-    default today in Singapore, says whether the haze add-on is on sale.
+    default today in Singapore, says whether the haze add-on is on sale. With the business's
+    normal daily sales, a day with no sales costs it daily_sales_sgd x product_factor; only the
+    tiers that pay no more than that are offered, and the biggest of them is suggested.
     """
     today = today or singapore_today()
     product = find(tariff.products, product_key, "product")
@@ -480,16 +524,24 @@ def quote(
     risks = []
     if region_replay is not None and stations is not None:
         risks = local_risks(losses, replay_losses(tariff, product, region_replay), stations)
+    factor = product_factor(product)
+    full_loss = None if daily_sales_sgd is None else daily_sales_sgd * factor
+    tiers = mark_best_value(
+        [tier_quote(tariff, tier, losses, replay, today, full_loss) for tier in tariff.tiers]
+    )
+    suggested, why = suggestion(tiers, full_loss)
     return Quote(
         region=region,
         product=product.key,
         expected_loss_days=round(float(losses.loss_days.mean()), 2),
         loss_day_parts={key: round(days, 2) for key, days in losses.parts.items()},
-        product_factor=round(product_factor(product), 3),
-        tiers=mark_best_value(
-            [tier_quote(tariff, tier, losses, replay, today) for tier in tariff.tiers]
-        ),
+        product_factor=round(factor, 3),
+        tiers=tiers,
         local_risks=risks,
+        daily_sales_sgd=daily_sales_sgd,
+        full_loss_day_sgd=None if full_loss is None else round(full_loss, 2),
+        suggested_tier=suggested,
+        suggestion=why,
     )
 
 
@@ -527,7 +579,8 @@ def rent_class(rent: Rent, monthly_sgd: float) -> RentClass:
 
 
 def rent_tier(tiers: list[Tier], rent_per_day_sgd: float) -> tuple[Tier, bool]:
-    """The smallest tier whose full-day payout covers a day's rent, else the biggest tier."""
+    """The smallest tier whose full-day payout covers a day's rent, else the biggest tier.
+    Information only: the suggested tier comes from the business's daily sales (suggestion)."""
     for tier in tiers:
         if tier.daily_payout_sgd >= rent_per_day_sgd:
             return tier, True
@@ -535,7 +588,8 @@ def rent_tier(tiers: list[Tier], rent_per_day_sgd: float) -> tuple[Tier, bool]:
 
 
 def centre_rent(tariff: Tariff, record: BidRecord, fallback_sgd: float) -> CentreRent:
-    """Rent class, rent per trading day and the tier that covers it, for one centre.
+    """Rent class, rent per trading day and the tier that covers it, for one centre, as
+    information next to the quote.
 
     A centre with no bid on record borrows the median of all centres and says so.
     """

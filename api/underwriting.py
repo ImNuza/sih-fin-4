@@ -68,6 +68,7 @@ def referral_query():
         accounts.users,
         accounts.application_referrals,
     )
+    sales = accounts.application_sales
     query = (
         select(
             applications.c.id,
@@ -88,10 +89,12 @@ def referral_query():
             details.c.designation,
             details.c.cover_start,
             referrals.c.reason.label("referral_reason"),
+            sales.c.daily_sales_sgd,
         )
         .join(users, users.c.id == applications.c.user_id)
         .outerjoin(details, details.c.application_id == applications.c.id)
         .outerjoin(referrals, referrals.c.application_id == applications.c.id)
+        .outerjoin(sales, sales.c.application_id == applications.c.id)
     )
     profile = profile_table()
     if profile is None:

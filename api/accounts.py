@@ -149,6 +149,14 @@ policy_channel = Table(
     Column("association", String),
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
+# The business's normal sales on a weekday, as the owner declared it, one row per application
+# from a hawker or a shop. It sets the tiers that fit the business (calculator.fits_business).
+application_sales = Table(
+    "application_sales",
+    metadata,
+    Column("application_id", Integer, primary_key=True),
+    Column("daily_sales_sgd", Float, nullable=False),
+)
 # Why an application went to an underwriter when the reason is the price, not a past decline:
 # the tier costs more than the tariff sells directly. One row per such application, with the
 # product and weekly premium quoted, which an approval starts.

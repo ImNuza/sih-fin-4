@@ -57,6 +57,7 @@ from api.models import (
     Assessment,
     AssessRequest,
     Choice,
+    DailySales,
     HazardChoice,
     HazeBonusQuote,
     KycRequest,
@@ -393,10 +394,12 @@ def postcode_point(request: Request, postcode: str) -> dict:
 
 
 def place_quote(
-    request: Request, tariff: Tariff, product: str, region: str, lat: float, lng: float
+    request: Request, tariff: Tariff, product: str, region: str, lat: float, lng: float,
+    daily_sales_sgd: float | None = None,
 ) -> Quote:
     """The quote at one point paid on a PSI region, from the replay of its recorded days, with
-    how each hazard was priced there next to the region's point."""
+    how each hazard was priced there next to the region's point. With the business's daily
+    sales, only the tiers that fit it are offered (calculator.quote)."""
     known_region(region, request)
     rule = readings.station_rule(tariff)
     days: place_days.PlaceDays = request.app.state.place_days
@@ -410,15 +413,19 @@ def place_quote(
     return calculator.quote(
         tariff, product, region, days.replay(rule, region, lat, lng),
         days.replay(rule, region, region_lat, region_lng), stations,
+        daily_sales_sgd=daily_sales_sgd,
     )
 
 
-def region_quote(request: Request, tariff: Tariff, product: str, region: str) -> Quote:
+def region_quote(
+    request: Request, tariff: Tariff, product: str, region: str,
+    daily_sales_sgd: float | None = None,
+) -> Quote:
     """The quote for a whole PSI region, read at the region's point as its payouts are."""
     known_region(region, request)
     lat, lng = request.app.state.map_static["region_points"][region]
     replay = request.app.state.place_days.replay(readings.station_rule(tariff), region, lat, lng)
-    return calculator.quote(tariff, product, region, replay)
+    return calculator.quote(tariff, product, region, replay, daily_sales_sgd=daily_sales_sgd)
 
 
 def nearest_region(request: Request, lat: float, lng: float) -> str:
@@ -433,30 +440,45 @@ def nearest_region(request: Request, lat: float, lng: float) -> str:
 def business_quote(
     request: Request, tariff: Tariff, product: str, region: str | None,
     centre: str | None = None, postcode: str | None = None,
+    daily_sales_sgd: float | None = None,
 ) -> Quote:
     """The price a business is shown and charged: replayed at its hawker centre, else at its
     postcode's area. A business with neither, such as a platform worker who works across the
     island, is priced for its region. Haze is read for the PSI region a payout reads: the
-    centre's map region, the postcode's region (postcodes.region_of).
+    centre's map region, the postcode's region (postcodes.region_of). With the business's
+    normal daily sales, a tier that pays more than it loses on a day with no sales is not
+    offered.
     """
+    sales = daily_sales_sgd
     if centre is not None:
         place = centre_place(request, centre)
-        return place_quote(request, tariff, product, place["region"], place["lat"], place["lng"])
+        return place_quote(
+            request, tariff, product, place["region"], place["lat"], place["lng"], sales
+        )
     if postcode is not None:
         point = postcode_point(request, postcode)
-        return place_quote(request, tariff, product, point["region"], point["lat"], point["lng"])
-    return region_quote(request, tariff, product, region)
+        return place_quote(
+            request, tariff, product, point["region"], point["lat"], point["lng"], sales
+        )
+    return region_quote(request, tariff, product, region, sales)
 
 
 @app.post("/api/quote")
 def quote(body: QuoteRequest, request: Request, tariff: TariffDep) -> Quote:
     """Yearly, weekly and daily premium, payout and proof of every tier, for one product, at a
     region, a map point, a hawker centre or a postcode's area. A centre or postcode gives the
-    price a business there is charged when it buys."""
+    price a business there is charged when it buys. With the business's normal daily sales, a
+    tier that pays more than it loses on a day with no sales is not offered, and the biggest
+    tier that fits is suggested (suggested_tier)."""
+    sales = body.daily_sales_sgd
     if body.latitude is not None and body.longitude is not None:
         region = nearest_region(request, body.latitude, body.longitude)
-        return place_quote(request, tariff, body.product, region, body.latitude, body.longitude)
-    return business_quote(request, tariff, body.product, body.region, body.centre, body.postcode)
+        return place_quote(
+            request, tariff, body.product, region, body.latitude, body.longitude, sales
+        )
+    return business_quote(
+        request, tariff, body.product, body.region, body.centre, body.postcode, sales
+    )
 
 
 def rent_table(tariff: Tariff, records: dict[str, BidRecord]) -> RentTable:
@@ -477,7 +499,8 @@ def rent_table(tariff: Tariff, records: dict[str, BidRecord]) -> RentTable:
 @app.get("/api/rent")
 def rent(tariff: TariffDep, request: Request) -> RentTable:
     """Rent class of every hawker centre, from NEA's winning bids, and the tier that covers a
-    day's rent. The class sets the recommended tier; the premium still comes from the hazards."""
+    day's rent. Information only: the suggested tier comes from the business's own daily sales,
+    and the premium from the hazards."""
     return rent_table(tariff, request.app.state.rent)
 
 
@@ -1055,6 +1078,11 @@ class PolicyRequest(SellerFields):
     product: str | None = None
     add_haze_bonus: bool = False
 
+    @model_validator(mode="after")
+    def seller_complete(self) -> PolicyRequest:
+        self.channel_complete()
+        return self
+
 
 def haze_bonus_offer(tier: TierQuote, tariff: Tariff) -> HazeBonusQuote:
     """The severe haze payout for a tier. Raises 422 when the tariff offers none, or in a month
@@ -1113,11 +1141,6 @@ def offered_tier(priced: Quote, tier_key: str) -> TierQuote:
         raise HTTPException(status.HTTP_409_CONFLICT, tier.not_offered_reason)
     return tier
 
-    @model_validator(mode="after")
-    def seller_complete(self) -> PolicyRequest:
-        self.channel_complete()
-        return self
-
 
 def policy_values(
     priced: Quote, user_id: int, region: str, centre: str | None, product: str, tier_key: str
@@ -1145,7 +1168,8 @@ def buy_policy(body: PolicyRequest, user: SmeDep, tariff: TariffDep, request: Re
 
     Refused while an underwriter is reviewing the business's application, and once the term of
     that application has ended: payouts stop then (payout_flow.cover_ends), so a renewal is a new
-    application. A tier not offered at the business's place is refused (409) with the reason.
+    application. A tier not offered at the business's place, or one that pays more than the
+    business declared it loses on a day with no sales, is refused (409) with the reason.
 
     A higher daily amount starts a new waiting period for the whole cover, so nobody moves up a
     tier when a bad day is forecast. The same or a lower amount keeps the cover's start. A cover
@@ -1172,7 +1196,8 @@ def buy_policy(body: PolicyRequest, user: SmeDep, tariff: TariffDep, request: Re
         raise HTTPException(status.HTTP_409_CONFLICT, "An underwriter declined this application")
     product = body.product or user.product or "cooked_food"
     priced = business_quote(
-        request, tariff, product, user.region, user.centre, shop_postcode(application)
+        request, tariff, product, user.region, user.centre, shop_postcode(application),
+        application["daily_sales_sgd"] if application else None,
     )
     tier = offered_tier(priced, body.tier)
     offer = haze_bonus_offer(tier, tariff) if body.add_haze_bonus else None
@@ -1255,6 +1280,9 @@ class BuyRequest(SellerFields):
     platform_worker_id: str | None = None
     postcode: str | None = None
     product: str
+    daily_sales_sgd: DailySales | None = Field(
+        default=None, description="Normal sales on a weekday. Hawkers and shops only."
+    )
     staff_band: onboarding.StaffBand | None = None
     sales_under_100m: bool | None = None
     designation: str | None = Field(default=None, max_length=60)
@@ -1361,9 +1389,14 @@ class BuyRequest(SellerFields):
             raise ValueError("Say which insurer declined you and why")
         return self
 
+    def sales_complete(self) -> None:
+        if self.daily_sales_sgd is None:
+            raise ValueError("Enter the business's normal sales on a weekday")
+
     def hawker_complete(self) -> None:
         if self.licence_no is None:
             raise ValueError("Enter your SFA food stall licence or NEA stall tenancy number")
+        self.sales_complete()
         self.ssic_code = self.platform = self.platform_worker_id = self.postcode = None
 
     def shop_complete(self) -> None:
@@ -1371,6 +1404,7 @@ class BuyRequest(SellerFields):
             raise ValueError("Enter the shop's 6-digit postcode")
         if not onboarding.SSIC_CODE.match(self.ssic_code or ""):
             raise ValueError("Enter the shop's 5-digit SSIC code")
+        self.sales_complete()
         self.centre = self.stall_unit = self.licence_no = None
         self.platform = self.platform_worker_id = None
 
@@ -1385,6 +1419,7 @@ class BuyRequest(SellerFields):
         if self.applicant_type != "individual":
             raise ValueError("A platform worker applies as an individual")
         self.platform_worker_id = worker_id
+        self.daily_sales_sgd = None
         self.staff_band = self.staff_band or onboarding.PLATFORM_WORKER_STAFF_BAND
         self.business_name = self.centre = self.stall_unit = None
         self.licence_no = self.ssic_code = None
@@ -1454,9 +1489,10 @@ def buy(
 ) -> dict:
     """Create the account, the application and, when Payung is added, its policy, then sign in.
 
-    A tier not offered at the business's place is refused (409) with the reason, before
-    anything is saved. A past decline sends the application to an underwriter: no policy starts
-    and nothing is charged. Payment is simulated, and no money moves. PayNow needs a payment paid on the demo bank screen (api/premium.py), whose
+    A tier not offered at the business's place, or one that pays more than the business loses on
+    a day with no sales (its declared daily sales x the product factor), is refused (409) with
+    the reason, before anything is saved. A past decline sends the application to an
+    underwriter: no policy starts and nothing is charged. Payment is simulated, and no money moves. PayNow needs a payment paid on the demo bank screen (api/premium.py), whose
     reference is kept; GIRO keeps the made-up DEMO- reference.
     """
     engine = request.app.state.db
@@ -1473,7 +1509,8 @@ def buy(
     if body.add_safeday:
         postcode = body.postcode if body.business_class == "shop" else None
         priced = business_quote(
-            request, tariff, body.product, user["region"], user["centre"], postcode
+            request, tariff, body.product, user["region"], user["centre"], postcode,
+            body.daily_sales_sgd,
         )
         offered_tier(priced, body.tier)
     offer = None
@@ -1543,6 +1580,10 @@ def buy(
         db.execute(
             sa_insert(accounts.application_details).values(application_id=application["id"], **details)
         )
+        if body.daily_sales_sgd is not None:
+            db.execute(sa_insert(accounts.application_sales).values(
+                application_id=application["id"], daily_sales_sgd=body.daily_sales_sgd
+            ))
         if offer is not None and referred:
             db.execute(sa_insert(accounts.application_haze_bonus).values(
                 application_id=application["id"]
@@ -1569,7 +1610,10 @@ def buy(
         )
         sms.set_preferred_language(db, user_id, body.sms_language)
         payout_flow.send_welcome_if_due(db, user_id, tariff)
-        application.update(details, **profile, **channel, referral_reason=None)
+        application.update(
+            details, **profile, **channel, daily_sales_sgd=body.daily_sales_sgd,
+            referral_reason=None,
+        )
     accounts.start_session(engine, user_id, response)
     return {
         "application": {k: v for k, v in application.items() if k != "user_id"},
@@ -1582,7 +1626,7 @@ def latest_application(engine, user_id: int) -> dict | None:
     nulls."""
     details, profile = accounts.application_details, accounts.application_profile
     channel = accounts.application_channel
-    referrals = accounts.application_referrals
+    referrals, sales = accounts.application_referrals, accounts.application_sales
     query = (
         sa_select(
             accounts.applications,
@@ -1592,8 +1636,10 @@ def latest_application(engine, user_id: int) -> dict | None:
             *(column for column in profile.c if column.name != "application_id"),
             *(column for column in channel.c if column.name != "application_id"),
             referrals.c.reason.label("referral_reason"),
+            sales.c.daily_sales_sgd,
         )
         .outerjoin(details, details.c.application_id == accounts.applications.c.id)
+        .outerjoin(sales, sales.c.application_id == accounts.applications.c.id)
         .outerjoin(profile, profile.c.application_id == accounts.applications.c.id)
         .outerjoin(channel, channel.c.application_id == accounts.applications.c.id)
         .outerjoin(referrals, referrals.c.application_id == accounts.applications.c.id)
@@ -1812,7 +1858,7 @@ def insurer_policies(_: InsurerDep, request: Request) -> list[dict]:
     demo is true for the made-up book that scripts/seed_demo_policies.py adds for the pitch.
     """
     policies, users, profile = accounts.policies, accounts.users, accounts.application_profile
-    channel = accounts.application_channel
+    channel, sales = accounts.application_channel, accounts.application_sales
     decisions = underwriting.underwriting_decisions
     latest, paid = latest_application_ids(), payouts_by_policy()
     query = (
@@ -1828,6 +1874,7 @@ def insurer_policies(_: InsurerDep, request: Request) -> list[dict]:
             channel.c.sold_by,
             channel.c.adviser_code,
             channel.c.association,
+            sales.c.daily_sales_sgd,
             decisions.c.decision.label("underwriting_decision"),
             decisions.c.note.label("underwriting_note"),
             paid.c.payouts_paid,
@@ -1838,6 +1885,7 @@ def insurer_policies(_: InsurerDep, request: Request) -> list[dict]:
         .outerjoin(latest, latest.c.user_id == policies.c.user_id)
         .outerjoin(profile, profile.c.application_id == latest.c.application_id)
         .outerjoin(channel, channel.c.application_id == latest.c.application_id)
+        .outerjoin(sales, sales.c.application_id == latest.c.application_id)
         .outerjoin(decisions, decisions.c.application_id == latest.c.application_id)
         .outerjoin(paid, paid.c.policy_id == policies.c.id)
         .order_by(policies.c.started_at.desc(), policies.c.id.desc())

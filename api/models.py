@@ -16,6 +16,9 @@ KYC_TEXT_MAX_CHARS = 500
 KYC_PHOTO_MAX_BYTES = 5 * 1024 * 1024
 # Base64 writes every 3 bytes as 4 characters.
 KYC_PHOTO_MAX_BASE64_CHARS = KYC_PHOTO_MAX_BYTES // 3 * 4 + 4
+# A business's normal sales on a weekday, as the owner declares it: from a small drinks stall to
+# a busy shop.
+DailySales = Annotated[float, Field(ge=20, le=50_000)]
 
 
 def unique_keys(items: list[BaseModel], kind: str) -> None:
@@ -150,7 +153,8 @@ class RentClass(BaseModel):
 
 
 class Rent(BaseModel):
-    """Rent classes of hawker centres. They set the recommended tier, never the premium."""
+    """Rent classes of hawker centres. Information only: they never set the premium or the
+    suggested tier."""
 
     trading_days_per_month: float = Field(gt=0, le=31)
     classes: list[RentClass] = Field(min_length=1)
@@ -264,6 +268,12 @@ class QuoteRequest(BaseModel):
     postcode: str | None = Field(
         default=None, description="Price at this postcode's area, as a shop there is charged."
     )
+    daily_sales_sgd: DailySales | None = Field(
+        default=None,
+        description="The business's normal sales on a weekday. With it, the quote offers only "
+        "the tiers that pay no more than the business loses on a day with no sales, and "
+        "suggests one.",
+    )
 
     @model_validator(mode="after")
     def one_place(self) -> QuoteRequest:
@@ -346,13 +356,21 @@ class TierQuote(BaseModel):
     )
     offered: bool = Field(
         description="False when the yearly premium here is at or above the yearly limit, or, for "
-        "a tier with premium shares, more than refer_above_limit_share of it. A tier that is not "
-        "offered cannot be bought at this place."
+        "a tier with premium shares, more than refer_above_limit_share of it, or when the tier "
+        "pays more for a day with no sales than the business loses on such a day "
+        "(fits_business false). A tier that is not offered cannot be bought."
     )
     not_offered_reason: str | None = Field(
         default=None,
-        description="Why the tier is not offered here, in plain words: the place's weather "
-        "history. Empty when it is offered.",
+        description="Why the tier is not offered, in plain words: that it pays more than the "
+        "business loses on a day with no sales, else the place's weather history. Empty when it "
+        "is offered.",
+    )
+    fits_business: bool | None = Field(
+        default=None,
+        description="True when the tier pays no more for a day with no sales than the business "
+        "loses on such a day (full_loss_day_sgd). Empty when the business's daily sales are not "
+        "known.",
     )
     proof: TierProof | None = Field(description="Empty only when no replay year is complete.")
     best_value: bool = Field(
@@ -398,6 +416,22 @@ class Quote(BaseModel):
     tiers: list[TierQuote]
     local_risks: list[LocalRisk] = Field(
         default=[], description="How each hazard was priced for a place. Empty for a region."
+    )
+    daily_sales_sgd: float | None = Field(
+        default=None, description="The business's normal sales on a weekday, when given."
+    )
+    full_loss_day_sgd: float | None = Field(
+        default=None,
+        description="What a day with no sales costs this business: daily_sales_sgd times "
+        "product_factor. Empty without daily sales.",
+    )
+    suggested_tier: str | None = Field(
+        default=None,
+        description="The biggest tier offered that pays no more than full_loss_day_sgd. Empty "
+        "without daily sales, or when no tier fits.",
+    )
+    suggestion: str = Field(
+        default="", description="The suggestion, or why there is none, in one plain sentence."
     )
 
 
@@ -446,7 +480,10 @@ class CentreRent(BaseModel):
     rent_class: str
     rent_class_label: str
     rent_per_day_sgd: float
-    recommended_tier: str = Field(description="Smallest tier whose payout covers a day's rent.")
+    recommended_tier: str = Field(
+        description="Information only: the smallest tier whose payout covers a day's rent. The "
+        "suggested tier comes from the business's own daily sales (Quote.suggested_tier)."
+    )
     covers_rent: bool = Field(description="False when even the biggest tier pays less than a day's rent.")
 
 

@@ -139,6 +139,7 @@ def buy_body(**changes) -> dict:
         "business_name": "Ah Kow Noodles",
         "centre": "Maxwell Food Centre (Kim Hua Market)",
         "product": "cooked_food",
+        "daily_sales_sgd": 1500,
         "applicant_type": "individual",
         "phone": "+65 9123 4567",
         "add_safeday": True,
@@ -478,6 +479,7 @@ def shop_body(**changes) -> dict:
         "ssic_code": "47102",
         "business_name": "Ah Kow Minimart",
         "product": "packaged_food",
+        "daily_sales_sgd": 2000,
         "staff_band": "5-9",
     }
     return buy_body(**{**shop, **changes})
