@@ -68,6 +68,46 @@ payouts = Table(
     UniqueConstraint("user_id", "loss_date", name="one_payout_per_user_per_day"),
 )
 
+# The severe haze payout's lump sums, once per policy and policy year. A table of their own:
+# a lump sum falls on a day that also has a daily payout, and payouts allows one row a day.
+haze_bonus_payouts = Table(
+    "haze_bonus_payouts",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", Integer, nullable=False),
+    Column("policy_id", Integer, nullable=False),
+    Column("policy_year_starts", Date, nullable=False),
+    Column("loss_date", Date, nullable=False),
+    Column("region", String, nullable=False),
+    Column("centre", String),
+    Column("tier", String, nullable=False),
+    Column("trigger_psi", Float, nullable=False),
+    Column("unhealthy_days", Integer, nullable=False),
+    Column("source", String, nullable=False),
+    Column("main_hazard", String, nullable=False),
+    Column("amount_cents", Integer, nullable=False),
+    Column("status", String, nullable=False),
+    Column("paynow_proxy_masked", String),
+    Column("provider_reference", String, unique=True),
+    Column("failure_reason", String),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("paid_at", DateTime(timezone=True)),
+    UniqueConstraint("policy_id", "policy_year_starts", name="one_haze_bonus_per_policy_year"),
+)
+
+# Every status change of a lump sum, as payout_events keeps them for daily payouts.
+haze_bonus_events = Table(
+    "haze_bonus_events",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("bonus_id", Integer, ForeignKey("haze_bonus_payouts.id"), nullable=False),
+    Column("from_status", String),
+    Column("to_status", String, nullable=False),
+    Column("actor", String, nullable=False),
+    Column("detail", JSON),
+    Column("at", DateTime(timezone=True), nullable=False),
+)
+
 payout_events = Table(
     "payout_events",
     metadata,

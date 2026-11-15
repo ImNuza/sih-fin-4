@@ -6,7 +6,8 @@ the truth, and each trigger option reads only the other stations, as a payout wo
 with no station of its own (leave one out). The options:
     today's payout rule   api/readings.py itself: the first reporting stations among the nearest
                           and every other within 5 km, as many as the tariff prices from (rain
-                          3, median; heat 1), else the MSS record (rain)
+                          3, median; heat 1), else the MSS record (rain). A station the tariff
+                          has on hold is never read, as in a payout
     nearest station       the nearest station that reported
     worst of 2 nearest    the higher of the 2 nearest stations that reported
     median of 3 nearest   the middle of the 3 nearest stations that reported, at any distance
@@ -17,9 +18,10 @@ For every station-day the stall reported:
     false alarm  the option paid on a day the stall was fine
     quiet        neither
 A bad day is a reading at or above a tariff band: the first band (the day pays something) and
-the top band (the day pays in full). The band levels and station counts come from the tariff, so
-this script follows any change to it. Haze is not measured: the index is one PSI reading per
-region, so a stall and its payout always read the same number. PUB flood has no history yet.
+the top band (the day pays in full). The band levels, station counts and stations on hold come
+from the tariff, so this script follows any change to it. Haze is not measured: the index is one
+PSI reading per region, so a stall and its payout always read the same number. PUB flood has no
+history yet.
 
 Usage:
     uv run scripts/basis_risk.py              (run build_day_readings.py first)
@@ -47,7 +49,7 @@ from dgs import REPO_ROOT
 sys.path.insert(0, str(REPO_ROOT))
 from api.calculator import km_between  # noqa: E402
 from api.models import Tariff  # noqa: E402
-from api.readings import eligible, station_reading, stations_read  # noqa: E402
+from api.readings import Place, StationRule, ranked, station_reading, station_rule  # noqa: E402
 
 PROC_DIR = REPO_ROOT / "data" / "processed"
 OUT_PATH = PROC_DIR / "basis_risk.csv"
@@ -72,26 +74,27 @@ def outcome(stall_bad: bool, paid: bool) -> str:
 
 
 def count_outcomes(
-    days: list[Day], kind: str, stations: list[Station], threshold: float, todays_count: int
+    days: list[Day], kind: str, stations: list[Station], threshold: float, rule: StationRule
 ) -> dict[str, dict[str, int]]:
     """Outcome counts per option, over every day a stall reported.
 
-    A day counts only when at least 3 other stations reported and today's rule gives a reading,
-    so every option is judged on the same days. A station with no value row read 0.
+    Today's rule reads the other stations as a payout does, skipping the stations the tariff has
+    on hold; the other options read every other station. A day counts only when at least 3 other
+    stations reported and today's rule gives a reading, so every option is judged on the same
+    days. A station with no value row read 0.
     """
     others = {}
     for stall_id, lat, lng in stations:
-        rest = [station for station in stations if station[0] != stall_id]
-        by_distance = sorted(rest, key=lambda s: km_between(lat, lng, s[1], s[2]))
-        others[stall_id] = ([s[0] for s in by_distance], eligible(rest, lat, lng))
+        by_distance = ranked((s for s in stations if s[0] != stall_id), lat, lng)
+        others[stall_id] = Place(region="", gauges=by_distance, heat_stations=by_distance)
     counts = {option: dict.fromkeys(OUTCOMES, 0) for option in (TODAYS_RULE, *OPTIONS)}
     for day in days:
         values, silent = day.get(kind, {}), day.get(f"{kind}_missing", {})
-        for stall_id, (by_distance, near) in others.items():
+        for stall_id, near in others.items():
             if stall_id in silent:
                 continue
-            reporting = [values.get(s, 0.0) for s in by_distance if s not in silent][:3]
-            todays, _ = station_reading(day, kind, near, todays_count)
+            reporting = [values.get(s, 0.0) for s, _ in near.ranked(kind) if s not in silent][:3]
+            todays, _ = station_reading(day, kind, near, rule)
             if len(reporting) < 3 or todays is None:
                 continue
             stall_bad = values.get(stall_id, 0.0) >= threshold
@@ -148,12 +151,12 @@ def summary_row(kind: str, band: str, threshold: float, option: str, counts: dic
 
 def main() -> None:
     tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
-    todays_counts = dict(zip(HAZARDS, stations_read(tariff), strict=True))
+    rule = station_rule(tariff)
     rows = []
     for kind in HAZARDS:
         days, stations = load_days(kind), network(kind)
         for band, threshold in band_levels(tariff, kind).items():
-            counts = count_outcomes(days, kind, stations, threshold, todays_counts[kind])
+            counts = count_outcomes(days, kind, stations, threshold, rule)
             rows += [summary_row(kind, band, threshold, option, found, len(days))
                      for option, found in counts.items()]
     with OUT_PATH.open("w", newline="") as file:

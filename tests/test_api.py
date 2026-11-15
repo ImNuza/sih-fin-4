@@ -333,7 +333,9 @@ def test_the_map_prices_every_centre_as_its_stalls_are_charged(client):
     shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
     assert quotes["centres"][MAXWELL] == shown
     parts = quotes["centre_loss_day_parts"][MAXWELL]
-    assert abs(sum(parts.values()) - shown["expected_loss_days"]) < 0.02
+    assert parts == shown["loss_day_parts"]
+    # Each part averages its own feed's days, and the total counts a day with two hazards once.
+    assert sum(parts.values()) == pytest.approx(shown["expected_loss_days"], rel=0.02)
 
 
 def test_the_what_if_circle_prices_each_centre_from_its_own_stations(client):
@@ -747,7 +749,9 @@ def test_a_replayed_day_scores_every_centre_on_its_own_readings(client):
     sites = client.app.state.sites
     for place, loss in zip(MAP_STATIC["hawker_centres"], day["hawker_losses"]):
         where = readings.history_place(place["region"], place["lat"], place["lng"], sites)
-        assert loss["readings"] == readings.day_readings_at(table, where, 3)
+        assert loss["readings"] == readings.day_readings_at(
+            table, where, readings.station_rule(tariff)
+        )
         assert loss["loss_percent"] == calculator.assess(
             tariff, "cooked_food", "tier_1", loss["readings"]
         ).loss_percent
@@ -774,8 +778,9 @@ def test_a_shops_application_carries_its_area_point(client):
 def test_a_place_quote_explains_its_loss_days_and_premium(client):
     body = {"product": "cooked_food", "latitude": 1.28033, "longitude": 103.84475}
     quote = client.post("/api/quote", json=body).json()
+    # Each part averages its own feed's days, and the total counts a day with two hazards once.
     assert sum(quote["loss_day_parts"].values()) == pytest.approx(
-        quote["expected_loss_days"], abs=0.05)
+        quote["expected_loss_days"], rel=0.02)
     tier = quote["tiers"][0]
     total = sum(step["amount_sgd"] for step in tier["build_up"])
     assert round(total, 2) == tier["yearly_premium_sgd"]
@@ -793,18 +798,17 @@ def test_a_shop_is_priced_on_the_haze_of_the_region_it_is_paid_on(client):
     shown = shown.json()
     region = postcodes.region_of(postcode)
     haze = next(risk for risk in shown["local_risks"] if risk["hazard"] == "haze")
-    tariff = store.latest(client.app.state.db).tariff
-    product = calculator.find(tariff.products, "packaged_food", "product")
-    region_haze = calculator.loss_day_parts(tariff, product, client.app.state.history[region])
+    by_region = client.post("/api/quote", json={"product": "packaged_food", "region": region})
+    region_haze = by_region.json()["loss_day_parts"]["haze"]
     assert (shown["region"], haze["stations"]) == (region, [region]) == ("east", ["east"])
-    assert haze["loss_days"] == round(region_haze["haze"], 2)
+    assert haze["loss_days"] == haze["region_loss_days"] == region_haze
     policy = client.post("/api/buy", json=shop_body(postcode=postcode)).json()["policy"]
     assert (policy["region"], policy["weekly_premium_sgd"]) == (region, weekly(shown))
 
 
 def test_a_hawker_centre_keeps_its_price(client):
     shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
-    assert weekly(shown) == 9.27
+    assert weekly(shown) == 9.11
     for risk in shown["local_risks"]:
         assert shown["loss_day_parts"][risk["hazard"]] == risk["loss_days"]
 

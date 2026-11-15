@@ -113,6 +113,26 @@ TEMPLATES = {
         "ta": "SafeDay: {day} க்கான S${amount} காத்திருக்கிறது. செயலியில் கைபேசி எண்ணை "
         "உறுதிப்படுத்தவும். குறிப்பு {ref}.",
     },
+    "haze_bonus_paid": {
+        "en": "SafeDay severe haze payout: {days} unhealthy haze days in {region} this policy "
+        "year. S${amount} sent to PayNow {proxy}. Ref {ref}. No claim needed.",
+        "zh": "SafeDay严重烟霾赔付：本保单年度{region}已有{days}天烟霾不健康。S${amount}已转入"
+        "您的PayNow {proxy}。编号{ref}。无需索赔。",
+        "ms": "Bayaran jerebu teruk SafeDay: {days} hari jerebu tidak sihat di {region} tahun "
+        "polisi ini. S${amount} dihantar ke PayNow {proxy}. Ruj {ref}.",
+        "ta": "SafeDay கடும் புகைமூட்ட கொடுப்பனவு: இந்த பாலிசி ஆண்டில் {region} இல் {days} "
+        "ஆரோக்கியமற்ற நாட்கள். S${amount} PayNow {proxy} க்கு அனுப்பப்பட்டது. குறிப்பு {ref}.",
+    },
+    "haze_bonus_waiting": {
+        "en": "SafeDay: your severe haze payout of S${amount} is waiting for you. Verify your "
+        "mobile in the app to receive it. Ref {ref}.",
+        "zh": "SafeDay：您的严重烟霾赔付S${amount}正在等您领取。"
+        "请在应用中验证手机号码。编号{ref}。",
+        "ms": "SafeDay: bayaran jerebu teruk S${amount} sedang menunggu. Sahkan nombor telefon "
+        "dalam aplikasi. Ruj {ref}.",
+        "ta": "SafeDay: உங்கள் கடும் புகைமூட்ட கொடுப்பனவு S${amount} காத்திருக்கிறது. செயலியில் "
+        "கைபேசி எண்ணை உறுதிப்படுத்தவும். குறிப்பு {ref}.",
+    },
     "otp": {
         "en": "SafeDay code: {code}. It expires in 10 minutes. Do not share it.",
         "zh": "SafeDay验证码：{code}。10分钟内有效。请勿分享。",

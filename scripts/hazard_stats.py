@@ -50,7 +50,9 @@ MIN_EPISODE_DAYS = 1
 
 def load_psi() -> pd.DataFrame:
     frame = pd.concat(
-        pd.read_parquet(p) for p in sorted((REPO_ROOT / "data" / "psi").glob("psi_*.parquet"))
+        # The real-time feed's yearly files only, not psi_history_24hr.parquet.
+        pd.read_parquet(p)
+        for p in sorted((REPO_ROOT / "data" / "psi").glob("psi_20[0-9][0-9].parquet"))
     )
     frame["day"] = (
         frame["timestamp"].dt.tz_convert("Asia/Singapore").dt.tz_localize(None).dt.normalize()

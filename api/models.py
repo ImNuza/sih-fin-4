@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field, model_validator
 
 Share = Annotated[float, Field(ge=0, le=1)]
 Money = Annotated[float, Field(gt=0)]
+# Shares typed with two decimals add up to 1 within float rounding.
+SHARES_TOLERANCE = 1e-6
 KYC_TEXT_MAX_CHARS = 500
 KYC_PHOTO_MAX_BYTES = 5 * 1024 * 1024
 # Base64 writes every 3 bytes as 4 characters.
@@ -45,6 +47,11 @@ class Hazard(BaseModel):
         ge=0,
         description="Days a year at the top band. Empty: price from NEA history.",
     )
+    stations_on_hold: list[str] = Field(
+        default=[],
+        description="Stations (PSI regions for haze) left out of every reading, for price and "
+        "payout, until NEA confirms them. The next nearest station is read instead.",
+    )
     source: str
 
     @model_validator(mode="after")
@@ -70,18 +77,69 @@ class Product(BaseModel):
     source: str
 
 
+class PremiumShares(BaseModel):
+    """A tier's premium before GST in the insurer's five parts. A policy's fixed costs do not
+    grow with its daily amount, so a bigger tier spends a smaller share on costs."""
+
+    expected_payouts: Annotated[float, Field(gt=0, le=1)]
+    reinsurance: Share
+    management: Share
+    distribution: Share
+    profit: Share
+
+    @model_validator(mode="after")
+    def add_up_to_one(self) -> PremiumShares:
+        total = sum(self.model_dump().values())
+        if abs(total - 1) > SHARES_TOLERANCE:
+            raise ValueError(f"The five premium shares must add up to 1, not {total:g}")
+        return self
+
+
 class Tier(BaseModel):
     key: str
     label: str
     daily_payout_sgd: Money = Field(description="Paid for a day at 100% loss.")
     max_paid_days_per_year: int = Field(gt=0)
+    premium_shares: PremiumShares | None = Field(
+        default=None,
+        description="This tier's split of the premium before GST. Empty: the Pricing loads, "
+        "and the tier is sold directly, as every tier was before the shares.",
+    )
 
 
 class Pricing(BaseModel):
-    uncertainty_load: Share
-    catastrophe_load: Share
-    expense_ratio: float = Field(ge=0, lt=1)
+    uncertainty_load: Share = Field(description="Shown as the expected profit and risk margin.")
+    catastrophe_load: Share = Field(description="Shown as the reinsurance for haze years.")
+    expense_ratio: float = Field(ge=0, lt=1, description="Running costs, share of the premium "
+                                 "before GST: management plus distribution.")
     gst_rate: Share
+    # Tariffs saved before these fields existed load with the defaults.
+    distribution_expense_ratio: Share = Field(
+        default=0.15, description="The selling and distribution part of expense_ratio."
+    )
+    refer_above_limit_share: Share = Field(
+        default=0.5,
+        description="A tier whose yearly premium is more than this share of its yearly limit is "
+        "not sold directly: an underwriter must approve it.",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def distribution_from_old_expenses(cls, data: object) -> object:
+        """A tariff saved before the split keeps its running costs: selling and distribution
+        is the default share, or all of them when they are smaller."""
+        if isinstance(data, dict) and "distribution_expense_ratio" not in data:
+            expenses = data.get("expense_ratio")
+            if isinstance(expenses, int | float):
+                default = cls.model_fields["distribution_expense_ratio"].default
+                return {**data, "distribution_expense_ratio": min(default, expenses)}
+        return data
+
+    @model_validator(mode="after")
+    def distribution_within_expenses(self) -> Pricing:
+        if self.distribution_expense_ratio > self.expense_ratio:
+            raise ValueError("Selling and distribution cannot be more than the running costs")
+        return self
 
 
 class RentClass(BaseModel):
@@ -121,6 +179,23 @@ DEFAULT_RENT = Rent(
 )
 
 
+class HazeBonus(BaseModel):
+    """The optional severe haze payout: one lump sum in a policy year with many haze days."""
+
+    trigger_psi: float = Field(gt=0, description="Daily highest 24-hour PSI in the region.")
+    trigger_days: int = Field(gt=0, description="Days at or above trigger_psi in a policy year.")
+    lump_sum_daily_multiple: float = Field(gt=0, description="Lump sum over the daily amount.")
+    payout_multiple: float = Field(gt=1, description="Lump sum over the yearly price incl. GST.")
+    payout_share: Annotated[float, Field(gt=0, le=1)] = Field(
+        description="Share of the price before GST expected back as payouts."
+    )
+    no_sale_months: list[Annotated[int, Field(ge=1, le=12)]] = Field(
+        description="Months the add-on cannot be added, so nobody buys it as haze nears."
+    )
+    waiting_days: int = Field(ge=0, description="Days from purchase before it can pay.")
+    source: str
+
+
 class Tariff(BaseModel):
     hazards: list[Hazard] = Field(min_length=1)
     products: list[Product] = Field(min_length=1)
@@ -128,6 +203,9 @@ class Tariff(BaseModel):
     pricing: Pricing
     # Tariffs saved before rent classes existed load with the defaults.
     rent: Rent = Field(default_factory=lambda: DEFAULT_RENT.model_copy(deep=True))
+    haze_bonus: HazeBonus | None = Field(
+        default=None, description="The severe haze payout add-on. Empty: not offered."
+    )
 
     @model_validator(mode="after")
     def keys_unique_and_tiers_rise(self) -> Tariff:
@@ -203,28 +281,99 @@ class PremiumStep(BaseModel):
     amount_sgd: float
 
 
+class TierProof(BaseModel):
+    """What the tier would have paid at the customer's own place, replayed on NEA's readings."""
+
+    years_replayed: int = Field(description="Full replay years, 2017 to the latest year.")
+    years_paid: int = Field(description="Of those, years with at least one payout.")
+    payout_days_per_year: float = Field(
+        description="Average days with any payout a year, over the full years before the latest."
+    )
+    typical_year_paid_sgd: float = Field(
+        description="Median yearly payout over the full years before the latest."
+    )
+    paid_2026_sgd: float = Field(description="Paid in 2026, to the last day of data.")
+    haze_2015_like_sgd: float = Field(
+        description="A 2015 haze year plus the average year of the other hazards, within the "
+        "yearly limit."
+    )
+    payback_share: float = Field(
+        description="Expected yearly payout over the yearly premium, GST included."
+    )
+
+
+class HazeBonusQuote(BaseModel):
+    """The severe haze payout add-on for one tier at one place."""
+
+    lump_sum_sgd: float
+    yearly_sgd: float = Field(description="lump_sum_sgd over multiple, GST included.")
+    weekly_sgd: float
+    multiple: float
+    trigger_days: int
+    trigger_psi: float
+    implied_yearly_chance: float = Field(
+        description="The yearly chance of a payout the price assumes: payout share over "
+        "(1 + GST) x multiple."
+    )
+    on_sale_now: bool = Field(description="False in the months it cannot be added (Singapore).")
+    would_have_paid_years: list[int] = Field(
+        description="Calendar years of the replay in which this place's region reached "
+        "trigger_days."
+    )
+    build_up: list[PremiumStep] = Field(
+        description="The add-on's yearly price in the five parts, then GST."
+    )
+
+
 class TierQuote(BaseModel):
     tier: str
     label: str
     daily_payout_sgd: float
     max_payout_per_year_sgd: float
-    expected_paid_days: float
+    expected_paid_days: float = Field(
+        description="Average over the replay years of each year's loss-days within the limit."
+    )
     yearly_premium_sgd: float
     weekly_premium_sgd: float
     build_up: list[PremiumStep] = Field(
-        description="Why this premium: the steps from expected payouts to the yearly premium. "
-        "They add up to yearly_premium_sgd."
+        description="Why this premium: expected payouts, reinsurance, management, distribution, "
+        "profit and GST. They add up to yearly_premium_sgd."
+    )
+    price_per_day_sgd: float = Field(description="yearly_premium_sgd over 365 days.")
+    cover_multiple: float | None = Field(
+        description="max_payout_per_year_sgd over yearly_premium_sgd. Empty for a free tier."
+    )
+    sold_directly: bool = Field(
+        description="False when the tier has premium shares and its yearly premium is more than "
+        "refer_above_limit_share of the yearly limit: it is then referred to an underwriter."
+    )
+    proof: TierProof | None = Field(description="Empty only when no replay year is complete.")
+    best_value: bool = Field(
+        default=False,
+        description="True for the tier sold directly with the highest cover_multiple here.",
+    )
+    cost_per_sgd_of_daily_cover: float = Field(
+        description="yearly_premium_sgd over daily_payout_sgd."
+    )
+    haze_bonus: HazeBonusQuote | None = Field(
+        default=None, description="The severe haze payout add-on. Empty: not offered."
     )
 
 
 class LocalRisk(BaseModel):
     hazard: str
-    stations: list[str]
-    station_days: int
-    credibility: float = Field(description="Weight on the stations; the rest is the region.")
-    station_loss_days: float
-    region_loss_days: float
-    loss_days: float
+    stations: list[str] = Field(
+        description="What the place reads on a day every station reports: its PSI region, or "
+        "its nearest stations not on hold."
+    )
+    station_days: int = Field(description="Days in the replay with this hazard's feed running.")
+    credibility: float = Field(
+        description="Weight on the place's own readings; the rest is the region. The replay "
+        "reads the place's stations directly, so this is 1."
+    )
+    station_loss_days: float = Field(description="Loss-days a year at the place.")
+    region_loss_days: float = Field(description="Loss-days a year at the region's point.")
+    loss_days: float = Field(description="Loss-days a year priced: the place's.")
 
 
 class Quote(BaseModel):
@@ -232,8 +381,9 @@ class Quote(BaseModel):
     product: str
     expected_loss_days: float
     loss_day_parts: dict[str, float] = Field(
-        description="Days of full loss in an average year, per hazard. They add up to "
-        "expected_loss_days, give or take rounding."
+        description="Days of full loss in an average year, per hazard, over the days its feed "
+        "ran. They add up to expected_loss_days, give or take rounding and the few days two "
+        "hazards struck at once."
     )
     product_factor: float = Field(
         description="Share of a bad day's normal sales the product loses for good, per S$1."

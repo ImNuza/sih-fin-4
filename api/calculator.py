@@ -1,15 +1,23 @@
 """Loss score, payout and premium: pure functions of a tariff and the hazard history.
 
 A day's loss is the share of a normal day's sales the seller loses, from 0 (no loss) to 1
-(no sales at all). Each tier pays its daily payout times that share. The premium prices the
-loss days an average year brings in the customer's region.
+(no sales at all). Each tier pays its daily payout times that share, up to its yearly limit.
+
+The premium is priced on the payout rule. Every recorded day at the customer's place (a Replay,
+read through api/readings.py as a payout reads it) is scored with the tariff, the hazards
+combined as a payout combines them. A year's loss-days are the sum of its days' losses,
+annualised for a part year; on days a hazard's NEA feed had not started (rain before Dec 2016,
+heat before 2025) the hazard adds its average daily loss over the days its feed ran. A tier's
+expected paid days are the average over the years of min(year loss-days, its yearly limit).
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import TypeVar
+from zoneinfo import ZoneInfo
 
 import numpy as np
 
@@ -18,7 +26,10 @@ from api.models import (
     CentreRent,
     Hazard,
     HazardLoss,
+    HazeBonus,
+    HazeBonusQuote,
     LocalRisk,
+    PremiumShares,
     PremiumStep,
     Pricing,
     Product,
@@ -27,38 +38,50 @@ from api.models import (
     RentClass,
     Tariff,
     Tier,
+    TierProof,
     TierQuote,
 )
 
 DAYS_PER_YEAR = 365.25
+# The price per day is a calendar year's premium over a calendar year's days.
+PRICE_DAYS_PER_YEAR = 365
 WEEKS_PER_YEAR = 52
 EARTH_RADIUS_KM = 6371.0
-# Haze is read for a whole PSI region (api/readings.py); its history is one site per region.
-REGION_HAZARD = "haze"
+# The proof replays the years with rain recorded all year: the rain feed starts on 2 Dec 2016.
+FIRST_FULL_YEAR = 2017
+PROOF_YEAR = 2026
+HAZE_YEAR = 2015
+HAZE = "haze"
+SINGAPORE = ZoneInfo("Asia/Singapore")
 
 
 @dataclass(frozen=True)
-class Readings:
-    """Each distinct reading of one hazard in one region, and on how many site-days it happened."""
+class Replay:
+    """A place's readings on every recorded day, read as a payout reads them (api/readings.py).
 
-    values: np.ndarray
-    days: np.ndarray
+    A hazard a payout would wait for reads 0. fed is True on the days the hazard's NEA feed ran.
+    """
+
+    days: np.ndarray  # datetime64[D], ascending
+    readings: dict[str, np.ndarray]
+    fed: dict[str, np.ndarray]
 
 
 @dataclass(frozen=True)
-class Site:
-    """One NEA station's history of one hazard, and where it is."""
+class ReplayLosses:
+    """A place's loss-days for one product, per year and per hazard, and its daily losses."""
 
-    key: str
-    region: str
-    latitude: float
-    longitude: float
-    readings: Readings
+    years: np.ndarray
+    loss_days: np.ndarray  # per year, annualised, unfed days at the hazard's average
+    parts: dict[str, float]  # each hazard's average loss-days a year
+    hazard_years: dict[str, dict[int, float]]  # each replayed hazard's loss-days per year
+    fed_days: dict[str, int]
+    day_years: np.ndarray
+    day_loss: np.ndarray  # each recorded day's loss, as a payout scores it
 
 
-History = dict[str, dict[str, Readings]]
-Sites = dict[str, list[Site]]
 Keyed = TypeVar("Keyed", Hazard, Product, Tier)
+Severity = TypeVar("Severity", float, np.ndarray)
 
 
 class UnknownKey(LookupError):
@@ -100,7 +123,7 @@ def product_factor(product: Product) -> float:
     return product.demand_sensitivity * (lost_profit + spoiled_stock)
 
 
-def hazard_loss(hazard: Hazard, severity: float, factor: float) -> float:
+def hazard_loss(hazard: Hazard, severity: Severity, factor: float) -> Severity:
     return hazard.weight * severity * (factor if hazard.scaled_by_product else 1.0)
 
 
@@ -141,93 +164,313 @@ def assess(
     )
 
 
-def loss_day_parts(
-    tariff: Tariff, product: Product, region_history: dict[str, Readings]
-) -> dict[str, float]:
-    """Days of full loss in an average year, per hazard.
+def year_of(days: np.ndarray) -> np.ndarray:
+    return days.astype("datetime64[Y]").astype(int) + 1970
 
-    A day with two hazards counts twice, a small overstatement.
+
+def replay_losses(tariff: Tariff, product: Product, replay: Replay) -> ReplayLosses:
+    """Score every recorded day at a place with the tariff, and sum the days into years.
+
+    A hazard with assumed days a year adds them at its top band to every year. Raises
+    MissingHistory for a hazard with neither assumed days nor a single recorded day.
     """
     factor = product_factor(product)
+    day_years = year_of(replay.days)
+    years, year_index, days_in_year = np.unique(
+        day_years, return_inverse=True, return_counts=True
+    )
+
+    def per_year(values: np.ndarray) -> np.ndarray:
+        return np.bincount(year_index, weights=values, minlength=len(years))
+
+    no_loss = np.ones(len(replay.days))
+    unfed_loss_days = np.zeros(len(years))
+    assumed_loss_days = 0.0
     parts: dict[str, float] = {}
+    hazard_years: dict[str, dict[int, float]] = {}
+    fed_days: dict[str, int] = {}
     for hazard in tariff.hazards:
         if hazard.assumed_days_per_year is not None:
-            days, severity = hazard.assumed_days_per_year, hazard.bands[-1].severity
-        elif hazard.key in region_history:
-            readings = region_history[hazard.key]
-            severity = np.average(severities(hazard, readings.values), weights=readings.days)
-            days = DAYS_PER_YEAR
-        else:
+            top = hazard.bands[-1].severity
+            parts[hazard.key] = hazard.assumed_days_per_year * hazard_loss(hazard, top, factor)
+            assumed_loss_days += parts[hazard.key]
+            continue
+        fed = replay.fed.get(hazard.key)
+        if fed is None or not fed.any():
             raise MissingHistory(f"{hazard.label} has no NEA history. Set its assumed days a year.")
-        parts[hazard.key] = days * hazard_loss(hazard, severity, factor)
-    return parts
+        loss = hazard_loss(hazard, severities(hazard, replay.readings[hazard.key]), factor) * fed
+        no_loss *= 1 - loss
+        parts[hazard.key] = DAYS_PER_YEAR * float(loss[fed].mean())
+        unfed_loss_days += per_year(~fed) * parts[hazard.key] / DAYS_PER_YEAR
+        fed_in_year = per_year(fed)
+        recorded = per_year(loss) * DAYS_PER_YEAR / np.maximum(fed_in_year, 1)
+        hazard_years[hazard.key] = {
+            int(year): float(days) if fed_count else parts[hazard.key]
+            for year, days, fed_count in zip(years, recorded, fed_in_year, strict=True)
+        }
+        fed_days[hazard.key] = int(fed.sum())
+    day_loss = 1 - no_loss
+    recorded_loss_days = per_year(day_loss) + unfed_loss_days
+    loss_days = recorded_loss_days * DAYS_PER_YEAR / days_in_year + assumed_loss_days
+    return ReplayLosses(
+        years=years, loss_days=loss_days, parts=parts, hazard_years=hazard_years,
+        fed_days=fed_days, day_years=day_years, day_loss=day_loss,
+    )
 
 
-def yearly_premium(risk_cost: float, pricing: Pricing) -> float:
-    loaded = risk_cost * (1 + pricing.uncertainty_load + pricing.catastrophe_load)
-    return loaded / (1 - pricing.expense_ratio) * (1 + pricing.gst_rate)
+def shares_from_loads(pricing: Pricing) -> PremiumShares:
+    """The five shares of the premium before GST that the Pricing loads give: the rare-event
+    load buys the reinsurance for haze years, the uncertainty load is the profit and risk
+    margin, and the running costs split into management and distribution."""
+    payouts = (1 - pricing.expense_ratio) / (
+        1 + pricing.uncertainty_load + pricing.catastrophe_load
+    )
+    return PremiumShares(
+        expected_payouts=payouts,
+        reinsurance=payouts * pricing.catastrophe_load,
+        management=pricing.expense_ratio - pricing.distribution_expense_ratio,
+        distribution=pricing.distribution_expense_ratio,
+        profit=payouts * pricing.uncertainty_load,
+    )
 
 
-def premium_build_up(risk_cost: float, pricing: Pricing) -> list[PremiumStep]:
-    """The steps of yearly_premium, each as money, so a customer can see why they pay it.
+def yearly_premium(
+    risk_cost: float, pricing: Pricing, shares: PremiumShares | None = None
+) -> float:
+    """Expected payouts over their share of the premium before GST, plus GST. Without a tier's
+    own shares, the Pricing loads set the share."""
+    if shares is None:
+        loaded = risk_cost * (1 + pricing.uncertainty_load + pricing.catastrophe_load)
+        return loaded / (1 - pricing.expense_ratio) * (1 + pricing.gst_rate)
+    return risk_cost / shares.expected_payouts * (1 + pricing.gst_rate)
 
-    Each step is rounded to the cent, and GST takes the rounding left over, so the steps add up
-    to the rounded yearly premium exactly.
+
+def premium_build_up(
+    risk_cost: float, pricing: Pricing, shares: PremiumShares | None = None
+) -> list[PremiumStep]:
+    """The yearly premium in the insurer's five parts, then GST, each as money.
+
+    Each part is its share of the premium before GST, the tier's own shares or else those of
+    the Pricing loads. Each part is rounded to the cent, and GST takes the rounding left over,
+    so the parts add up to the rounded yearly premium exactly.
     """
-    loaded = risk_cost * (1 + pricing.uncertainty_load + pricing.catastrophe_load)
-    before_gst = loaded / (1 - pricing.expense_ratio)
+    split = shares or shares_from_loads(pricing)
+    premium = yearly_premium(risk_cost, pricing, shares)
+    before_gst = premium / (1 + pricing.gst_rate)
     steps = [
-        ("expected_payouts", "Expected payouts in an average year", risk_cost),
-        ("uncertainty", f"Uncertainty load, {pricing.uncertainty_load:.0%}",
-         risk_cost * pricing.uncertainty_load),
-        ("catastrophe", f"Bad-year (catastrophe) load, {pricing.catastrophe_load:.0%}",
-         risk_cost * pricing.catastrophe_load),
-        ("expenses", f"Insurer's expenses, {pricing.expense_ratio:.0%} of the premium before GST",
-         before_gst - loaded),
+        ("expected_payouts", "Expected payouts to customers", risk_cost),
+        ("reinsurance", "Reinsurance for haze years", before_gst * split.reinsurance),
+        ("management", "Management expenses", before_gst * split.management),
+        ("distribution", "Selling and distribution", before_gst * split.distribution),
+        ("profit", "Expected profit and risk margin", before_gst * split.profit),
         ("gst", f"GST, {pricing.gst_rate:.0%}", before_gst * pricing.gst_rate),
     ]
     rounded = [round(amount, 2) for _, _, amount in steps[:-1]]
-    rounded.append(round(round(yearly_premium(risk_cost, pricing), 2) - sum(rounded), 2))
+    rounded.append(round(round(premium, 2) - sum(rounded), 2))
     return [PremiumStep(key=key, label=label, amount_sgd=amount)
             for (key, label, _), amount in zip(steps, rounded, strict=True)]
 
 
-def tier_quotes(tariff: Tariff, loss_days: float) -> list[TierQuote]:
-    tiers = []
-    for tier in tariff.tiers:
-        # The cap applies to the average year. Bad years reach it sooner; the catastrophe load
-        # pays for that.
-        paid_days = min(loss_days, tier.max_paid_days_per_year)
-        risk_cost = paid_days * tier.daily_payout_sgd
-        premium = yearly_premium(risk_cost, tariff.pricing)
-        tiers.append(
-            TierQuote(
-                tier=tier.key,
-                label=tier.label,
-                daily_payout_sgd=tier.daily_payout_sgd,
-                max_payout_per_year_sgd=tier.daily_payout_sgd * tier.max_paid_days_per_year,
-                expected_paid_days=round(paid_days, 2),
-                yearly_premium_sgd=round(premium, 2),
-                weekly_premium_sgd=round(premium / WEEKS_PER_YEAR, 2),
-                build_up=premium_build_up(risk_cost, tariff.pricing),
-            )
-        )
+def paid_years(losses: ReplayLosses, tier: Tier) -> dict[int, tuple[float, int]]:
+    """What the tier would have paid each year, and on how many days, paying each day as a
+    payout does (to the cent) until the yearly limit is reached."""
+    limit_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
+    payouts = np.round(losses.day_loss * tier.daily_payout_sgd, 2)
+    paid = {}
+    for year in losses.years:
+        first, last = np.searchsorted(losses.day_years, [year, year + 1])
+        in_year = payouts[first:last]
+        before = np.cumsum(in_year) - in_year
+        paid_days = int(((in_year > 0) & (before < limit_sgd)).sum())
+        paid[int(year)] = (min(float(in_year.sum()), limit_sgd), paid_days)
+    return paid
+
+
+def tier_proof(
+    tier: Tier, losses: ReplayLosses, risk_cost: float, premium: float
+) -> TierProof | None:
+    """The four proof numbers at the customer's place. None when no replay year is complete."""
+    paid = paid_years(losses, tier)
+    latest = int(losses.years[-1])
+    replayed = [year for year in paid if year >= FIRST_FULL_YEAR]
+    full = [year for year in replayed if year < latest]
+    if not full:
+        return None
+    other_hazards = sum(days for key, days in losses.parts.items() if key != HAZE)
+    haze_years = losses.hazard_years.get(HAZE, {})
+    haze_2015 = haze_years.get(HAZE_YEAR, losses.parts.get(HAZE, 0.0))
+    limit_days = tier.max_paid_days_per_year
+    return TierProof(
+        years_replayed=len(replayed),
+        years_paid=sum(paid[year][0] > 0 for year in replayed),
+        payout_days_per_year=round(float(np.mean([paid[year][1] for year in full])), 1),
+        typical_year_paid_sgd=round(float(np.median([paid[year][0] for year in full])), 2),
+        paid_2026_sgd=round(paid.get(PROOF_YEAR, (0.0, 0))[0], 2),
+        haze_2015_like_sgd=round(
+            min(haze_2015 + other_hazards, limit_days) * tier.daily_payout_sgd, 2
+        ),
+        payback_share=round(risk_cost / premium, 3) if premium > 0 else 0.0,
+    )
+
+
+def sold_directly(tariff: Tariff, tier: Tier, yearly_premium_sgd: float) -> bool:
+    """False for a tier whose premium is more than refer_above_limit_share of its yearly limit.
+
+    A tier without premium shares, as every tier of a tariff saved before them, is sold
+    directly as it always was: the guardrail came with the shares and refers nothing more.
+    """
+    if tier.premium_shares is None:
+        return True
+    limit_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
+    return yearly_premium_sgd <= tariff.pricing.refer_above_limit_share * limit_sgd
+
+
+def on_sale(bonus: HazeBonus, today: date) -> bool:
+    return today.month not in bonus.no_sale_months
+
+
+def haze_years(bonus: HazeBonus, replay: Replay) -> list[int]:
+    """Calendar years of the replay with at least trigger_days at trigger_psi or more."""
+    unhealthy = (replay.readings[HAZE] >= bonus.trigger_psi) & replay.fed[HAZE]
+    years, counts = np.unique(year_of(replay.days[unhealthy]), return_counts=True)
+    return [int(year) for year, days in zip(years, counts, strict=True)
+            if days >= bonus.trigger_days]
+
+
+def haze_bonus_build_up(
+    yearly_sgd: float, bonus: HazeBonus, pricing: Pricing, shares: PremiumShares | None
+) -> list[PremiumStep]:
+    """The add-on's price: payout_share as payouts, the rest in the tier's own proportions of
+    reinsurance, management, distribution and profit, then GST, which takes the leftover cent."""
+    split = shares or shares_from_loads(pricing)
+    before_gst = yearly_sgd / (1 + pricing.gst_rate)
+    costs = {"reinsurance": split.reinsurance, "management": split.management,
+             "distribution": split.distribution, "profit": split.profit}
+    rest = (1 - bonus.payout_share) * before_gst / sum(costs.values())
+    labels = {step.key: step.label for step in premium_build_up(1.0, pricing, shares)}
+    amounts = {"expected_payouts": bonus.payout_share * before_gst,
+               **{key: share * rest for key, share in costs.items()}}
+    steps = [PremiumStep(key=key, label=labels[key], amount_sgd=round(amount, 2))
+             for key, amount in amounts.items()]
+    gst = round(yearly_sgd - sum(step.amount_sgd for step in steps), 2)
+    return [*steps, PremiumStep(key="gst", label=labels["gst"], amount_sgd=gst)]
+
+
+def haze_bonus_quote(
+    tariff: Tariff, tier: Tier, replay: Replay, today: date
+) -> HazeBonusQuote | None:
+    """The severe haze payout for a tier: a lump sum of lump_sum_daily_multiple daily amounts,
+    sold at lump sum / payout_multiple a year, GST included."""
+    bonus = tariff.haze_bonus
+    if bonus is None:
+        return None
+    lump_sgd = bonus.lump_sum_daily_multiple * tier.daily_payout_sgd
+    yearly_sgd = round(lump_sgd / bonus.payout_multiple, 2)
+    gst = 1 + tariff.pricing.gst_rate
+    return HazeBonusQuote(
+        lump_sum_sgd=round(lump_sgd, 2),
+        yearly_sgd=yearly_sgd,
+        weekly_sgd=round(yearly_sgd / WEEKS_PER_YEAR, 2),
+        multiple=bonus.payout_multiple,
+        trigger_days=bonus.trigger_days,
+        trigger_psi=bonus.trigger_psi,
+        implied_yearly_chance=round(bonus.payout_share / (gst * bonus.payout_multiple), 3),
+        on_sale_now=on_sale(bonus, today),
+        would_have_paid_years=haze_years(bonus, replay) if HAZE in replay.readings else [],
+        build_up=haze_bonus_build_up(yearly_sgd, bonus, tariff.pricing, tier.premium_shares),
+    )
+
+
+def singapore_today() -> date:
+    return datetime.now(SINGAPORE).date()
+
+
+def tier_quote(
+    tariff: Tariff, tier: Tier, losses: ReplayLosses, replay: Replay, today: date
+) -> TierQuote:
+    paid_days = float(np.minimum(losses.loss_days, tier.max_paid_days_per_year).mean())
+    risk_cost = paid_days * tier.daily_payout_sgd
+    premium = yearly_premium(risk_cost, tariff.pricing, tier.premium_shares)
+    yearly = round(premium, 2)
+    limit_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
+    return TierQuote(
+        tier=tier.key,
+        label=tier.label,
+        daily_payout_sgd=tier.daily_payout_sgd,
+        max_payout_per_year_sgd=limit_sgd,
+        expected_paid_days=round(paid_days, 2),
+        yearly_premium_sgd=yearly,
+        weekly_premium_sgd=round(premium / WEEKS_PER_YEAR, 2),
+        build_up=premium_build_up(risk_cost, tariff.pricing, tier.premium_shares),
+        price_per_day_sgd=round(premium / PRICE_DAYS_PER_YEAR, 2),
+        cover_multiple=round(limit_sgd / premium, 1) if premium > 0 else None,
+        sold_directly=sold_directly(tariff, tier, yearly),
+        proof=tier_proof(tier, losses, risk_cost, premium),
+        cost_per_sgd_of_daily_cover=round(yearly / tier.daily_payout_sgd, 2),
+        haze_bonus=haze_bonus_quote(tariff, tier, replay, today),
+    )
+
+
+def mark_best_value(tiers: list[TierQuote]) -> list[TierQuote]:
+    """Mark the tier sold directly that pays the most a year per S$1 of premium. The first of
+    equals is marked; with none sold directly, none is."""
+    direct = [t for t in tiers if t.sold_directly and t.yearly_premium_sgd > 0]
+    if direct:
+        best = max(direct, key=lambda t: t.max_payout_per_year_sgd / t.yearly_premium_sgd)
+        best.best_value = True
     return tiers
 
 
-def quote(tariff: Tariff, history: History, region: str, product_key: str) -> Quote:
-    if region not in history:
-        raise UnknownKey(f"Unknown region: {region}")
+def local_risks(
+    losses: ReplayLosses, region_losses: ReplayLosses, stations: dict[str, list[str]]
+) -> list[LocalRisk]:
+    """How each replayed hazard was priced at a place, next to the region's point."""
+    return [
+        LocalRisk(
+            hazard=hazard,
+            stations=stations[hazard],
+            station_days=fed_days,
+            credibility=1.0,
+            station_loss_days=round(losses.parts[hazard], 2),
+            region_loss_days=round(region_losses.parts[hazard], 2),
+            loss_days=round(losses.parts[hazard], 2),
+        )
+        for hazard, fed_days in losses.fed_days.items()
+        if hazard in stations
+    ]
+
+
+def quote(
+    tariff: Tariff,
+    product_key: str,
+    region: str,
+    replay: Replay,
+    region_replay: Replay | None = None,
+    stations: dict[str, list[str]] | None = None,
+    today: date | None = None,
+) -> Quote:
+    """Every tier's price for one product at one place, from the replay of its recorded days.
+
+    With the region's replay and the stations the place reads, the quote also says how each
+    hazard was priced at the place (local_risks); a region's own quote has none. today, by
+    default today in Singapore, says whether the haze add-on is on sale.
+    """
+    today = today or singapore_today()
     product = find(tariff.products, product_key, "product")
-    parts = loss_day_parts(tariff, product, history[region])
-    loss_days = sum(parts.values())
+    losses = replay_losses(tariff, product, replay)
+    risks = []
+    if region_replay is not None and stations is not None:
+        risks = local_risks(losses, replay_losses(tariff, product, region_replay), stations)
     return Quote(
         region=region,
         product=product.key,
-        expected_loss_days=round(loss_days, 2),
-        loss_day_parts={key: round(days, 2) for key, days in parts.items()},
+        expected_loss_days=round(float(losses.loss_days.mean()), 2),
+        loss_day_parts={key: round(days, 2) for key, days in losses.parts.items()},
         product_factor=round(product_factor(product), 3),
-        tiers=tier_quotes(tariff, loss_days),
+        tiers=mark_best_value(
+            [tier_quote(tariff, tier, losses, replay, today) for tier in tariff.tiers]
+        ),
+        local_risks=risks,
     )
 
 
@@ -240,138 +483,11 @@ def km_between(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return float(2 * EARTH_RADIUS_KM * np.arcsin(np.sqrt(h)))
 
 
-def nearest_sites(sites: list[Site], latitude: float, longitude: float, count: int) -> list[Site]:
-    return sorted(
-        sites, key=lambda site: km_between(latitude, longitude, site.latitude, site.longitude)
-    )[:count]
-
-
-def mean_severity(hazard: Hazard, readings: list[Readings]) -> tuple[float, int]:
-    """Average severity over the pooled days of these readings, and how many days that is."""
-    values = np.concatenate([r.values for r in readings])
-    days = np.concatenate([r.days for r in readings])
-    return float(np.average(severities(hazard, values), weights=days)), int(days.sum())
-
-
-def credibility_constant(hazard: Hazard, sites: list[Site]) -> float:
-    """Bühlmann-Straub K = within-station variance / variance between stations of one region.
-
-    Werner and Modlin, Basic Ratemaking (CAS, 2016), ch. 12: Z = N / (N + K). Daily severity is
-    the observation and each station is a risk; the region's mean is the complement, so the
-    between-station spread is measured inside each region. K is infinite (no weight on the
-    station) when the stations of a region differ no more than chance would make them.
-    """
-    by_region: dict[str, list[tuple[float, int]]] = {}
-    within_squares, within_freedom = 0.0, 0
-    for site in sites:
-        severity = severities(hazard, site.readings.values)
-        mean, days = mean_severity(hazard, [site.readings])
-        within_squares += float(np.sum(site.readings.days * (severity - mean) ** 2))
-        within_freedom += days - 1
-        by_region.setdefault(site.region, []).append((mean, days))
-    within_variance = within_squares / within_freedom
-    between_squares, between_weight = 0.0, 0.0
-    for stations in by_region.values():
-        region_days = sum(days for _, days in stations)
-        region_mean = sum(mean * days for mean, days in stations) / region_days
-        between_squares += sum(days * (mean - region_mean) ** 2 for mean, days in stations)
-        between_weight += region_days - sum(days**2 for _, days in stations) / region_days
-    station_count = sum(len(stations) for stations in by_region.values())
-    if between_weight == 0:
-        return math.inf
-    excess = between_squares - (station_count - len(by_region)) * within_variance
-    between_variance = excess / between_weight
-    return within_variance / between_variance if between_variance > 0 else math.inf
-
-
-def local_risk(
-    tariff: Tariff,
-    product: Product,
-    history: History,
-    hazard: Hazard,
-    sites: list[Site],
-    latitude: float,
-    longitude: float,
-    region: str | None = None,
-) -> LocalRisk:
-    """Loss days a year at one place: its nearest stations, blended with their region.
-
-    The price reads the same stations as the trigger. With little station history the region
-    average carries most of the weight; with years of it, the station does. Haze is read for a
-    whole PSI region, so with a region given, haze reads that region's history.
-    """
-    factor = product_factor(product)
-    candidates = sites
-    if region is not None and hazard.key == REGION_HAZARD:
-        candidates = [site for site in sites if site.region == region]
-    nearest = nearest_sites(candidates, latitude, longitude, hazard.sites_used)
-    station_region = nearest[0].region
-    station_severity, station_days = mean_severity(hazard, [site.readings for site in nearest])
-    region_severity, _ = mean_severity(hazard, [history[station_region][hazard.key]])
-    k = credibility_constant(hazard, sites)
-    credibility = station_days / (station_days + k)
-    severity = credibility * station_severity + (1 - credibility) * region_severity
-
-    def loss_days(mean: float) -> float:
-        return DAYS_PER_YEAR * hazard_loss(hazard, mean, factor)
-
-    return LocalRisk(
-        hazard=hazard.key,
-        stations=[site.key for site in nearest],
-        station_days=station_days,
-        credibility=round(credibility, 3),
-        station_loss_days=round(loss_days(station_severity), 2),
-        region_loss_days=round(loss_days(region_severity), 2),
-        loss_days=round(loss_days(severity), 2),
-    )
-
-
-def quote_at(
-    tariff: Tariff,
-    history: History,
-    sites: Sites,
-    latitude: float,
-    longitude: float,
-    product_key: str,
-    region: str | None = None,
-) -> Quote:
-    """Quote for one place, from the NEA stations nearest to it.
-
-    region is the PSI region the place is paid on (a shop's postcode region, a hawker centre's
-    map region); without one, it is the region of the nearest station.
-    """
-    product = find(tariff.products, product_key, "product")
-    if region is not None and region not in history:
-        raise UnknownKey(f"Unknown region: {region}")
-    risks = [
-        local_risk(
-            tariff, product, history, hazard, sites[hazard.key], latitude, longitude, region
-        )
-        for hazard in tariff.hazards
-        if hazard.assumed_days_per_year is None and hazard.key in sites
-    ]
-    if region is None:
-        every_site = [site for hazard_sites in sites.values() for site in hazard_sites]
-        region = nearest_sites(every_site, latitude, longitude, 1)[0].region
-    region_parts = loss_day_parts(tariff, product, history[region])
-    parts = region_parts | {risk.hazard: risk.loss_days for risk in risks}
-    loss_days = sum(parts.values())
-    return Quote(
-        region=region,
-        product=product.key,
-        expected_loss_days=round(loss_days, 2),
-        loss_day_parts={key: round(days, 2) for key, days in parts.items()},
-        product_factor=round(product_factor(product), 3),
-        tiers=tier_quotes(tariff, loss_days),
-        local_risks=risks,
-    )
-
-
-def check_prices(tariff: Tariff, history: History) -> None:
-    """Raise if any region and product cannot be priced, so a saved tariff always works."""
-    for region in history:
+def check_prices(tariff: Tariff, replays: list[Replay]) -> None:
+    """Raise if any of these places and products cannot be priced, so a saved tariff works."""
+    for replay in replays:
         for product in tariff.products:
-            quote(tariff, history, region, product.key)
+            replay_losses(tariff, product, replay)
 
 
 @dataclass(frozen=True)

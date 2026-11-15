@@ -62,7 +62,7 @@ def test_welcome_text_fits_for_every_tier(language):
 def test_welcome_text_names_every_trigger_and_the_no_pay_rule():
     body = welcome("en", TARIFF.tiers[-1])
     for phrase in ("PSI 101+", "rain 20mm/h+", "2h WBGT 32C+", "flood alert", "7am-7pm",
-                   "up to S$100", "most on a Red day", "30 days/yr", "no pay, even with losses"):
+                   "up to S$100", "most on a Red day", "45 days/yr", "no pay, even with losses"):
         assert phrase in body
 
 
@@ -82,7 +82,7 @@ def test_cover_text_is_public_and_matches_the_welcome_sms(client):
     first_day = sgt_today() + timedelta(days=30)
     assert cover["first_day"] == first_day.isoformat()
     assert cover["body"] == sms.welcome_text(
-        "en", payout_sgd=100, heat_hours=2, rain_mm=20, psi=101, max_days=30,
+        "en", payout_sgd=100, heat_hours=2, rain_mm=20, psi=101, max_days=45,
         first_day=first_day,
     )
     assert cover["segments"] == 1
@@ -104,7 +104,7 @@ def test_cover_text_rejects_an_unknown_tier_or_language(client):
 def test_mandarin_welcome_keeps_every_part_of_the_cover():
     body = welcome("zh", TARIFF.tiers[-1])
     for phrase in ("7-19时", "WBGT≥32达2时", "雨≥20mm/时", "PSI≥101", "水灾", "红色日最多赔S$100",
-                   "年限30天", "12月31日起", "否则亏损也不赔"):
+                   "年限45天", "12月31日起", "否则亏损也不赔"):
         assert phrase in body
 
 

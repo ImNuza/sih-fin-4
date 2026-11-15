@@ -3,11 +3,13 @@
 Usage:
     uv run scripts/build_day_readings.py      (run fetch scripts and heat_stats.py first)
 
-Reads  data/processed/psi_daily.parquet, data/processed/wbgt_station_days.parquet
+Reads  data/psi/psi_history_24hr.parquet, data/processed/psi_daily.parquet (days after it)
+       data/processed/wbgt_station_days.parquet
        data/rainfall/rain_hourly_*.parquet, data/mss_daily/mss_daily.parquet
        data/processed/site_hazard_readings.csv (the gauges and WBGT stations the price reads)
 Writes data/processed/day_readings.csv.gz   one row per day, kind and site:
-       haze          the day's highest 24-hour PSI per region
+       haze          the day's highest 24-hour PSI per region, from 1 Apr 2014: NEA's
+                     historical 24-hour PSI where it has the day, else the real-time feed
        rain          the wettest work hour per gauge, mm (rows under RAIN_KEEP_MM are left out)
        heat          work hours at WBGT 32°C or more per station (zero rows left out)
        rain_missing  a priced gauge that reported under half the work hours that day (value 1)
@@ -33,9 +35,11 @@ from hazard_stats import load_rain
 
 PROC_DIR = REPO_ROOT / "data" / "processed"
 OUT_PATH = PROC_DIR / "day_readings.csv.gz"
+PSI_HISTORY_PATH = REPO_ROOT / "data" / "psi" / "psi_history_24hr.parquet"
 REGIONS = ("central", "east", "north", "south", "west")
 RAIN_KEEP_MM = 1.0
 WORK_HOURS = 12            # 07:00 to 19:00 SGT, as in hazard_stats.py and heat_stats.py
+HOURS_PER_DAY = 24
 WBGT_READINGS_PER_HOUR = 4
 MIN_REPORTED_SHARE = 0.5   # a station that sent under half its work-hour data did not report
 
@@ -61,14 +65,40 @@ def missing_rows(
 
 
 def haze_rows() -> list[tuple[str, str, str, float]]:
+    """The day's highest 24-hour PSI per region. NEA's historical dataset is complete (every
+    hour of every region), so it is read for every day it covers; the real-time feed, which
+    misses some region-days and parts of others, fills the days after it and any day-region it
+    lacks."""
+    history = history_haze()
+    live = live_haze()
+    rows = {**live, **history}
+    return [(day, "haze", region, value) for (day, region), value in sorted(rows.items())]
+
+
+def history_haze() -> dict[tuple[str, str], float]:
+    """Daily max per region from the historical dataset, for day-regions with at least half
+    their hours (its last day holds only midnight)."""
+    hourly = pd.read_parquet(PSI_HISTORY_PATH).dropna(subset=["psi_twenty_four_hourly"])
+    hourly["day"] = hourly["timestamp"].dt.tz_convert("Asia/Singapore").dt.tz_localize(None)
+    hourly["day"] = hourly["day"].dt.normalize()
+    hourly = hourly[hourly["region"].isin(REGIONS)]
+    daily = hourly.groupby(["day", "region"])["psi_twenty_four_hourly"].agg(["max", "size"])
+    daily = daily[daily["size"] >= HOURS_PER_DAY * MIN_REPORTED_SHARE]
+    return {
+        (day.date().isoformat(), region): round(float(value))
+        for (day, region), value in daily["max"].items()
+    }
+
+
+def live_haze() -> dict[tuple[str, str], float]:
     daily = pd.read_parquet(PROC_DIR / "psi_daily.parquet")
-    rows = []
+    rows = {}
     for record in daily.itertuples():
         day = record.day.date().isoformat()
         for region in REGIONS:
             value = getattr(record, f"psi_{region}")
             if pd.notna(value):
-                rows.append((day, "haze", region, round(float(value))))
+                rows[(day, region)] = round(float(value))
     return rows
 
 

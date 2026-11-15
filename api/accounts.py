@@ -135,6 +135,50 @@ application_channel = Table(
     Column("adviser_code", String),
     Column("association", String),
 )
+# Why an application went to an underwriter when the reason is the price, not a past decline:
+# the tier costs more than the tariff sells directly. One row per such application, with the
+# product and weekly premium quoted, which an approval starts.
+application_referrals = Table(
+    "application_referrals",
+    metadata,
+    Column("application_id", Integer, primary_key=True),
+    Column("reason", String, nullable=False),
+    Column("product", String, nullable=False),
+    Column("weekly_premium_sgd", Float, nullable=False),
+)
+# The severe haze payout add-on on a policy (tariff haze_bonus): its lump sum and yearly price,
+# and the first day it can pay, after its waiting period. Its policy year runs from starts_on.
+policy_haze_bonus = Table(
+    "policy_haze_bonus",
+    metadata,
+    Column("policy_id", Integer, primary_key=True),
+    Column("lump_sum_cents", Integer, nullable=False),
+    Column("yearly_cents", Integer, nullable=False),
+    Column("starts_on", Date, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+# A referred application that asked for the add-on: an approval adds it to the policy.
+application_haze_bonus = Table(
+    "application_haze_bonus",
+    metadata,
+    Column("application_id", Integer, primary_key=True),
+)
+# Approved changes of tier on a policy in force. A loss day is paid on the terms in force that
+# day: the latest change starting by then, else the policy's own row. A change starts at the end
+# of the new tier's waiting period, so a customer cannot raise the daily amount in the middle of
+# a haze and be paid the higher amount at once.
+policy_tier_changes = Table(
+    "policy_tier_changes",
+    metadata,
+    Column("policy_id", Integer, primary_key=True),
+    Column("starts_on", Date, primary_key=True),
+    Column("tier", String, nullable=False),
+    Column("tier_label", String, nullable=False),
+    Column("product", String, nullable=False),
+    Column("weekly_premium_sgd", Float, nullable=False),
+    Column("daily_payout_sgd", Float, nullable=False),
+    Column("max_paid_days_per_year", Integer, nullable=False),
+)
 
 
 def hash_password(password: str) -> str:

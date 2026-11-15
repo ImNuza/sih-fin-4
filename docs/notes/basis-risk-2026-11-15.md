@@ -23,7 +23,9 @@ We have no daily sales records, so the weather at the stall stands in for a lost
    - **today's payout rule**: the code in `api/readings.py` itself. Rain takes the median of the
      first 3 gauges that reported, among the nearest gauge and every other gauge within 5 km.
      Heat takes the first WBGT station that reported, on the same terms. If no gauge reported,
-     rain takes the MSS daily record.
+     rain takes the MSS daily record. Like a payout, it never reads a station the tariff has on
+     hold (WBGT stations S142 and S128 in `api/default_tariff.json`); the other options read
+     every other station.
    - **nearest station**: the nearest station that reported, at any distance.
    - **worst of 2 nearest**: the higher of the 2 nearest stations that reported.
    - **median of 3 nearest**: the middle of the 3 nearest stations that reported, at any
@@ -35,7 +37,7 @@ We have no daily sales records, so the weather at the stall stands in for a lost
    quiet. A day counts only when at least 3 other stations reported and today's rule gives a
    reading, so every option is judged on the same days.
 
-Data: rain gauges, 3,628 days (579 stall-years). WBGT stations, 660 days (23 stall-years).
+Data: rain gauges, 3,628 days (579 stall-years). WBGT stations, 660 days (22 stall-years).
 
 ## Results
 
@@ -49,9 +51,10 @@ Data: rain gauges, 3,628 days (579 stall-years). WBGT stations, 660 days (23 sta
 | | nearest station | 385 | 483 | 487 | 55.6% | 55.8% |
 | | worst of 2 nearest | 523 | 345 | 977 | 39.7% | 65.1% |
 | | median of 3 nearest | 270 | 598 | 247 | 68.9% | 47.8% |
-| Heat, 2 h at WBGT 32 °C (first band) | **today's payout rule** (= nearest station) | 64 | 335 | 275 | **84.0%** | 81.1% |
-| | worst of 2 nearest | 94 | 305 | 416 | 76.4% | 81.6% |
-| | median of 3 nearest | 35 | 364 | 60 | 91.2% | 63.2% |
+| Heat, 2 h at WBGT 32 °C (first band) | **today's payout rule** | 58 | 338 | 194 | **85.4%** | 77.0% |
+| | nearest station | 64 | 332 | 269 | 83.8% | 80.8% |
+| | worst of 2 nearest | 94 | 302 | 409 | 76.3% | 81.3% |
+| | median of 3 nearest | 35 | 361 | 57 | 91.2% | 62.0% |
 | Heat, 6 h at WBGT 32 °C (top band) | all four options | 0 | 9 | 0 to 1 | 100% | n/a |
 
 Per stall per year (same file, columns `*_per_stall_year`):
@@ -63,7 +66,7 @@ Per stall per year (same file, columns `*_per_stall_year`):
 | | | worst of 2 nearest | 4.29 | 13.30 |
 | | | median of 3 nearest | 8.03 | 5.31 |
 | Rain, 50 mm | 1.50 | today's payout rule | 1.02 | 0.47 |
-| Heat, 2 h | 17.53 | today's payout rule | 14.72 | 12.08 |
+| Heat, 2 h | 17.90 | today's payout rule | 15.28 | 8.77 |
 
 ## What this means
 
@@ -76,8 +79,10 @@ Per stall per year (same file, columns `*_per_stall_year`):
 3. **Rain, full days.** At 50 mm, today's rule misses 68.2% of the stall's full-loss storm days.
    A one-place cloudburst seldom reaches 50 mm at the middle of 3 gauges.
 4. **Heat.** Stations rarely agree on hours at WBGT 32 °C or more. Today's rule (the nearest
-   station) misses 84.0% of the stall's heat days, and 81.1% of its heat payouts fall on days the
-   stall was below the line. A WBGT reading near 32 °C changes by station, so 2 hours at one
+   station not on hold) misses 85.4% of the stall's heat days, and 77.0% of its heat payouts fall
+   on days the stall was below the line. Putting S142 and S128 on hold cut false alarms from 12.2
+   to 8.8 a stall-year against reading the nearest station, and missed slightly more heat days
+   (85.4% against 83.8%). A WBGT reading near 32 °C changes by station, so 2 hours at one
    station says little about a stall 2 km away. Only 9 stall-days reached 6 hours, which is too
    few to judge the top band.
 5. **Haze** is not in the table. The index is one PSI reading per region, so the stall and its

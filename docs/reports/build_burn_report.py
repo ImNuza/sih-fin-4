@@ -4,13 +4,15 @@ Usage:
     uv run docs/reports/build_burn_report.py     (run scripts/burn_analysis.py first)
 
 Reads  data/processed/burn_yearly_hero.csv, burn_yearly_island.csv, burn_daily_hero.csv
-       data/processed/site_hazard_readings.csv, api/default_tariff.json
+       data/processed/site_hazard_readings.csv, place_day_readings.npz, map_static.json
+       api/default_tariff.json
        docs/figures/burn_hero_yearly.png, burn_2026_episode.png, burn_loss_ratio.png
 Writes docs/reports/safeday-burn-analysis-2026-11-14.pdf
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -33,9 +35,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from api import calculator  # noqa: E402
-from api.main import load_history  # noqa: E402
-from api.models import Tariff  # noqa: E402
+from api import calculator, place_days  # noqa: E402
+from api.burn import load_day_table  # noqa: E402
+from api.main import load_sites  # noqa: E402
+from api.models import Tariff, TierQuote  # noqa: E402
+from api.readings import station_rule  # noqa: E402
+from burn_analysis import DAILY_TAKINGS_SGD, HERO, PRODUCT, TIER  # noqa: E402
 
 PROC = REPO_ROOT / "data" / "processed"
 FIGS = REPO_ROOT / "docs" / "figures"
@@ -99,43 +104,81 @@ def money(value: float) -> str:
     return f"S${value:,.0f}"
 
 
+def hero_quote(tariff: Tariff, replay: calculator.Replay, region: str) -> list[TierQuote]:
+    """Every tier as a stall at the hero centre is quoted and charged (api/main.py
+    business_quote): the centre's own replay, read on the stations a payout reads."""
+    return calculator.quote(tariff, PRODUCT, region, replay).tiers
+
+
+def haze_what_if(tariff: Tariff, replay: calculator.Replay, region: str) -> tuple[float, float]:
+    """The hero's 2026 payout and weekly premium at TIER with haze severities 0.5/0.8/1.0,
+    the tariff desk's one knob that most changes what haze pays."""
+    raised = tariff.model_copy(deep=True)
+    haze = calculator.find(raised.hazards, "haze", "hazard")
+    for band, severity in zip(haze.bands, (0.5, 0.8, 1.0), strict=True):
+        band.severity = severity
+    tier = calculator.find(raised.tiers, TIER, "tier")
+    losses = calculator.replay_losses(raised, calculator.find(raised.products, PRODUCT, "product"), replay)
+    paid_2026 = calculator.paid_years(losses, tier)[2026][0]
+    weekly = next(t for t in hero_quote(raised, replay, region) if t.tier == TIER).weekly_premium_sgd
+    return paid_2026, weekly
+
+
 def build() -> None:
     hero = pd.read_csv(PROC / "burn_yearly_hero.csv")
     island = pd.read_csv(PROC / "burn_yearly_island.csv")
+    daily = pd.read_csv(PROC / "burn_daily_hero.csv")
     full = hero[(hero.year >= 2017) & (hero.year <= 2026)]
     paid, lost = full.payout_sgd.sum(), full.est_lost_sgd.sum()
     premium = full.premium_sgd.sum()
     island_2026 = island[island.year == 2026].iloc[0]
-    lr10 = paid / premium
-    weekly = full.premium_sgd.iloc[-1] / 52
-    island_lr = island_2026.payout_sgd / island_2026.premium_pool_sgd
-    tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
-    history, _sites = load_history(PROC / "site_hazard_readings.csv")
-    south = calculator.quote(tariff, history, "south", "cooked_food")
+    hero_2026 = hero[hero.year == 2026].iloc[0]
+    # Loss ratios are payouts over the premium before GST, as scripts/burn_analysis.py writes them.
+    lr10 = paid / full.premium_before_gst_sgd.sum()
+    lr_all = hero.payout_sgd.sum() / hero.premium_before_gst_sgd.sum()
+    island_lr = island_2026.payout_sgd / island_2026.premium_pool_before_gst_sgd
+    streak = daily[(daily.day >= "2026-10-03") & (daily.day <= "2026-10-25") & (daily.payout_sgd > 0)]
 
+    tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
+    sites = load_sites(PROC / "site_hazard_readings.csv")
+    replays = place_days.PlaceDays(sites, load_day_table, place_days.PLACE_DAYS_PATH)
+    static = json.loads((PROC / "map_static.json").read_text())
+    centre = next(c for c in static["hawker_centres"] if c["name"] == HERO)
+    replay = replays.replay(station_rule(tariff), centre["region"], centre["lat"], centre["lng"])
+    tiers = hero_quote(tariff, replay, centre["region"])
+    tier = next(t for t in tiers if t.tier == TIER)
+    shares = calculator.find(tariff.tiers, TIER, "tier").premium_shares
+    limit_days = round(tier.max_payout_per_year_sgd / tier.daily_payout_sgd)
+    what_if_2026, what_if_weekly = haze_what_if(tariff, replay, centre["region"])
+    first_day = pd.Timestamp(replays.days[0]).strftime("%b %Y")
+    last_day = pd.Timestamp(replays.days[-1]).strftime("%b %Y")
+
+    years_paid = int((full.payout_sgd > 0).sum())
+    worst_island = island.loc[(island.payout_sgd / island.premium_pool_before_gst_sgd).idxmax()]
+    worst_island_lr = worst_island.payout_sgd / worst_island.premium_pool_before_gst_sgd
     story = [
         Spacer(1, 8 * mm),
         para("SafeDay burn analysis", "title"),
-        para("Ten years of Singapore's real weather, priced day by day through the live tariff. "
-             "What one hawker stall lost, what SafeDay would have paid, and what the whole book "
-             "would have carried. For team and Income review before it goes onto the risk atlas.",
-             "subtitle"),
+        para("Every recorded day of Singapore's real weather, priced day by day through the live "
+             "tariff. What one hawker stall lost, what SafeDay would have paid, and what the whole "
+             "book would have carried. For team and Income review before it goes onto the risk "
+             "atlas.", "subtitle"),
         Spacer(1, 5 * mm),
         kpi_row([
-            ("3,848", "days of NEA readings replayed, Mar 2016 to Nov 2026"),
-            ("52", "payable days for the hero stall in 2026 alone"),
-            (f"{lr10:.0%}", "ten-year loss ratio (APAC microinsurance median: 29.8%)"),
-            (f"{island_lr:.0%}", "island loss ratio in 2026, the worst haze year on record"),
+            (f"{len(replays.days):,}", f"days of NEA readings replayed, {first_day} to {last_day}"),
+            (f"{int(hero_2026.trigger_days)}", "payable days for the hero stall in 2026 alone"),
+            (f"{lr10:.0%}", "ten-year loss ratio, 2017-26 (APAC microinsurance median: 29.8%)"),
+            (f"{island_lr:.0%}", "island loss ratio in 2026, the worst haze year since 2015"),
         ]),
         Spacer(1, 4 * mm),
         para("The one-line verdict: on every day that NEA's own readings crossed a trigger since "
-             "2017, this product would have paid, automatically, including 18 payable days inside "
-             "the record 23-day haze streak of October 2026. Over the decade, premiums comfortably "
-             f"cover payouts ({lr10:.0%}); the record 2026 season alone slightly outruns its own "
-             f"year's pool ({island_lr:.0%}), which is precisely the scenario the catastrophe load "
-             "and reinsurance line are budgeted for. The schemes in the brief that died (SEWA 2023, "
-             "ZhongAn) died because their first season paid nothing. Ours would have paid in every "
-             "single year."),
+             f"2017, this product would have paid, automatically, including {len(streak)} payable "
+             "days inside the record 23-day haze streak of October 2026. Over the decade, premiums "
+             f"cover payouts with room to spare ({lr10:.0%}); the 2026 season alone slightly "
+             f"outruns its own year's pool ({island_lr:.0%}), which is the scenario the "
+             "reinsurance share of each premium is there for. The schemes in the brief that died "
+             "(SEWA 2023, ZhongAn) died because their first season paid nothing. Ours would have "
+             f"paid in {years_paid} of the last {len(full)} years."),
 
         para("Why a burn analysis", "h2"),
         para("The problem statement is explicit: <i>back-test the trigger: show, from past NEA and "
@@ -143,14 +186,16 @@ def build() -> None:
              "payout.</i> A burn analysis is the standard actuarial way to do that: run the exact "
              "product over the exact recorded history and count the dollars. Nothing here is "
              "modelled weather; every reading is what NEA actually published."),
-        para("Method, in five steps: (1) take every day's readings since March 2016: each haze "
+        para(f"Method, in five steps: (1) take every day's readings since {first_day}: each haze "
              "zone's 24-hour PSI, each gauge's wettest work hour, each station's hours at WBGT "
-             "32&nbsp;°C or more; (2) for each of the 103 hawker centres, read the nearest gauge and "
-             "station that were active that year; (3) score each day with the live tariff's own "
-             "calculator, exactly as a real claim would be scored; (4) pay the day's loss score "
-             "times the tier payout, until the tier's yearly cap; (5) charge the same premium the "
-             "pricing API quotes today. Hero case: one cooked-food stall at Tiong Bahru Market, "
-             "Tier 2 (S$40 per bad day, 15-day cap, S$13.14 a week)."),
+             "32&nbsp;°C or more; (2) for each of the 103 hawker centres, read the stations a "
+             "payout there reads, the same stations its price reads; (3) score each day with the "
+             "live tariff's own calculator, exactly as a real claim would be scored; (4) pay the "
+             "day's loss score times the tier payout, until the tier's yearly limit; (5) charge "
+             "the premium the pricing API quotes a stall at that centre today. Hero case: one "
+             f"cooked-food stall at {HERO}, {tier.label} "
+             f"(S${tier.daily_payout_sgd:.0f} per bad day, {limit_days}-day yearly limit, "
+             f"S${tier.weekly_premium_sgd:.2f} a week)."),
 
         para("One stall, ten years, dollar for dollar", "h2"),
         Image(str(FIGS / "burn_hero_yearly.png"), width=170 * mm, height=85 * mm),
@@ -160,59 +205,74 @@ def build() -> None:
     rows = [[int(r.year), int(r.trigger_days), money(r.payout_sgd), money(r.est_lost_sgd),
              money(r.premium_sgd), f"{r.loss_ratio:.0%}"] for r in full.itertuples()]
     rows.append(["2017-26", int(full.trigger_days.sum()), money(paid), money(lost),
-                 money(premium), f"{paid / premium:.0%}"])
+                 money(premium), f"{lr10:.0%}"])
     story += [
-        data_table(["Year", "Payable days", "Paid", "Est. revenue lost", "Premium", "Loss ratio"],
-                   rows, [18, 24, 28, 36, 30, 24]),
+        data_table(["Year", "Payable days", "Paid", "Est. revenue lost", "Premium",
+                    "Loss ratio (before GST)"], rows, [18, 24, 28, 36, 30, 34]),
         Spacer(1, 2 * mm),
-        para("Estimated losses use the tariff's own loss score times S$500-a-day takings, the "
-             "midpoint of the only available range (S$400-800, triangulated from MSE cost replies; "
-             "no official takings figure exists). The stall would have been paid in all ten years. "
-             "That is the single most important line in this document: a parametric product whose "
+        para("Estimated losses use the tariff's own loss score times "
+             f"S${DAILY_TAKINGS_SGD:.0f}-a-day takings, the midpoint of the only available range "
+             "(S$400-800, triangulated from MSE cost replies; no official takings figure exists). "
+             "The premium column includes GST; the loss ratio is paid over the premium before "
+             f"GST. The stall would have been paid in {years_paid} of the {len(full)} years. That "
+             "is the single most important line in this document: a parametric product whose "
              "back-test shows zero-payout years loses its customers in year one.", "foot"),
 
         para("2026: the catastrophe year, day by day", "h2"),
         Image(str(FIGS / "burn_2026_episode.png"), width=170 * mm, height=68 * mm),
         Spacer(1, 2 * mm),
         para(f"The 2026 haze season put {money(island_2026.est_lost_sgd)} of estimated revenue "
-             f"losses across all 5,837 stalls. SafeDay would have paid {money(island_2026.payout_sgd)} "
-             f"against a premium pool of {money(island_2026.premium_pool_sgd)}: a {island_lr:.0%} "
-             "loss ratio in the worst haze year since 2015. One season fractionally exceeding its "
-             "own year's premium is what the 10% catastrophe load and a reinsurance line exist to "
-             "absorb, and the caps kept the overrun to rounding rather than ruin; across the ten "
-             "years the book remains firmly profitable. That is what the brief means by keeping "
-             "mass events insurable."),
+             f"losses across all {int(island_2026.stalls):,} stalls. SafeDay would have paid "
+             f"{money(island_2026.payout_sgd)} against a premium pool of "
+             f"{money(island_2026.premium_pool_before_gst_sgd)} before GST: a {island_lr:.0%} "
+             "loss ratio in the worst haze year since 2015. One season slightly exceeding its "
+             f"own year's premium is what the {shares.reinsurance:.0%} reinsurance share of each "
+             "premium exists to absorb, and the yearly limits kept the overrun small; across the "
+             "ten years the book stays profitable. That is what the brief means by keeping mass "
+             "events insurable."),
         para("Speed is the other half. SEWA's 2024 payouts took six to eight weeks; BlockBima "
              "settled in a day and kept 86% preference. SafeDay's trigger is the same NEA feed the "
-             "public already watches, so every one of those 52 payable days would have paid the "
-             "same day, while the stall's rent (median S$1,250 a month) kept falling due."),
+             f"public already watches, so every one of those {int(hero_2026.trigger_days)} payable "
+             "days would have paid the same day, while the stall's rent (median S$1,250 a month) "
+             "kept falling due."),
 
         para("Is the price right?", "h2"),
         Image(str(FIGS / "burn_loss_ratio.png"), width=170 * mm, height=68 * mm),
         Spacer(1, 2 * mm),
-        para(f"A ten-year average loss ratio of {lr10:.0%} sits near the Asia-Pacific "
-             "microinsurance median of 29.8% (global median 21.7%; Landscape of Microinsurance "
-             f"2023), with 2026 reaching {island_lr:.0%} island-wide. In plain words: the premium "
-             "is neither a rip-off nor fat; it carries the documented 25% expense load, and the "
-             "worst year on record burns almost exactly one year's pool, no more. The tariff desk "
-             "can move every number in this paragraph, and this same burn re-runs after every "
-             "change. Premiums here use the new nearest-station location pricing, so two centres "
-             "in one zone no longer pay identical rates."),
+        para(f"A ten-year loss ratio of {lr10:.0%} ({lr_all:.0%} over every year since 2014, with "
+             "the 2015 haze) sits above the Asia-Pacific microinsurance median of 29.8% (global "
+             "median 21.7%; Landscape of Microinsurance 2023), with 2026 reaching "
+             f"{island_lr:.0%} island-wide. {tier.label} is priced so expected payouts are "
+             f"{shares.expected_payouts:.0%} of the premium before GST; the rest is reinsurance "
+             f"{shares.reinsurance:.0%}, management {shares.management:.0%}, distribution "
+             f"{shares.distribution:.0%} and profit {shares.profit:.0%}. The burn pays less than "
+             f"{shares.expected_payouts:.0%} mainly because the price charges heat in every year at its "
+             "2025-26 rate, while the burn can only pay heat where WBGT was recorded. In plain "
+             "words: the premium is neither a rip-off nor fat. The tariff desk can move every "
+             "number in this paragraph, and this same burn re-runs after every change. Each "
+             "centre is priced on the stations its payouts read, so two centres in one zone do "
+             "not pay identical rates."),
 
         para("What a stall actually gets, honestly", "h2"),
-        para("Tier 2 insures S$40 of a roughly S$500 day: an 8% liquidity floor, not full "
-             "indemnity. That is the design, priced at a few dollars a week as the brief demands; "
-             "the ladder below is the customer's lever. The sensitivity run shows the yearly cap, "
-             "not the severity table, binds in a catastrophe year: raising haze severities to "
-             "0.5/0.8/1.0 lifts 2026 to the full S$600 cap for only S$0.67 a week more premium."),
+        para(f"{tier.label} insures S${tier.daily_payout_sgd:.0f} of a roughly "
+             f"S${DAILY_TAKINGS_SGD:.0f} day: a liquidity floor of "
+             f"{tier.daily_payout_sgd / DAILY_TAKINGS_SGD:.0%}, not full indemnity. That is the design, priced at a few dollars a "
+             "week as the brief demands; the ladder below is the customer's lever. In 2026 the "
+             f"stall would have been paid {money(hero_2026.payout_sgd)}, well inside its "
+             f"{money(tier.max_payout_per_year_sgd)} yearly limit. A what-if that raises haze "
+             f"severities to 0.5/0.8/1.0 lifts 2026 to {money(what_if_2026)} for "
+             f"S${what_if_weekly - tier.weekly_premium_sgd:.2f} a week more premium."),
     ]
 
-    tier_rows = [[t.label, money(t.daily_payout_sgd), f"{round(t.max_payout_per_year_sgd / t.daily_payout_sgd)} days",
+    tier_rows = [[t.label, money(t.daily_payout_sgd),
+                  f"{round(t.max_payout_per_year_sgd / t.daily_payout_sgd)} days",
                   money(t.max_payout_per_year_sgd), f"S${t.weekly_premium_sgd:.2f}",
-                  f"{t.daily_payout_sgd / 500:.0%}"] for t in south.tiers]
+                  f"{t.cover_multiple}x" + (" (best value)" if t.best_value else ""),
+                  f"{t.daily_payout_sgd / DAILY_TAKINGS_SGD:.0%}"] for t in tiers]
     story += [
-        data_table(["Tier", "Per bad day", "Yearly cap", "Max a year", "Weekly premium (south)",
-                    "Share of a S$500 day"], tier_rows, [20, 26, 24, 26, 42, 32]),
+        data_table(["Tier", "Per bad day", "Yearly limit", "Max a year",
+                    f"Weekly premium ({HERO})", "Cover for each S$1", "Share of a S$500 day"],
+                   tier_rows, [16, 20, 20, 22, 34, 32, 26]),
         PageBreak(),
 
         para("The stakes, in other people's numbers", "h2"),
@@ -236,10 +296,12 @@ def build() -> None:
 
         para("What this proves against the brief", "h2"),
         para("<b>Back-tested trigger:</b> shown above, dollar for dollar, ten years. "
-             "<b>Pays when it matters:</b> payouts in all ten years and 18 payable days inside the "
-             "record streak. <b>Affordable:</b> the hero stall's Tier 2 comes to a few dollars a week under location pricing. "
-             "<b>Mass events stay insurable:</b> 76% worst-year loss ratio under caps and loads. "
-             "<b>Independent, verifiable data:</b> every input is a published NEA reading. "
+             f"<b>Pays when it matters:</b> payouts in {years_paid} of {len(full)} years and "
+             f"{len(streak)} payable days inside the record streak. <b>Affordable:</b> the hero "
+             f"stall's {tier.label} is S${tier.weekly_premium_sgd:.2f} a week at its own centre. "
+             f"<b>Mass events stay insurable:</b> the worst island year, {int(worst_island.year)}, "
+             f"ran at a {worst_island_lr:.0%} loss ratio under yearly limits and the reinsurance "
+             "share. <b>Independent, verifiable data:</b> every input is a published NEA reading. "
              "<b>Explainable:</b> the same engine that priced this document prices the website, "
              "the map and the tariff desk."),
 
@@ -249,18 +311,19 @@ def build() -> None:
              "damage. (2) Real WBGT begins Jan 2025, so heat pays only in 2025-26 here; the ML "
              "back-test's reconstructed heat (1980 on) is the follow-up. (3) Flood is priced at "
              "zero assumed days pending a payout-grade PUB history; the live PUB alert feed is "
-             "already wired. (4) Takings of S$500 a day is an assumption; every table scales "
-             "linearly with it. (5) Losses below trigger levels are uncovered by design and are "
-             "disclosed at the point of sale."),
+             f"already wired. (4) Takings of S${DAILY_TAKINGS_SGD:.0f} a day is an assumption; "
+             "every loss figure scales linearly with it. (5) Losses below trigger levels are "
+             "uncovered by design and are disclosed at the point of sale."),
 
         para("Next step", "h2"),
         para("After this review: wire the burn into the risk atlas, so clicking any centre shows "
              "its own ten-year lost-vs-paid record, and the replay-a-day picker shows the payout "
              "that date would have produced, live beside today's readings."),
         Spacer(1, 4 * mm),
-        para("SafeDay burn analysis, 14 Nov 2026. Data: NEA via data.gov.sg (Singapore Open Data "
-             "Licence), MSS daily records, PUB. Engine: api/calculator.py at the current default "
-             "tariff. Reproduce: uv run scripts/burn_analysis.py, then this script.", "foot"),
+        para("SafeDay burn analysis, rebuilt 15 Nov 2026. Data: NEA via data.gov.sg (Singapore "
+             "Open Data Licence), MSS daily records, PUB. Engine: api/calculator.py at the current "
+             "default tariff. Reproduce: uv run scripts/build_place_years.py, uv run "
+             "scripts/burn_analysis.py, then this script.", "foot"),
     ]
 
     doc = SimpleDocTemplate(str(OUT), pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm,

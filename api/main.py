@@ -6,6 +6,8 @@ Usage:
     tariff desk on /admin/, API docs on /docs.
 
 Reads  data/processed/site_hazard_readings.csv      (from scripts/region_hazard_readings.py)
+       data/processed/place_day_readings.npz       (from scripts/build_place_years.py)
+       data/processed/day_readings.csv.gz          (from scripts/build_day_readings.py)
        data/processed/map_static.json              (from scripts/build_map_static.py)
        data/processed/hawker_rent.csv              (from scripts/build_hawker_rent.py)
        api/default_tariff.json                     (the first tariff, when the database is empty)
@@ -16,11 +18,12 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
 import re
 import secrets
 import statistics
-from calendar import monthrange
+from calendar import month_name, monthrange
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -29,7 +32,6 @@ from pathlib import Path
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
-import numpy as np
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -41,18 +43,21 @@ from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
 from api import (
-    accounts, burn, calculator, kyc, onboarding, payout_api, payout_flow, paynow_qr,
+    accounts, burn, calculator, kyc, onboarding, payout_api, payout_flow, paynow_qr, place_days,
     postcodes, premium, readings, sms, store, underwriting,
 )
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
-from api.calculator import BidRecord, History, Readings, Site, Sites
-from api.day_history import day_readings
+from api.calculator import BidRecord
+from api.day_history import day_readings, day_table
+from api.payouts import haze_bonus_payouts
 from api.live import LiveFeed
+from api.readings import Site, Sites
 from api.models import (
     Assessment,
     AssessRequest,
     Choice,
     HazardChoice,
+    HazeBonusQuote,
     KycRequest,
     KycResult,
     Options,
@@ -64,8 +69,11 @@ from api.models import (
     SavedTariff,
     Tariff,
     TariffChange,
+    Tier,
+    TierQuote,
 )
 
+logger = logging.getLogger(__name__)
 API_DIR = Path(__file__).resolve().parent
 REPO_ROOT = API_DIR.parent
 HISTORY_PATH = REPO_ROOT / "data" / "processed" / "site_hazard_readings.csv"
@@ -76,32 +84,17 @@ DEFAULT_TARIFF_PATH = API_DIR / "default_tariff.json"
 DEFAULT_DATABASE_URL = f"sqlite:///{API_DIR / 'tariff.db'}"
 
 
-def as_readings(rows: list[tuple[float, int]]) -> Readings:
-    return Readings(np.array([value for value, _ in rows]), np.array([days for _, days in rows]))
-
-
-def load_history(path: Path) -> tuple[History, Sites]:
-    """Each hazard's readings pooled per region, and kept per station with its location."""
+def load_sites(path: Path) -> Sites:
+    """Every NEA station (PSI region for haze) of the network the price reads, with its place."""
     if not path.exists():
         raise SystemExit(f"{path} is missing. Run scripts/region_hazard_readings.py first.")
-    by_region: dict[str, dict[str, list[tuple[float, int]]]] = defaultdict(
-        lambda: defaultdict(list)
-    )
-    by_site: dict[tuple[str, str, str, float, float], list[tuple[float, int]]] = defaultdict(list)
+    sites: dict[str, dict[str, Site]] = defaultdict(dict)
     with path.open(newline="") as file:
         for row in csv.DictReader(file):
-            reading = (float(row["reading"]), int(row["days"]))
-            by_region[row["region"]][row["hazard"]].append(reading)
-            place = (float(row["latitude"]), float(row["longitude"]))
-            by_site[(row["hazard"], row["site"], row["region"], *place)].append(reading)
-    history = {
-        region: {hazard: as_readings(rows) for hazard, rows in by_hazard.items()}
-        for region, by_hazard in by_region.items()
-    }
-    sites: Sites = defaultdict(list)
-    for (hazard, key, region, latitude, longitude), rows in by_site.items():
-        sites[hazard].append(Site(key, region, latitude, longitude, as_readings(rows)))
-    return history, dict(sites)
+            sites[row["hazard"]][row["site"]] = Site(
+                row["site"], row["region"], float(row["latitude"]), float(row["longitude"])
+            )
+    return {hazard: list(by_key.values()) for hazard, by_key in sites.items()}
 
 
 def load_rent(path: Path) -> dict[str, BidRecord]:
@@ -131,10 +124,14 @@ def admin_login_from_env() -> tuple[str, str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.admin_login = admin_login_from_env()
-    app.state.history, app.state.sites = load_history(HISTORY_PATH)
+    app.state.sites = load_sites(HISTORY_PATH)
+    app.state.regions = sorted({s.region for hazard in app.state.sites.values() for s in hazard})
     if not MAP_STATIC_PATH.exists():
         raise SystemExit(f"{MAP_STATIC_PATH} is missing. Run scripts/build_map_static.py first.")
     app.state.map_static = json.loads(MAP_STATIC_PATH.read_text())
+    app.state.place_days = place_days.PlaceDays(
+        app.state.sites, lambda: day_table(app.state), place_days.PLACE_DAYS_PATH
+    )
     app.state.places = kyc.load_places(app.state.map_static)
     app.state.centres_by_name = {c["name"]: c for c in app.state.map_static["hawker_centres"]}
     app.state.centre_quotes = {}
@@ -146,17 +143,55 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.db = store.connect(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
     try:
         saved = store.latest(app.state.db)
-    except ValidationError:
-        # Saved before the tariff gained fields (product margins, stations per trigger). Older
-        # versions stay in the database; pricing starts again from the default tariff.
+    except ValidationError as error:
+        # Saved before the tariff gained required fields (product margins, stations per
+        # trigger). Older versions stay in the database; pricing starts again from the default.
+        logger.error(
+            "The latest saved tariff no longer validates, so the default tariff is saved as a "
+            "new version over it. The old version stays in the database. %s", error,
+        )
         saved = None
     default = Tariff.model_validate_json(DEFAULT_TARIFF_PATH.read_text())
     if saved is None:
         store.save(app.state.db, default, saved_by="default")
-    elif with_new_products := add_missing_products(saved.tariff, default):
-        store.save(app.state.db, with_new_products, saved_by="default: new products")
+    else:
+        bring_up_to_date(app.state.db, saved, default)
     yield
     app.state.db.dispose()
+
+
+def bring_up_to_date(engine, saved: SavedTariff, default: Tariff) -> Tariff:
+    """Save the saved tariff again, once, with what later versions of the default tariff added.
+
+    Each step decides from the tariff as it was saved: a tariff written out by an earlier step
+    carries every field, so it would look as if the tariff desk had set them.
+    """
+    as_saved = saved.tariff
+    tariff, added = as_saved, []
+    steps = (
+        ("new products", lambda current: add_missing_products(current, default)),
+        ("yearly limits, stations on hold",
+         lambda current: adopt_yearly_price_rules(current, default, as_saved)),
+        ("severe haze payout", lambda current: adopt_haze_bonus(current, default, as_saved)),
+    )
+    for name, step in steps:
+        if updated := step(tariff):
+            tariff = updated
+            added.append(name)
+    if added:
+        store.save(engine, tariff, saved_by="default: " + ", ".join(added))
+    return tariff
+
+
+def adopt_haze_bonus(tariff: Tariff, default: Tariff, as_saved: Tariff | None = None) -> Tariff | None:
+    """A tariff saved before the severe haze payout existed, with the default's add-on. None
+    when the tariff says what it offers: a tariff saved since holds haze_bonus, empty when the
+    tariff desk took the add-on off sale."""
+    if "haze_bonus" in (as_saved or tariff).model_fields_set or default.haze_bonus is None:
+        return None
+    return Tariff.model_validate(
+        tariff.model_copy(update={"haze_bonus": default.haze_bonus}).model_dump()
+    )
 
 
 def add_missing_products(tariff: Tariff, default: Tariff) -> Tariff | None:
@@ -170,6 +205,63 @@ def add_missing_products(tariff: Tariff, default: Tariff) -> Tariff | None:
     if not missing:
         return None
     return tariff.model_copy(update={"products": [*tariff.products, *missing]})
+
+
+# The yearly limits and daily amounts every tariff had before the yearly price.
+TIERS_BEFORE_YEARLY_PRICE = {
+    "tier_1": (10, 20), "tier_2": (15, 40), "tier_3": (20, 70), "tier_4": (30, 100),
+}
+
+
+def adopt_yearly_price_rules(
+    tariff: Tariff, default: Tariff, as_saved: Tariff | None = None
+) -> Tariff | None:
+    """A tariff saved before the yearly price, with the default's stations on hold, and each
+    tier the tariff desk left as shipped given the default's limit and premium shares. None
+    when it is newer.
+
+    A tariff saved since carries refer_above_limit_share, so this changes it only once. A tier
+    the desk changed keeps its limit and prices on the Pricing loads, as before; if the shipped
+    tiers' new limits would then fall below it, every tier is kept. Sold policies keep the
+    limit they were sold with.
+    """
+    if "refer_above_limit_share" in (as_saved or tariff).pricing.model_fields_set:
+        return None
+    default_hazards = {hazard.key: hazard for hazard in default.hazards}
+    holds_set = {
+        hazard.key for hazard in (as_saved or tariff).hazards
+        if "stations_on_hold" in hazard.model_fields_set
+    }
+    hazards = [
+        hazard.model_copy(update={"stations_on_hold": default_hazards[hazard.key].stations_on_hold})
+        if hazard.key in default_hazards and hazard.key not in holds_set
+        else hazard
+        for hazard in tariff.hazards
+    ]
+    default_tiers = {tier.key: tier for tier in default.tiers}
+
+    def as_shipped(tier: Tier) -> bool:
+        shipped = (tier.max_paid_days_per_year, tier.daily_payout_sgd)
+        return (
+            tier.key in default_tiers and tier.premium_shares is None
+            and TIERS_BEFORE_YEARLY_PRICE.get(tier.key) == shipped
+        )
+
+    tiers = [
+        tier.model_copy(update={
+            "max_paid_days_per_year": default_tiers[tier.key].max_paid_days_per_year,
+            "premium_shares": default_tiers[tier.key].premium_shares,
+        })
+        if as_shipped(tier) else tier
+        for tier in tariff.tiers
+    ]
+    # Validated from a full dump, every field counts as set, so a second start changes nothing.
+    try:
+        return Tariff.model_validate(
+            tariff.model_copy(update={"hazards": hazards, "tiers": tiers}).model_dump()
+        )
+    except ValidationError:
+        return Tariff.model_validate(tariff.model_copy(update={"hazards": hazards}).model_dump())
 
 
 app = FastAPI(title="SafeDay pricing API", lifespan=lifespan)
@@ -186,14 +278,6 @@ def missing_history(_: Request, error: calculator.MissingHistory) -> JSONRespons
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": str(error)}
     )
-
-
-def history(request: Request) -> History:
-    return request.app.state.history
-
-
-def sites(request: Request) -> Sites:
-    return request.app.state.sites
 
 
 def saved_tariff(request: Request) -> SavedTariff:
@@ -246,18 +330,17 @@ def admin(
     )
 
 
-HistoryDep = Annotated[History, Depends(history)]
 SavedTariffDep = Annotated[SavedTariff, Depends(saved_tariff)]
 TariffDep = Annotated[Tariff, Depends(current_tariff)]
 AdminDep = Annotated[TariffEditor, Depends(admin)]
 
 
 @app.get("/api/options")
-def options(tariff: TariffDep, history: HistoryDep) -> Options:
+def options(tariff: TariffDep, request: Request) -> Options:
     """What a customer can choose from, and the readings a payout check takes."""
-    hazards_with_history = {hazard for region in history.values() for hazard in region}
+    hazards_with_history = set(request.app.state.sites)
     return Options(
-        regions=sorted(history),
+        regions=request.app.state.regions,
         products=[Choice(key=p.key, label=p.label) for p in tariff.products],
         tiers=[Choice(key=t.key, label=t.label) for t in tariff.tiers],
         hazards=[
@@ -293,47 +376,71 @@ def postcode_point(request: Request, postcode: str) -> dict:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
 
 
+def place_quote(
+    request: Request, tariff: Tariff, product: str, region: str, lat: float, lng: float
+) -> Quote:
+    """The quote at one point paid on a PSI region, from the replay of its recorded days, with
+    how each hazard was priced there next to the region's point."""
+    known_region(region, request)
+    rule = readings.station_rule(tariff)
+    days: place_days.PlaceDays = request.app.state.place_days
+    region_lat, region_lng = request.app.state.map_static["region_points"][region]
+    where = readings.history_place(region, lat, lng, request.app.state.sites)
+    stations = {
+        "haze": [region],
+        "rain": readings.stations_used(where, "rain", rule),
+        "heat": readings.stations_used(where, "heat", rule),
+    }
+    return calculator.quote(
+        tariff, product, region, days.replay(rule, region, lat, lng),
+        days.replay(rule, region, region_lat, region_lng), stations,
+    )
+
+
+def region_quote(request: Request, tariff: Tariff, product: str, region: str) -> Quote:
+    """The quote for a whole PSI region, read at the region's point as its payouts are."""
+    known_region(region, request)
+    lat, lng = request.app.state.map_static["region_points"][region]
+    replay = request.app.state.place_days.replay(readings.station_rule(tariff), region, lat, lng)
+    return calculator.quote(tariff, product, region, replay)
+
+
+def nearest_region(request: Request, lat: float, lng: float) -> str:
+    """The PSI region of the NEA station nearest a point."""
+    every_site = [site for hazard in request.app.state.sites.values() for site in hazard]
+    nearest = min(
+        every_site, key=lambda site: calculator.km_between(lat, lng, site.latitude, site.longitude)
+    )
+    return nearest.region
+
+
 def business_quote(
-    request: Request, tariff: Tariff, history: History, product: str, region: str | None,
+    request: Request, tariff: Tariff, product: str, region: str | None,
     centre: str | None = None, postcode: str | None = None,
 ) -> Quote:
-    """The price a business is shown and charged: from the NEA stations nearest its hawker
-    centre, else nearest its postcode's area. A business with neither, such as a platform
-    worker who works across the island, is priced for its region. Haze is priced for the PSI
-    region a payout reads: the centre's map region, the postcode's region (postcodes.region_of).
+    """The price a business is shown and charged: replayed at its hawker centre, else at its
+    postcode's area. A business with neither, such as a platform worker who works across the
+    island, is priced for its region. Haze is read for the PSI region a payout reads: the
+    centre's map region, the postcode's region (postcodes.region_of).
     """
-    sites = request.app.state.sites
     if centre is not None:
         place = centre_place(request, centre)
-        return calculator.quote_at(
-            tariff, history, sites, place["lat"], place["lng"], product, place["region"]
-        )
+        return place_quote(request, tariff, product, place["region"], place["lat"], place["lng"])
     if postcode is not None:
         point = postcode_point(request, postcode)
-        return calculator.quote_at(
-            tariff, history, sites, point["lat"], point["lng"], product, point["region"]
-        )
-    return calculator.quote(tariff, history, region, product)
+        return place_quote(request, tariff, product, point["region"], point["lat"], point["lng"])
+    return region_quote(request, tariff, product, region)
 
 
 @app.post("/api/quote")
-def quote(
-    body: QuoteRequest,
-    request: Request,
-    tariff: TariffDep,
-    history: HistoryDep,
-    sites: Annotated[Sites, Depends(sites)],
-) -> Quote:
-    """Weekly premium and payout of every tier, for one product, at a region, a map point, a
-    hawker centre or a postcode's area. A centre or postcode gives the price a business there
-    is charged when it buys."""
+def quote(body: QuoteRequest, request: Request, tariff: TariffDep) -> Quote:
+    """Yearly, weekly and daily premium, payout and proof of every tier, for one product, at a
+    region, a map point, a hawker centre or a postcode's area. A centre or postcode gives the
+    price a business there is charged when it buys."""
     if body.latitude is not None and body.longitude is not None:
-        return calculator.quote_at(
-            tariff, history, sites, body.latitude, body.longitude, body.product
-        )
-    return business_quote(
-        request, tariff, history, body.product, body.region, body.centre, body.postcode
-    )
+        region = nearest_region(request, body.latitude, body.longitude)
+        return place_quote(request, tariff, body.product, region, body.latitude, body.longitude)
+    return business_quote(request, tariff, body.product, body.region, body.centre, body.postcode)
 
 
 def rent_table(tariff: Tariff, records: dict[str, BidRecord]) -> RentTable:
@@ -381,21 +488,12 @@ def map_buildings() -> FileResponse:
 
 
 @app.get("/api/map/quotes")
-def map_quotes(
-    saved: SavedTariffDep, history: HistoryDep, request: Request, product: str = "cooked_food"
-) -> dict:
+def map_quotes(saved: SavedTariffDep, request: Request, product: str = "cooked_food") -> dict:
     """Quotes for every region and every hawker centre at once, with the per-hazard loss-day
     split and pricing loads. A centre's quote is the price a stall there is charged."""
     tariff = saved.tariff
-    chosen = calculator.find(tariff.products, product, "product")
-    region_parts = {
-        region: {
-            key: round(days, 4)
-            for key, days in calculator.loss_day_parts(tariff, chosen, history[region]).items()
-        }
-        for region in sorted(history)
-    }
-    centres = centre_quotes(saved, history, request, product, region_parts)
+    calculator.find(tariff.products, product, "product")
+    priced = priced_places(saved, request, product)
     return {
         "product": product,
         "pricing": tariff.pricing,
@@ -411,49 +509,40 @@ def map_quotes(
             }
             for h in tariff.hazards
         ],
-        "quotes": {
-            region: calculator.quote(tariff, history, region, product) for region in sorted(history)
+        "quotes": priced["regions"],
+        "loss_day_parts": {
+            region: quote.loss_day_parts for region, quote in priced["regions"].items()
         },
-        "loss_day_parts": region_parts,
         # Each hawker centre priced as a stall there is charged (business_quote), with its parts.
-        "centres": {name: priced for name, (priced, _) in centres.items()},
-        "centre_loss_day_parts": {name: parts for name, (_, parts) in centres.items()},
+        "centres": priced["centres"],
+        "centre_loss_day_parts": {
+            name: quote.loss_day_parts for name, quote in priced["centres"].items()
+        },
     }
 
 
-def priced_centres(
-    saved: SavedTariff, history: History, request: Request, product: str
-) -> dict[str, Quote]:
-    """Every hawker centre's business_quote, priced once per saved tariff version and product:
-    pricing all of them takes about half a second. A new version starts a fresh cache."""
-    key = (saved.version, product)
+def priced_places(saved: SavedTariff, request: Request, product: str) -> dict[str, dict]:
+    """Every region's and hawker centre's quote, priced once per saved tariff version and
+    product. A new version starts a fresh cache."""
+    # The haze add-on's on_sale_now follows the month, so a new month prices afresh.
+    key = (saved.version, product, calculator.singapore_today().month)
     cache = request.app.state.centre_quotes
     if key not in cache:
-        if any(version != saved.version for version, _ in cache):
+        if any(version != saved.version for version, *_ in cache):
             cache = request.app.state.centre_quotes = {}
         cache[key] = {
-            centre["name"]: business_quote(
-                request, saved.tariff, history, product, None, centre=centre["name"]
-            )
-            for centre in request.app.state.map_static["hawker_centres"]
+            "regions": {
+                region: region_quote(request, saved.tariff, product, region)
+                for region in request.app.state.regions
+            },
+            "centres": {
+                centre["name"]: business_quote(
+                    request, saved.tariff, product, None, centre=centre["name"]
+                )
+                for centre in request.app.state.map_static["hawker_centres"]
+            },
         }
     return cache[key]
-
-
-def centre_quotes(
-    saved: SavedTariff, history: History, request: Request, product: str,
-    region_parts: dict[str, dict[str, float]],
-) -> dict[str, tuple[Quote, dict[str, float]]]:
-    """Every hawker centre's quote from its nearest stations, and its loss days per hazard: the
-    stations' share where they price the hazard, the region's share for the rest."""
-    out = {}
-    priced_by_name = priced_centres(saved, history, request, product)
-    for centre in request.app.state.map_static["hawker_centres"]:
-        priced = priced_by_name[centre["name"]]
-        parts = dict(region_parts[centre["region"]])
-        parts.update({risk.hazard: risk.loss_days for risk in priced.local_risks})
-        out[centre["name"]] = (priced, parts)
-    return out
 
 
 
@@ -478,9 +567,7 @@ SCENARIO_PRICES = (
 
 
 @app.post("/api/map/scenario")
-def map_scenario(
-    body: ScenarioRequest, saved: SavedTariffDep, history: HistoryDep, request: Request
-) -> dict:
+def map_scenario(body: ScenarioRequest, saved: SavedTariffDep, request: Request) -> dict:
     """Price a what-if day inside a drawn circle.
 
     The readings score one day's loss and payout (as /api/assess). Each centre's premium is
@@ -498,7 +585,7 @@ def map_scenario(
         if calculator.km_between(body.lat, body.lng, centre["lat"], centre["lng"]) <= body.radius_km
     ]
 
-    priced_by_name = priced_centres(saved, history, request, body.product) if centres else {}
+    priced_by_name = priced_places(saved, request, body.product)["centres"] if centres else {}
 
     def priced_centre(centre: dict) -> dict:
         priced = priced_by_name[centre["name"]]
@@ -508,7 +595,7 @@ def map_scenario(
             tier.max_paid_days_per_year,
         )
         stressed_yearly = calculator.yearly_premium(
-            stressed_days * tier.daily_payout_sgd, tariff.pricing
+            stressed_days * tier.daily_payout_sgd, tariff.pricing, tier.premium_shares
         )
         return {
             "expected_loss_days": priced.expected_loss_days,
@@ -555,8 +642,8 @@ def map_kyc(body: KycRequest, tariff: TariffDep, request: Request) -> KycResult:
     return kyc.read_shop(body, tariff.products, request.app.state.places)
 
 
-def known_region(region: str, history: History) -> None:
-    if region not in history:
+def known_region(region: str, request: Request) -> None:
+    if region not in request.app.state.regions:
         raise calculator.UnknownKey(f"Unknown region: {region}")
 
 
@@ -571,43 +658,39 @@ def centre_places(request: Request) -> list[readings.Place]:
 
 
 def centre_burn_site(
-    centre: str, request: Request, tariff: Tariff, history: History, product: str
+    centre: str, request: Request, tariff: Tariff, product: str
 ) -> tuple[readings.Place, Quote]:
     """A hawker centre's place for the replay and the price a stall there is charged."""
     place = centre_place(request, centre)
     where = readings.history_place(
         place["region"], place["lat"], place["lng"], request.app.state.sites
     )
-    return where, business_quote(request, tariff, history, product, None, centre=centre)
+    return where, business_quote(request, tariff, product, None, centre=centre)
 
 
 def point_burn_site(
-    lat: float, lng: float, region: str, request: Request, tariff: Tariff, history: History,
-    product: str,
+    lat: float, lng: float, region: str, request: Request, tariff: Tariff, product: str
 ) -> tuple[readings.Place, Quote]:
-    """A point's place for the replay and its price from its nearest stations, with haze
-    priced for the region it is paid on."""
-    known_region(region, history)
-    sites = request.app.state.sites
-    where = readings.history_place(region, lat, lng, sites)
-    return where, calculator.quote_at(tariff, history, sites, lat, lng, product, region)
+    """A point's place for the replay and its price there, with haze read for the region it is
+    paid on."""
+    known_region(region, request)
+    where = readings.history_place(region, lat, lng, request.app.state.sites)
+    return where, place_quote(request, tariff, product, region, lat, lng)
 
 
 def region_burn_site(
-    lat: float, lng: float, region: str, request: Request, tariff: Tariff, history: History,
-    product: str,
+    lat: float, lng: float, region: str, request: Request, tariff: Tariff, product: str
 ) -> tuple[readings.Place, Quote]:
     """A platform worker's place for the replay, at its region's point as a payout reads it,
     and the region price they are charged."""
     where = readings.history_place(region, lat, lng, request.app.state.sites)
-    return where, calculator.quote(tariff, history, region, product)
+    return where, region_quote(request, tariff, product, region)
 
 
 @app.get("/api/map/burn")
 def map_burn(
     request: Request,
     tariff: TariffDep,
-    history: HistoryDep,
     centre: str | None = None,
     lat: Annotated[float | None, Query(**SG_LAT)] = None,
     lng: Annotated[float | None, Query(**SG_LNG)] = None,
@@ -628,13 +711,13 @@ def map_burn(
     if not 50 <= takings <= 20000:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "takings must be 50 to 20000")
     if centre is not None:
-        site, priced = centre_burn_site(centre, request, tariff, history, product)
+        site, priced = centre_burn_site(centre, request, tariff, product)
     elif lat is not None and lng is not None and region is not None:
-        site, priced = point_burn_site(lat, lng, region, request, tariff, history, product)
+        site, priced = point_burn_site(lat, lng, region, request, tariff, product)
     elif lat is None and lng is None and region is not None:
-        known_region(region, history)
+        known_region(region, request)
         lat, lng = request.app.state.map_static["region_points"][region]
-        site, priced = region_burn_site(lat, lng, region, request, tariff, history, product)
+        site, priced = region_burn_site(lat, lng, region, request, tariff, product)
     else:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "Give a centre, lat, lng and region, or a region"
@@ -688,9 +771,9 @@ def map_day(
         return {"value": sites[site], "site": site}
 
     losses = []
-    stations_read = readings.stations_read(tariff)
+    rule = readings.station_rule(tariff)
     for where in centre_places(request):
-        centre_readings = readings.day_readings_at(day, where, *stations_read)
+        centre_readings = readings.day_readings_at(day, where, rule)
         assessment = calculator.assess(tariff, product, tariff.tiers[0].key, centre_readings)
         losses.append({"loss_percent": assessment.loss_percent, "readings": centre_readings})
     return {
@@ -730,7 +813,6 @@ def map_live(request: Request, tariff: TariffDep, product: str = "cooked_food") 
 def map_live_at(
     request: Request,
     tariff: TariffDep,
-    history: HistoryDep,
     lat: Annotated[float, Query(**SG_LAT)],
     lng: Annotated[float, Query(**SG_LNG)],
     region: str,
@@ -741,7 +823,7 @@ def map_live_at(
     Returns the feed's status until `available` is true, then one hawker_losses entry with the
     feed's fetched_at.
     """
-    known_region(region, history)
+    known_region(region, request)
     live: LiveFeed = request.app.state.live
     live.ensure_started()
     snapshot = live.read()
@@ -781,7 +863,7 @@ def live_loss(
     """Loss score from today's readings at a place, read as a payout reads them
     (api/readings.py), with no MSS record live: a hazard with nothing reporting reads 0."""
     where = readings.place(region, lat, lng, today.gauges, today.heat_stations)
-    now = readings.day_readings_at(today.day, where, *readings.stations_read(tariff))
+    now = readings.day_readings_at(today.day, where, readings.station_rule(tariff))
     assessment = calculator.assess(tariff, product, tariff.tiers[0].key, now)
     return {"loss_percent": assessment.loss_percent, "readings": now}
 
@@ -789,15 +871,75 @@ def live_loss(
 class PolicyRequest(BaseModel):
     tier: str
     product: str | None = None
+    add_haze_bonus: bool = False
+
+
+def haze_bonus_offer(tier: TierQuote, tariff: Tariff) -> HazeBonusQuote:
+    """The severe haze payout for a tier. Raises 422 when the tariff offers none, or in a month
+    it cannot be added."""
+    offer = tier.haze_bonus
+    if offer is None or tariff.haze_bonus is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "The severe haze payout is not offered"
+        )
+    if not offer.on_sale_now:
+        off_sale = ", ".join(month_name[month] for month in tariff.haze_bonus.no_sale_months)
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"The severe haze payout cannot be added in {off_sale}, so that nobody buys it as "
+            "the haze season nears. The daily cover can be bought now",
+        )
+    return offer
+
+
+def haze_bonus_starts(tariff: Tariff, cover_from: date) -> date:
+    """The first day the severe haze payout can pay: after its own waiting period."""
+    return cover_from + timedelta(days=tariff.haze_bonus.waiting_days)
+
+
+def add_haze_bonus(db, policy_id: int, offer: HazeBonusQuote, starts_on: date) -> dict:
+    """Put the severe haze payout on a policy, in place of any it had."""
+    row = {"policy_id": policy_id, "lump_sum_cents": round(offer.lump_sum_sgd * 100),
+           "yearly_cents": round(offer.yearly_sgd * 100), "starts_on": starts_on,
+           "created_at": datetime.now(UTC)}
+    table = accounts.policy_haze_bonus
+    db.execute(sa_delete(table).where(table.c.policy_id == policy_id))
+    db.execute(sa_insert(table).values(**row))
+    return haze_bonus_view(row)
+
+
+def haze_bonus_view(row) -> dict:
+    yearly = row["yearly_cents"] / 100
+    return {"lump_sum_sgd": row["lump_sum_cents"] / 100, "yearly_sgd": yearly,
+            "weekly_sgd": round(yearly / calculator.WEEKS_PER_YEAR, 2),
+            "starts_on": row["starts_on"]}
+
+
+def chosen_tier(priced: Quote, tier_key: str) -> TierQuote:
+    """One tier of a quote. Raises 404 on an unknown tier."""
+    tier = next((t for t in priced.tiers if t.tier == tier_key), None)
+    if tier is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier_key}")
+    return tier
+
+
+def referral_reason(tier: TierQuote, tariff: Tariff) -> str | None:
+    """Why a tier must go to an underwriter before it starts, or None when it is sold directly."""
+    if tier.sold_directly:
+        return None
+    share = tariff.pricing.refer_above_limit_share
+    return (
+        f"{tier.label} costs S${tier.yearly_premium_sgd:,.2f} a year here, more than {share:.0%} "
+        f"of the S${tier.max_payout_per_year_sgd:,.2f} it can pay in a year, so an underwriter "
+        "must approve it"
+    )
 
 
 def policy_values(
     priced: Quote, user_id: int, region: str, centre: str | None, product: str, tier_key: str
 ) -> dict:
     """A policies row for one tier of a business_quote. Raises on an unknown tier."""
-    tier = next((t for t in priced.tiers if t.tier == tier_key), None)
-    if tier is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier_key}")
+    tier = chosen_tier(priced, tier_key)
     return {
         "user_id": user_id,
         "tier": tier.tier,
@@ -814,14 +956,15 @@ def policy_values(
 
 @app.post("/api/policies")
 def buy_policy(
-    body: PolicyRequest, user: SmeDep, tariff: TariffDep, history: HistoryDep, request: Request
+    body: PolicyRequest, user: SmeDep, tariff: TariffDep, request: Request, response: Response
 ) -> dict:
     """Start a cover for the signed-in business, priced server-side at its hawker centre or its
     shop's postcode (business_quote), else its region.
 
     Refused while an underwriter is reviewing the business's application, and once the term of
     that application has ended: payouts stop then (payout_flow.cover_ends), so a renewal is a new
-    application.
+    application. A tier the quote does not sell directly starts nothing: a copy of the latest
+    application for that tier goes to the underwriter queue (202), and approval starts it.
     """
     application = latest_application(request.app.state.db, user.id)
     cover_ends = application["cover_ends"] if application else None
@@ -835,21 +978,88 @@ def buy_policy(
         raise HTTPException(
             status.HTTP_409_CONFLICT, "An underwriter is reviewing your application. Cover starts after they reply"
         )
-    if application and application["status"] == "declined":
+    # A declined change of tier leaves the business free to buy a tier sold directly.
+    if application and application["status"] == "declined" and not application["referral_reason"]:
         raise HTTPException(status.HTTP_409_CONFLICT, "An underwriter declined this application")
     product = body.product or user.product or "cooked_food"
     priced = business_quote(
-        request, tariff, history, product, user.region, user.centre, shop_postcode(application)
+        request, tariff, product, user.region, user.centre, shop_postcode(application)
     )
+    tier = chosen_tier(priced, body.tier)
+    offer = haze_bonus_offer(tier, tariff) if body.add_haze_bonus else None
+    if reason := referral_reason(chosen_tier(priced, body.tier), tariff):
+        if application is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"{reason}. Apply through the buy flow, so the underwriter has your details",
+            )
+        response.status_code = status.HTTP_202_ACCEPTED
+        referral = {"reason": reason, "product": product,
+                    "weekly_premium_sgd": chosen_tier(priced, body.tier).weekly_premium_sgd}
+        return refer_for_tier(
+            request.app.state.db, application["id"], body.tier, referral, offer is not None
+        )
     values = policy_values(priced, user.id, user.region, user.centre, product, body.tier)
     engine = request.app.state.db
     with engine.begin() as db:
-        db.execute(sa_delete(accounts.policies).where(accounts.policies.c.user_id == user.id))
+        drop_policies(db, accounts.policies.c.user_id == user.id)
         policy_id = db.execute(
             sa_insert(accounts.policies).values(**values).returning(accounts.policies.c.id)
         ).scalar_one()
         payout_flow.send_welcome_if_due(db, user.id, tariff)
-    return {"id": policy_id, **{k: v for k, v in values.items() if k != "user_id"}}
+        bonus = None
+        if offer is not None:
+            starts_on = haze_bonus_starts(tariff, datetime.now(SINGAPORE).date())
+            bonus = add_haze_bonus(db, policy_id, offer, starts_on)
+    return {"id": policy_id, **{k: v for k, v in values.items() if k != "user_id"},
+            "haze_bonus": bonus}
+
+
+def refer_for_tier(
+    engine, application_id: int, tier_key: str, referral: dict, haze_bonus: bool
+) -> dict:
+    """A copy of an application, its details and profile, for a tier that needs an underwriter.
+
+    The copy waits in the underwriter queue with the referral (reason, product and the weekly
+    premium quoted); the cover in force, if any, stays until the new tier starts.
+    """
+    tables = (accounts.application_details, accounts.application_profile)
+    applications = accounts.applications
+    with engine.begin() as db:
+        old = db.execute(
+            sa_select(applications).where(applications.c.id == application_id)
+        ).mappings().one()
+        copy = {key: value for key, value in old.items() if key != "id"}
+        copy.update(
+            add_safeday=True, tier=tier_key, status="referred", payment_method=None,
+            payment_ref=None, created_at=datetime.now(UTC),
+        )
+        new_id = db.execute(
+            sa_insert(applications).values(**copy).returning(applications.c.id)
+        ).scalar_one()
+        for table in tables:
+            row = db.execute(
+                sa_select(table).where(table.c.application_id == application_id)
+            ).mappings().first()
+            if row is not None:
+                db.execute(sa_insert(table).values(**{**row, "application_id": new_id}))
+        db.execute(
+            sa_insert(accounts.application_referrals).values(application_id=new_id, **referral)
+        )
+        if haze_bonus:
+            db.execute(sa_insert(accounts.application_haze_bonus).values(application_id=new_id))
+    return {"application_id": new_id, "status": "referred", "tier": tier_key,
+            "referral_reason": referral["reason"]}
+
+
+def drop_policies(db, which) -> int:
+    """Delete the policies that match, with any change of tier they were waiting for."""
+    changes = accounts.policy_tier_changes
+    ids = sa_select(accounts.policies.c.id).where(which)
+    db.execute(sa_delete(changes).where(changes.c.policy_id.in_(ids)))
+    bonus = accounts.policy_haze_bonus
+    db.execute(sa_delete(bonus).where(bonus.c.policy_id.in_(ids)))
+    return db.execute(sa_delete(accounts.policies).where(which)).rowcount
 
 
 # UEN formats from ACRA: 8 digits + letter (businesses), 9 digits + letter (local companies),
@@ -904,6 +1114,7 @@ class BuyRequest(BaseModel):
         default="en", description="The language of every text SafeDay sends this customer."
     )
     add_safeday: bool
+    add_haze_bonus: bool = False
     tier: str | None = None
     declined_before: bool
     declined_details: str | None = Field(default=None, max_length=500)
@@ -1001,6 +1212,8 @@ class BuyRequest(BaseModel):
             raise ValueError("Tick the declaration and the personal data consent to continue")
         if self.add_safeday and self.tier is None:
             raise ValueError("Pick a SafeDay tier")
+        if self.add_haze_bonus and not self.add_safeday:
+            raise ValueError("The severe haze payout is added to SafeDay: add SafeDay first")
         if self.declined_before and not (self.declined_details or "").strip():
             raise ValueError("Say which insurer declined you and why")
         return self
@@ -1106,13 +1319,14 @@ def paynow_qr_code(
 
 @app.post("/api/buy")
 def buy(
-    body: BuyRequest, tariff: TariffDep, history: HistoryDep, request: Request, response: Response
+    body: BuyRequest, tariff: TariffDep, request: Request, response: Response
 ) -> dict:
     """Create the account, the application and, when SafeDay is added, its policy, then sign in.
 
-    A past decline sends the application to an underwriter: no policy starts and nothing is
-    charged. Payment is simulated, and no money moves. PayNow needs a payment paid on the demo bank
-    screen (api/premium.py), whose reference is kept; GIRO keeps the made-up DEMO- reference.
+    A past decline, or a tier the quote does not sell directly, sends the application to an
+    underwriter: no policy starts and nothing is charged. Payment is simulated, and no money
+    moves. PayNow needs a payment paid on the demo bank screen (api/premium.py), whose
+    reference is kept; GIRO keeps the made-up DEMO- reference.
     """
     engine = request.app.state.db
     calculator.find(tariff.products, body.product, "product")
@@ -1124,7 +1338,17 @@ def buy(
     )
     region = None if hawker else postcodes.region_of(body.postcode)
     user = accounts.user_values(account, request, region)
-    referred = body.declined_before
+    priced = reason = None
+    if body.add_safeday:
+        postcode = body.postcode if body.business_class == "shop" else None
+        priced = business_quote(
+            request, tariff, body.product, user["region"], user["centre"], postcode
+        )
+        reason = referral_reason(chosen_tier(priced, body.tier), tariff)
+    offer = None
+    if body.add_haze_bonus:
+        offer = haze_bonus_offer(chosen_tier(priced, body.tier), tariff)
+    referred = body.declined_before or reason is not None
     pays = body.add_safeday and not referred
     if pays and body.payment_method is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick how to pay")
@@ -1141,10 +1365,6 @@ def buy(
         policy = None
         payment_ref = None
         if pays:
-            postcode = body.postcode if body.business_class == "shop" else None
-            priced = business_quote(
-                request, tariff, history, body.product, user["region"], user["centre"], postcode
-            )
             policy = policy_values(
                 priced, user_id, user["region"], user["centre"], body.product, body.tier
             )
@@ -1159,6 +1379,10 @@ def buy(
             policy["id"] = db.execute(
                 sa_insert(accounts.policies).values(**policy).returning(accounts.policies.c.id)
             ).scalar_one()
+            if offer is not None:
+                policy["haze_bonus"] = add_haze_bonus(
+                    db, policy["id"], offer, haze_bonus_starts(tariff, cover_start)
+                )
         application = {
             "user_id": user_id,
             "applicant_type": body.applicant_type,
@@ -1188,6 +1412,15 @@ def buy(
         db.execute(
             sa_insert(accounts.application_details).values(application_id=application["id"], **details)
         )
+        if reason is not None:
+            db.execute(sa_insert(accounts.application_referrals).values(
+                application_id=application["id"], reason=reason, product=body.product,
+                weekly_premium_sgd=chosen_tier(priced, body.tier).weekly_premium_sgd,
+            ))
+        if offer is not None and referred:
+            db.execute(sa_insert(accounts.application_haze_bonus).values(
+                application_id=application["id"]
+            ))
         profile = {
             "business_class": body.business_class,
             "licence_no": body.licence_no,
@@ -1210,7 +1443,7 @@ def buy(
         )
         sms.set_preferred_language(db, user_id, body.sms_language)
         payout_flow.send_welcome_if_due(db, user_id, tariff)
-        application.update(details, **profile, **channel)
+        application.update(details, **profile, **channel, referral_reason=reason)
     accounts.start_session(engine, user_id, response)
     return {
         "application": {k: v for k, v in application.items() if k != "user_id"},
@@ -1223,6 +1456,7 @@ def latest_application(engine, user_id: int) -> dict | None:
     nulls."""
     details, profile = accounts.application_details, accounts.application_profile
     channel = accounts.application_channel
+    referrals = accounts.application_referrals
     query = (
         sa_select(
             accounts.applications,
@@ -1231,10 +1465,12 @@ def latest_application(engine, user_id: int) -> dict | None:
             details.c.cover_start,
             *(column for column in profile.c if column.name != "application_id"),
             *(column for column in channel.c if column.name != "application_id"),
+            referrals.c.reason.label("referral_reason"),
         )
         .outerjoin(details, details.c.application_id == accounts.applications.c.id)
         .outerjoin(profile, profile.c.application_id == accounts.applications.c.id)
         .outerjoin(channel, channel.c.application_id == accounts.applications.c.id)
+        .outerjoin(referrals, referrals.c.application_id == accounts.applications.c.id)
         .where(accounts.applications.c.user_id == user_id)
         .order_by(accounts.applications.c.id.desc())
     )
@@ -1280,8 +1516,12 @@ def my_application(user: SmeDep, request: Request) -> dict | None:
 
 @app.get("/api/policies")
 def list_policies(user: UserDep, request: Request) -> list[dict]:
-    """The stallholder's own policy, or every policy for an insurer."""
+    """The stallholder's own policy, or every policy for an insurer, with any approved change
+    of tier still waiting to start (tier_change) and the severe haze payout add-on (haze_bonus,
+    with its lump sums paid). weekly_total_sgd is what the customer pays a week for both."""
     engine = request.app.state.db
+    today = datetime.now(SINGAPORE).date()
+    changes = accounts.policy_tier_changes
     query = (
         sa_select(accounts.policies, accounts.users.c.business_name, accounts.users.c.name)
         .join(accounts.users, accounts.users.c.id == accounts.policies.c.user_id)
@@ -1291,18 +1531,52 @@ def list_policies(user: UserDep, request: Request) -> list[dict]:
         query = query.where(accounts.policies.c.user_id == user.id)
     with engine.connect() as db:
         rows = db.execute(query).mappings().all()
-    return [{k: v for k, v in row.items() if k not in ("user_id",)} for row in rows]
+        coming = db.execute(
+            sa_select(changes).where(changes.c.starts_on > today).order_by(changes.c.starts_on)
+        ).mappings().all()
+        shown = [
+            {**{k: v for k, v in row.items() if k != "user_id"},
+             **payout_flow.terms_on(db, row["id"], today)}
+            for row in rows
+        ]
+        bonuses = haze_bonuses(db)
+    waiting: dict[int, dict] = {}
+    for change in coming:
+        terms = {k: v for k, v in change.items() if k != "policy_id"}
+        waiting.setdefault(change["policy_id"], terms)
+    return [
+        {**policy, "tier_change": waiting.get(policy["id"]),
+         "haze_bonus": bonuses.get(policy["id"]),
+         "weekly_total_sgd": round(policy["weekly_premium_sgd"] + (
+             bonuses[policy["id"]]["weekly_sgd"] if policy["id"] in bonuses else 0), 2)}
+        for policy in shown
+    ]
+
+
+def haze_bonuses(db) -> dict[int, dict]:
+    """Every policy's severe haze payout add-on, with the lump sums it has paid."""
+    paid: dict[int, list[dict]] = defaultdict(list)
+    lumps = haze_bonus_payouts
+    for row in db.execute(sa_select(lumps).order_by(lumps.c.loss_date)).mappings():
+        paid[row["policy_id"]].append({
+            "reference": payout_flow.bonus_reference(row["id"]), "loss_date": row["loss_date"],
+            "policy_year_starts": row["policy_year_starts"],
+            "unhealthy_days": row["unhealthy_days"], "amount_sgd": row["amount_cents"] / 100,
+            "status": row["status"], "paid_at": row["paid_at"],
+        })
+    return {
+        row["policy_id"]: {**haze_bonus_view(row), "payouts": paid[row["policy_id"]]}
+        for row in db.execute(sa_select(accounts.policy_haze_bonus)).mappings()
+    }
 
 
 @app.delete("/api/policies/{policy_id}")
 def cancel_policy(policy_id: int, user: SmeDep, request: Request) -> dict:
     engine = request.app.state.db
     with engine.begin() as db:
-        gone = db.execute(
-            sa_delete(accounts.policies).where(
-                accounts.policies.c.id == policy_id, accounts.policies.c.user_id == user.id
-            )
-        ).rowcount
+        gone = drop_policies(
+            db, (accounts.policies.c.id == policy_id) & (accounts.policies.c.user_id == user.id)
+        )
     if not gone:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such policy on this account")
     return {"cancelled": policy_id}
@@ -1312,8 +1586,20 @@ def cancel_policy(policy_id: int, user: SmeDep, request: Request) -> dict:
 def insurer_portfolio(user: InsurerDep, request: Request) -> dict:
     """What the signed-in insurer carries: sold policies aggregated by region and tier."""
     engine = request.app.state.db
+    today = datetime.now(SINGAPORE).date()
     with engine.connect() as db:
-        rows = db.execute(sa_select(accounts.policies)).mappings().all()
+        rows = [
+            {**row, **payout_flow.terms_on(db, row["id"], today)}
+            for row in db.execute(sa_select(accounts.policies)).mappings().all()
+        ]
+        bonuses = haze_bonuses(db)
+        lump = haze_bonus_payouts
+        lumps = db.execute(
+            sa_select(lump.c.status, func.count(), func.sum(lump.c.amount_cents))
+            .group_by(lump.c.status)
+        ).all()
+    on_policies = [bonuses[row["id"]] for row in rows if row["id"] in bonuses]
+    bonus_yearly = sum(bonus["yearly_sgd"] for bonus in on_policies)
     by_region: dict[str, dict] = {}
     for row in rows:
         entry = by_region.setdefault(row["region"], {"policies": 0, "weekly_premium_sgd": 0.0, "daily_payout_sgd": 0.0})
@@ -1327,6 +1613,17 @@ def insurer_portfolio(user: InsurerDep, request: Request) -> dict:
         "annual_premium_sgd": round(sum(r["weekly_premium_sgd"] for r in rows) * 52, 2),
         "daily_payout_exposure_sgd": round(sum(r["daily_payout_sgd"] for r in rows), 2),
         "by_region": {k: {**v, "weekly_premium_sgd": round(v["weekly_premium_sgd"], 2)} for k, v in by_region.items()},
+        # The severe haze payout add-on, priced and owed apart from the daily cover.
+        "haze_bonus": {
+            "policies": len(on_policies),
+            "weekly_premium_sgd": round(bonus_yearly / calculator.WEEKS_PER_YEAR, 2),
+            "annual_premium_sgd": round(bonus_yearly, 2),
+            "lump_sum_exposure_sgd": round(sum(b["lump_sum_sgd"] for b in on_policies), 2),
+            "lump_sums": {
+                status_: {"count": count, "amount_sgd": cents / 100}
+                for status_, count, cents in lumps
+            },
+        },
     }
 
 
@@ -1434,7 +1731,6 @@ def put_tariff(
     change: TariffChange,
     editor: AdminDep,
     saved: SavedTariffDep,
-    history: HistoryDep,
     request: Request,
 ) -> SavedTariff:
     """Save a new tariff version, made from the latest one. Every region and product must price."""
@@ -1444,21 +1740,31 @@ def put_tariff(
             f"{saved.saved_by} saved version {saved.version} after you started. "
             "Reload to see it, then make your change again.",
         )
-    calculator.check_prices(change.tariff, history)
+    calculator.check_prices(change.tariff, region_replays(change.tariff, request))
     return store.save(request.app.state.db, change.tariff, saved_by=editor.saved_by)
 
 
 @app.post("/api/admin/preview")
-def preview(request: PreviewRequest, _: AdminDep, history: HistoryDep) -> Preview:
+def preview(body: PreviewRequest, _: AdminDep, request: Request) -> Preview:
     """Quote and payouts of an unsaved tariff, so an admin sees a change before saving it."""
-    tariff = request.tariff
+    tariff = body.tariff
     return Preview(
-        quote=calculator.quote(tariff, history, request.region, request.product),
+        quote=region_quote(request, tariff, body.product, body.region),
         assessments=[
-            calculator.assess(tariff, request.product, tier.key, request.readings)
+            calculator.assess(tariff, body.product, tier.key, body.readings)
             for tier in tariff.tiers
         ],
     )
+
+
+def region_replays(tariff: Tariff, request: Request) -> list[calculator.Replay]:
+    """Every PSI region's replay at its point, read with this tariff's station rule."""
+    rule = readings.station_rule(tariff)
+    points = request.app.state.map_static["region_points"]
+    return [
+        request.app.state.place_days.replay(rule, region, *points[region])
+        for region in request.app.state.regions
+    ]
 
 
 app.include_router(accounts.router)
