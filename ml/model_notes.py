@@ -116,6 +116,22 @@ def baseline_row(entry: pd.Series, chosen: set[tuple[str, str]]) -> dict:
     }
 
 
+def still_tuning(ok: pd.DataFrame) -> list[dict]:
+    """Searches in the Optuna database with no finished leaderboard row yet."""
+    storage = f"sqlite:///{OPTUNA_DB}"
+    finished = set(ok[["job", "model"]].itertuples(index=False, name=None))
+    rows = []
+    for summary in optuna.get_all_study_summaries(storage):
+        job, model = summary.study_name.split("/")
+        if (job, model) in finished:
+            continue
+        study = optuna.load_study(study_name=summary.study_name, storage=storage)
+        complete = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+        rows.append({"job": job, "model": model, "finished trials so far": len(complete),
+                     "best CV so far": f"{study.best_value:.4g}" if complete else ""})
+    return sorted(rows, key=lambda row: (row["job"], row["model"]))
+
+
 def markdown_table(rows: list[dict]) -> str:
     columns = list(rows[0])
     lines = ["| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)]
@@ -147,6 +163,13 @@ def main() -> None:
         lines += ["", f"## {name}", "", WHY[name], ""]
         make_row = baseline_row if spec.suggest is None else tuning_row
         lines.append(markdown_table([make_row(entry, chosen) for _, entry in rows.iterrows()]))
+    pending = still_tuning(ok)
+    if pending:
+        lines += ["", "## Still tuning", "",
+                  "These searches had not finished when this file was written, so the tables",
+                  "above leave them out. One whose best CV so far beats a job's chosen model may",
+                  "replace that model once it finishes and is published.", "",
+                  markdown_table(pending)]
     MODEL_NOTES_PATH.write_text("\n".join(lines) + "\n")
     print(f"Wrote {MODEL_NOTES_PATH}")
 
