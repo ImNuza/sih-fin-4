@@ -1,6 +1,6 @@
 # Tier, premium and payout design: proposal (15 Nov 2026)
 
-Status: accepted. On 15 Nov the team lead accepted the recommended answers in section 6: a 30-day limit for every tier; the S142 and S128 heat stations on hold, with heat read at the next nearest station until NEA confirms them; running costs split 10% management and 15% distribution until Income gives its figure. It was built on branch `production-ready-pricing`. Sections 1 to 8 are the pre-build estimates and are left as written. Section 9 says what was built, with the final numbers.
+Status: accepted. On 15 Nov the team lead accepted the recommended answers in section 6: a 30-day limit for every tier; the S142 and S128 heat stations on hold, with heat read at the next nearest station until NEA confirms them; running costs split 10% management and 15% distribution until Income gives its figure. It was built on branch `production-ready-pricing`. Sections 1 to 8 are the pre-build estimates and are left as written. Section 9 says what was built. Section 10 has the final numbers the team lead set later on 15 Nov.
 
 Inputs:
 - Final team decisions: `docs/notes/notion-decisions-sweep-2026-11-15.md` (Notion sweep, 15 Nov).
@@ -137,3 +137,25 @@ Final numbers, cooked food, at Maxwell Food Centre:
 | 4 (S$100/day) | S$19.53 | 4.4x, best value |
 
 Median of the 103 centres, Tier 2: S$8.79 a week, 3.1x. No centre has a tier referred to the underwriter.
+
+## 10. Final numbers (15 Nov, team lead)
+
+The team lead set the final tier numbers. They replace the daily amounts and limits in sections 3 to 9.
+
+- **Daily amounts:** Tier 1 S$35, Tier 2 S$195, Tier 3 S$630, Tier 4 S$1,355.
+- **Yearly limit:** 45 full-payout days on every tier (S$1,575 / 8,775 / 28,350 / 60,975). A 40-day lockdown is paid in full.
+- **Closure or lockdown order:** priced at 2 assumed days a year, as one 40-day lockdown every 20 years. Before, it was priced at 0 days. It is a team assumption until Income gives its view.
+- **Premium shares:** unchanged. Expected payouts are 55%, 60%, 65% and 70% of the premium before GST.
+- **Severe haze payout:** still 25 times the daily amount (S$875 / 4,875 / 15,750 / 33,875), at a tenth of that a year.
+- **Hosted site:** at startup its saved tariff (10 / 15 / 20 / 30 days, S$20 / 40 / 70 / 100, closure at 0) moves to these numbers in one new version. A tier the tariff desk edited keeps its edits.
+
+Cooked food at Maxwell Food Centre, from `POST /api/quote`:
+
+| Tier | Monthly | Weekly | Per day | Most it pays a year | Most it pays / premium |
+|---|---|---|---|---|---|
+| 1 (S$35/day) | S$49.25 | S$11.37 | S$1.62 | S$1,575 | 2.7x |
+| 2 (S$195/day) | S$251.54 | S$58.05 | S$8.27 | S$8,775 | 2.9x |
+| 3 (S$630/day) | S$750.14 | S$173.11 | S$24.66 | S$28,350 | 3.1x |
+| 4 (S$1,355/day) | S$1,498.16 | S$345.73 | S$49.25 | S$60,975 | 3.4x, best value |
+
+Maxwell expects 8.52 loss-days a year, 2 of them the closure. No limit binds there. Median of the 103 centres, Tier 2: S$56.47 a week, 3.0x. No centre has a tier referred to the underwriter, for any product. Tier 4 is the best value at every centre.

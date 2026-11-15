@@ -445,7 +445,7 @@ async function renderTiers() {
   buyState.tier ??= suggested;
   const marked = rent ? suggested : null; // only rent suggests a tier
   buyState.tierQuote = quote.tiers.find((t) => t.tier === buyState.tier) || null;
-  const share = (t) => rent ? `${Math.round((100 * t.daily_payout_sgd) / rent.rent_per_day_sgd)}% of a day's rent` : "";
+  const share = (t) => rent ? rentShare(t.daily_payout_sgd, rent.rent_per_day_sgd) : "";
   el("buy-tiers").innerHTML = quote.tiers.map((t) => `
     <button class="tier-card ${t.tier === marked ? "rec" : ""}" type="button" role="radio"
       aria-checked="${t.tier === buyState.tier}" data-tier="${t.tier}">

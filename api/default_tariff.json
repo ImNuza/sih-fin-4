@@ -65,8 +65,8 @@
       "scaled_by_product": false,
       "bands": [{"at_least": 1, "severity": 1.0}],
       "sites_used": 1,
-      "assumed_days_per_year": 0,
-      "source": "No history. A closure stops all sales, so it pays the full tier payout. Set the assumed days with Income."
+      "assumed_days_per_year": 2,
+      "source": "No history. A closure stops all sales, so it pays the full tier payout. Priced as one 40-day lockdown or closure order every 20 years (2 days a year), a team assumption until Income gives its view. Every tier pays up to 45 days a year, so a 40-day lockdown is paid in full."
     }
   ],
   "products": [
@@ -78,13 +78,13 @@
     {"key": "platform_work", "label": "Ride-hail and delivery work", "shelf_life_days": 0, "restock_every_days": 1, "demand_sensitivity": 0.6, "gross_margin": 0.7, "recovered_share": 0.0, "source": "Ride-hail and delivery work under a platform work agreement (Platform Workers Act 2024, MOM). No stock, so shelf life is 0 and nothing spoils; restocking does not count. Margin 0.7 (the share of a fare or delivery fee the worker keeps after the platform commission and fuel), demand lost 0.6 and nothing recovered (a lost hour of work is not made up later) are starting assumptions until we have earnings data."}
   ],
   "tiers": [
-    {"key": "tier_1", "label": "Tier 1", "daily_payout_sgd": 20, "max_paid_days_per_year": 35,
+    {"key": "tier_1", "label": "Tier 1", "daily_payout_sgd": 35, "max_paid_days_per_year": 45,
      "premium_shares": {"expected_payouts": 0.55, "reinsurance": 0.06, "management": 0.12, "distribution": 0.17, "profit": 0.1}},
-    {"key": "tier_2", "label": "Tier 2", "daily_payout_sgd": 40, "max_paid_days_per_year": 35,
+    {"key": "tier_2", "label": "Tier 2", "daily_payout_sgd": 195, "max_paid_days_per_year": 45,
      "premium_shares": {"expected_payouts": 0.6, "reinsurance": 0.06, "management": 0.1, "distribution": 0.15, "profit": 0.09}},
-    {"key": "tier_3", "label": "Tier 3", "daily_payout_sgd": 70, "max_paid_days_per_year": 40,
+    {"key": "tier_3", "label": "Tier 3", "daily_payout_sgd": 630, "max_paid_days_per_year": 45,
      "premium_shares": {"expected_payouts": 0.65, "reinsurance": 0.06, "management": 0.08, "distribution": 0.13, "profit": 0.08}},
-    {"key": "tier_4", "label": "Tier 4", "daily_payout_sgd": 100, "max_paid_days_per_year": 45,
+    {"key": "tier_4", "label": "Tier 4", "daily_payout_sgd": 1355, "max_paid_days_per_year": 45,
      "premium_shares": {"expected_payouts": 0.7, "reinsurance": 0.06, "management": 0.07, "distribution": 0.1, "profit": 0.07}}
   ],
   "pricing": {

@@ -725,14 +725,14 @@ function rentSection(centre, quote) {
   const rent = rentOf(centre);
   if (!rent) return "";
   const tier = quote.tiers.find((t) => t.tier === rent.recommended_tier);
-  const share = Math.round((100 * tier.daily_payout_sgd) / rent.rent_per_day_sgd);
+  const share = rentShare(tier.daily_payout_sgd, rent.rent_per_day_sgd);
   const source = rent.estimated
     ? `No NEA bid on record for this centre, so it borrows the median of all centres (${SGD0(RENT.all_centre_median_sgd)} a month).`
     : `Median of ${rent.bids} winning NEA bid${rent.bids === 1 ? "" : "s"} for a cooked-food stall, ${rent.first_month} to ${rent.last_month}.`;
   return `<div class="sec"><p class="cap">Stall rent · ${rent.rent_class_label}</p>
     <div class="kv"><span class="k">Monthly rent</span><span class="v">${SGD0(rent.median_bid_sgd)}</span></div>
     <div class="kv"><span class="k">Per trading day (${RENT.trading_days_per_month} a month)</span><span class="v">${SGD(rent.rent_per_day_sgd)}</span></div>
-    <div class="kv"><span class="k">${rent.covers_rent ? "Smallest tier that covers it" : "No tier covers it; biggest"}</span><span class="v">${tier.label} · ${share}% at ${SGD(tier.weekly_premium_sgd)}/wk</span></div>
+    <div class="kv"><span class="k">${rent.covers_rent ? "Smallest tier that covers it" : "No tier covers it; biggest"}</span><span class="v">${tier.label} · ${share} at ${SGD(tier.weekly_premium_sgd)}/wk</span></div>
     <p class="note">${source} Rent sets the tier a stallholder is offered, not the premium.</p></div>`;
 }
 
@@ -1267,7 +1267,7 @@ function aboutHtml() {
   terms. Payung runs the same four steps, with every input public:</p>
   <p>Every number on this page comes from the pricing API (<code>/api/quote</code>, <code>/api/assess</code>) - the same engine the tariff desk edits. For a stall, the engine replays every recorded day (haze from April 2014, rain from December 2016, heat from 2025) at the stations nearest the stall, read as a payout reads them (day-weighted severity × peril weight × product factor - classical burning-cost rating), counts each year's loss-days up to the tier's yearly cap and averages the years: the expected paid days. Expected payouts are those days times the daily amount. The tier's premium shares turn them into the premium before GST, in Income's five parts: expected payouts, reinsurance for haze years, management expenses, selling and distribution, and expected profit and risk margin. Then +9% GST (IRAS).</p>
   <h4>Why a payout is insurance, not a bet</h4>
-  <p>Insurance Act 1966 s151 voids cover without insurable interest. Tier payouts (S$20-100/day) sit below a stall's normal daily takings (triangulated S$400-800/day gross), so each payout is a pre-estimate of lost income, sold only to operating businesses. Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, we can show a customer exactly why they pay what they pay, and no personal data goes into any price.</p>
+  <p>Insurance Act 1966 s151 voids cover without insurable interest. Tier payouts run from S$35 to S$1,355 a day. Each payout is a pre-estimate of lost income, sold only to operating businesses. Tier 1 and Tier 2 sit below a stall's normal daily takings (triangulated S$400-800/day gross); Tier 3 and Tier 4 can pass them, so they fit businesses with higher takings. Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, we can show a customer exactly why they pay what they pay, and no personal data goes into any price.</p>
   <h4>The protection gap</h4>
   <ul>
     <li>Singapore has ~369,500 SMEs - 99% of enterprises (SingStat, 2025); NEA manages 123 markets and hawker centres.</li>

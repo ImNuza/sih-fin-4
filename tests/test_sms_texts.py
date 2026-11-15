@@ -112,7 +112,7 @@ def test_cover_text_comes_in_every_language(client):
     for language in sms.LANGUAGES:
         cover = client.get("/api/cover-text", params={"tier": "tier_1", "language": language})
         assert cover.status_code == 200
-        assert "S$20" in cover.json()["body"]
+        assert "S$35" in cover.json()["body"]
 
 
 def test_cover_text_rejects_an_unknown_tier_or_language(client):
@@ -124,7 +124,7 @@ def test_cover_text_rejects_an_unknown_tier_or_language(client):
 def test_welcome_text_never_says_only_a_red_day_pays(language):
     """Payouts are graded: a milder day pays a share, so the text promises "up to"."""
     body = welcome(language, TARIFF.tiers[0])
-    assert "S$20" in body
+    assert "S$35" in body
     for wrong in ("No Red Day", "no Red day", "无红色日", "Tiada Hari", "Red Day = no pay"):
         assert wrong not in body
 

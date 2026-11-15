@@ -64,7 +64,7 @@ def test_closure_pays_the_full_tier_payout(client):
     body = {"product": "general_goods", "tier": "tier_3", "readings": {"closure": 1}}
     day = client.post("/api/assess", json=body).json()
     assert day["loss_percent"] == 100
-    assert day["payout_sgd"] == 70
+    assert day["payout_sgd"] == 630
 
 
 def test_admin_needs_the_right_login(client):
@@ -593,7 +593,7 @@ def test_platform_work_quotes_and_assesses_without_stock(client):
     day = client.post("/api/assess", json=body).json()
     # rain weight 0.5 x severity 1.0 x (demand 0.6 x margin 0.7, nothing recovered, nothing spoils)
     assert day["loss_percent"] == 21.0
-    assert day["payout_sgd"] == 4.2
+    assert day["payout_sgd"] == 7.35
 
 
 def test_crc_matches_the_ccitt_false_check_value():
@@ -848,7 +848,7 @@ def test_a_shop_is_priced_on_the_haze_of_the_region_it_is_paid_on(client):
 
 def test_a_hawker_centre_keeps_its_price(client):
     shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
-    assert weekly(shown) == 9.11
+    assert weekly(shown) == 58.05
     for risk in shown["local_risks"]:
         assert shown["loss_day_parts"][risk["hazard"]] == risk["loss_days"]
 

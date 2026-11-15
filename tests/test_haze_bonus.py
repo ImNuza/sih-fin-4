@@ -51,7 +51,7 @@ def test_the_price_is_the_lump_sum_over_10_to_the_cent(client, today):
         assert round(sum(steps.values()), 2) == bonus["yearly_sgd"]
         assert steps["expected_payouts"] == round(0.6 * bonus["yearly_sgd"] / 1.09, 2)
     yearly = [t["haze_bonus"]["yearly_sgd"] for t in centre_quote(client)["tiers"]]
-    assert yearly == [50, 100, 175, 250]
+    assert yearly == [87.5, 487.5, 1575, 3387.5]
 
 
 def test_the_price_implies_a_payout_in_about_1_year_in_18(client, today):
@@ -84,16 +84,16 @@ def test_a_policy_with_the_add_on_shows_it_and_the_insurer_carries_it(client, to
     result = client.post("/api/buy", json=buy_body(add_haze_bonus=True)).json()
     bonus = result["policy"]["haze_bonus"]
     cover_start = date.fromisoformat(result["application"]["cover_start"])
-    assert (bonus["lump_sum_sgd"], bonus["yearly_sgd"]) == (1000, 100)
+    assert (bonus["lump_sum_sgd"], bonus["yearly_sgd"]) == (4875, 487.5)
     assert bonus["starts_on"] == (cover_start + timedelta(days=30)).isoformat()
     [policy] = client.get("/api/policies").json()
     assert policy["haze_bonus"]["payouts"] == []
-    assert policy["weekly_total_sgd"] == round(policy["weekly_premium_sgd"] + 1.92, 2)
+    assert policy["weekly_total_sgd"] == round(policy["weekly_premium_sgd"] + 9.38, 2)
     client.post("/api/auth/logout")
     register(client, "insurer", "desk@example.com")
     portfolio = client.get("/api/insurer/portfolio").json()["haze_bonus"]
-    assert portfolio == {"policies": 1, "weekly_premium_sgd": 1.92, "annual_premium_sgd": 100,
-                         "lump_sum_exposure_sgd": 1000, "lump_sums": {}}
+    assert portfolio == {"policies": 1, "weekly_premium_sgd": 9.38, "annual_premium_sgd": 487.5,
+                         "lump_sum_exposure_sgd": 4875, "lump_sums": {}}
 
 
 def backdate_to_2015(client) -> None:
@@ -120,7 +120,7 @@ def test_the_lump_sum_is_paid_once_on_the_40th_unhealthy_day(client, today):
     client.post("/api/auth/logout")
     [lump] = replay_haze_season_2015(client)
     assert (lump.region, lump.loss_date, lump.unhealthy_days) == ("south", date(2015, 10, 26), 40)
-    assert (lump.amount_cents, lump.source, lump.main_hazard) == (100_000, "haze_bonus", "haze")
+    assert (lump.amount_cents, lump.source, lump.main_hazard) == (487_500, "haze_bonus", "haze")
 
 
 def test_the_lump_sum_shows_with_the_payouts_and_in_the_run_and_portfolio(client, today):
@@ -137,12 +137,12 @@ def test_the_lump_sum_shows_with_the_payouts_and_in_the_run_and_portfolio(client
     assert [p["loss_date"] for p in payouts] == sorted((p["loss_date"] for p in payouts),
                                                         reverse=True)
     [lump] = [p for p in payouts if p["kind"] == "haze_bonus"]
-    assert (lump["loss_date"], lump["amount_sgd"], lump["status"]) == ("2015-10-26", 1000, "held")
+    assert (lump["loss_date"], lump["amount_sgd"], lump["status"]) == ("2015-10-26", 4875, "held")
     assert lump["basis"]["haze"] == "40 days at PSI 101+ in the south region this policy year"
     assert lump["id"] == "haze_bonus-1" and lump["reference"].startswith("SDH-")
     assert {p["kind"] for p in payouts} == {"daily", "haze_bonus"}
     portfolio = client.get("/api/insurer/portfolio").json()["haze_bonus"]
-    assert portfolio["lump_sums"] == {"held": {"count": 1, "amount_sgd": 1000}}
+    assert portfolio["lump_sums"] == {"held": {"count": 1, "amount_sgd": 4875}}
     client.post("/api/auth/logout")
     client.post("/api/auth/login", json={"email": "tan@example.test", "password": "test-pass-123"})
     mine = client.get("/api/payouts").json()
@@ -173,7 +173,7 @@ def test_an_approval_in_a_sale_month_adds_the_add_on_asked_for(client, today):
     client.post("/api/auth/logout")
     sign_in_as_insurer(client)
     decision = decide(client, application["id"], "approve").json()
-    assert decision["policy"]["haze_bonus"]["lump_sum_sgd"] == 1000
+    assert decision["policy"]["haze_bonus"]["lump_sum_sgd"] == 4875
     assert decision["note"] is None
 
 
@@ -255,7 +255,7 @@ def test_a_failed_lump_sum_can_be_retried_by_the_insurer(client, today):
     retried = client.post(f"/api/insurer/payouts/{lump['id']}/retry")
     assert retried.status_code == 200, retried.text
     paid = retried.json()
-    assert (paid["status"], paid["amount_sgd"], paid["failure_reason"]) == ("paid", 1000, None)
+    assert (paid["status"], paid["amount_sgd"], paid["failure_reason"]) == ("paid", 4875, None)
     moves = [(e["from_status"], e["to_status"]) for e in paid["events"]]
     assert moves == [(None, "approved"), ("approved", "sending"), ("sending", "failed"),
                      ("failed", "approved"), ("approved", "sending"), ("sending", "paid")]

@@ -476,7 +476,6 @@ function declinedCover({ application, decision }) {
 
 function policyCover({ user, quote, policy, rent, application, decision, kind }) {
   const waitingEnds = application?.waiting_ends;
-  const rentShare = rent ? Math.round((100 * policy.daily_payout_sgd) / rent.rent_per_day_sgd) : null;
   // The quote's tier for the policy: its proof, and its daily price while the price is unchanged.
   const policyQuote = quote.tiers.find((t) => t.tier === policy.tier && t.daily_payout_sgd === policy.daily_payout_sgd);
   const samePrice = policyQuote && Math.abs(policyQuote.weekly_premium_sgd - policy.weekly_premium_sgd) < 0.005;
@@ -485,7 +484,7 @@ function policyCover({ user, quote, policy, rent, application, decision, kind })
       `<b>Waiting period.</b> Cover starts paying ${WAITING_PERIOD_DAYS} days after the start date, from ${SG_DATE(waitingEnds)}.`) : ""}
     ${kv("Tier", policy.tier_label)}
     ${kv("Pays per bad day", `<span class="num">${SGD(policy.daily_payout_sgd)}</span>`)}
-    ${rent ? kv("Share of a day's rent", `<span class="num">${rentShare}%</span>`) : ""}
+    ${rent ? kv("A bad day pays", rentShare(policy.daily_payout_sgd, rent.rent_per_day_sgd)) : ""}
     ${kv("Cap", `${policy.max_paid_days_per_year} days / yr`)}
     ${kv("Weekly premium", `<span class="num">${SGD(policy.weekly_premium_sgd)}</span>`)}
     ${samePrice ? kv("Price per day", `<span class="num">${proofMoney(policyQuote.price_per_day_sgd)}</span>`) : ""}
@@ -504,7 +503,6 @@ function policyCover({ user, quote, policy, rent, application, decision, kind })
 }
 
 function chooseCover({ quote, rent, rentTable, rec, kind, examples }) {
-  const rentShare = (payout) => Math.round((100 * payout) / rent.rent_per_day_sgd);
   const cards = quote.tiers.map((t) => `
     <div class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}">
       <span class="t">${t.label}${t.tier === rec ? ` <span class="chip accent">Recommended</span>` : ""}${t.best_value ? ` <span class="chip good">Best value</span>` : ""}${t.sold_directly === false ? ` <span class="chip warning">Refer to underwriter</span>` : ""}</span>
@@ -513,7 +511,7 @@ function chooseCover({ quote, rent, rentTable, rec, kind, examples }) {
       <span class="d">${fullLossLine(t, examples[t.tier])}</span>
       <span class="d">${lockdownLine(t)}</span>
       ${t.tier === rec ? `<span class="d">${lockdownExample(t)}</span>` : ""}
-      ${rent ? `<span class="d">${rentShare(t.daily_payout_sgd)}% of a day's rent</span>` : ""}
+      ${rent ? `<span class="d">A full bad day pays ${rentShare(t.daily_payout_sgd, rent.rent_per_day_sgd)} here.</span>` : ""}
     </div>`).join("");
   const recTier = quote.tiers.find((t) => t.tier === rec);
   const proof = [coverLine(recTier), centsBack(recTier), ...proofLines(recTier, kind)].filter(Boolean);

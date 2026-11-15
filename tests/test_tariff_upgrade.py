@@ -46,10 +46,14 @@ def start(engine) -> Tariff:
 def test_the_hosted_tariff_gets_the_limits_holds_and_haze_payout_in_one_version(tmp_path):
     engine = saved_engine(tmp_path, json.loads(BEFORE_YEARLY_PRICE.read_text()))
     tariff = start(engine)
-    assert [tier.max_paid_days_per_year for tier in tariff.tiers] == [35, 35, 40, 45]
-    assert all(tier.premium_shares is not None for tier in tariff.tiers)
-    heat = next(hazard for hazard in tariff.hazards if hazard.key == "heat")
-    assert heat.stations_on_hold == ["S142", "S128"]
+    assert [tier.daily_payout_sgd for tier in tariff.tiers] == [35, 195, 630, 1355]
+    assert [tier.max_paid_days_per_year for tier in tariff.tiers] == [45, 45, 45, 45]
+    assert [tier.premium_shares for tier in tariff.tiers] == [
+        tier.premium_shares for tier in default().tiers
+    ]
+    hazards = {hazard.key: hazard for hazard in tariff.hazards}
+    assert hazards["heat"].stations_on_hold == ["S142", "S128"]
+    assert hazards["closure"].assumed_days_per_year == 2
     assert tariff.haze_bonus == default().haze_bonus
     assert versions(engine) == [
         "default", "default: yearly limits, stations on hold, severe haze payout",
@@ -62,10 +66,23 @@ def test_a_missing_product_does_not_stop_the_later_steps(tmp_path):
     engine = saved_engine(tmp_path, body)
     tariff = start(engine)
     assert len(tariff.products) == len(default().products)
-    assert [tier.max_paid_days_per_year for tier in tariff.tiers] == [35, 35, 40, 45]
+    assert [tier.max_paid_days_per_year for tier in tariff.tiers] == [45, 45, 45, 45]
     heat = next(hazard for hazard in tariff.hazards if hazard.key == "heat")
     assert heat.stations_on_hold == ["S142", "S128"]
     assert tariff.haze_bonus is not None
+
+
+def test_a_tier_and_closure_the_desk_edited_keep_their_edits(tmp_path):
+    body = json.loads(BEFORE_YEARLY_PRICE.read_text())
+    body["tiers"][0]["daily_payout_sgd"] = 25
+    closure = next(hazard for hazard in body["hazards"] if hazard["key"] == "closure")
+    closure["assumed_days_per_year"] = 1
+    tariff = start(saved_engine(tmp_path, body))
+    assert [tier.daily_payout_sgd for tier in tariff.tiers] == [25, 195, 630, 1355]
+    assert [tier.max_paid_days_per_year for tier in tariff.tiers] == [10, 45, 45, 45]
+    assert tariff.tiers[0].premium_shares is None
+    closure = next(hazard for hazard in tariff.hazards if hazard.key == "closure")
+    assert closure.assumed_days_per_year == 1
 
 
 def test_a_second_start_saves_nothing(tmp_path):

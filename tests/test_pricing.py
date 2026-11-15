@@ -50,7 +50,8 @@ def test_a_tier_sold_directly_never_costs_more_than_half_its_limit(client, produ
 def replay_by_the_payout_rule(
     tariff, sites, centre: dict, product_key: str
 ) -> tuple[list, dict]:
-    """Each year's loss-days at a centre, worked out day by day through api/readings.py."""
+    """Each year's loss-days at a centre, worked out day by day through api/readings.py, plus
+    the assumed days of a hazard with no history (a closure order)."""
     table = burn.load_day_table()
     product = calculator.find(tariff.products, product_key, "product")
     factor = calculator.product_factor(product)
@@ -80,7 +81,13 @@ def replay_by_the_payout_rule(
             for key in hazards if not fed_by_hazard[key][at]
         )
         by_year[int(day[:4])].append(day_loss + waiting)
-    years = [sum(days) * calculator.DAYS_PER_YEAR / len(days) for days in by_year.values()]
+    assumed = sum(
+        h.assumed_days_per_year * calculator.hazard_loss(h, h.bands[-1].severity, factor)
+        for h in tariff.hazards if h.assumed_days_per_year is not None
+    )
+    years = [
+        sum(days) * calculator.DAYS_PER_YEAR / len(days) + assumed for days in by_year.values()
+    ]
     return years, average
 
 
@@ -99,6 +106,7 @@ def test_the_price_is_the_replay_average_to_the_cent(client):
         assert steps["expected_payouts"] == round(expected_sgd, 2)
     for key, days in average.items():
         assert shown["loss_day_parts"][key] == round(days, 2)
+    assert shown["loss_day_parts"]["closure"] == 2
 
 
 def test_each_tiers_shares_add_up_to_one():
@@ -167,8 +175,8 @@ def test_tier_2_keeps_its_price_apart_from_the_longer_limit(client):
     save_tariff(client, body)
     on_the_loads = tier(centre_quote(client))
     assert at_30_days["yearly_premium_sgd"] == on_the_loads["yearly_premium_sgd"]
-    assert shown["weekly_premium_sgd"] == 9.11
-    assert at_30_days["weekly_premium_sgd"] == 9.11
+    assert shown["weekly_premium_sgd"] == 58.05
+    assert at_30_days["weekly_premium_sgd"] == 58.05
     assert shown["expected_paid_days"] >= at_30_days["expected_paid_days"]
 
 
@@ -329,6 +337,10 @@ def test_a_tier_not_sold_directly_is_referred_from_the_dashboard_too(client):
     assert policy["tier"] == "tier_2" and policy["tier_change"]["tier"] == "tier_4"
 
 
+TIERS_BEFORE_YEARLY_PRICE = ((10, 20), (15, 40), (20, 70), (30, 100))
+SHIPPED_DAILY_AMOUNTS = [35, 195, 630, 1355]
+
+
 def old_main_tariff() -> dict:
     """The default tariff as it was before the yearly price."""
     body = default_tariff()
@@ -336,8 +348,11 @@ def old_main_tariff() -> dict:
         del body["pricing"][field]
     for hazard in body["hazards"]:
         hazard.pop("stations_on_hold", None)
-    for row, days in zip(body["tiers"], (10, 15, 20, 30), strict=True):
+        if hazard["key"] == "closure":
+            hazard["assumed_days_per_year"] = 0
+    for row, (days, daily) in zip(body["tiers"], TIERS_BEFORE_YEARLY_PRICE, strict=True):
         row["max_paid_days_per_year"] = days
+        row["daily_payout_sgd"] = daily
         del row["premium_shares"]
     return body
 
@@ -362,7 +377,8 @@ def test_an_old_tariff_with_running_costs_under_15_percent_keeps_the_desks_edits
     start_with(tmp_path, monkeypatch, old)
     with TestClient(app) as client:
         saved = client.get("/api/admin/tariff", auth=ADMIN).json()
-    assert saved["tariff"]["tiers"][3]["daily_payout_sgd"] == 150
+    # The shipped tiers' new amounts would pass Tier 4's 150, so every tier is kept.
+    assert [t["daily_payout_sgd"] for t in saved["tariff"]["tiers"]] == [20, 40, 70, 150]
     assert saved["tariff"]["pricing"]["expense_ratio"] == 0.12
     assert saved["tariff"]["pricing"]["distribution_expense_ratio"] == 0.12
 
@@ -374,7 +390,8 @@ def test_an_old_tariff_migrates_tier_by_tier_and_refers_no_old_tier(tmp_path, mo
     with TestClient(app) as client:
         tiers = client.get("/api/admin/tariff", auth=ADMIN).json()["tariff"]["tiers"]
         centres = client.get("/api/map/quotes").json()["centres"]
-    assert [t["max_paid_days_per_year"] for t in tiers] == [12, 35, 40, 45]
+    assert [t["max_paid_days_per_year"] for t in tiers] == [12, 45, 45, 45]
+    assert [t["daily_payout_sgd"] for t in tiers] == [20, *SHIPPED_DAILY_AMOUNTS[1:]]
     assert tiers[0]["premium_shares"] is None and tiers[1]["premium_shares"] is not None
     assert all(tier(quote, "tier_1")["sold_directly"] for quote in centres.values())
 
@@ -429,7 +446,7 @@ def test_a_change_of_tier_keeps_the_cover_in_force_until_its_waiting_period_ends
     for run in (day_before, first_day):
         assert client.post("/api/insurer/payout-runs", json=run).status_code == 200
     paid = {p["loss_date"]: p["amount_sgd"] for p in client.get("/api/payouts").json()}
-    assert paid == {day_before["loss_date"]: 40.0, first_day["loss_date"]: 100.0}
+    assert paid == {day_before["loss_date"]: 195.0, first_day["loss_date"]: 1355.0}
     [after] = client.get("/api/policies").json()
     assert (after["id"], after["tier"], after["started_at"]) == (
         before["id"], "tier_2", before["started_at"]
@@ -455,8 +472,8 @@ def test_a_day_before_the_switch_paid_after_it_is_paid_on_the_old_terms(client):
         assert client.post("/api/insurer/payout-runs", json=run).status_code == 200
     paid = {p["loss_date"]: (p["tier"], p["amount_sgd"]) for p in client.get("/api/payouts").json()}
     assert paid == {
-        (today - timedelta(days=1)).isoformat(): ("tier_2", 40.0),
-        today.isoformat(): ("tier_4", 100.0),
+        (today - timedelta(days=1)).isoformat(): ("tier_2", 195.0),
+        today.isoformat(): ("tier_4", 1355.0),
     }
     [policy] = client.get("/api/policies").json()
     assert (policy["tier"], policy["tier_change"]) == ("tier_4", None)
@@ -481,11 +498,13 @@ def test_a_tariff_saved_before_the_yearly_price_gains_the_limit_and_the_stations
     assert (saved["version"], saved["saved_by"]) == (2, "default: yearly limits, stations on hold")
     assert again["version"] == 2
     tiers = saved["tariff"]["tiers"]
-    assert [t["max_paid_days_per_year"] for t in tiers] == [35, 35, 40, 45]
+    assert [t["max_paid_days_per_year"] for t in tiers] == [45, 45, 45, 45]
+    assert [t["daily_payout_sgd"] for t in tiers] == SHIPPED_DAILY_AMOUNTS
     shipped = [t["premium_shares"] for t in default_tariff()["tiers"]]
     assert [t["premium_shares"] for t in tiers] == shipped
-    heat = next(h for h in saved["tariff"]["hazards"] if h["key"] == "heat")
-    assert heat["stations_on_hold"] == ["S142", "S128"]
+    hazards = {h["key"]: h for h in saved["tariff"]["hazards"]}
+    assert hazards["heat"]["stations_on_hold"] == ["S142", "S128"]
+    assert hazards["closure"]["assumed_days_per_year"] == 2
     assert saved["tariff"]["pricing"]["refer_above_limit_share"] == 0.5
 
 

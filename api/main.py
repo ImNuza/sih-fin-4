@@ -209,6 +209,14 @@ def add_missing_products(tariff: Tariff, default: Tariff) -> Tariff | None:
 
 
 # The yearly limits and daily amounts every tariff had before the yearly price.
+CLOSURE = "closure"
+
+
+def closure_assumed_days(default: Tariff) -> float | None:
+    """The days a year the default tariff prices a closure order at."""
+    return next((h.assumed_days_per_year for h in default.hazards if h.key == CLOSURE), None)
+
+
 TIERS_BEFORE_YEARLY_PRICE = {
     "tier_1": (10, 20), "tier_2": (15, 40), "tier_3": (20, 70), "tier_4": (30, 100),
 }
@@ -217,9 +225,9 @@ TIERS_BEFORE_YEARLY_PRICE = {
 def adopt_yearly_price_rules(
     tariff: Tariff, default: Tariff, as_saved: Tariff | None = None
 ) -> Tariff | None:
-    """A tariff saved before the yearly price, with the default's stations on hold, and each
-    tier the tariff desk left as shipped given the default's limit and premium shares. None
-    when it is newer.
+    """A tariff saved before the yearly price, with the default's stations on hold, a closure
+    still priced at 0 days given the default's assumed days, and each tier the tariff desk left
+    as shipped given the default's daily amount, limit and premium shares. None when it is newer.
 
     A tariff saved since carries refer_above_limit_share, so this changes it only once. A tier
     the desk changed keeps its limit and prices on the Pricing loads, as before; if the shipped
@@ -239,6 +247,12 @@ def adopt_yearly_price_rules(
         else hazard
         for hazard in tariff.hazards
     ]
+    hazards = [
+        hazard.model_copy(update={"assumed_days_per_year": closure_assumed_days(default)})
+        if hazard.key == CLOSURE and hazard.assumed_days_per_year == 0
+        else hazard
+        for hazard in hazards
+    ]
     default_tiers = {tier.key: tier for tier in default.tiers}
 
     def as_shipped(tier: Tier) -> bool:
@@ -250,6 +264,7 @@ def adopt_yearly_price_rules(
 
     tiers = [
         tier.model_copy(update={
+            "daily_payout_sgd": default_tiers[tier.key].daily_payout_sgd,
             "max_paid_days_per_year": default_tiers[tier.key].max_paid_days_per_year,
             "premium_shares": default_tiers[tier.key].premium_shares,
         })

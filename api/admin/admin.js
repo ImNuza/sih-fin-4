@@ -102,7 +102,7 @@ const PREMIUM_SHARES = [
 const HAZE_BONUS_FIELDS = [
   ["trigger_psi", "Haze reading that counts", "Daily highest 24-hour PSI in the policy's region, as payouts read it.", "number"],
   ["trigger_days", "Days in a policy year", "The lump sum is paid on the day the count reaches this.", "int"],
-  ["lump_sum_daily_multiple", "Lump sum, times the daily amount", "25 gives S$1,000 on a S$40-a-day tier.", "number"],
+  ["lump_sum_daily_multiple", "Lump sum, times the daily amount", "25 gives S$4,875 on a S$195-a-day tier.", "number"],
   ["payout_multiple", "Lump sum over the add-on price", "The add-on's yearly price with GST is the lump sum divided by this.", "number"],
   ["payout_share", "Share of the add-on price paid out", "Priced yearly chance = this / ((1 + GST) x the multiple above).", "percent"],
   ["no_sale_months", "Months it cannot be added", "Month numbers, 1 to 12, separated by commas.", "number-list"],

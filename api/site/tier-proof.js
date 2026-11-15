@@ -26,6 +26,14 @@ function tierDays(tier) {
   return tier.max_paid_days_per_year ?? Math.round(tier.max_payout_per_year_sgd / tier.daily_payout_sgd);
 }
 
+/* A full bad day's payout against a day's rent: "85% of a day's rent" below it, "1.2 times a
+   day's rent" or "46 times a day's rent" above it, where 4625% would be hard to read. */
+function rentShare(dailyPayout, rentPerDay) {
+  const ratio = dailyPayout / rentPerDay;
+  if (ratio < 1.05) return `${Math.round(ratio * 100)}% of a day's rent`;
+  return `${ratio < 10 ? Math.round(ratio * 10) / 10 : Math.round(ratio)} times a day's rent`;
+}
+
 /* "S$1.30 a day", or "" when the quote has no daily price. */
 function dayPrice(tier) {
   return tier?.price_per_day_sgd == null ? "" : `${proofMoney(tier.price_per_day_sgd)} a day`;
@@ -51,7 +59,7 @@ function monthlyPrice(tier) {
   return Math.round((tier.yearly_premium_sgd / MONTHS_PER_YEAR) * 100) / 100;
 }
 
-/* "A day with no sales (100% lost): we pay S$40. (on a partly bad day we pay that share: S$9.60
+/* "A day with no sales (100% lost): we pay S$195. (on a partly bad day we pay that share: S$46.80
    on a 24% haze day)". `example` is the server's assessment of the first haze band for this tier
    (partialExamples), or null for the generic share. */
 function fullLossLine(tier, example) {
@@ -62,12 +70,12 @@ function fullLossLine(tier, example) {
   return `A day with no sales (100% lost): we pay ${daily}. (on a partly bad day we pay ${partly})`;
 }
 
-/* "Lockdown or closure order: we pay S$40 for every day it lasts, up to 35 days a year (S$1,400)." */
+/* "Lockdown or closure order: we pay S$195 for every day it lasts, up to 45 days a year (S$8,775)." */
 function lockdownLine(tier) {
   return `Lockdown or closure order: we pay ${proofMoney(tier.daily_payout_sgd)} for every day it lasts, up to ${tierDays(tier)} days a year (${proofMoney(tier.max_payout_per_year_sgd)}).`;
 }
 
-/* "In a 40-day lockdown: S$1,400 (35 days)." */
+/* "In a 40-day lockdown: S$7,800 (40 days)." */
 function lockdownExample(tier) {
   const days = Math.min(LOCKDOWN_EXAMPLE_DAYS, tierDays(tier));
   return `In a ${LOCKDOWN_EXAMPLE_DAYS}-day lockdown: ${proofMoney(days * tier.daily_payout_sgd)} (${days} days).`;
