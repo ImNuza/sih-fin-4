@@ -53,7 +53,9 @@ BASELINES = ("climatology", "persistence")
 # today's data: ERA5 arrives about five days late, so next-day weather models cannot.
 JOB_ROLES = {
     "heat_h0": ("Heat rebuild", "Fills heat for 1980 to 2024, so heat payouts have 46 years of "
-                "history instead of 2.", "In use: every replay and back-test before 2025."),
+                "history instead of 2.", "In use before 2025, after matching its share of hot "
+                "days to the measured 2025-2026 readings (9.0 rebuilt against 9.0 measured hot "
+                "days in 2025): the raw scores here are before that matching."),
     "rain_h0": ("Rain rebuild", "Fills the wettest rain hour for 1980 to 2013 from each gauge's "
                 "daily total.", "In use: every replay and back-test before 2014."),
     "haze_h1": ("Haze tomorrow", "Forecasts tomorrow's PSI for warnings and cash planning.",
