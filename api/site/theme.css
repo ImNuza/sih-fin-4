@@ -1,21 +1,32 @@
 /* SafeDay shared theme: one palette, type scale and spacing scale for the landing, login,
    buy flow, dashboards, risk map and tariff desk. Served at /theme.css; every page links it first.
-   The prototype is designed to sit inside Income's SmartBiz 360, so it takes the same colour
-   family: neutral greys, Ubuntu type, and orange kept for actions (buttons, the selected step).
-   Hazards keep their own colours, and heat is red so it never reads as an action. No Income
-   logo, wordmark or imagery is used. */
-@import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap");
+   SafeDay is pitched as an add-on inside Income Insurance's SmartBiz 360, so the values below come
+   from Income's own design tokens in https://www.income.com.sg/assets/css/main.css, the stylesheet
+   that both https://www.income.com.sg and
+   https://www.income.com.sg/commercial-insurance/smartbiz-360 load (read 15 Nov 2026):
+   - neutrals: --color-neutral-100 #f7f7f7 to -900 #262727 and -black #121212
+   - brand orange: --color-orange-500 #f57100, -700 #b35300, -100 #fff2e8, -900 #35210f
+   - status: --color-green-500/-700/-100/-900, --color-red-300/-600/-100/-900, --color-yellow-400
+   - type: Ubuntu, body 16px, small 14px, section 24px, title 36px, display 56px
+   - shape: --rounded-sm 8px, --page-corner-radius 16px, --rounded-lg 24px, pill buttons, and
+     --box-shadow-1 for raised cards
+   Income buttons are white on #f57100, which is 2.9:1. Light mode uses orange-700 so button text
+   and orange labels pass 4.5:1 on a projector. Income has no dark theme, so dark mode uses its
+   darkest neutrals with the full brand orange. Ubuntu is used only when installed: the hosted copy
+   loads no web fonts. Hazards keep their own colours, and heat is red so it never reads as an
+   action. No Income logo, wordmark or imagery is used. Amber warning and burnt-orange serious are
+   our own: Income's yellow and orange tokens fail 4.5:1 as text on white. */
 :root {
   --sans: "Ubuntu", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --t-sm: 13px;
-  --t-base: 15px;
-  --t-md: 17px;
+  --t-sm: 14px;
+  --t-base: 16px;
+  --t-md: 18px;
   --t-lg: 20px;
-  --t-xl: 26px;
-  --t-2xl: 34px;
-  --t-display: clamp(34px, 4.6vw, 54px);
+  --t-xl: 24px;
+  --t-2xl: 36px;
+  --t-display: clamp(36px, 4.6vw, 56px);
 
   --s-1: 4px;
   --s-2: 8px;
@@ -25,9 +36,9 @@
   --s-6: 32px;
   --s-7: 48px;
 
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 14px;
+  --r-sm: 8px;
+  --r-md: 16px;
+  --r-lg: 24px;
   --r-pill: 999px;
 
   --heat: #d23a3a;
@@ -38,41 +49,41 @@
 
   --bg: #f7f7f7;
   --surface: #ffffff;
-  --surface-2: #efefef;
+  --surface-2: #e0e0e0;
   --ink: #262727;
-  --ink-2: #4a4a4a;
-  --muted: #666869;
+  --ink-2: #494b4c;
+  --muted: #5b5d5e;
   --line: #d4d4d4;
-  --accent: #f57100;
+  --accent: #b35300;
   --accent-ink: #ffffff;
   --accent-soft: #fff2e8;
-  --good: #17803d;
+  --good: #0b5234;
   --warning: #8a6100;
   --serious: #b4481f;
-  --critical: #b3261e;
-  --good-soft: #dcefe2;
-  --critical-soft: #f7e1df;
-  --shadow: 0 1px 2px rgba(38, 39, 39, 0.08), 0 12px 32px rgba(38, 39, 39, 0.1);
+  --critical: #ab2c23;
+  --good-soft: #effaf5;
+  --critical-soft: #ffe9e7;
+  --shadow: 0 4px 40px 8px rgba(0, 0, 0, 0.1);
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #141515;
-  --surface: #1e1f20;
-  --surface-2: #2a2c2d;
-  --ink: #f4f4f4;
-  --ink-2: #d0d0d0;
-  --muted: #a0a2a3;
-  --line: #3a3c3e;
-  --accent: #ff8a2a;
-  --accent-ink: #1a1a1a;
-  --accent-soft: #3a2614;
-  --good: #35b866;
-  --warning: #f0b429;
+  --bg: #121212;
+  --surface: #262727;
+  --surface-2: #373939;
+  --ink: #f7f7f7;
+  --ink-2: #e0e0e0;
+  --muted: #b8b8b8;
+  --line: #494b4c;
+  --accent: #f57100;
+  --accent-ink: #121212;
+  --accent-soft: #35210f;
+  --good: #4bce97;
+  --warning: #edc536;
   --serious: #f08a5d;
-  --critical: #ef6b62;
-  --good-soft: #153324;
-  --critical-soft: #3a1f1f;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+  --critical: #e48780;
+  --good-soft: #151e1a;
+  --critical-soft: #241615;
+  --shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
 
