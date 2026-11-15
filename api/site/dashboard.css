@@ -114,8 +114,10 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
 .cancel-row .row-actions { margin-top: var(--s-2); }
 #cover-card .tiers-row { margin-top: 0; }
 #cover-card .tier-card .t { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
-#cover-card .tier-card[aria-busy="true"] { opacity: 0.6; }
-#cover-card .tier-card:disabled { cursor: progress; }
+/* Prices only: the customer's adviser or association starts the cover, so the cards do not click. */
+#cover-card .tier-card { cursor: default; }
+#cover-card .tier-card:active { transform: none; }
+@media (hover: hover) and (pointer: fine) { #cover-card .tier-card:not(.rec):hover { border-color: var(--line-strong); } }
 
 /* SME map preview: a live thumbnail that opens the atlas in a new tab */
 .mappreview {

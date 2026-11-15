@@ -17,7 +17,7 @@ from sqlalchemy import select, update
 from api import forecast_warning, live, sms
 from api.accounts import application_profile, policies
 from api.main import app
-from tests.test_api import buy_body
+from tests.test_api import SELLER, buy_body
 from tests.test_payout_api import (
     LONG_AGO,
     register,
@@ -276,7 +276,7 @@ def test_the_demo_warning_refuses_a_hazard_with_no_forecast(client):
 
 def test_the_demo_warning_needs_a_mobile(client):
     register(client, "sme", "tan@example.com")
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 200
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 200
     user_id = policyholder_id(client)
     response = client.post(
         "/api/insurer/demo-forecast-warnings", json={"user_id": user_id, "hazards": ["rain"]}

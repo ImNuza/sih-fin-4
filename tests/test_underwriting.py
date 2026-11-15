@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.main import SINGAPORE, app
-from tests.test_api import ADMIN, buy_body, shop_body
+from tests.test_api import ADMIN, SELLER, buy_body, shop_body
 
 QUEUE = "/api/insurer/applications"
 REFERRED = {"declined_before": True, "declined_details": "AIG declined in 2024", "payment_method": None}
@@ -100,7 +100,7 @@ def test_a_declined_owner_cannot_start_cover_later(client):
     client.post("/api/auth/logout")
     owner = {"email": buy_body()["email"], "password": buy_body()["password"]}
     client.post("/api/auth/login", json=owner)
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 409
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 409
 
 
 def test_an_application_is_decided_only_once(client):
