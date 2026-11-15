@@ -308,6 +308,8 @@ table.tiers tr.rec td:first-child { box-shadow: inset 4px 0 0 var(--good); }
 }
 .ccard .chead .tag { border: 1px solid var(--line); border-radius: 5px; padding: 1px 7px; color: var(--ink-2); }
 .ccard.active .chead .tag { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+/* The header is narrow, so it keeps only the day colour's dot; the body shows the label. */
+.ccard .chead .day-chip { padding: 0; border: 0; font-size: 0; }
 .ccard .chead .tgl { margin-left: auto; color: var(--muted); padding-left: var(--s-1); }
 .ccard .chead .x { color: var(--muted); padding: 2px 2px 2px var(--s-2); border-left: 1px solid var(--line); }
 .ccard .chead .x:hover { color: var(--critical); }

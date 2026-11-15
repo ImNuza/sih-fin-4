@@ -19,6 +19,15 @@ CODE_DIGITS = 6
 CODE_LIFETIME = timedelta(minutes=10)
 MAX_CODE_ATTEMPTS = 5
 LANGUAGES = ("en", "zh", "ms", "ta")
+# The day colour bands set by the team on 15 Nov 2026, the same as api/site/day-colour.js.
+DAY_COLOUR_FROM_PERCENT = (("red", 70), ("yellow", 30), ("green", 0))
+
+DAY_NAMES = {
+    "en": {"green": "Green day", "yellow": "Yellow day", "red": "Red day"},
+    "zh": {"green": "绿色日", "yellow": "黄色日", "red": "红色日"},
+    "ms": {"green": "Hari hijau", "yellow": "Hari kuning", "red": "Hari merah"},
+    "ta": {"green": "பச்சை நாள்", "yellow": "மஞ்சள் நாள்", "red": "சிவப்பு நாள்"},
+}
 
 HAZARD_NAMES = {
     "en": {"rain": "heavy rain", "haze": "haze", "heat": "extreme heat", "flood": "flooding",
@@ -32,14 +41,14 @@ HAZARD_NAMES = {
 
 TEMPLATES = {
     "payout_paid": {
-        "en": "SafeDay: S${amount} sent to PayNow {proxy} for {hazard} at {centre} on {day}. "
-        "Ref {ref}. No claim needed.",
-        "zh": "SafeDay：因{day}{centre}{hazard}，S${amount}已转入您的PayNow {proxy}。"
-        "编号{ref}。无需索赔。",
-        "ms": "SafeDay: S${amount} dihantar ke PayNow {proxy} kerana {hazard} di {centre} pada "
-        "{day}. Ruj {ref}. Tiada tuntutan diperlukan.",
-        "ta": "SafeDay: {day} {centre} {hazard} காரணமாக S${amount} உங்கள் PayNow {proxy} "
-        "க்கு அனுப்பப்பட்டது. குறிப்பு {ref}.",
+        "en": "SafeDay: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
+        "{hazard} at {centre} on {day}. Ref {ref}. No claim needed.",
+        "zh": "SafeDay：{day_colour}，损失{loss}%。因{day}{centre}{hazard}，S${amount}已转入您的"
+        "PayNow {proxy}。编号{ref}。无需索赔。",
+        "ms": "SafeDay: {day_colour}, kerugian {loss}%. S${amount} dihantar ke PayNow {proxy} "
+        "kerana {hazard} di {centre} pada {day}. Ruj {ref}. Tiada tuntutan diperlukan.",
+        "ta": "SafeDay: {day_colour}, இழப்பு {loss}%. {day} {centre} {hazard} காரணமாக "
+        "S${amount} உங்கள் PayNow {proxy} க்கு அனுப்பப்பட்டது. குறிப்பு {ref}.",
     },
     "payout_failed": {
         "en": "SafeDay: we could not send S${amount} for {day} to PayNow {proxy}. Update your "
@@ -67,6 +76,17 @@ TEMPLATES = {
         "ta": "SafeDay குறியீடு: {code}. 10 நிமிடங்களில் காலாவதியாகும். பகிர வேண்டாம்.",
     },
 }
+
+
+def day_colour(loss_percent: float) -> str:
+    """'none' for a day with no loss, else 'green', 'yellow' or 'red'. A green day still pays."""
+    if loss_percent <= 0:
+        return "none"
+    return next(colour for colour, start in DAY_COLOUR_FROM_PERCENT if loss_percent >= start)
+
+
+def day_name(language: str, loss_percent: float) -> str:
+    return DAY_NAMES[language][day_colour(loss_percent)]
 
 
 def payout_text(kind: str, language: str, hazard: str, **fields: str) -> str:

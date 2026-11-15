@@ -59,7 +59,7 @@ function payoutRows(payouts, forInsurer) {
     ${payouts.map((p) => `<tr>
       ${forInsurer ? `<td>${esc(p.business_name)}</td><td>${esc(p.centre || p.region)}</td>` : ""}
       <td class="num">${dayLabel(p.loss_date)}</td><td>${esc(p.main_hazard)}</td>
-      <td class="num">${p.loss_percent.toFixed(0)}%</td>
+      <td class="num">${p.loss_percent.toFixed(0)}% ${dayChip(p.loss_percent)}</td>
       <td class="num">${SGD(p.amount_sgd)}${p.amount_sgd < p.assessed_sgd ? ` <small title="Yearly cap">of ${SGD(p.assessed_sgd)}</small>` : ""}</td>
       <td>${statusPill(p.status)}${p.failure_reason ? `<div class="fine">${esc(p.failure_reason)}</div>` : ""}</td>
       <td class="num">${p.reference}</td>

@@ -227,7 +227,7 @@ async function renderSme(user) {
       ? mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")
       : mapPreview({ view: "owner", camera: "city" }, `The ${user.region} region on the risk atlas`)}
     <div class="kpis">
-      ${kpi("Today's loss score", todays ? `${todays.loss_percent.toFixed(0)}%` : "–", status.text)}
+      ${kpi("Today's loss score", todays ? `${todays.loss_percent.toFixed(0)}% ${dayChip(todays.loss_percent)}` : "–", status.text)}
       ${inWaitingPeriod
         ? kpi("Payout due today", "None yet", `In the ${WAITING_PERIOD_DAYS}-day waiting period until ${SG_DATE(waitingEnds)}`)
         : kpi("Payout due today", policy ? (payoutToday != null ? SGD(payoutToday) : "–") : "no cover yet", policy ? `at ${policy.tier_label}` : underReview ? "after the underwriter replies" : declined ? "the underwriter declined cover" : "pick a tier below")}
@@ -439,7 +439,7 @@ async function renderInsurer(user) {
       ${kpi("Policies in force", portfolio.policies, "sold on this platform")}
       ${kpi("Premium booked", SGD(portfolio.annual_premium_sgd) + "/yr", SGD(portfolio.weekly_premium_sgd) + "/wk")}
       ${kpi("Payout exposure", SGD(portfolio.daily_payout_exposure_sgd) + "/day", "if every policy pays in full")}
-      ${kpi("Worst live loss now", maxLoss != null ? maxLoss.toFixed(0) + "%" : "–", status.text)}
+      ${kpi("Worst live loss now", maxLoss != null ? `${maxLoss.toFixed(0)}% ${dayChip(maxLoss)}` : "–", status.text)}
       ${kpi("Market potential", stalls.toLocaleString("en-SG") + " stalls", SGD(marketPool) + "/yr pool at Tier 2")}
     </div>
     <div class="tools">

@@ -85,6 +85,8 @@ def text(db: Connection, payout, account, kind: str) -> None:
         kind,
         account.sms_language,
         payout.main_hazard,
+        day_colour=sms.day_name(account.sms_language, payout.loss_percent),
+        loss=f"{payout.loss_percent:.0f}",
         amount=f"{payout.amount_cents / 100:.2f}",
         proxy=paynow.mask(account.paynow_proxy_type, account.paynow_proxy),
         centre=payout.centre or payout.region,

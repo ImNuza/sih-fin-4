@@ -115,6 +115,7 @@ def test_closure_day_pays_by_paynow_and_texts_the_stallholder(client):
     assert f"S${payout['amount_sgd']:.2f}" in text["body"]
     assert payout["reference"] in text["body"]
     assert "+65 ****4567" in text["body"]
+    assert "Red day, 100% loss" in text["body"]
 
 
 def test_payout_history_is_kept_in_order(client):

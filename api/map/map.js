@@ -11,11 +11,12 @@ function themeRgb(name) {
   return [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
 }
 const COLORS = {
-  ...Object.fromEntries(["heat", "rain", "haze", "flood", "good", "warning", "serious", "ink", "muted"]
+  ...Object.fromEntries(["heat", "rain", "haze", "flood", "good", "warning", "serious", "critical", "ink", "muted"]
     .map((name) => [name, themeRgb(name)])),
-  lossLow: [82, 81, 78], lossHigh: [230, 103, 103],
   rentLow: [96, 110, 128], rentHigh: [244, 196, 78], rentNone: [70, 74, 80],
 };
+// Pins on a live or simulated day take the colour of the day's label from /day-colour.js.
+const PIN_BY_DAY = { none: "muted", green: "good", yellow: "warning", red: "critical" };
 const CSS_BY_HAZARD = { haze: "var(--haze)", rain: "var(--rain)", heat: "var(--heat)", flood: "var(--flood)", closure: "var(--closure)" };
 const AFFORDABLE_WEEKLY_SGD = 3;   // the brief's "a few dollars a week"
 const COPAY_WEEKLY_SGD = 6;        // above this even a co-payer is a stretch
@@ -205,8 +206,8 @@ function smeColor(centre, index) {
   if (state.mode === "sim" && state.circles.length && !circlesAt(centre).length) return [70, 74, 80, 150];
   if (state.smeByRent && state.mode === "history") return rentColor(centre);
   if (state.mode !== "history") {
-    const t = Math.min(1, currentLossFraction(index));
-    return [0, 1, 2].map((i) => COLORS.lossLow[i] + (COLORS.lossHigh[i] - COLORS.lossLow[i]) * t).concat(235);
+    const day = dayColour(currentLossFraction(index) * 100);
+    return COLORS[PIN_BY_DAY[day.key]].concat(235);
   }
   return COLORS[verdict(regionQuote(centre.region)).cls].concat(235);
 }
@@ -328,7 +329,7 @@ function tooltip({ object, layer, index }) {
   if (layer.id === "sme") {
     const quote = regionQuote(object.region), tier = recommendedTier(quote);
     const live = state.mode !== "history"
-      ? ` · today's loss ${(currentLossFraction(index) * 100).toFixed(0)}%` : "";
+      ? ` · today's loss ${(currentLossFraction(index) * 100).toFixed(0)}% ${dayChip(currentLossFraction(index) * 100)}` : "";
     const rent = rentOf(object);
     const rentLine = rent ? `<div class="m">${rentChip(rent)}</div>` : "";
     return { html: `<b>${object.name}</b><div class="m">${object.food_stalls} food stalls · ${object.region} region · ${SGD(tier.weekly_premium_sgd)}/wk at ${tier.label}${live}</div>${rentLine}` };
@@ -381,7 +382,7 @@ function renderScenario() {
     <p class="cap">Circle ${circle.id} · ${t.centres} centres · ${t.stalls.toLocaleString("en-SG")} stalls</p>
     <div class="kv"><span class="k">Priced as</span><span class="v">${productLabel(circle.product)}</span></div>
     ${empty}
-    <div class="kv"><span class="k">Loss score on this day</span><span class="v">${scn.assessment.loss_percent.toFixed(0)}%</span></div>
+    <div class="kv"><span class="k">Loss score on this day</span><span class="v">${scn.assessment.loss_percent.toFixed(0)}% ${dayChip(scn.assessment.loss_percent)}</span></div>
     <div class="kv"><span class="k">Payout per stall (${state.tier.replace("_", " ")})</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
     <div class="kv"><span class="k">Payout, whole circle</span><span class="v">${SGD(t.payout_today_sgd)}</span></div>
     <div class="kv"><span class="k">Weekly premium pool</span>
@@ -539,11 +540,13 @@ function floatCardHtml(circle) {
   const scn = circle.scn, active = circle.id === state.activeId;
   const head = `<div class="chead"><span class="tag" data-act="toggle">C${circle.id}</span>
     <span class="pay" data-act="toggle">${scn.assessment.loss_percent.toFixed(0)}% · ${SGD0(scn.totals.payout_today_sgd)}/day</span>
+    ${dayChip(scn.assessment.loss_percent)}
     <span class="tgl" data-act="toggle">${circle.expanded ? "▾" : "▸"}</span>
     <span class="x" data-act="remove" title="Remove this circle">✕</span></div>`;
   const body = circle.expanded ? `<div class="cbody" data-act="edit">
     ${circle.place ? `<p class="where">${circle.place}</p>` : ""}
     <div class="kv"><span class="k" style="white-space:nowrap">Priced as</span><span class="v">${productLabel(circle.product)}</span></div>
+    <div class="kv"><span class="k">Loss score today</span><span class="v">${scn.assessment.loss_percent.toFixed(0)}% ${dayChip(scn.assessment.loss_percent)}</span></div>
     <div class="kv"><span class="k">Payout per stall today</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
     <div class="kv"><span class="k">Centres hit · stalls covered</span><span class="v">${scn.totals.centres} · ${scn.totals.stalls.toLocaleString("en-SG")}</span></div>
     <div class="kv"><span class="k">Weekly premium, now → if more common</span><span class="v">${SGD(scn.totals.weekly_premium_baseline_sgd)} → <span class="delta-up">${SGD(scn.totals.weekly_premium_stressed_sgd)}</span></span></div>
@@ -668,7 +671,7 @@ function dayDetail(index, tier) {
   return `<div class="sec"><p class="cap">${label}${best ? ` · circle ${best.id}` : ""}</p>
     <div class="kv"><span class="k">Readings here (PSI / mm / h ≥32)</span><span class="v">${Math.round(readings.haze)} / ${Math.round(readings.rain)} / ${readings.heat}</span></div>
     ${best ? `<div class="kv"><span class="k">Priced as</span><span class="v">${productLabel(best.product)}</span></div>` : ""}
-    <div class="kv"><span class="k">Loss score (share of a normal day's sales)</span><span class="v">${(loss * 100).toFixed(0)}%</span></div>
+    <div class="kv"><span class="k">Loss score (share of a normal day's sales)</span><span class="v">${(loss * 100).toFixed(0)}% ${dayChip(loss * 100)}</span></div>
     <div class="kv"><span class="k">Payout per stall at ${paid.tier}</span><span class="v" id="day-payout">${SGD(paid.perStall)}</span></div>
     <div class="kv"><span class="k">Whole centre (${centre.food_stalls} stalls)</span><span class="v">${SGD0(paid.perStall * centre.food_stalls)}</span></div>
     ${stressed ? `<div class="kv"><span class="k">Weekly premium if this grows ${state.extraDays} d/yr more frequent</span>

@@ -881,7 +881,7 @@ function renderAssessment(assessments) {
     .join("");
   $("assessment").innerHTML = `
     <div class="day-loss"><strong>${day.loss_percent}%</strong>
-      <span>of a normal day's sales lost</span></div>
+      <span>of a normal day's sales lost</span> ${dayChip(day.loss_percent)}</div>
     <ul class="breakdown">${causes}</ul>
     <h3>Payout for this day</h3>
     <ul class="payouts">${payouts}</ul>`;

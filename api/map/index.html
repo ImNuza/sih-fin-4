@@ -4,10 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SafeDay risk atlas</title>
-    <link rel="stylesheet" href="/theme.css?v=3" />
-    <link rel="stylesheet" href="map.css?v=20" />
+    <link rel="stylesheet" href="/theme.css?v=4" />
+    <link rel="stylesheet" href="map.css?v=21" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="map.js?v=21" defer></script>
+    <script src="/day-colour.js?v=2" defer></script>
+    <script src="map.js?v=23" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
@@ -35,7 +36,7 @@
       <p class="group">Exposure</p>
       <label><input type="checkbox" id="ly-sme" checked /><i class="sw" style="background:var(--ink)"></i>
         <span id="sme-label">SMEs · hawker centres</span></label>
-      <p class="note" id="sme-note">Each dot is one hawker centre; a bigger dot has more food stalls. Colour is the pricing result: green covers cheaply, amber needs a co-payer, orange needs an underwriter. In Simulate and Live, grey to red shows the day's loss instead.</p>
+      <p class="note" id="sme-note">Each dot is one hawker centre; a bigger dot has more food stalls. Colour is the pricing result: green covers cheaply, amber needs a co-payer, orange needs an underwriter. In Simulate and Live, the dot shows the day's loss instead: green under 30%, yellow 30% to under 70%, red 70% and above, grey for no payout. Every green, yellow or red day pays.</p>
       <label class="sub"><input type="checkbox" id="sme-by-rent" /><i class="sw" style="background:linear-gradient(90deg,#606e80,#f4c44e)"></i>
         <span>Colour by stall rent class</span></label>
       <p class="note" id="rent-note" hidden>Slate to gold: lower to higher median winning NEA bid for a cooked-food stall (Jan 2019 to Jul 2026). Dark grey: no bid on record. Applies in History mode.</p>

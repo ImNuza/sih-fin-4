@@ -101,3 +101,27 @@ input, select, textarea, button { font: inherit; color: inherit; }
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
+
+/* Day colour label from /day-colour.js: green, yellow and red days pay; grey means no loss. */
+.day-chip {
+  display: inline-block;
+  padding: 1px var(--s-2);
+  border: 1px solid currentColor;
+  border-radius: var(--r-pill);
+  font: 600 var(--t-sm)/1.4 var(--sans);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.day-chip::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--s-1);
+  border-radius: 50%;
+  background: currentColor;
+}
+.day-none { color: var(--muted); }
+.day-green { color: var(--good); }
+.day-yellow { color: var(--warning); }
+.day-red { color: var(--critical); }
