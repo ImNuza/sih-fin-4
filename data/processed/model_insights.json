@@ -90,7 +90,7 @@
    "name": "Rain rebuild",
    "target": "the reading",
    "purpose": "Fills the wettest rain hour for 1980 to 2013 from each gauge's daily total.",
-   "use": "In use: every replay and back-test before 2014.",
+   "use": "In use before 2014, matched to the wettest work hour NEA gauges measured from 2017.",
    "model": "lightgbm",
    "score_name": "rmse",
    "higher_is_better": false,
@@ -111,7 +111,7 @@
    "name": "Rain rebuild",
    "target": "a payout day or not",
    "purpose": "Fills the wettest rain hour for 1980 to 2013 from each gauge's daily total.",
-   "use": "In use: every replay and back-test before 2014.",
+   "use": "In use before 2014, matched to the wettest work hour NEA gauges measured from 2017.",
    "model": "xgboost",
    "score_name": "average_precision",
    "higher_is_better": true,
@@ -284,6 +284,14 @@
   "trigger_psi": 101.0,
   "next_day_bad_share": 0.762,
   "el_nino_years": [
+   1982,
+   1987,
+   1997,
+   2015,
+   2023,
+   2026
+  ],
+  "haze_el_nino_years": [
    2015,
    2023,
    2026

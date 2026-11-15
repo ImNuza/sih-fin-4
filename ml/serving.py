@@ -5,7 +5,9 @@ The API image has numpy but no pandas or ML libraries, so the models run here, o
                          since 1980, from ERA5 (real WBGT only exists from 2025), then
                          quantile-mapped to the measured 2025-2026 hours (see quantile_mapped)
     rain_h0_regression   rebuilds the wettest hour at each MSS gauge before 2014 from the
-                         gauge's daily total and ERA5 (MSS has only daily totals before 2014)
+                         gauge's daily total and ERA5 (MSS has only daily totals before 2014);
+                         MSS and rebuilt values are then matched to the wettest work hour that
+                         NEA gauges measure from December 2016, which is what the tariff reads
 Measured readings always win: a day uses the rebuilt value only when no station measured it.
 The API turns these readings into money with the live tariff (api/model_history.py), so a
 tariff change reprices every year without rerunning this script.
@@ -33,6 +35,7 @@ from ml import data
 from ml.config import PROC_DIR, RECONSTRUCTION, REPO_ROOT
 from ml.features import add_weather_calendar_place, trigger_level
 from ml.models import predict
+from hazard_stats import load_rain
 
 RESULTS_DIR = REPO_ROOT / "ml" / "results"
 HISTORY_OUT = PROC_DIR / "model_history.npz"
@@ -40,10 +43,15 @@ INSIGHTS_OUT = PROC_DIR / "model_insights.json"
 MAP_STATIC_PATH = PROC_DIR / "map_static.json"
 FIRST_DAY = "1980-01-01"
 CENTRES_PER_BATCH = 10
-NONE, MEASURED, REBUILT = 0, 1, 2
+# Where a day's reading came from: nothing, measured as the tariff defines it, rebuilt by a
+# model, or measured by MSS as the whole day's wettest hour and matched to work hours.
+NONE, MEASURED, REBUILT, MATCHED = 0, 1, 2, 3
+# A gauge that sent under half its 12 work hours did not report (as build_day_readings.py).
+MIN_WORK_HOURS_REPORTED = 6
 # El Nino is strong when the Aug-Oct ONI averages this or more (NOAA's moderate threshold).
 EL_NINO_ONI = 1.0
 FIRST_FULL_HAZE_YEAR = 2015
+FIRST_HISTORY_YEAR = 1980
 QUANTILE_STEPS = 1001
 # np.interp needs strictly rising levels; equal quantiles get this much apart.
 TIE_BREAK = 1e-9
@@ -57,7 +65,8 @@ JOB_ROLES = {
                 "days to the measured 2025-2026 readings (9.0 rebuilt against 9.0 measured hot "
                 "days in 2025): the raw scores here are before that matching."),
     "rain_h0": ("Rain rebuild", "Fills the wettest rain hour for 1980 to 2013 from each gauge's "
-                "daily total.", "In use: every replay and back-test before 2014."),
+                "daily total.", "In use before 2014, matched to the wettest work hour NEA "
+                "gauges measured from 2017."),
     "haze_h1": ("Haze tomorrow", "Forecasts tomorrow's PSI for warnings and cash planning.",
                 "Not used: it does not beat 'same as today'."),
     "haze_h7": ("Haze next week", "Forecasts PSI a week ahead.",
@@ -131,16 +140,51 @@ def station_matrix(
     )
 
 
+def nea_work_hour_rain() -> pd.DataFrame:
+    """The wettest work hour per NEA gauge and day, where the gauge reported enough hours."""
+    rain = load_rain()
+    work = rain[rain["work_hour"]]
+    by_day = work.groupby(["station_id", "day"])["rain_mm"].agg(["max", "size"]).reset_index()
+    by_day = by_day[by_day["size"] >= MIN_WORK_HOURS_REPORTED]
+    by_day = by_day.rename(columns={"station_id": "unit", "max": "rain"})
+    locations = data.rain_station_locations().rename(columns={"station_id": "unit"})
+    return by_day.merge(locations, on="unit")[["unit", "day", "rain", "latitude", "longitude"]]
+
+
 def rain_history(centres: pd.DataFrame, days: pd.DatetimeIndex) -> tuple[np.ndarray, np.ndarray]:
+    """Rain as the tariff reads it: the wettest work hour at the nearest gauge.
+
+    NEA gauges give that directly from December 2016. MSS publishes the wettest 60 minutes of
+    the whole day (from 2014) and the rain model rebuilds it before that. Both are mapped to
+    the work-hour distribution on the station-days where both exist, so a day before 2017 pays
+    as often as one after.
+    """
+    nea = nea_work_hour_rain()
+    nea["source"] = MEASURED
     gauges = data.mss_station_days().dropna(subset=["rain_daily_mm"])
     gauges = gauges.rename(columns={"station_id": "unit"}).reset_index(drop=True)
     add_weather_calendar_place(gauges, RECONSTRUCTION)
     rebuilt = predict_saved(load_model(f"rain_h{RECONSTRUCTION}_regression"), gauges)
-    measured = gauges["rain_max_60min_mm"].notna()
-    gauges["rain"] = np.where(measured, gauges["rain_max_60min_mm"], rebuilt)
-    gauges["rain_source"] = np.where(measured, MEASURED, REBUILT)
-    stations, values, sources = station_matrix(gauges, "rain", "rain_source", days)
-    return nearest_reported(values, sources, distance_order(centres, stations))
+    published = gauges["rain_max_60min_mm"].notna()
+    whole_day = np.where(published, gauges["rain_max_60min_mm"], rebuilt)
+    overlap = gauges[["unit", "day"]].assign(whole_day=whole_day).merge(
+        nea[["unit", "day", "rain"]], on=["unit", "day"]
+    )
+    gauges["rain"] = quantile_mapped(
+        whole_day, overlap["whole_day"].to_numpy(), overlap["rain"].to_numpy()
+    )
+    gauges["source"] = np.where(published, MATCHED, REBUILT)
+    print(f"  rain: {len(overlap):,} station-days to match MSS whole-day rain to work hours")
+
+    stations, values, sources = station_matrix(nea, "rain", "source", days)
+    measured, measured_source = nearest_reported(
+        values, sources, distance_order(centres, stations)
+    )
+    stations, values, sources = station_matrix(gauges, "rain", "source", days)
+    filled, filled_source = nearest_reported(values, sources, distance_order(centres, stations))
+    use_measured = ~np.isnan(measured)
+    rain = np.where(use_measured, measured, filled).astype(np.float32)
+    return rain, np.where(use_measured, measured_source, filled_source).astype(np.int8)
 
 
 def heat_history(centres: pd.DataFrame, days: pd.DatetimeIndex) -> tuple[np.ndarray, np.ndarray]:
@@ -247,14 +291,16 @@ def haze_facts() -> dict:
     latest = all_indices.iloc[-1]
     indices = all_indices[all_indices["month"].dt.month.isin([8, 9, 10])]
     oni = indices.groupby(indices["month"].dt.year)["oni"].mean()
+    el_nino_years = [int(y) for y in oni.index if y >= FIRST_HISTORY_YEAR and oni[y] >= EL_NINO_ONI]
     # 2014 starts in April. 2026 runs to November, past its haze season, so it counts.
     full_years = region_days.loc[FIRST_FULL_HAZE_YEAR:]
-    el_nino = full_years[oni.reindex(full_years.index) >= EL_NINO_ONI]
-    other = full_years[oni.reindex(full_years.index) < EL_NINO_ONI]
+    el_nino = full_years[full_years.index.isin(el_nino_years)]
+    other = full_years[~full_years.index.isin(el_nino_years)]
     return {
         "trigger_psi": level,
         "next_day_bad_share": round(float(bad_days["bad_next"].mean()), 3),
-        "el_nino_years": [int(y) for y in el_nino.index],
+        "el_nino_years": el_nino_years,
+        "haze_el_nino_years": [int(y) for y in el_nino.index],
         "haze_days_el_nino": round(float(el_nino.mean()), 1),
         "haze_days_other": round(float(other.mean()), 1),
         "latest_oni": round(float(latest["oni"]), 2),
@@ -296,7 +342,8 @@ def main() -> None:
     INSIGHTS_OUT.write_text(json.dumps(insights(last_day), indent=1))
     for name, source in (("haze", haze_source), ("rain", rain_source), ("heat", heat_source)):
         shares = {label: round(float(np.mean(source == code)), 3)
-                  for label, code in (("none", NONE), ("measured", MEASURED), ("rebuilt", REBUILT))}
+                  for label, code in (("none", NONE), ("measured", MEASURED),
+                                      ("rebuilt", REBUILT), ("matched", MATCHED))}
         print(f"  {name}: {shares}")
     print(f"Wrote {HISTORY_OUT.name} ({HISTORY_OUT.stat().st_size / 1e6:.1f} MB) and "
           f"{INSIGHTS_OUT.name}")
