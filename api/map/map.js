@@ -31,6 +31,16 @@ const BAD_DAYS = [
   { key: "hot", hazard: "heat", label: "4 h at 32 °C", sim: { psi: 0, rain: 0, heat: 4, flood: false } },
 ];
 const PSI_BANDS = [[301, "Hazardous"], [201, "Very unhealthy"], [101, "Unhealthy"], [51, "Moderate"], [0, "Good"]];
+const HAZARD_ICON = { haze: "cloud-fog", rain: "cloud-rain", heat: "thermometer-sun", flood: "waves" };
+// Hawker centre dot colours: the pricing verdict in History, the day's loss label otherwise.
+const SME_LEGEND = {
+  history: [["good", "Offer"], ["warning", "Co-pay"], ["serious", "Refer"]],
+  day: [["good", "Under 30%"], ["warning", "Under 70%"], ["critical", "70% and up"], ["muted", "No payout"]],
+};
+// Inside a dashboard iframe, or on a small screen, the panels start folded so the map stays visible.
+const EMBEDDED = window.self !== window.top;
+const COMPACT_SCREEN = "(max-width: 720px), (max-height: 600px)";
+document.documentElement.classList.toggle("embedded", EMBEDDED);
 
 const state = {
   mode: "history",                 // history | sim | live
@@ -61,6 +71,7 @@ let lastView = null;               // the camera, kept across presets, orbit and
 const ONEMAP_TILES = "https://www.onemap.gov.sg/maps/tiles/Night/{z}/{x}/{y}.png";
 
 const el = (id) => document.getElementById(id);
+const icon = (name) => SafeUI.icon(name);
 const SGD = (v) => "S$" + (v >= 1000 ? Math.round(v).toLocaleString("en-SG") : v.toFixed(2));
 const SGD0 = (v) => "S$" + Math.round(v).toLocaleString("en-SG");
 const psiBand = (v) => PSI_BANDS.find(([from]) => v >= from)[1];
@@ -391,7 +402,7 @@ function renderScenario() {
     ${factors.map((h) => `<div class="factor"><span>${QUOTES.hazard_labels[h.hazard] || h.hazard}</span>
       <div class="bar"><div style="width:${h.loss_percent}%;background:${CSS_BY_HAZARD[h.hazard] || "var(--accent)"}"></div></div>
       <output>${h.loss_percent.toFixed(0)}%</output></div>`).join("")}
-    <p class="note">The "if more common" slider changes only the premium line above: it asks what the cover would cost if days like this hit ${state.extraDays} more times a year. The payout for the day never changes with it. Click a payout badge on the map to edit that circle.</p>`;
+    <p class="fine">The "if more common" slider moves only the premium line, never the day's payout. Click a circle's card on the map to edit it.</p>`;
 }
 function syncControls(circle) {
   state.sim = {
@@ -418,8 +429,8 @@ function selectCircle(id) {
   state.activeId = id;
   const circle = activeCircle();
   if (!circle) return;
-  circle.expanded = true;
-  el("sim").classList.remove("folded");
+  circle.expanded = !isCompact();
+  openPanel(el("sim"));
   el("radius-row").hidden = false; el("extradays-row").hidden = false;
   el("remove-circle").hidden = false; el("clear-all").hidden = state.circles.length < 2;
   syncControls(circle);
@@ -433,16 +444,16 @@ function startDrawing() {
   if (state.drawing) { stopDrawing(); return; }
   state.drawing = "center"; state.draft = null;
   deckgl.setProps({ controller: CONTROLLER_AIMING });
-  el("draw-circle").classList.add("on");
-  el("draw-circle").textContent = "✓ Done drawing";
+  el("draw-circle").setAttribute("aria-pressed", "true");
+  el("draw-circle").innerHTML = `${icon("check")}Done drawing`;
   circleHint("Press and drag outward for each circle, one after another. Done or Esc finishes, and panning comes back.");
   redraw();
 }
 function stopDrawing() {
   state.drawing = null; state.draft = null;
   deckgl.setProps({ controller: CONTROLLER_ON });
-  el("draw-circle").classList.remove("on");
-  el("draw-circle").textContent = "◯ Draw circles";
+  el("draw-circle").setAttribute("aria-pressed", "false");
+  el("draw-circle").innerHTML = `${icon("plus")}Draw circles`;
 }
 function newCircle(lat, lng, radiusKm) {
   return { id: state.nextId++, lat, lng, radiusKm, product: DEFAULT_PRODUCT, place: null,
@@ -450,7 +461,7 @@ function newCircle(lat, lng, radiusKm) {
 }
 function commitCircle(circle) {
   circle.radiusKm = Math.min(15, Math.max(0.2, circle.radiusKm));
-  circle.expanded = true;
+  circle.expanded = !isCompact();
   state.circles.push(circle);
   state.activeId = circle.id;
   if (state.drawing) state.drawing = "center";  // stay armed: drag the next circle straight away
@@ -521,10 +532,10 @@ function buildExtraHazardControls() {
   const plain = { closure: "A government order shuts businesses here for the day" };
   host.innerHTML = extras.map((h) => h.binary
     ? `<label class="floodrow"><input type="checkbox" data-extra="${h.key}" /> ${plain[h.key] || h.label}</label>`
-    : `<div class="slider"><i style="background:var(--accent)"></i>
+    : `<div class="slider">${icon("sliders-horizontal")}
         <label for="x-${h.key}">${h.label}</label>
         <input type="range" id="x-${h.key}" data-extra="${h.key}" min="0" max="${h.max}" step="1" value="0" />
-        <output id="xv-${h.key}">0</output></div>`).join("");
+        <output class="num" id="xv-${h.key}">0</output></div>`).join("");
   host.querySelectorAll("[data-extra]").forEach((input) =>
     input.addEventListener("input", () => {
       const value = input.type === "checkbox" ? (input.checked ? 1 : 0) : +input.value;
@@ -538,11 +549,13 @@ function buildExtraHazardControls() {
 /* ---------- floating circle records ---------- */
 function floatCardHtml(circle) {
   const scn = circle.scn, active = circle.id === state.activeId;
-  const head = `<div class="chead"><span class="tag" data-act="toggle">C${circle.id}</span>
-    <span class="pay" data-act="toggle">${scn.assessment.loss_percent.toFixed(0)}% · ${SGD0(scn.totals.payout_today_sgd)}/day</span>
-    ${dayChip(scn.assessment.loss_percent)}
-    <span class="tgl" data-act="toggle">${circle.expanded ? "▾" : "▸"}</span>
-    <span class="x" data-act="remove" title="Remove this circle">✕</span></div>`;
+  const head = `<div class="chead">
+    <button class="ctoggle" type="button" data-act="toggle" aria-expanded="${!!circle.expanded}">
+      <span class="tag">C${circle.id}</span>
+      <span class="pay">${scn.assessment.loss_percent.toFixed(0)}% · ${SGD0(scn.totals.payout_today_sgd)}/day</span>
+      ${dayChip(scn.assessment.loss_percent)}
+      <span class="tgl">${icon(circle.expanded ? "chevron-down" : "chevron-right")}</span></button>
+    <button class="x" type="button" data-act="remove" aria-label="Remove circle ${circle.id}">${icon("x")}</button></div>`;
   const body = circle.expanded ? `<div class="cbody" data-act="edit">
     ${circle.place ? `<p class="where">${circle.place}</p>` : ""}
     <div class="kv"><span class="k" style="white-space:nowrap">Priced as</span><span class="v">${productLabel(circle.product)}</span></div>
@@ -588,6 +601,8 @@ function positionFloats() {
   const layer = el("float-layer");
   if (!layer.hidden && deckgl) {
     const viewport = currentViewport();
+    // A card above a circle near the top edge stays below the top bar.
+    const topbarHeight = el("topbar").offsetHeight;
     for (const card of layer.children) {
       const circle = state.circles.find((c) => String(c.id) === card.dataset.id);
       if (!circle) continue;
@@ -595,7 +610,7 @@ function positionFloats() {
       const visible = x > -200 && x < window.innerWidth + 200 && yEdge > -100 && yEdge < window.innerHeight + 200;
       card.style.display = visible ? "" : "none";
       card.style.left = `${x}px`;
-      card.style.top = `${yEdge - 8}px`;
+      card.style.top = `${Math.max(yEdge - 8, topbarHeight + card.offsetHeight + 8)}px`;
     }
   }
   requestAnimationFrame(positionFloats);
@@ -605,7 +620,9 @@ function positionFloats() {
 function select(type, value) {
   if (state.drawing || (state.shopDraft && !state.shopDraft.place)) return;
   state.selected = { type, value };
+  setFolded(el("portfolio"), true);
   renderDetail();
+  openPanel(el("detail"));
 }
 function stackBar(parts) {
   const total = Object.values(parts).reduce((a, b) => a + b, 0) || 1;
@@ -714,9 +731,9 @@ function renderDetail() {
         <span class="chip ${basisFar ? "warning" : "good"}">trigger stations ${nearHeat.km.toFixed(1)} km (heat) · ${nearRain.km.toFixed(1)} km (rain)</span>
         ${rentOf(centre) ? `<span class="chip">${rentChip(rentOf(centre))}</span>` : ""}
       </div>
-      <div class="verdict"><div class="mark" style="background:var(--${v.cls})"></div>
-        <div><div class="t1">${v.word} · ${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week</div>
-        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. Paid on NEA readings, usually the same day. If readings stay below the trigger levels, nothing is paid.</div></div></div>
+      <div class="verdict"><span class="chip ${v.cls}">${v.word}</span>
+        <div class="t1">${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week</div>
+        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. Paid on NEA readings, usually the same day. If readings stay below the trigger levels, nothing is paid.</div></div>
       <div class="sec"><p class="cap">The policy in one SMS</p>
         <p class="sms">"SafeDay: we pay ${SGD0(rec.daily_payout_sgd)}/day (max ${SGD0(rec.max_payout_per_year_sgd)}/yr) when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${centre.name}. ${SGD(rec.weekly_premium_sgd)}/wk. No payout below these levels."</p></div>
       <div class="sec"><p class="cap">Expected loss · ${quote.expected_loss_days.toFixed(2)} full-loss days a year</p>
@@ -773,6 +790,11 @@ function renderDetail() {
 }
 
 /* ---------- portfolio ---------- */
+function setPortfolioPayout(label, amount) {
+  el("p-pay-label").textContent = label;
+  el("p-pay").textContent = amount;
+  el("p-pay-head").textContent = amount;
+}
 function renderPortfolio() {
   const box = el("portfolio");
   box.hidden = false;
@@ -799,8 +821,7 @@ function renderPortfolio() {
     const circleStalls = rows.reduce((sum, r) => sum + r.stalls, 0);
     el("p-n").textContent = `${circleStalls.toLocaleString("en-SG")} in ${state.circles.length} circle${state.circles.length > 1 ? "s" : ""}`;
     el("p-prem").textContent = `${SGD0(rows.reduce((sum, r) => sum + r.stalls * r.base, 0) * 52)}/yr`;
-    el("p-pay-label").textContent = "Payout in the circles today";
-    el("p-pay").textContent = SGD0(rows.reduce((sum, r) => sum + r.stalls * r.pay, 0));
+    setPortfolioPayout("Payout in the circles today", SGD0(rows.reduce((sum, r) => sum + r.stalls * r.pay, 0)));
     el("p-note").textContent = `Overlapping centres counted once, at their worst circle. Stressed pool `
       + `${SGD0(rows.reduce((sum, r) => sum + r.stalls * r.stressed, 0) * 52)}/yr.`;
     return;
@@ -808,13 +829,11 @@ function renderPortfolio() {
   el("p-n").textContent = stalls.toLocaleString("en-SG");
   el("p-prem").textContent = SGD0(premiumPool);
   if (state.mode === "history") {
-    el("p-pay-label").textContent = "Expected payouts / year";
-    el("p-pay").textContent = SGD0(expectedPayouts);
+    setPortfolioPayout("Expected payouts / year", SGD0(expectedPayouts));
     el("p-note").textContent = "Illustrative accumulation: every cooked-food stall in all "
       + `${STATIC.hawker_centres.length} centres buys one policy. Not a sales forecast.`;
   } else {
-    el("p-pay-label").textContent = state.mode === "live" ? "Payout for today so far" : "Payout on this day";
-    el("p-pay").textContent = SGD0(dayPayout);
+    setPortfolioPayout(state.mode === "live" ? "Payout for today so far" : "Payout on this day", SGD0(dayPayout));
     el("p-note").textContent = dayPayout > 0
       ? `This day consumes ${(dayPayout / premiumPool * 100).toFixed(1)}% of the annual premium pool. `
         + "The Oct 2026 haze ran 23 unhealthy days - why payable days are capped and the catastrophe load buys reinsurance."
@@ -882,7 +901,7 @@ let stripSeq = 0;
 function shopCircle() { return state.circles.find((c) => c.id === state.shopId) || null; }
 function shopStatus(text) {
   el("kyc-status").hidden = !text;
-  el("kyc-status").textContent = text;
+  el("kyc-status-text").textContent = text;
 }
 function hideShopStrip() {
   stripSeq++;  // drops a strip still being priced, so it cannot reappear beside a newer reading
@@ -919,7 +938,7 @@ async function readShop() {
     state.shopDraft = { product: answer.product, place: answer.place, summary: answer.summary };
     showShopDraft();
     if (file && answer.source === "keywords")
-      shopStatus(`${el("kyc-status").textContent} The photo was not read: no assistant key is set, so only your words were matched.`.trim());
+      shopStatus(`${el("kyc-status-text").textContent} The photo was not read: no assistant key is set, so only your words were matched.`.trim());
   } catch (error) {
     console.error(error);
     shopStatus("Could not read that just now. Try again, or draw a circle by hand below.");
@@ -985,7 +1004,7 @@ async function renderShopStrip() {
     strip.innerHTML = `<p class="cap">What a bad day costs this shop</p>
       <p class="note">${productLabel(circle.product)} · ${circle.place} · ${centres} hawker centre${centres === 1 ? "" : "s"} in the circle · payout per stall at ${tierLabel(state.tier)}, as priced by the API. Click a day to apply it.</p>
       <div class="days">${BAD_DAYS.map((day, i) => `<button class="day" type="button" data-day="${day.key}" data-hazard="${day.hazard}">
-        <span>${day.label}</span><b>${SGD(days[i].assessment.payout_sgd)}</b></button>`).join("")}</div>`;
+        ${icon(HAZARD_ICON[day.hazard])}<span>${day.label}</span><b>${SGD(days[i].assessment.payout_sgd)}</b></button>`).join("")}</div>`;
     markBadDay();
   } catch (error) { console.error(error); }
 }
@@ -1024,7 +1043,7 @@ async function pollLive() {
     el("flood-banner").hidden = alerts.length === 0;
     if (alerts.length) {
       state.layers.flood = true; el("ly-flood").checked = true;
-      el("flood-banner").textContent = `PUB flood alert${alerts.length > 1 ? "s" : ""} active: `
+      el("flood-text").textContent = `PUB flood alert${alerts.length > 1 ? "s" : ""} active: `
         + alerts.slice(0, 3).map((a) => Object.values(a).filter((v) => typeof v === "string").join(" ")).join(" · ");
     }
     redraw(); renderPortfolio(); renderDetail();
@@ -1036,7 +1055,7 @@ async function pollLive() {
 }
 function setMode(mode) {
   state.mode = mode;
-  for (const name of ["history", "sim", "live"]) el(`mode-${name === "sim" ? "sim" : name}`).classList.toggle("on", name === mode);
+  for (const name of ["history", "sim", "live"]) el(`mode-${name}`).setAttribute("aria-pressed", name === mode);
   el("sim").hidden = mode !== "sim";
   el("live-state").hidden = mode !== "live";
   if (mode !== "live") el("flood-banner").hidden = true;
@@ -1048,7 +1067,7 @@ function setMode(mode) {
     state.livePoll = setInterval(pollLive, LIVE_POLL_MS);
   }
   if (mode === "sim" && !state.simAssessment) refreshSimAssessment();
-  renderFloats(); redraw(); renderPortfolio(); renderDetail();
+  renderLegend(); renderFloats(); redraw(); renderPortfolio(); renderDetail();
 }
 /* ---------- cameras ---------- */
 const CAMERAS = {
@@ -1061,7 +1080,7 @@ function flyTo(name) {
   const resumeOrbit = state.orbit;
   if (resumeOrbit) toggleOrbit(false);
   state.camera = name;
-  for (const cam of Object.keys(CAMERAS)) el(`cam-${cam}`).classList.toggle("on", cam === name);
+  for (const cam of Object.keys(CAMERAS)) el(`cam-${cam}`).setAttribute("aria-pressed", cam === name);
   const target = { ...lastView, ...CAMERAS[name] };
   if (name === "city") {
     // Land on the selected hawker centre, or the densest one, so the city view opens on a story.
@@ -1091,7 +1110,7 @@ function orbitStep() {
 function toggleOrbit(force) {
   state.orbit = force ?? !state.orbit;
   if (REDUCED_MOTION) state.orbit = false;
-  el("cam-orbit").classList.toggle("on", state.orbit);
+  el("cam-orbit").setAttribute("aria-pressed", state.orbit);
   if (state.orbit) orbitStep();
 }
 
@@ -1104,7 +1123,6 @@ function wireTimeMachine() {
     .map((c) => `<option value="${c.name}">${c.name}</option>`).join("");
   tierSelect.innerHTML = OPTIONS.tiers
     .map((t) => `<option value="${t.key}">${t.label}</option>`).join("");
-  tierSelect.value = state.tier;
   const refresh = () => {
     clearTimeout(timeTimer);
     timeTimer = setTimeout(runTimeMachine, 150);
@@ -1115,61 +1133,65 @@ function wireTimeMachine() {
   el("time-open").addEventListener("click", () => {
     if (state.selected?.type === "sme")
       centreSelect.value = STATIC.hawker_centres[state.selected.value].name;
+    tierSelect.value = state.tier;
     el("time-dialog").showModal();
     runTimeMachine();
   });
 }
 async function runTimeMachine() {
   const body = el("t-body");
-  body.innerHTML = `<p class="t-wait">Replaying ten years of NEA readings…</p>`;
+  body.innerHTML = `<p class="loading">Replaying ten years of NEA readings…</p>`;
   try {
     const burn = await api.burn(
       el("t-centre").value, "cooked_food", el("t-tier").value, +el("t-takings").value || 500);
     const t = burn.totals, hz = t.by_hazard_sgd;
     const hzMax = Math.max(hz.haze, hz.rain, hz.heat, 1);
-    const shades = { haze: "#e6e6e6", rain: "#b5b5b5", heat: "#878787" };
     const labels = { haze: "Haze", rain: "Heavy rain", heat: "Heat" };
     const lostMax = Math.max(...burn.years.map((y) => y.est_lost_sgd), 1);
     body.innerHTML = `
-      <p class="t-big">${SGD0(t.paid_sgd)} <small>back in your till, ${t.from_year} to ${t.to_year}</small></p>
+      <p class="t-big"><span class="num">${SGD0(t.paid_sgd)}</span> <small>back in your till, ${t.from_year} to ${t.to_year}</small></p>
       <p class="t-line">Weather took about <b>${SGD0(t.est_lost_sgd)}</b> from a business like this.
         ${burn.tier_label} would have paid on <b>${t.trigger_days} bad days</b>, usually the same
         day, for <b>${SGD0(t.premium_sgd)}</b> of premium (${SGD(burn.weekly_premium_sgd)} a week).</p>
-      <p class="t-cap">Where the payouts came from</p>
+      <h3>Where the payouts came from</h3>
       ${Object.keys(labels).map((k) => `<div class="t-hz"><span>${labels[k]}</span>
-        <div class="bar"><div style="width:${hz[k] / hzMax * 100}%;background:${shades[k]}"></div></div>
+        <div class="bar"><div style="width:${hz[k] / hzMax * 100}%;background:${CSS_BY_HAZARD[k]}"></div></div>
         <output>${SGD0(hz[k])}</output></div>`).join("")}
       <div class="t-hz"><span>Flash flood</span><div class="bar"></div><output>S$0</output></div>
-      <p class="t-cap">Year by year · grey: lost, white: paid</p>
+      <h3>Year by year</h3>
+      <p class="t-key"><span><i class="lost"></i>Lost to weather</span><span><i class="paid"></i>Paid by SafeDay</span></p>
       <div class="t-years">${burn.years.map((y) => `
         <div class="t-year"><div class="bars">
           <div class="lost" style="height:${Math.max(y.est_lost_sgd / lostMax * 60, 2)}px" title="Lost ~${SGD0(y.est_lost_sgd)}"></div>
           <div class="paid" style="height:${Math.max(y.paid_sgd / lostMax * 60, y.paid_sgd ? 2 : 0)}px" title="Paid ${SGD0(y.paid_sgd)}"></div>
         </div><span>${String(y.year).slice(2)}</span></div>`).join("")}</div>
-      <p class="t-note">Losses are the tariff's loss score times the daily sales entered above; heat
+      <p class="fine t-note">Losses are the tariff's loss score times the daily sales entered above; heat
         readings exist from 2025; flood pays on PUB alerts but is priced at zero history days so far.</p>
-      <a class="t-cta" href="/login/#sme">Get covered from ${SGD(burn.weekly_premium_sgd)}/week</a>`;
+      <a class="btn primary t-cta" href="/login/#sme" target="_top">Get covered from ${SGD(burn.weekly_premium_sgd)}/week</a>`;
   } catch (error) {
-    body.innerHTML = `<p class="t-wait">Could not compute: ${error.message}</p>`;
+    console.error(error);
+    body.innerHTML = `<p class="notice critical">${icon("circle-alert")}<span>Could not replay this centre just now. Pick another centre or try again.</span></p>`;
   }
 }
 
 /* ---------- static UI ---------- */
-function legendNotes() {
-  el("sme-label").textContent = `SMEs · hawker centres (${STATIC.hawker_centres.length})`;
-  el("heat-note").textContent = "History: column height = share of days reaching WBGT 32 °C. Live: work hours ≥32 °C today.";
-  el("rain-note").textContent = "History: share of days with a 20 mm work-hour. Live: wettest work hour today.";
-  el("haze-note").textContent = "History: expected haze loss-days by region. Simulate and Live: region lift = 24-h PSI.";
+function renderLegend() {
+  el("sme-label").textContent = `Hawker centres (${STATIC.hawker_centres.length})`;
+  const byRent = state.smeByRent && state.mode === "history";
+  el("rent-legend").hidden = !byRent;
+  el("sme-legend").hidden = byRent;
+  el("sme-legend").innerHTML = SME_LEGEND[state.mode === "history" ? "history" : "day"]
+    .map(([colour, label]) => `<span><i class="dot" style="--dot:var(--${colour})"></i>${label}</span>`).join("");
 }
 function aboutHtml() {
   return `
   <h3>How this map underwrites</h3>
   <p>Insurers price catastrophe-exposed risk with layered models. A catastrophe model has four modules - this atlas is the same structure drawn as a live map of Singapore, so an SME owner and an underwriter look at the same calculation.</p>
   <div class="modules">
-    <div class="module"><div class="m1" style="color:var(--haze)">1 · Hazard</div><div class="m2">Where and how often each peril strikes.</div><div class="m3">NEA WBGT, rain-gauge and 24-h PSI history 2016-2026, plus today's live readings.</div></div>
-    <div class="module"><div class="m1" style="color:var(--ink)">2 · Exposure</div><div class="m2">Who is standing in the way, geocoded.</div><div class="m3">${STATIC.hawker_centres.length} hawker centres, ${STATIC.hawker_centres.reduce((a, c) => a + c.food_stalls, 0).toLocaleString("en-SG")} cooked-food stalls (NEA).</div></div>
-    <div class="module"><div class="m1" style="color:var(--heat)">3 · Vulnerability</div><div class="m2">How much a reading hurts a given business.</div><div class="m3">Severity bands × product factor (shelf life, restock, demand).</div></div>
-    <div class="module"><div class="m1" style="color:var(--accent)">4 · Financial</div><div class="m2">Turning damage into premium and payout.</div><div class="m3">Day caps, loads, expenses, GST - the live tariff from the tariff desk.</div></div>
+    <div class="module"><div class="m1" style="--dot:var(--haze)">1 · Hazard</div><div class="m2">Where and how often each peril strikes.</div><div class="m3">NEA WBGT, rain-gauge and 24-h PSI history 2016-2026, plus today's live readings.</div></div>
+    <div class="module"><div class="m1" style="--dot:var(--ink)">2 · Exposure</div><div class="m2">Who is standing in the way, geocoded.</div><div class="m3">${STATIC.hawker_centres.length} hawker centres, ${STATIC.hawker_centres.reduce((a, c) => a + c.food_stalls, 0).toLocaleString("en-SG")} cooked-food stalls (NEA).</div></div>
+    <div class="module"><div class="m1" style="--dot:var(--heat)">3 · Vulnerability</div><div class="m2">How much a reading hurts a given business.</div><div class="m3">Severity bands × product factor (shelf life, restock, demand).</div></div>
+    <div class="module"><div class="m1" style="--dot:var(--accent)">4 · Financial</div><div class="m2">Turning damage into premium and payout.</div><div class="m3">Day caps, loads, expenses, GST - the live tariff from the tariff desk.</div></div>
   </div>
   <p>This mirrors regulator-recognised practice (NAIC's description of property cat models) and the geospatial tools underwriters already use - Swiss Re CatNet and Munich Re Location Risk Intelligence score locations by stacking hazard layers over geocoded exposure. The difference here: the layers are open NEA data, so the customer sees the same map as the underwriter.</p>
   <h4>The premium, step by step (the Swiss Re and Munich Re recipe)</h4>
@@ -1195,9 +1217,49 @@ function aboutHtml() {
   <p>No personal data is used anywhere: only aggregate NEA readings and public geography (PDPA-clean by construction).</p>`;
 }
 
+/* ---------- panels, drawers and the top bar ---------- */
+function setFolded(panel, folded) {
+  panel.classList.toggle("folded", folded);
+  panel.querySelector(".fold")?.setAttribute("aria-expanded", !folded);
+}
+const FOLDING_PANELS = ["layers", "portfolio", "sim", "detail"];
+const isCompact = () => EMBEDDED || window.matchMedia(COMPACT_SCREEN).matches;
+function foldPanels() {
+  for (const id of FOLDING_PANELS) setFolded(el(id), true);
+}
+/* Unfold one panel. On a small screen or in a dashboard the others fold, like an accordion. */
+function openPanel(panel) {
+  if (isCompact()) for (const id of FOLDING_PANELS) setFolded(el(id), el(id) !== panel);
+  else setFolded(panel, false);
+  if (isCompact()) panel.scrollIntoView({ block: "start" });
+}
+function wireDrawers() {
+  for (const dialog of document.querySelectorAll("dialog.drawer")) {
+    dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+    dialog.querySelector("[data-close]").addEventListener("click", () => dialog.close());
+  }
+}
+/* The dock sits under the top bar, which wraps to more rows on narrow screens. */
+function trackTopbarHeight() {
+  const topbar = el("topbar");
+  new ResizeObserver(() => document.documentElement.style.setProperty("--topbar-h", `${topbar.offsetHeight}px`))
+    .observe(topbar);
+}
+async function showDashboardLink() {
+  if (EMBEDDED) return;
+  try {
+    await getJson("/api/auth/me");
+    el("dashboard-link").hidden = false;
+  } catch { /* signed out: the brand link is the way back */ }
+}
+
 function wireUi() {
   el("mode-history").addEventListener("click", () => setMode("history"));
-  el("mode-sim").addEventListener("click", () => setMode("sim"));
+  el("mode-sim").addEventListener("click", () => {
+    setMode("sim");
+    setFolded(el("portfolio"), true);
+    openPanel(el("sim"));
+  });
   el("mode-live").addEventListener("click", () => setMode("live"));
   el("cam-plan").addEventListener("click", () => flyTo("plan"));
   el("cam-bird").addEventListener("click", () => flyTo("bird"));
@@ -1210,6 +1272,7 @@ function wireUi() {
     if (state.drawing) { stopDrawing(); circleHint("Drawing cancelled."); redraw(); }
   });
   el("about-open").addEventListener("click", () => el("about-dialog").showModal());
+  wireDrawers();
   wireTimeMachine();
   el("detail-close").addEventListener("click", () => { state.selected = null; renderDetail(); });
   for (const key of Object.keys(state.layers)) {
@@ -1217,16 +1280,18 @@ function wireUi() {
   }
   el("sme-by-rent").addEventListener("change", (event) => {
     state.smeByRent = event.target.checked;
-    el("sme-note").hidden = state.smeByRent;
-    el("rent-note").hidden = !state.smeByRent;
+    renderLegend();
     redraw();
   });
   el("s-psi").addEventListener("input", (e) => setSim({ psi: +e.target.value }));
   el("s-rain").addEventListener("input", (e) => setSim({ rain: +e.target.value }));
   el("s-heat").addEventListener("input", (e) => setSim({ heat: +e.target.value }));
   el("s-flood").addEventListener("change", (e) => setSim({ flood: e.target.checked }));
-  document.querySelectorAll(".panel .fold").forEach((button) =>
-    button.addEventListener("click", () => button.closest(".panel").classList.toggle("folded")));
+  document.querySelectorAll(".panel .fold").forEach((button) => button.addEventListener("click", () => {
+    const panel = button.closest(".panel");
+    if (panel.classList.contains("folded")) openPanel(panel);
+    else setFolded(panel, true);
+  }));
   const dateInput = el("s-date");
   const today = new Date().toISOString().slice(0, 10);
   api.day(today).then((bounds) => {
@@ -1299,6 +1364,8 @@ function wireUi() {
 
 /* ---------- boot ---------- */
 async function boot() {
+  trackTopbarHeight();
+  showDashboardLink();
   try {
     if (!window.deck) throw new Error("deck.gl failed to load (vendor/deck.min.js)");
     [STATIC, QUOTES, OPTIONS, RENT] = await Promise.all([api.static(), api.quotes(), api.options(), api.rent()]);
@@ -1331,7 +1398,6 @@ async function boot() {
       layers: [],
     });
     el("about-body").innerHTML = aboutHtml();
-    legendNotes();
     wireUi();
     const params = new URLSearchParams(location.search);
     setMode(["history", "sim", "live"].includes(params.get("mode")) ? params.get("mode") : "history");
@@ -1339,6 +1405,8 @@ async function boot() {
     const focusIndex = focusName ? STATIC.hawker_centres.findIndex((c) => c.name === focusName) : -1;
     if (focusIndex >= 0) select("sme", focusIndex);
     if (["plan", "bird", "city"].includes(params.get("camera"))) flyTo(params.get("camera"));
+    if (state.mode === "sim") setFolded(el("portfolio"), true);
+    if (isCompact()) foldPanels();
     el("boot").remove();
     positionFloats();
     if (document.fonts?.ready) document.fonts.ready.then(() => redraw());
@@ -1346,9 +1414,11 @@ async function boot() {
       .then((data) => { BUILDINGS = data; redraw(); })
       .catch((error) => console.error("buildings layer unavailable:", error));
   } catch (error) {
-    el("boot-msg").textContent = `Could not start the atlas: ${error.message}. `
+    const message = el("boot-msg");
+    message.className = "notice critical";
+    message.innerHTML = `${icon("circle-alert")}<span></span>`;
+    message.querySelector("span").textContent = `Could not start the atlas: ${error.message}. `
       + "Check that the API is running and data/processed/map_static.json exists, then reload.";
-    document.querySelector("#boot .pulse")?.remove();
   }
 }
 boot();
