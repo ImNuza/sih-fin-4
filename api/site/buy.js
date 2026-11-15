@@ -522,11 +522,15 @@ function whatPays(quote, tierKey) {
   const tier = quote.tiers.find((t) => t.tier === tierKey) || quote.tiers[0];
   const triggers = buyState.options.hazards.filter((h) => TRIGGER_WORDS[h.key])
     .map((h) => TRIGGER_WORDS[h.key](h.first_band));
+  const wait = buyState.options.waiting_period_days;
   return `<h3>What it pays, and what it does not</h3>
     <ul>
       <li>${tier.label} pays up to ${SGD(tier.daily_payout_sgd)} for a bad day, and up to ${SGD(tier.max_payout_per_year_sgd)} a year.</li>
       <li>A bad day starts at ${triggers.slice(0, -1).join(", ")} or ${triggers.at(-1)}. Higher readings pay a bigger share of the day.</li>
-      <li>No payout for a bad day in the first ${buyState.options.waiting_period_days} days of cover.</li>
+      <li>No payout for a bad day in the first ${wait} days of cover.</li>
+      <li>A move to a higher tier starts a new ${wait}-day wait for the whole cover. A move to a lower tier keeps your start date.</li>
+      <li>Cover stops if the weekly premium is not paid. If you buy again later, the new cover waits ${wait} days, and the yearly limit still counts what was paid in the last ${buyState.options.cap_window_days} days.</li>
+      <li>Payouts already made are yours to keep.</li>
       <li><b>You can lose sales and receive nothing if the readings stay below these levels.</b></li>
       <li>There is no claim form. Injury, medical costs and damaged goods are not covered by SafeDay.</li>
     </ul>`;
