@@ -770,7 +770,6 @@ def model_insights_data(request: Request) -> dict:
 def model_centre_history(
     request: Request,
     tariff: TariffDep,
-    history: HistoryDep,
     centre: str | None = None,
     lat: Annotated[float | None, Query(**SG_LAT)] = None,
     lng: Annotated[float | None, Query(**SG_LNG)] = None,
@@ -796,7 +795,10 @@ def model_centre_history(
         place = min(centres, key=lambda c: (c["lat"] - lat) ** 2 + (c["lng"] - lng) ** 2)
     else:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give a centre, or lat and lng")
-    priced = calculator.quote_at(tariff, history, request.app.state.sites, lat, lng, product)
+    if centre is not None:
+        priced = business_quote(request, tariff, product, None, centre=centre)
+    else:
+        priced = place_quote(request, tariff, product, nearest_region(request, lat, lng), lat, lng)
     tier_quote = next((t for t in priced.tiers if t.tier == tier), None)
     if tier_quote is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier}")
@@ -831,19 +833,16 @@ def model_book(
     _: InsurerDep,
     request: Request,
     tariff: TariffDep,
-    history: HistoryDep,
     product: str = "cooked_food",
     tier: str = "tier_2",
 ) -> dict:
-    """Every food stall in every hawker centre, one policy each, back-tested since 1980."""
+    """Every food stall in every hawker centre, one policy each, back-tested since 1980, each at
+    the price its centre is charged."""
     centres = request.app.state.map_static["hawker_centres"]
-    region_quotes = {
-        region: calculator.quote(tariff, history, region, product)
-        for region in {c["region"] for c in centres}
-    }
+    centre_quotes = priced_places(store.latest(request.app.state.db), request, product)["centres"]
     premium_by_centre = {}
     for c in centres:
-        tier_quote = next((t for t in region_quotes[c["region"]].tiers if t.tier == tier), None)
+        tier_quote = next((t for t in centre_quotes[c["name"]].tiers if t.tier == tier), None)
         if tier_quote is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier}")
         premium_by_centre[c["name"]] = tier_quote.yearly_premium_sgd
