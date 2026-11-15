@@ -1,0 +1,76 @@
+/* SafeDay assistant: one chat button at the bottom of every page, on the shared theme tokens.
+   On the map it sits bottom-left, clear of the map's right-hand panels. */
+.sd-widget { position: fixed; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 60; font-family: var(--sans); }
+.sd-widget.sd-map { right: auto; left: 18px; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+.sd-launch {
+  display: inline-flex; align-items: center; gap: 8px; border: 0; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink); font: 700 14px var(--sans);
+  padding: 12px 18px; border-radius: var(--r-pill, 999px); box-shadow: var(--shadow);
+}
+.sd-launch:hover { filter: brightness(1.06); }
+.sd-launch:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.sd-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-ink); opacity: 0.85; }
+.sd-panel {
+  position: absolute; right: 0; bottom: 58px; width: min(390px, calc(100vw - 36px));
+  height: min(560px, calc(100vh - 120px)); display: flex; flex-direction: column;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  border-radius: var(--r-lg, 14px); box-shadow: var(--shadow); overflow: hidden;
+}
+.sd-widget.sd-map .sd-panel { right: auto; left: 0; }
+.sd-panel[hidden] { display: none; }
+.sd-panel header {
+  display: flex; align-items: center; gap: 6px; padding: 10px 12px;
+  border-bottom: 1px solid var(--line); background: var(--surface-2);
+}
+.sd-panel header b { flex: 1; font-size: 14px; white-space: nowrap; }
+.sd-widget .sd-lang {
+  width: auto; min-width: 0; height: 30px; margin: 0; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 7px; padding: 2px 6px; font: 13px var(--sans);
+}
+.sd-icon {
+  appearance: none; border: 1px solid transparent; background: transparent; color: var(--ink-2);
+  border-radius: 7px; width: 30px; height: 30px; cursor: pointer; font-size: 14px; line-height: 1;
+}
+.sd-icon:hover { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.sd-icon[aria-pressed="true"] { color: var(--accent); }
+.sd-log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.sd-msg { max-width: 88%; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.sd-msg .sd-text { padding: 9px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+.sd-msg ul { margin: 4px 0; padding-left: 18px; }
+.sd-msg.sd-assistant .sd-text { background: var(--surface-2); border-top-left-radius: 4px; }
+.sd-msg.sd-user { align-self: flex-end; align-items: flex-end; }
+.sd-msg.sd-user .sd-text { background: var(--accent); color: var(--accent-ink); border-top-right-radius: 4px; }
+.sd-say { appearance: none; border: 0; background: none; cursor: pointer; font-size: 12px; color: var(--muted); padding: 0 4px; }
+.sd-action {
+  appearance: none; cursor: pointer; border: 1px solid var(--accent); background: var(--accent-soft, transparent);
+  color: var(--ink); font: 700 13px var(--sans); padding: 7px 12px; border-radius: 8px;
+}
+.sd-typing .sd-text { display: flex; gap: 4px; }
+.sd-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: sd-blink 1s infinite; }
+.sd-typing span:nth-child(2) { animation-delay: 0.2s; }
+.sd-typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes sd-blink { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .sd-typing span { animation: none; } }
+.sd-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px; }
+.sd-chip {
+  appearance: none; cursor: pointer; border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink-2); font: 12.5px var(--sans); padding: 6px 10px; border-radius: var(--r-pill, 999px);
+}
+.sd-chip:hover { border-color: var(--accent); color: var(--ink); }
+.sd-input { display: flex; gap: 6px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--line); }
+.sd-widget .sd-input textarea {
+  flex: 1; width: auto; min-height: 40px; height: 40px; max-height: 110px; margin: 0; resize: none;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 9px;
+  padding: 9px 10px; font: 14px/1.4 var(--sans); box-sizing: border-box;
+}
+.sd-input textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sd-mic.sd-live { background: var(--critical-soft, #f7e1df); color: var(--critical, #b3261e); }
+.sd-send {
+  appearance: none; border: 0; cursor: pointer; background: var(--accent); color: var(--accent-ink);
+  font: 700 13px var(--sans); padding: 9px 13px; border-radius: 9px;
+}
+.sd-fine { margin: 0; padding: 0 12px 10px; font-size: 11px; color: var(--muted); }
+.sd-filled { box-shadow: 0 0 0 2px var(--accent) !important; transition: box-shadow 0.3s; }
+@media (max-width: 520px) {
+  .sd-panel { position: fixed; left: 8px; right: 8px; bottom: 76px; width: auto; height: 70vh; }
+}
