@@ -18,7 +18,7 @@ from api.models import Tariff
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DAY_READINGS_PATH = REPO_ROOT / "data" / "processed" / "day_readings.csv.gz"
-FIRST_FULL_YEAR = 2017
+FIRST_FULL_YEAR = calculator.FIRST_FULL_YEAR
 # Days below the lowest band of every one of these hazards are skipped before the tariff is
 # asked: they cannot pay.
 BELOW_EVERY_BAND = ("haze", "rain", "heat")
@@ -50,22 +50,27 @@ def site_burn(
     takings_sgd: float,
     premium_yearly_sgd: float,
 ) -> dict:
-    """One business through every recorded day: payouts (capped per year), losses, perils.
+    """One business through every recorded day: payouts (within the tier's yearly limit),
+    losses, perils, from FIRST_FULL_YEAR, the first year with rain recorded all year.
 
+    trigger_days have a loss; payout_days are the ones paid before the yearly limit ran out.
     loss_ratio is payouts over the premium before GST, as insurers and the MAS returns count it;
-    premium_sgd is what the customer pays, GST included.
+    premium_sgd is what the customer pays, GST included. The premium is the business's quote,
+    priced on the same readings (calculator.tier_quote), so the price and this replay agree:
+    the quote's proof is this replay's years.
     """
     tier = calculator.find(tariff.tiers, tier_key, "tier")
     cap_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
     premium_before_gst = premium_yearly_sgd / (1 + tariff.pricing.gst_rate)
     lowest = lowest_bands(tariff)
-    stations_read = readings.stations_read(tariff)
+    rule = readings.station_rule(tariff)
     years: dict[int, dict] = defaultdict(
-        lambda: {"trigger_days": 0, "paid": 0.0, "lost": 0.0, "haze": 0.0, "rain": 0.0, "heat": 0.0}
+        lambda: {"trigger_days": 0, "payout_days": 0, "paid": 0.0, "lost": 0.0, "haze": 0.0,
+                 "rain": 0.0, "heat": 0.0}
     )
     for day in sorted(table):
         year = int(day[:4])
-        day_readings = readings.day_readings_at(table[day], where, *stations_read)
+        day_readings = readings.day_readings_at(table[day], where, rule)
         if all(day_readings[key] < level for key, level in lowest.items()):
             continue
         assessment = calculator.assess(tariff, product_key, tier_key, day_readings)
@@ -75,6 +80,7 @@ def site_burn(
         room = max(0.0, cap_sgd - entry["paid"])
         paid = min(assessment.payout_sgd, room)
         entry["trigger_days"] += 1
+        entry["payout_days"] += paid > 0
         entry["paid"] += paid
         entry["lost"] += assessment.loss_percent / 100 * takings_sgd
         for part in assessment.hazards:
@@ -89,6 +95,7 @@ def site_burn(
         rows.append({
             "year": year,
             "trigger_days": entry["trigger_days"],
+            "payout_days": entry["payout_days"],
             "paid_sgd": round(entry["paid"], 2),
             "est_lost_sgd": round(entry["lost"], 2),
             "premium_sgd": round(premium_yearly_sgd, 2),

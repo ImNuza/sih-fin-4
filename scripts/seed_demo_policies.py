@@ -11,10 +11,11 @@ Usage:
     uv run scripts/seed_demo_policies.py --remove   delete every demo record
 
 Reads  DATABASE_URL (default: the API's SQLite file api/tariff.db), the latest saved tariff,
-       data/processed/site_hazard_readings.csv, data/processed/map_static.json
+       data/processed/site_hazard_readings.csv, data/processed/map_static.json,
+       data/processed/place_day_readings.npz (and day_readings.csv.gz for a place it lacks)
 Writes users, applications, application_details, application_profile, application_channel,
-       policies and underwriting_decisions rows for the demo accounts. Refuses a database that is not on
-       this machine.
+       policies and underwriting_decisions rows for the demo accounts. Refuses a database that
+       is not on this machine.
 """
 
 from __future__ import annotations
@@ -35,7 +36,8 @@ from sqlalchemy.engine import make_url
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from api import accounts, onboarding, postcodes, store  # noqa: E402
+from api import accounts, onboarding, place_days, postcodes, store  # noqa: E402
+from api.day_history import day_table  # noqa: E402
 from api.main import (  # noqa: E402
     DEFAULT_DATABASE_URL,
     DEFAULT_TARIFF_PATH,
@@ -43,9 +45,10 @@ from api.main import (  # noqa: E402
     HISTORY_PATH,
     MAP_STATIC_PATH,
     SINGAPORE,
+    bring_up_to_date,
     business_quote,
     cover_dates,
-    load_history,
+    load_sites,
     policy_values,
 )
 from api.models import Tariff  # noqa: E402
@@ -122,12 +125,13 @@ def database_url() -> str:
 
 
 def current_tariff(engine: Engine) -> Tariff:
-    """The latest saved tariff. An empty database first gets the default, as the API does."""
+    """The tariff the API prices with: the latest saved one, brought up to date with the default
+    as the API does on start. An empty database first gets the default."""
+    default = Tariff.model_validate_json(DEFAULT_TARIFF_PATH.read_text())
     saved = store.latest(engine)
     if saved is None:
-        default = Tariff.model_validate_json(DEFAULT_TARIFF_PATH.read_text())
-        saved = store.save(engine, default, saved_by="default")
-    return saved.tariff
+        return store.save(engine, default, saved_by="default").tariff
+    return bring_up_to_date(engine, saved, default)
 
 
 def weighted(rng: random.Random, weights: dict):
@@ -241,7 +245,7 @@ def underwriter_id(db, password_hash: str) -> int:
 
 
 def add_record(
-    db, record: dict, tariff: Tariff, history, places, password_hash: str, underwriter: int
+    db, record: dict, tariff: Tariff, places, password_hash: str, underwriter: int
 ) -> None:
     """One demo business: its account, its accepted application and its priced policy."""
     user = {
@@ -256,7 +260,7 @@ def add_record(
     centre = record.get("centre")
     priced_by_postcode = not centre and record["business_class"] == "shop"
     priced = business_quote(
-        places, tariff, history, record["product"], record["region"], centre=centre,
+        places, tariff, record["product"], record["region"], centre=centre,
         postcode=record["postcode"] if priced_by_postcode else None,
     )
     policy = policy_values(
@@ -298,14 +302,19 @@ def add_record(
         ))
 
 
-def priced_places(map_static: dict, sites) -> SimpleNamespace:
+def priced_places(map_static: dict) -> SimpleNamespace:
     """What api.main.business_quote reads from the running app, so each demo business is priced
     where the buy flow would price it: a hawker at its centre, a shop at its postcode's area."""
+    sites = load_sites(HISTORY_PATH)
     state = SimpleNamespace(
         sites=sites,
+        regions=sorted({site.region for hazard in sites.values() for site in hazard}),
         map_static=map_static,
         centres_by_name={c["name"]: c for c in map_static["hawker_centres"]},
         centres_by_sector=postcodes.centres_by_sector(map_static["hawker_centres"]),
+    )
+    state.place_days = place_days.PlaceDays(
+        sites, lambda: day_table(state), place_days.PLACE_DAYS_PATH
     )
     return SimpleNamespace(app=SimpleNamespace(state=state))
 
@@ -313,10 +322,9 @@ def priced_places(map_static: dict, sites) -> SimpleNamespace:
 def seed(engine: Engine) -> int:
     """Add the demo records that are missing. Returns how many it added."""
     tariff = current_tariff(engine)
-    history, sites = load_history(HISTORY_PATH)
     map_static = json.loads(MAP_STATIC_PATH.read_text())
     centres = map_static["hawker_centres"]
-    places = priced_places(map_static, sites)
+    places = priced_places(map_static)
     records = demo_records(centres, datetime.now(SINGAPORE).date())
     # Nobody signs in as a demo business, so one unguessable password serves them all.
     password_hash = accounts.hash_password(secrets.token_urlsafe(32))
@@ -328,7 +336,7 @@ def seed(engine: Engine) -> int:
         missing = [record for record in records if record["email"] not in existing]
         underwriter = underwriter_id(db, password_hash)
         for record in missing:
-            add_record(db, record, tariff, history, places, password_hash, underwriter)
+            add_record(db, record, tariff, places, password_hash, underwriter)
     return len(missing)
 
 

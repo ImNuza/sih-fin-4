@@ -18,7 +18,10 @@ from api.accounts import (
 )
 from api.day_history import day_readings
 from api.kyc import api_key
-from api.payouts import payout_accounts, payout_events, payouts, sms_messages, sms_preferences
+from api.payouts import (
+    haze_bonus_events, haze_bonus_payouts, payout_accounts, payout_events, payouts, sms_messages,
+    sms_preferences,
+)
 
 router = APIRouter(prefix="/api")
 # The demo phone: the demo card fills it in, and a demo payout goes to it when the insurer types
@@ -145,6 +148,7 @@ def text_view(row) -> dict:
 def payout_view(row, events: list, texts: list) -> dict:
     return {
         "id": row.id,
+        "kind": "daily",
         "reference": payout_flow.reference(row.id),
         "business_name": row.business_name,
         "loss_date": row.loss_date.isoformat(),
@@ -164,6 +168,7 @@ def payout_view(row, events: list, texts: list) -> dict:
         "provider_reference": row.provider_reference,
         "failure_reason": row.failure_reason,
         "paid_at": row.paid_at,
+        "created_at": row.created_at,
         "events": [
             {"from_status": e.from_status, "to_status": e.to_status, "actor": e.actor, "at": e.at}
             for e in events
@@ -201,10 +206,14 @@ def load_payouts(engine: Engine, user_id: int | None, payout_id: int | None = No
     texts_by_payout: dict[int, list] = {}
     for text in texts:
         texts_by_payout.setdefault(text.payout_id, []).append(text)
-    return [
+    daily = [
         payout_view(row, events_by_payout.get(row.id, []), texts_by_payout.get(row.id, []))
         for row in rows
     ]
+    if payout_id is not None:
+        return daily
+    lumps = haze_bonus_views(engine, user_id, None)
+    return sorted(daily + lumps, key=lambda p: (p["loss_date"], p["created_at"]), reverse=True)
 
 
 @router.get("/sms-preference")
@@ -212,6 +221,63 @@ def get_sms_preference(user: SmeDep, request: Request) -> dict:
     """The language the customer's texts go out in, as they chose it."""
     with request.app.state.db.connect() as db:
         return {"language": customer_language(db, user.id)}
+
+
+HAZE_BONUS_ID = "haze_bonus-"
+
+
+def haze_bonus_views(engine: Engine, user_id: int | None, bonus_id: int | None) -> list[dict]:
+    """The severe haze payout's lump sums, in the shape of a daily payout, kind haze_bonus. Their
+    id is text (HAZE_BONUS_ID and the number), so it never names a daily payout."""
+    lumps = haze_bonus_payouts
+    query = select(lumps, users.c.business_name).join(users, users.c.id == lumps.c.user_id)
+    if user_id is not None:
+        query = query.where(lumps.c.user_id == user_id)
+    if bonus_id is not None:
+        query = query.where(lumps.c.id == bonus_id)
+    with engine.connect() as db:
+        rows = db.execute(query).all()
+        events: dict[int, list] = {}
+        for event in db.execute(
+            select(haze_bonus_events)
+            .where(haze_bonus_events.c.bonus_id.in_([row.id for row in rows]))
+            .order_by(haze_bonus_events.c.id)
+        ):
+            events.setdefault(event.bonus_id, []).append(event)
+    return [
+        {
+            "id": f"{HAZE_BONUS_ID}{row.id}",
+            "kind": "haze_bonus",
+            "reference": payout_flow.bonus_reference(row.id),
+            "business_name": row.business_name,
+            "loss_date": row.loss_date.isoformat(),
+            "region": row.region,
+            "centre": row.centre,
+            "tier": row.tier,
+            "source": row.source,
+            "readings": {"haze_days": row.unhealthy_days, "trigger_psi": row.trigger_psi},
+            "basis": {"haze": f"{row.unhealthy_days} days at PSI {row.trigger_psi:g}+ in the "
+                              f"{row.region} region this policy year"},
+            "main_hazard": row.main_hazard,
+            "loss_percent": 0.0,
+            "daily_payout_sgd": None,
+            "assessed_sgd": row.amount_cents / 100,
+            "amount_sgd": row.amount_cents / 100,
+            "status": row.status,
+            "paid_to": row.paynow_proxy_masked,
+            "provider_reference": row.provider_reference,
+            "failure_reason": row.failure_reason,
+            "paid_at": row.paid_at,
+            "created_at": row.created_at,
+            "events": [
+                {"from_status": e.from_status, "to_status": e.to_status, "actor": e.actor,
+                 "at": e.at}
+                for e in events.get(row.id, [])
+            ],
+            "texts": [],
+        }
+        for row in rows
+    ]
 
 
 @router.get("/payout-account")
@@ -377,6 +443,17 @@ def cover_text(
     }
 
 
+def history_haze(request: Request, tariff) -> payout_flow.HazeOn:
+    """A region's haze reading on a past day from NEA's history, as a payout reads it."""
+    table = day_readings(request)
+    on_hold = readings.station_rule(tariff).regions_on_hold
+
+    def haze_on(region: str, day) -> float | None:
+        return readings.haze_reading(table.get(day.isoformat(), {}), region, on_hold)[0]
+
+    return haze_on
+
+
 @router.post("/insurer/payout-runs")
 def run_payouts(body: RunIn, user: InsurerDep, request: Request) -> dict:
     """Assess every policy for one Singapore date and pay what the readings give."""
@@ -391,11 +468,11 @@ def run_payouts(body: RunIn, user: InsurerDep, request: Request) -> dict:
                 "them. No policy is refused in the meantime.",
             )
         shops = shop_postcodes(engine)
-        gauges_read, heat_read = readings.stations_read(saved.tariff)
+        rule = readings.station_rule(saved.tariff)
 
         def readings_for(policy) -> readings.SiteReadings:
             where = policy_place(policy, shops, request)
-            return readings.site_readings(day, where, gauges_read, heat_read)
+            return readings.site_readings(day, where, rule)
     else:
         manual = readings.SiteReadings(
             readings=body.readings, basis=dict.fromkeys(body.readings, "entered by the insurer")
@@ -407,7 +484,7 @@ def run_payouts(body: RunIn, user: InsurerDep, request: Request) -> dict:
     with engine.begin() as db:
         counts = payout_flow.run_day(
             db, saved.tariff, saved.version, body.loss_date, readings_for, body.source,
-            set(body.regions) if body.regions else None,
+            set(body.regions) if body.regions else None, history_haze(request, saved.tariff),
         )
     return {
         "loss_date": body.loss_date.isoformat(),
@@ -579,29 +656,46 @@ def point_account_at(db: Connection, user_id: int, mobile: str, language: str) -
     )
 
 
-def change_payout(request: Request, payout_id: int, action) -> dict:
+def change_payout(request: Request, payout_id: str, daily, lump_sum) -> dict:
+    """Apply an insurer's action to a daily payout (a number) or a lump sum (haze_bonus-N)."""
     engine: Engine = request.app.state.db
+    table, number = payout_table(payout_id)
     try:
         with engine.begin() as db:
-            exists = db.execute(select(payouts.c.id).where(payouts.c.id == payout_id)).first()
+            exists = db.execute(select(table.c.id).where(table.c.id == number)).first()
             if exists is None:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, "No such payout")
-            action(db)
+            (lump_sum if table is haze_bonus_payouts else daily)(db, number)
     except payout_flow.WrongStatus as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
-    [payout] = load_payouts(engine, None, payout_id)
+    if table is haze_bonus_payouts:
+        [payout] = haze_bonus_views(engine, None, number)
+    else:
+        [payout] = load_payouts(engine, None, number)
     return payout
 
 
+def payout_table(payout_id: str):
+    """The table and row number a payout id names. Raises 404 for an id that names neither."""
+    text = payout_id.removeprefix(HAZE_BONUS_ID)
+    if not text.isdigit():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such payout")
+    return (haze_bonus_payouts if text != payout_id else payouts), int(text)
+
+
 @router.post("/insurer/payouts/{payout_id}/retry")
-def retry_payout(payout_id: int, user: InsurerDep, request: Request) -> dict:
+def retry_payout(payout_id: str, user: InsurerDep, request: Request) -> dict:
     return change_payout(
-        request, payout_id, lambda db: payout_flow.retry(db, payout_id, user.email)
+        request, payout_id,
+        lambda db, number: payout_flow.retry(db, number, user.email),
+        lambda db, number: payout_flow.retry_haze_bonus(db, number, user.email),
     )
 
 
 @router.post("/insurer/payouts/{payout_id}/reject")
-def reject_payout(payout_id: int, body: RejectIn, user: InsurerDep, request: Request) -> dict:
+def reject_payout(payout_id: str, body: RejectIn, user: InsurerDep, request: Request) -> dict:
     return change_payout(
-        request, payout_id, lambda db: payout_flow.reject(db, payout_id, body.reason, user.email)
+        request, payout_id,
+        lambda db, number: payout_flow.reject(db, number, body.reason, user.email),
+        lambda db, number: payout_flow.reject_haze_bonus(db, number, body.reason, user.email),
     )

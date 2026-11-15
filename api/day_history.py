@@ -9,19 +9,24 @@ Reads data/processed/day_readings.csv.gz (scripts/build_day_readings.py), once p
 from __future__ import annotations
 
 from fastapi import HTTPException, Request, status
+from starlette.datastructures import State
 
 from api import burn
 
 DayTable = dict[str, dict[str, dict[str, float]]]
 
 
-def day_readings(request: Request) -> DayTable:
-    """All historical daily readings, loaded once: {day: {kind: {site: value}}}."""
-    if not hasattr(request.app.state, "day_readings"):
+def day_table(state: State) -> DayTable:
+    """All historical daily readings, loaded once per app: {day: {kind: {site: value}}}."""
+    if not hasattr(state, "day_readings"):
         if not burn.DAY_READINGS_PATH.exists():
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND,
                 "day_readings.csv.gz is missing. Run scripts/build_day_readings.py.",
             )
-        request.app.state.day_readings = burn.load_day_table()
-    return request.app.state.day_readings
+        state.day_readings = burn.load_day_table()
+    return state.day_readings
+
+
+def day_readings(request: Request) -> DayTable:
+    return day_table(request.app.state)

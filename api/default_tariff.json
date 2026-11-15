@@ -13,7 +13,7 @@
       ],
       "sites_used": 1,
       "assumed_days_per_year": null,
-      "source": "NEA 24-hour PSI by region, Mar 2016 to Nov 2026. Band levels are the NEA PSI bands. Severities are a starting assumption."
+      "source": "NEA 24-hour PSI by region, Apr 2014 to Nov 2026 (NEA historical 24-hour PSI, the real-time feed after it ends on 1 Oct 2026). Band levels are the NEA PSI bands. Severities are a starting assumption."
     },
     {
       "key": "rain",
@@ -43,7 +43,8 @@
       ],
       "sites_used": 1,
       "assumed_days_per_year": null,
-      "source": "NEA WBGT stations, Jan 2025 to Nov 2026. 32°C is the MOM rest-break level. Severities are a starting assumption."
+      "stations_on_hold": ["S142", "S128"],
+      "source": "NEA WBGT stations, Jan 2025 to Nov 2026. 32°C is the MOM rest-break level. Severities are a starting assumption. In 2026 S142 had 120 days with 2 or more work hours at WBGT 32°C and S128 50, against about 7 at the median station (data/processed/day_readings.csv.gz): both are on hold, and the next nearest station is read, until NEA confirms them."
     },
     {
       "key": "flood",
@@ -77,16 +78,32 @@
     {"key": "platform_work", "label": "Ride-hail and delivery work", "shelf_life_days": 0, "restock_every_days": 1, "demand_sensitivity": 0.6, "gross_margin": 0.7, "recovered_share": 0.0, "source": "Ride-hail and delivery work under a platform work agreement (Platform Workers Act 2024, MOM). No stock, so shelf life is 0 and nothing spoils; restocking does not count. Margin 0.7 (the share of a fare or delivery fee the worker keeps after the platform commission and fuel), demand lost 0.6 and nothing recovered (a lost hour of work is not made up later) are starting assumptions until we have earnings data."}
   ],
   "tiers": [
-    {"key": "tier_1", "label": "Tier 1", "daily_payout_sgd": 20, "max_paid_days_per_year": 10},
-    {"key": "tier_2", "label": "Tier 2", "daily_payout_sgd": 40, "max_paid_days_per_year": 15},
-    {"key": "tier_3", "label": "Tier 3", "daily_payout_sgd": 70, "max_paid_days_per_year": 20},
-    {"key": "tier_4", "label": "Tier 4", "daily_payout_sgd": 100, "max_paid_days_per_year": 30}
+    {"key": "tier_1", "label": "Tier 1", "daily_payout_sgd": 20, "max_paid_days_per_year": 35,
+     "premium_shares": {"expected_payouts": 0.55, "reinsurance": 0.06, "management": 0.12, "distribution": 0.17, "profit": 0.1}},
+    {"key": "tier_2", "label": "Tier 2", "daily_payout_sgd": 40, "max_paid_days_per_year": 35,
+     "premium_shares": {"expected_payouts": 0.6, "reinsurance": 0.06, "management": 0.1, "distribution": 0.15, "profit": 0.09}},
+    {"key": "tier_3", "label": "Tier 3", "daily_payout_sgd": 70, "max_paid_days_per_year": 40,
+     "premium_shares": {"expected_payouts": 0.65, "reinsurance": 0.06, "management": 0.08, "distribution": 0.13, "profit": 0.08}},
+    {"key": "tier_4", "label": "Tier 4", "daily_payout_sgd": 100, "max_paid_days_per_year": 45,
+     "premium_shares": {"expected_payouts": 0.7, "reinsurance": 0.06, "management": 0.07, "distribution": 0.1, "profit": 0.07}}
   ],
   "pricing": {
     "uncertainty_load": 0.15,
     "catastrophe_load": 0.1,
     "expense_ratio": 0.25,
-    "gst_rate": 0.09
+    "gst_rate": 0.09,
+    "distribution_expense_ratio": 0.15,
+    "refer_above_limit_share": 0.5
+  },
+  "haze_bonus": {
+    "trigger_psi": 101,
+    "trigger_days": 40,
+    "lump_sum_daily_multiple": 25,
+    "payout_multiple": 10,
+    "payout_share": 0.6,
+    "no_sale_months": [5, 6, 7, 8, 9, 10],
+    "waiting_days": 30,
+    "source": "40 or more days at PSI 101+ in a region: 2015 only in Apr 2014 to Nov 2026, in 3 of 5 regions. Priced as about 1 in 18 years: 0.60 / (1.09 x 10) = 5.5% a year. Team assumption until a longer haze record is checked."
   },
   "rent": {
     "trading_days_per_month": 26,

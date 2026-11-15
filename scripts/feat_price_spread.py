@@ -3,9 +3,8 @@
 MAS's FEAT principles (2018) ask that a model does not systematically disadvantage a group, and
 the brief adds that pricing "must not price out the groups that most need cover". This script
 prices every product and tier with the live calculator:
-    - in each of the 5 PSI regions (what a platform worker is charged);
-    - at each of the 103 hawker centres, from its own nearest stations and its own PSI region,
-      which is what a hawker is charged (main.business_quote, api/calculator.quote_at).
+    - in each of the 5 PSI regions, read at the region's point (what a platform worker pays);
+    - at each of the 103 hawker centres, replayed on its own stations (what a stall pays).
 For each product and tier it reports the cheapest, median and dearest weekly premium, the
 ratio of dearest to cheapest, and how many centres pay more a year than the tier can pay out. It then checks whether centres with lower stall rent, a rough
 stand-in for poorer stallholders, pay more for the same cover: the rank correlation between
@@ -16,6 +15,7 @@ Usage:
     uv run scripts/feat_price_spread.py
 
 Reads  data/processed/site_hazard_readings.csv, data/processed/map_static.json,
+       data/processed/place_day_readings.npz, data/processed/day_readings.csv.gz,
        data/processed/hawker_rent.csv, api/default_tariff.json
 Writes data/processed/price_spread.csv     one row per product and tier
 """
@@ -30,9 +30,11 @@ import pandas as pd
 from dgs import REPO_ROOT
 
 sys.path.insert(0, str(REPO_ROOT))
-from api import calculator  # noqa: E402
-from api.main import DEFAULT_TARIFF_PATH, HISTORY_PATH, load_history  # noqa: E402
-from api.models import Tariff  # noqa: E402
+from api import calculator, place_days  # noqa: E402
+from api.burn import load_day_table  # noqa: E402
+from api.main import DEFAULT_TARIFF_PATH, HISTORY_PATH, load_sites  # noqa: E402
+from api.models import Quote, Tariff  # noqa: E402
+from api.readings import station_rule  # noqa: E402
 
 PROC_DIR = REPO_ROOT / "data" / "processed"
 OUT_PATH = PROC_DIR / "price_spread.csv"
@@ -40,13 +42,21 @@ RENT_QUARTER = 0.25
 FAR_FROM_REGION = 1.5      # a centre priced 1.5 times its region's price or more is flagged
 
 
-def place_prices(tariff: Tariff, history, sites, centres: list[dict]) -> pd.DataFrame:
+def quote_at(
+    tariff: Tariff, replays: place_days.PlaceDays, product: str, region: str, point: list[float]
+) -> Quote:
+    replay = replays.replay(station_rule(tariff), region, *point)
+    return calculator.quote(tariff, product, region, replay)
+
+
+def place_prices(
+    tariff: Tariff, replays: place_days.PlaceDays, centres: list[dict]
+) -> pd.DataFrame:
     rows = []
     for centre in centres:
         for product in tariff.products:
-            quote = calculator.quote_at(
-                tariff, history, sites, centre["lat"], centre["lng"], product.key, centre["region"]
-            )
+            point = [centre["lat"], centre["lng"]]
+            quote = quote_at(tariff, replays, product.key, centre["region"], point)
             rows += [{"centre": centre["name"], "region": centre["region"], "product": product.key,
                       "tier": t.tier, "weekly_sgd": t.weekly_premium_sgd,
                       "over_cap": t.yearly_premium_sgd > t.max_payout_per_year_sgd}
@@ -54,11 +64,13 @@ def place_prices(tariff: Tariff, history, sites, centres: list[dict]) -> pd.Data
     return pd.DataFrame(rows)
 
 
-def region_prices(tariff: Tariff, history) -> pd.DataFrame:
+def region_prices(
+    tariff: Tariff, replays: place_days.PlaceDays, region_points: dict[str, list[float]]
+) -> pd.DataFrame:
     rows = []
-    for region in history:
+    for region, point in region_points.items():
         for product in tariff.products:
-            quote = calculator.quote(tariff, history, region, product.key)
+            quote = quote_at(tariff, replays, product.key, region, point)
             rows += [{"region": region, "product": product.key, "tier": t.tier,
                       "weekly_sgd": t.weekly_premium_sgd} for t in quote.tiers]
     return pd.DataFrame(rows)
@@ -100,10 +112,13 @@ def spread_row(by_place: pd.DataFrame, by_region: pd.DataFrame, rent: pd.Series)
 
 def main() -> None:
     tariff = Tariff.model_validate_json(DEFAULT_TARIFF_PATH.read_text())
-    history, sites = load_history(HISTORY_PATH)
-    centres = json.loads((PROC_DIR / "map_static.json").read_text())["hawker_centres"]
+    replays = place_days.PlaceDays(
+        load_sites(HISTORY_PATH), load_day_table, place_days.PLACE_DAYS_PATH
+    )
+    static = json.loads((PROC_DIR / "map_static.json").read_text())
     rent = pd.read_csv(PROC_DIR / "hawker_rent.csv").set_index("centre")["median_bid_sgd"]
-    places, regions = place_prices(tariff, history, sites, centres), region_prices(tariff, history)
+    places = place_prices(tariff, replays, static["hawker_centres"])
+    regions = region_prices(tariff, replays, static["region_points"])
     rows = []
     for (product, tier), by_place in places.groupby(["product", "tier"]):
         by_region = regions[(regions["product"] == product) & (regions["tier"] == tier)]

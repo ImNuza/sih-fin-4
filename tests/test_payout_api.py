@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import dataclasses
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 
-from api import burn, payout_api, payout_flow, postcodes, readings, sms, sms_gateway
+from api import burn, payout_api, payout_flow, postcodes, readings, sms, sms_gateway, store
 from api.accounts import application_profile, policies
 from api.main import app
 from tests.test_api import SELLER, buy_body, platform_worker_body, shop_body
@@ -206,8 +207,8 @@ def test_yearly_cap_limits_what_is_paid(client):
     [policy] = client.get("/api/policies").json()
     max_days = policy["max_paid_days_per_year"]
     register(client, "insurer", "desk@example.com")
-    for day in range(1, max_days + 2):
-        body = {**FLOOD_DAY, "loss_date": f"2026-10-{day:02d}"}
+    for day in range(max_days + 1):
+        body = {**FLOOD_DAY, "loss_date": (date(2026, 9, 1) + timedelta(days=day)).isoformat()}
         client.post("/api/insurer/payout-runs", json=body)
     payouts = client.get("/api/payouts").json()
     paid = [p for p in payouts if p["status"] == "paid"]
@@ -309,9 +310,15 @@ def paid_readings(client) -> dict:
     return payout["readings"]
 
 
+def tariff_rule(client, gauges_read: int = 3) -> readings.StationRule:
+    rule = readings.station_rule(store.latest(client.app.state.db).tariff)
+    return dataclasses.replace(rule, gauges_read=gauges_read)
+
+
 def expected_readings(client, region: str, lat: float, lng: float) -> dict:
     where = readings.history_place(region, lat, lng, client.app.state.sites)
-    return readings.day_readings_at(burn.load_day_table()["2026-10-15"], where, 3)
+    day = burn.load_day_table()["2026-10-15"]
+    return readings.day_readings_at(day, where, tariff_rule(client))
 
 
 def test_a_shop_is_paid_on_the_readings_at_its_postcode_area(client):
@@ -345,7 +352,8 @@ def centre_readings(client, loss_date: str, gauges_read: int) -> tuple[dict, dic
         centre["region"], centre["lat"], centre["lng"], client.app.state.sites
     )
     day = burn.load_day_table()[loss_date]
-    return readings.day_readings_at(day, where, gauges_read), day, where.gauges
+    gauges = [gauge for gauge, _ in where.gauges]
+    return readings.day_readings_at(day, where, tariff_rule(client, gauges_read)), day, gauges
 
 
 def test_a_payout_reads_as_many_rain_gauges_as_the_tariff_prices_from(client):
@@ -433,7 +441,9 @@ def test_buying_cover_with_a_verified_mobile_sends_the_welcome_text(client):
     client.post("/api/policies", json={"tier": "tier_2", **SELLER})
     [welcome] = texts_of_kind(client, "welcome")
     assert "Payung Tier 2:" in welcome["body"]
-    assert "up to S$40/day, S$600/yr" in welcome["body"]
+    [policy] = client.get("/api/policies").json()
+    yearly = round(policy["daily_payout_sgd"] * policy["max_paid_days_per_year"])
+    assert f"up to S${policy['daily_payout_sgd']:g}/day, S${yearly:,}/yr" in welcome["body"]
 
 
 def test_welcome_text_is_sent_once_per_cover(client):

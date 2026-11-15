@@ -8,14 +8,19 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import Connection, func, insert, select, update
 
 from api import calculator, paynow, sms
-from api.accounts import application_profile, applications, policies
-from api.models import Tariff
-from api.payouts import payout_accounts, payout_events, payouts, sms_messages
+from api.accounts import (
+    application_profile, applications, policies, policy_haze_bonus, policy_tier_changes,
+)
+from api.models import HazeBonus, Tariff
+from api.payouts import (
+    haze_bonus_events, haze_bonus_payouts, payout_accounts, payout_events, payouts, sms_messages,
+)
 from api.readings import SiteReadings
 
 SINGAPORE = ZoneInfo("Asia/Singapore")
@@ -279,17 +284,47 @@ def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, l
     return send(db, payout_id)
 
 
+def terms_on(db: Connection, policy_id: int, day: date) -> dict:
+    """The policy's terms changed by the latest tier change starting by this day, if any."""
+    changes = policy_tier_changes
+    change = db.execute(
+        select(changes)
+        .where(changes.c.policy_id == policy_id, changes.c.starts_on <= day)
+        .order_by(changes.c.starts_on.desc())
+    ).mappings().first()
+    if change is None:
+        return {}
+    return {key: value for key, value in change.items() if key not in ("policy_id", "starts_on")}
+
+
+def policy_on(db: Connection, policy, day: date) -> SimpleNamespace:
+    """A policy with the terms in force on this day, so a late run pays the day as it was."""
+    return SimpleNamespace(**{**policy._mapping, **terms_on(db, policy.id, day)})
+
+
+HazeOn = Callable[[str, date], float | None]
+HAZE_BONUS_OUTCOMES = ("haze_bonus_paid", "haze_bonus_held", "haze_bonus_failed")
+
+
 def run_day(db: Connection, tariff: Tariff, tariff_version: int, loss_date: date,
             readings_for: Callable[[object], SiteReadings], source: str,
-            regions: set[str] | None) -> dict[str, int]:
-    """Assess every policy in force for one day. readings_for gives each policy's readings."""
-    counts = dict.fromkeys(RUN_OUTCOMES, 0)
+            regions: set[str] | None, haze_on: HazeOn) -> dict[str, int]:
+    """Assess every policy in force for one day. readings_for gives each policy's readings;
+    haze_on(region, day) a past day's haze reading, for the severe haze payout's count.
+    The haze_bonus_ counts are the lump sums the run paid, held or failed to send."""
+    counts = dict.fromkeys(RUN_OUTCOMES, 0) | dict.fromkeys(HAZE_BONUS_OUTCOMES, 0)
     for policy in db.execute(select(policies)).all():
         if regions and policy.region not in regions:
             continue
-        outcome = assess_policy(db, policy, tariff, tariff_version, loss_date,
-                                readings_for(policy), source)
+        site = readings_for(policy)
+        outcome = assess_policy(db, policy_on(db, policy, loss_date), tariff, tariff_version,
+                                loss_date, site, source)
         counts[outcome] += 1
+        if tariff.haze_bonus is not None:
+            today_haze = site.readings.get("haze")
+            lump = pay_haze_bonus(db, policy, tariff.haze_bonus, loss_date, today_haze, haze_on)
+            if lump is not None:
+                counts[f"haze_bonus_{lump}"] += 1
     return counts
 
 
@@ -320,12 +355,174 @@ def pay_demo(db: Connection, policy, tariff: Tariff, tariff_version: int,
     return outcome, loss_date
 
 
+def policy_year_start(starts_on: date, day: date) -> date:
+    """The latest anniversary of starts_on on or before day (28 Feb for a 29 Feb start)."""
+    for years in (day.year - starts_on.year, day.year - starts_on.year - 1):
+        try:
+            anniversary = starts_on.replace(year=starts_on.year + years)
+        except ValueError:
+            anniversary = date(starts_on.year + years, 2, 28)
+        if anniversary <= day:
+            return anniversary
+    return starts_on
+
+
+def unhealthy_days(
+    db: Connection, policy, bonus: HazeBonus, first: date, last: date,
+    last_haze: float | None, haze_on: HazeOn,
+) -> int:
+    """Days from first to last with the region's haze at trigger_psi or more, from the readings
+    the daily payout uses: the run's own reading on its day, NEA's history on past days, and the
+    readings kept with the policy's payouts on days the history lacks."""
+    kept = {
+        row.loss_date: row.readings.get("haze")
+        for row in db.execute(
+            select(payouts.c.loss_date, payouts.c.readings).where(
+                payouts.c.user_id == policy.user_id, payouts.c.loss_date.between(first, last)
+            )
+        )
+    }
+    count, day = 0, first
+    while day <= last:
+        haze = last_haze if day == last and last_haze is not None else haze_on(policy.region, day)
+        if haze is None:
+            haze = kept.get(day)
+        count += haze is not None and haze >= bonus.trigger_psi
+        day += timedelta(days=1)
+    return count
+
+
+def pay_haze_bonus(
+    db: Connection, policy, bonus: HazeBonus, loss_date: date, today_haze: float | None,
+    haze_on: HazeOn,
+) -> str | None:
+    """Pay the lump sum once in a policy year, on the day the region's unhealthy haze days reach
+    trigger_days (or the first run after). Outside the daily cover's yearly limit. Returns the
+    lump sum's status, or None when there is none to pay."""
+    addon = db.execute(
+        select(policy_haze_bonus).where(policy_haze_bonus.c.policy_id == policy.id)
+    ).first()
+    if addon is None or loss_date < addon.starts_on:
+        return None
+    ends = cover_ends(db, policy.user_id)
+    if ends is not None and loss_date >= ends:
+        return None
+    year_starts = policy_year_start(addon.starts_on, loss_date)
+    paid_before = db.execute(
+        select(haze_bonus_payouts.c.id).where(
+            haze_bonus_payouts.c.policy_id == policy.id,
+            haze_bonus_payouts.c.policy_year_starts == year_starts,
+        )
+    ).first()
+    if paid_before:
+        return None
+    days = unhealthy_days(db, policy, bonus, year_starts, loss_date, today_haze, haze_on)
+    if days < bonus.trigger_days:
+        return None
+    now = datetime.now(UTC)
+    bonus_id = db.execute(
+        insert(haze_bonus_payouts).values(
+            user_id=policy.user_id, policy_id=policy.id, policy_year_starts=year_starts,
+            loss_date=loss_date, region=policy.region, centre=policy.centre, tier=policy.tier,
+            trigger_psi=bonus.trigger_psi, unhealthy_days=days, source="haze_bonus",
+            main_hazard="haze", amount_cents=addon.lump_sum_cents, status="approved",
+            created_at=now,
+        ).returning(haze_bonus_payouts.c.id)
+    ).scalar_one()
+    db.execute(insert(haze_bonus_events).values(
+        bonus_id=bonus_id, from_status=None, to_status="approved", actor="system",
+        detail={"rule": "automatic", "unhealthy_days": days}, at=now,
+    ))
+    return send_haze_bonus(db, bonus_id)
+
+
+def bonus_reference(bonus_id: int) -> str:
+    return f"SDH-{bonus_id:06d}"
+
+
+def move_bonus(db: Connection, bonus_id: int, from_status: str | None, to_status: str,
+               actor: str, detail: dict | None = None, **changes) -> None:
+    """Change a lump sum's status and keep the change, as move() does for a daily payout."""
+    db.execute(update(haze_bonus_payouts).where(haze_bonus_payouts.c.id == bonus_id)
+               .values(status=to_status, **changes))
+    db.execute(insert(haze_bonus_events).values(
+        bonus_id=bonus_id, from_status=from_status, to_status=to_status, actor=actor,
+        detail=detail, at=datetime.now(UTC),
+    ))
+
+
+def send_haze_bonus(db: Connection, bonus_id: int, actor: str = "system") -> str:
+    """Pay an approved, held or retried lump sum by PayNow and text the owner, as send() pays
+    a daily payout. Returns its new status."""
+    bonus = db.execute(select(haze_bonus_payouts).where(haze_bonus_payouts.c.id == bonus_id)).one()
+    account = db.execute(
+        select(payout_accounts).where(payout_accounts.c.user_id == bonus.user_id)
+    ).first()
+    amount = f"{bonus.amount_cents / 100:.2f}"
+    ref = bonus_reference(bonus_id)
+
+    def text(kind: str, **fields: str) -> None:
+        body = sms.TEMPLATES[kind][account.sms_language].format(amount=amount, ref=ref, **fields)
+        sms.send(db, bonus.user_id, kind, account.sms_mobile, account.sms_language, body)
+
+    if account is None or account.mobile_verified_at is None:
+        move_bonus(db, bonus_id, bonus.status, "held", actor,
+                   {"reason": "no verified payout account"})
+        if account is not None:
+            text("haze_bonus_waiting")
+        return "held"
+    proxy = paynow.mask(account.paynow_proxy_type, account.paynow_proxy)
+    move_bonus(db, bonus_id, bonus.status, "sending", actor, {"to": proxy},
+               paynow_proxy_masked=proxy)
+    result = paynow.transfer(account.paynow_proxy)
+    if result.settled:
+        move_bonus(db, bonus_id, "sending", "paid", "paynow",
+                   {"provider_reference": result.provider_reference},
+                   provider_reference=result.provider_reference, paid_at=datetime.now(UTC),
+                   failure_reason=None)
+        text("haze_bonus_paid", days=str(bonus.unhealthy_days), region=bonus.region, proxy=proxy)
+        return "paid"
+    move_bonus(db, bonus_id, "sending", "failed", "paynow", {"reason": result.failure_reason},
+               failure_reason=result.failure_reason)
+    text("payout_failed", day=f"{bonus.loss_date.day} {bonus.loss_date:%b}", proxy=proxy)
+    return "failed"
+
+
+def bonus_status(db: Connection, bonus_id: int) -> str:
+    return db.execute(
+        select(haze_bonus_payouts.c.status).where(haze_bonus_payouts.c.id == bonus_id)
+    ).scalar_one()
+
+
+def retry_haze_bonus(db: Connection, bonus_id: int, actor: str) -> str:
+    status = bonus_status(db, bonus_id)
+    if status != "failed":
+        raise WrongStatus(f"Only a failed payout can be retried; this one is {status}")
+    move_bonus(db, bonus_id, "failed", "approved", actor, {"rule": "retry"})
+    return send_haze_bonus(db, bonus_id, actor)
+
+
+def reject_haze_bonus(db: Connection, bonus_id: int, reason: str, actor: str) -> None:
+    status = bonus_status(db, bonus_id)
+    if status not in REJECTABLE:
+        raise WrongStatus(f"A {status} payout cannot be rejected")
+    move_bonus(db, bonus_id, status, "rejected", actor, {"reason": reason},
+               failure_reason=reason)
+
+
 def release_held(db: Connection, user_id: int) -> None:
     held = db.execute(
         select(payouts.c.id).where(payouts.c.user_id == user_id, payouts.c.status == "held")
     ).scalars()
     for payout_id in list(held):
         send(db, payout_id)
+    held_bonuses = db.execute(
+        select(haze_bonus_payouts.c.id).where(
+            haze_bonus_payouts.c.user_id == user_id, haze_bonus_payouts.c.status == "held"
+        )
+    ).scalars()
+    for bonus_id in list(held_bonuses):
+        send_haze_bonus(db, bonus_id)
 
 
 def retry(db: Connection, payout_id: int, actor: str) -> str:

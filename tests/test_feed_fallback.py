@@ -19,11 +19,11 @@ from tests.test_payout_api import (  # noqa: F401  (client is a fixture)
 STATIONS = [("A", 1.30, 103.80), ("B", 1.31, 103.80), ("C", 1.32, 103.80), ("D", 1.40, 103.80)]
 PLACE = readings.place("central", 1.30, 103.80, STATIONS, STATIONS)
 REGIONS = {"central": 60, "east": 60, "north": 60, "south": 60, "west": 60}
-THREE_GAUGES, ONE_HEAT_STATION = 3, 1
+THREE_GAUGES_ONE_HEAT_STATION = readings.StationRule(gauges_read=3, heat_read=1)
 
 
 def site_readings(day: dict) -> readings.SiteReadings:
-    return readings.site_readings(day, PLACE, THREE_GAUGES, ONE_HEAT_STATION)
+    return readings.site_readings(day, PLACE, THREE_GAUGES_ONE_HEAT_STATION)
 
 
 def read(day: dict) -> readings.SiteReadings:

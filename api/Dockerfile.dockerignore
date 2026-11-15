@@ -9,6 +9,7 @@
 !data/processed/map_buildings.json
 !data/processed/day_readings.csv.gz
 !data/processed/hawker_rent.csv
+!data/processed/place_day_readings.npz
 !data/processed/model_history.npz
 !data/processed/model_insights.json
 api/tariff.db

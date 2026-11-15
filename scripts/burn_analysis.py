@@ -1,18 +1,21 @@
-"""Burn analysis: what Payung would have paid on every recorded day since 2016.
+"""Burn analysis: what Payung would have paid on every recorded day since 2014.
 
-Runs the live tariff over the actual NEA readings of 2016-2026 for every hawker centre:
+Runs the live tariff over the actual NEA readings of 2014-2026 for every hawker centre (haze from
+Apr 2014, rain from Dec 2016, heat from Jan 2025; the years before 2017 are haze only):
 each day's loss score, the payout at a chosen tier with the yearly cap applied in order,
 and the estimated revenue the business lost that day. Each day is read as a payout reads it
 (api/readings.py), and a hazard a payout would wait for reads 0. Each centre is priced as a
-stall there is charged (api/main.py business_quote). Loss ratios are payouts over the premium
-before GST. This is the back-test the brief demands ("show, from past NEA and PUB data, how
-often target customers would have lost income with no payout").
+stall there is charged (api/main.py business_quote): on the same readings and the same yearly
+limit, so the price and this replay agree. Loss ratios are payouts over the premium before GST.
+This is the back-test the brief demands ("show, from past NEA and PUB data, how often target
+customers would have lost income with no payout").
 
 Usage:
     uv run scripts/burn_analysis.py           (run build_day_readings.py first)
 
 Reads  data/processed/day_readings.csv.gz, data/processed/map_static.json
-       data/processed/site_hazard_readings.csv, api/default_tariff.json
+       data/processed/site_hazard_readings.csv, data/processed/place_day_readings.npz
+       api/default_tariff.json
        data/mss_daily/mss_daily.parquet
 Writes data/processed/burn_yearly_hero.csv     the hero stall, year by year
        data/processed/burn_yearly_island.csv   all 103 centres summed, year by year
@@ -37,11 +40,11 @@ from dgs import REPO_ROOT
 
 sys.path.insert(0, str(REPO_ROOT))
 
-from api import calculator  # noqa: E402
+from api import calculator, place_days  # noqa: E402
 from api.burn import load_day_table, lowest_bands  # noqa: E402
-from api.main import load_history  # noqa: E402
+from api.main import load_sites  # noqa: E402
 from api.models import Tariff  # noqa: E402
-from api.readings import Place, day_readings_at, history_place, stations_read  # noqa: E402
+from api.readings import Place, day_readings_at, history_place, station_rule  # noqa: E402
 
 PROC_DIR = REPO_ROOT / "data" / "processed"
 FIG_DIR = REPO_ROOT / "docs" / "figures"
@@ -56,33 +59,32 @@ DAILY_TAKINGS_SGD = 500.0
 HAZE_COLOR, RAIN_COLOR, HEAT_COLOR, LOST_COLOR = "#6f63c8", "#2a78d6", "#d95926", "#b9b7ae"
 
 
+def centre_premium(tariff: Tariff, replays: place_days.PlaceDays, centre: dict) -> float:
+    """The yearly premium a stall at this centre is charged, at TIER."""
+    replay = replays.replay(station_rule(tariff), centre["region"], centre["lat"], centre["lng"])
+    quote = calculator.quote(tariff, PRODUCT, centre["region"], replay)
+    return next(t for t in quote.tiers if t.tier == TIER).yearly_premium_sgd
+
+
 def burn() -> None:
     tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
     static = json.loads((PROC_DIR / "map_static.json").read_text())
-    history, sites = load_history(PROC_DIR / "site_hazard_readings.csv")
+    sites = load_sites(PROC_DIR / "site_hazard_readings.csv")
+    table = load_day_table()
+    replays = place_days.PlaceDays(sites, lambda: table, place_days.PLACE_DAYS_PATH)
     tier = calculator.find(tariff.tiers, TIER, "tier")
     cap_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
 
     centres = static["hawker_centres"]
     gst = 1 + tariff.pricing.gst_rate
     lowest = lowest_bands(tariff)
-    read_counts = stations_read(tariff)
+    rule = station_rule(tariff)
     places = {
         centre["name"]: history_place(centre["region"], centre["lat"], centre["lng"], sites)
         for centre in centres
     }
-    premiums = {
-        centre["name"]: next(
-            t
-            for t in calculator.quote_at(
-                tariff, history, sites, centre["lat"], centre["lng"], PRODUCT, centre["region"]
-            ).tiers
-            if t.tier == TIER
-        ).yearly_premium_sgd
-        for centre in centres
-    }
+    premiums = {centre["name"]: centre_premium(tariff, replays, centre) for centre in centres}
 
-    table = load_day_table()
     hero = next(c for c in centres if c["name"] == HERO)
     hero_days: list[dict] = []
     yearly: dict[tuple[str, int], dict] = defaultdict(
@@ -95,7 +97,7 @@ def burn() -> None:
         readings_of_day = table[day]
         year = int(day[:4])
         for centre in centres:
-            readings = day_readings_at(readings_of_day, places[centre["name"]], *read_counts)
+            readings = day_readings_at(readings_of_day, places[centre["name"]], rule)
             if all(readings[key] < level for key, level in lowest.items()):
                 continue
             assessment = calculator.assess(tariff, PRODUCT, TIER, readings)
@@ -159,7 +161,7 @@ def burn() -> None:
     pd.DataFrame(hero_days).to_csv(PROC_DIR / "burn_daily_hero.csv", index=False)
     figures(hero_rows, hero_days)
     summary(hero_rows, island_rows, hero_days, gst)
-    sensitivity(table, hero, places[HERO], history, sites, premiums[HERO] / 52)
+    sensitivity(table, hero, places[HERO], replays, premiums[HERO] / 52)
 
 
 def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
@@ -180,7 +182,7 @@ def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
     ax.set_ylabel("S$ per stall per year")
     ax.legend(frameon=False, fontsize=8)
     ax.spines[["top", "right"]].set_visible(False)
-    fig.text(0.01, 0.01, "NEA readings 2016-2026 through the live tariff. "
+    fig.text(0.01, 0.01, "NEA readings 2017-2026 through the live tariff. "
              f"Losses at S${DAILY_TAKINGS_SGD:.0f}/day takings.", fontsize=7, color="#73716b")
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     fig.savefig(FIG_DIR / "burn_hero_yearly.png", dpi=200)
@@ -213,7 +215,7 @@ def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
     fig.savefig(FIG_DIR / "burn_loss_ratio.png", dpi=200)
 
 
-def sensitivity(table, hero, hero_place: Place, history, sites, premiums_base) -> None:
+def sensitivity(table, hero, hero_place: Place, replays, premiums_base) -> None:
     """The same burn with haze severities raised to 0.5/0.8/1.0: the tariff desk's one knob
     that most changes what haze pays. Labelled a what-if; the base tariff stays the truth."""
     tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
@@ -222,20 +224,14 @@ def sensitivity(table, hero, hero_place: Place, history, sites, premiums_base) -
         band.severity = severity
     tier = calculator.find(tariff.tiers, TIER, "tier")
     cap_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
-    premium = next(
-        t
-        for t in calculator.quote_at(
-            tariff, history, sites, hero["lat"], hero["lng"], PRODUCT, hero["region"]
-        ).tiers
-        if t.tier == TIER
-    ).yearly_premium_sgd
+    premium = centre_premium(tariff, replays, hero)
     paid_by_year: dict[int, float] = defaultdict(float)
     lost_by_year: dict[int, float] = defaultdict(float)
     lowest = lowest_bands(tariff)
-    read_counts = stations_read(tariff)
+    rule = station_rule(tariff)
     for day in sorted(table):
         year = int(day[:4])
-        readings = day_readings_at(table[day], hero_place, *read_counts)
+        readings = day_readings_at(table[day], hero_place, rule)
         if all(readings[key] < level for key, level in lowest.items()):
             continue
         assessment = calculator.assess(tariff, PRODUCT, TIER, readings)

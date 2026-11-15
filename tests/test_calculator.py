@@ -5,15 +5,26 @@ import pytest
 from pydantic import ValidationError
 
 from api import calculator
-from api.calculator import Readings, Site
-from api.models import Tariff
+from api.calculator import Replay
+from api.models import PremiumShares, Tariff
 
 DAYS = calculator.DAYS_PER_YEAR
+CLEAN, HAZY = 50.0, 250.0  # PSI below every band, and at the top band (severity 1)
 
 
-def readings(*values: float) -> Readings:
-    """One site-day for each reading."""
-    return Readings(np.array(values), np.ones(len(values)))
+def replay(*years: tuple[int, int, int], unfed_years: tuple[int, ...] = ()) -> Replay:
+    """Haze readings from 1 Jan of each year: (year, recorded days, hazy days first)."""
+    days, haze, fed = [], [], []
+    for year, recorded, hazy in years:
+        first = np.datetime64(f"{year}-01-01")
+        days += [first + np.timedelta64(offset, "D") for offset in range(recorded)]
+        haze += [HAZY] * hazy + [CLEAN] * (recorded - hazy)
+        fed += [year not in unfed_years] * recorded
+    return Replay(
+        days=np.array(days, dtype="datetime64[D]"),
+        readings={"haze": np.array(haze)},
+        fed={"haze": np.array(fed)},
+    )
 
 
 def make_tariff(**changes) -> Tariff:
@@ -82,6 +93,7 @@ def make_tariff(**changes) -> Tariff:
             "catastrophe_load": 0,
             "expense_ratio": 0,
             "gst_rate": 0,
+            "distribution_expense_ratio": 0,
         },
     }
     body.update(changes)
@@ -121,20 +133,36 @@ def test_a_day_below_every_band_pays_nothing():
     assert day.payout_sgd == 0
 
 
-def test_premium_prices_the_average_year_from_history():
-    history = {"east": {"haze": readings(50.0, 250.0)}}
-    quote = calculator.quote(make_tariff(), history, "east", "cooked_food")
-    loss_days = DAYS * 0.5
+def test_premium_prices_the_average_year_of_the_replay():
+    quote = calculator.quote(make_tariff(), "cooked_food", "east", replay((2017, 365, 10)))
+    loss_days = 10 * DAYS / 365
     assert quote.expected_loss_days == pytest.approx(loss_days, abs=0.01)
     tier_1, tier_2 = quote.tiers
     assert tier_1.yearly_premium_sgd == pytest.approx(loss_days * 10, abs=0.01)
     assert tier_2.weekly_premium_sgd > tier_1.weekly_premium_sgd
 
 
-def test_days_weight_each_reading():
-    history = {"east": {"haze": Readings(np.array([50.0, 250.0]), np.array([3, 1]))}}
-    quote = calculator.quote(make_tariff(), history, "east", "cooked_food")
-    assert quote.expected_loss_days == pytest.approx(DAYS * 0.25, abs=0.01)
+def test_a_part_year_is_annualised():
+    quote = calculator.quote(make_tariff(), "cooked_food", "east", replay((2018, 100, 5)))
+    assert quote.expected_loss_days == pytest.approx(5 * DAYS / 100, abs=0.01)
+
+
+def test_the_limit_caps_each_year_not_the_average_year():
+    tariff = make_tariff()
+    tariff.tiers[0].max_paid_days_per_year = 5
+    quote = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 10), (2018, 365, 2)))
+    tier_1 = quote.tiers[0]
+    two_years = [min(10 * DAYS / 365, 5), 2 * DAYS / 365]
+    assert tier_1.expected_paid_days == pytest.approx(sum(two_years) / 2, abs=0.01)
+    assert tier_1.max_payout_per_year_sgd == 50
+
+
+def test_a_year_before_a_feed_started_takes_its_average_year():
+    places = replay((2016, 365, 0), (2017, 365, 10), (2018, 365, 20), unfed_years=(2016,))
+    quote = calculator.quote(make_tariff(), "cooked_food", "east", places)
+    fed_average = 30 * DAYS / 730
+    assert quote.loss_day_parts["haze"] == pytest.approx(fed_average, abs=0.01)
+    assert quote.expected_loss_days == pytest.approx(fed_average, abs=0.01)
 
 
 def test_loads_raise_the_premium():
@@ -143,34 +171,30 @@ def test_loads_raise_the_premium():
         "catastrophe_load": 0.1,
         "expense_ratio": 0.2,
         "gst_rate": 0.09,
+        "distribution_expense_ratio": 0.1,
     }
-    history = {"east": {"haze": readings(250.0)}}
-    tier_1 = calculator.quote(make_tariff(pricing=pricing), history, "east", "cooked_food").tiers[0]
+    quote = calculator.quote(
+        make_tariff(pricing=pricing), "cooked_food", "east", replay((2017, 365, 365))
+    )
     risk_cost = DAYS * 10
-    assert tier_1.yearly_premium_sgd == pytest.approx(risk_cost * 1.2 / 0.8 * 1.09, abs=0.01)
+    assert quote.tiers[0].yearly_premium_sgd == pytest.approx(
+        risk_cost * 1.2 / 0.8 * 1.09, abs=0.01
+    )
 
 
-def test_yearly_cap_limits_paid_days():
-    tariff = make_tariff()
-    tariff.tiers[0].max_paid_days_per_year = 5
-    history = {"east": {"haze": readings(250.0)}}
-    tier_1 = calculator.quote(tariff, history, "east", "cooked_food").tiers[0]
-    assert tier_1.expected_paid_days == 5
-    assert tier_1.max_payout_per_year_sgd == 50
-
-
-def test_assumed_days_replace_missing_history():
+def test_assumed_days_add_to_every_year():
     tariff = make_tariff()
     tariff.hazards[1].assumed_days_per_year = 2
-    quote = calculator.quote(tariff, {"east": {"haze": readings(50.0)}}, "east", "dry_goods")
+    quote = calculator.quote(tariff, "dry_goods", "east", replay((2017, 365, 0)))
     assert quote.expected_loss_days == 2
+    assert quote.loss_day_parts == {"haze": 0, "closure": 2}
 
 
 def test_hazard_without_history_or_assumed_days_cannot_be_priced():
     tariff = make_tariff()
     tariff.hazards[1].assumed_days_per_year = None
     with pytest.raises(calculator.MissingHistory):
-        calculator.check_prices(tariff, {"east": {"haze": readings(50.0)}})
+        calculator.check_prices(tariff, [replay((2017, 365, 0))])
 
 
 def test_unknown_keys_are_named():
@@ -259,72 +283,12 @@ def test_rent_classes_must_start_at_zero_and_rise(classes):
         make_tariff(rent={**RENT, "classes": classes})
 
 
-def site(key: str, latitude: float, value_days: dict[float, int], region: str = "east") -> Site:
-    values = np.array(list(value_days))
-    return Site(key, region, latitude, 103.9, Readings(values, np.array(list(value_days.values()))))
-
-
-def pooled(sites: list[Site]) -> Readings:
-    return Readings(
-        np.concatenate([s.readings.values for s in sites]),
-        np.concatenate([s.readings.days for s in sites]),
-    )
-
-
 def test_km_between_one_degree_of_latitude():
     assert calculator.km_between(1.0, 103.9, 2.0, 103.9) == pytest.approx(111.2, abs=0.1)
 
 
-def test_place_with_steady_stations_is_priced_from_its_own_station():
-    stations = [site("near", 1.30, {50.0: 1000}), site("far", 1.45, {250.0: 1000})]
-    history = {"east": {"haze": pooled(stations)}}
-    quote = calculator.quote_at(
-        make_tariff(), history, {"haze": stations}, 1.31, 103.9, "cooked_food"
-    )
-    (haze,) = quote.local_risks
-    assert (haze.stations, haze.credibility) == (["near"], 1.0)
-    assert haze.region_loss_days == pytest.approx(DAYS * 0.5, abs=0.01)
-    assert quote.expected_loss_days == 0
-
-
-def test_stations_that_only_differ_by_chance_get_the_region_price():
-    stations = [site("a", 1.30, {50.0: 2, 250.0: 2}), site("b", 1.45, {50.0: 2, 250.0: 2})]
-    history = {"east": {"haze": pooled(stations)}}
-    quote = calculator.quote_at(
-        make_tariff(), history, {"haze": stations}, 1.31, 103.9, "cooked_food"
-    )
-    assert quote.local_risks[0].credibility == 0
-    assert quote.expected_loss_days == pytest.approx(DAYS * 0.5, abs=0.01)
-
-
-def test_credibility_blends_station_and_region():
-    """Worked by hand: within-station variance 0.25, between-station variance 0.0625, so K = 4."""
-    stations = [site("a", 1.30, {50.0: 3, 250.0: 1}), site("b", 1.45, {50.0: 1, 250.0: 3})]
-    tariff = make_tariff()
-    assert calculator.credibility_constant(tariff.hazards[0], stations) == pytest.approx(4)
-    history = {"east": {"haze": pooled(stations)}}
-    quote = calculator.quote_at(tariff, history, {"haze": stations}, 1.31, 103.9, "cooked_food")
-    haze = quote.local_risks[0]
-    assert haze.credibility == 0.5
-    assert haze.loss_days == pytest.approx(DAYS * (0.5 * 0.25 + 0.5 * 0.5), abs=0.01)
-
-
-def test_a_place_reads_as_many_stations_as_its_trigger():
-    tariff = make_tariff()
-    tariff.hazards[0].sites_used = 2
-    stations = [
-        site("a", 1.30, {50.0: 10}),
-        site("b", 1.32, {250.0: 10}),
-        site("c", 1.45, {250.0: 10}),
-    ]
-    history = {"east": {"haze": pooled(stations)}}
-    quote = calculator.quote_at(tariff, history, {"haze": stations}, 1.30, 103.9, "cooked_food")
-    assert quote.local_risks[0].stations == ["a", "b"]
-
-
 def test_a_quote_says_how_many_loss_days_each_hazard_brings():
-    history = {"east": {"haze": readings(50.0, 250.0)}}
-    quote = calculator.quote(make_tariff(), history, "east", "cooked_food")
+    quote = calculator.quote(make_tariff(), "cooked_food", "east", replay((2017, 365, 10)))
     assert set(quote.loss_day_parts) == {"haze", "closure"}
     assert sum(quote.loss_day_parts.values()) == pytest.approx(quote.expected_loss_days, abs=0.02)
     assert quote.product_factor == pytest.approx(
@@ -332,41 +296,98 @@ def test_a_quote_says_how_many_loss_days_each_hazard_brings():
     )
 
 
-def test_each_tier_shows_the_steps_that_build_its_premium():
-    pricing = {"uncertainty_load": 0.15, "catastrophe_load": 0.1, "expense_ratio": 0.25,
-               "gst_rate": 0.09}
-    history = {"east": {"haze": readings(50.0, 250.0)}}
-    quote = calculator.quote(make_tariff(pricing=pricing), history, "east", "cooked_food")
+INCOME_PRICING = {"uncertainty_load": 0.15, "catastrophe_load": 0.1, "expense_ratio": 0.25,
+                  "gst_rate": 0.09, "distribution_expense_ratio": 0.15}
+
+
+def test_each_tier_shows_the_five_parts_of_its_premium_then_gst():
+    tariff = make_tariff(pricing=INCOME_PRICING)
+    quote = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 13)))
     for tier in quote.tiers:
         steps = {step.key: step.amount_sgd for step in tier.build_up}
-        assert list(steps) == ["expected_payouts", "uncertainty", "catastrophe", "expenses", "gst"]
-        assert steps["expected_payouts"] == pytest.approx(
-            tier.expected_paid_days * tier.daily_payout_sgd, rel=1e-4)
-        assert steps["uncertainty"] == pytest.approx(0.15 * steps["expected_payouts"], abs=0.01)
+        assert list(steps) == [
+            "expected_payouts", "reinsurance", "management", "distribution", "profit", "gst",
+        ]
         assert round(sum(steps.values()), 2) == tier.yearly_premium_sgd
+        before_gst = tier.yearly_premium_sgd / 1.09
+        shares = {key: amount / before_gst for key, amount in steps.items() if key != "gst"}
+        assert shares == pytest.approx({
+            "expected_payouts": 0.60, "reinsurance": 0.06, "management": 0.10,
+            "distribution": 0.15, "profit": 0.09,
+        }, abs=0.001)
+        assert steps["gst"] == pytest.approx(before_gst * 0.09, abs=0.01)
 
 
-def test_a_place_paid_on_another_region_is_priced_on_that_regions_haze():
-    clean = site("east", 1.30, {50.0: 10}, region="east")
-    hazy = site("central", 1.45, {250.0: 10}, region="central")
-    history = {"east": {"haze": pooled([clean])}, "central": {"haze": pooled([hazy])}}
-    sites = {"haze": [clean, hazy]}
-    nearest = calculator.quote_at(make_tariff(), history, sites, 1.30, 103.9, "cooked_food")
-    paid_on = calculator.quote_at(
-        make_tariff(), history, sites, 1.30, 103.9, "cooked_food", "central"
+def test_price_per_day_and_how_many_times_the_premium_the_limit_is():
+    tariff = make_tariff(pricing=INCOME_PRICING)
+    tariff.tiers[0].max_paid_days_per_year = 30
+    tier_1 = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5))).tiers[0]
+    assert tier_1.price_per_day_sgd == round(tier_1.yearly_premium_sgd / 365, 2)
+    assert tier_1.cover_multiple == round(300 / tier_1.yearly_premium_sgd, 1)
+    assert tier_1.sold_directly
+
+
+TIER_SHARES = {"expected_payouts": 0.6, "reinsurance": 0.06, "management": 0.1,
+               "distribution": 0.15, "profit": 0.09}
+
+
+def test_a_tier_costing_more_than_half_its_limit_is_not_sold_directly():
+    tariff = make_tariff(pricing=INCOME_PRICING)
+    for tier in tariff.tiers:
+        tier.max_paid_days_per_year = 10
+        tier.premium_shares = PremiumShares(**TIER_SHARES)
+    tier_1 = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5))).tiers[0]
+    assert tier_1.yearly_premium_sgd > 0.5 * tier_1.max_payout_per_year_sgd
+    assert not tier_1.sold_directly
+    tariff.pricing.refer_above_limit_share = 1.0
+    tier_1 = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5))).tiers[0]
+    assert tier_1.sold_directly
+
+
+def test_a_tier_without_shares_is_sold_directly_as_before_the_guardrail():
+    tariff = make_tariff(pricing=INCOME_PRICING)
+    for tier in tariff.tiers:
+        tier.max_paid_days_per_year = 10
+    tier_1 = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5))).tiers[0]
+    assert tier_1.yearly_premium_sgd > 0.5 * tier_1.max_payout_per_year_sgd
+    assert tier_1.sold_directly
+
+
+def test_a_tariff_saved_before_the_split_keeps_its_running_costs():
+    pricing = {"uncertainty_load": 0.15, "catastrophe_load": 0.1, "expense_ratio": 0.12,
+               "gst_rate": 0.09}
+    tariff = make_tariff(pricing=pricing)
+    assert tariff.pricing.distribution_expense_ratio == 0.12
+
+
+def test_the_proof_replays_what_the_tier_would_have_paid_each_year():
+    tariff = make_tariff(pricing=INCOME_PRICING)
+    for tier in tariff.tiers:
+        tier.max_paid_days_per_year = 30
+    places = replay(
+        (2015, 365, 40), (2017, 365, 4), (2018, 365, 0), (2019, 365, 6), (2026, 300, 50)
     )
-    assert (nearest.region, nearest.local_risks[0].stations) == ("east", ["east"])
-    assert (paid_on.region, paid_on.local_risks[0].stations) == ("central", ["central"])
-    assert paid_on.expected_loss_days > nearest.expected_loss_days
-    assert paid_on.loss_day_parts["haze"] == pytest.approx(
-        paid_on.local_risks[0].loss_days, abs=0.01
+    tier_1 = calculator.quote(tariff, "cooked_food", "east", places).tiers[0]
+    proof = tier_1.proof
+    assert (proof.years_replayed, proof.years_paid) == (4, 3)
+    assert proof.payout_days_per_year == pytest.approx((4 + 0 + 6) / 3, abs=0.05)
+    assert proof.typical_year_paid_sgd == 40
+    assert proof.paid_2026_sgd == 300
+    assert proof.haze_2015_like_sgd == 300
+    assert proof.payback_share == pytest.approx(0.6 / 1.09, abs=0.001)
+
+
+def test_no_proof_without_a_full_replay_year():
+    tier_1 = calculator.quote(make_tariff(), "cooked_food", "east", replay((2026, 300, 5))).tiers[0]
+    assert tier_1.proof is None
+
+
+def test_local_risks_say_what_the_place_reads_next_to_its_region():
+    place, region = replay((2017, 365, 20)), replay((2017, 365, 10))
+    quote = calculator.quote(
+        make_tariff(), "cooked_food", "east", place, region, {"haze": ["east"]}
     )
-
-
-def test_an_unknown_region_cannot_be_quoted_at_a_place():
-    stations = [site("east", 1.30, {50.0: 10})]
-    with pytest.raises(calculator.UnknownKey):
-        calculator.quote_at(
-            make_tariff(), {"east": {"haze": pooled(stations)}}, {"haze": stations},
-            1.30, 103.9, "cooked_food", "middle",
-        )
+    (haze,) = quote.local_risks
+    assert (haze.stations, haze.station_days, haze.credibility) == (["east"], 365, 1.0)
+    assert haze.loss_days == quote.loss_day_parts["haze"] == pytest.approx(20 * DAYS / 365, 0.01)
+    assert haze.region_loss_days == pytest.approx(10 * DAYS / 365, abs=0.01)
