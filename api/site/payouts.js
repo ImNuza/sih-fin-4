@@ -76,10 +76,11 @@ function phoneInbox(texts) {
 }
 
 async function renderSmePayouts(slot, hasPolicy) {
-  const [account, payouts, texts] = await Promise.all([
+  const [account, payouts, texts, application] = await Promise.all([
     api("/api/payout-account").catch(() => null),
     api("/api/payouts"),
     api("/api/sms"),
+    api("/api/applications/mine").catch(() => null),
   ]);
   const editing = !account || slot.dataset.editing === "1";
   slot.innerHTML = `<div class="grid">
@@ -90,7 +91,14 @@ async function renderSmePayouts(slot, hasPolicy) {
     <div class="card"><h2>Texts on your phone</h2>${phoneInbox(texts)}</div>
   </div>
   <div class="card"><h2>Your payouts</h2>${payoutRows(payouts, false)}</div>`;
+  if (!account) prefillPaynowMobile(application?.phone);
   wireSmePayouts(slot, hasPolicy);
+}
+
+/* For the demo: start the PayNow form with the mobile the owner gave in the buy flow. */
+function prefillPaynowMobile(phone) {
+  const proxy = el("paynow-form")?.elements.paynow_proxy;
+  if (proxy && /^[89]\d{7}$/.test(phone || "")) proxy.value = `+65${phone}`;
 }
 
 function wireSmePayouts(slot, hasPolicy) {
@@ -115,6 +123,7 @@ function wireSmePayouts(slot, hasPolicy) {
     try {
       const sent = await post("/api/payout-account/verify/start", {});
       el("code-note").textContent = `Code sent to ${sent.sent_to}. Demo only, the SMS is simulated: your code is ${sent.demo_code}.`;
+      el("code-input").value = sent.demo_code;
     } catch (error) { el("verify-error").textContent = error.message; }
   });
   el("check-code")?.addEventListener("click", async () => {
