@@ -3,10 +3,11 @@
 MAS's FEAT principles (2018) ask that a model does not systematically disadvantage a group, and
 the brief adds that pricing "must not price out the groups that most need cover". This script
 prices every product and tier with the live calculator:
-    - in each of the 5 PSI regions (what the buy flow charges today);
-    - at each of the 103 hawker centres, from its own nearest stations (api/calculator.quote_at).
-For each product and tier it reports the cheapest, median and dearest weekly premium and the
-ratio of dearest to cheapest. It then checks whether centres with lower stall rent, a rough
+    - in each of the 5 PSI regions (what a platform worker is charged);
+    - at each of the 103 hawker centres, from its own nearest stations and its own PSI region,
+      which is what a hawker is charged (main.business_quote, api/calculator.quote_at).
+For each product and tier it reports the cheapest, median and dearest weekly premium, the
+ratio of dearest to cheapest, and how many centres pay more a year than the tier can pay out. It then checks whether centres with lower stall rent, a rough
 stand-in for poorer stallholders, pay more for the same cover: the rank correlation between
 weekly premium and the median NEA rent bid, and the median premium in the lowest and highest
 rent quarters. No personal data goes into any price, so the check is about place only.
@@ -44,10 +45,12 @@ def place_prices(tariff: Tariff, history, sites, centres: list[dict]) -> pd.Data
     for centre in centres:
         for product in tariff.products:
             quote = calculator.quote_at(
-                tariff, history, sites, centre["lat"], centre["lng"], product.key
+                tariff, history, sites, centre["lat"], centre["lng"], product.key, centre["region"]
             )
             rows += [{"centre": centre["name"], "region": centre["region"], "product": product.key,
-                      "tier": t.tier, "weekly_sgd": t.weekly_premium_sgd} for t in quote.tiers]
+                      "tier": t.tier, "weekly_sgd": t.weekly_premium_sgd,
+                      "over_cap": t.yearly_premium_sgd > t.max_payout_per_year_sgd}
+                     for t in quote.tiers]
     return pd.DataFrame(rows)
 
 
@@ -83,6 +86,7 @@ def spread_row(by_place: pd.DataFrame, by_region: pd.DataFrame, rent: pd.Series)
         "centre_over_region_median": round(to_region.median(), 2),
         "centre_over_region_max": round(to_region.max(), 2),
         "centres_at_least_1_5x_region": int((to_region >= FAR_FROM_REGION).sum()),
+        "centres_premium_over_yearly_cap": int(by_place["over_cap"].sum()),
         "cheapest_centre": cheapest["centre"],
         "dearest_centre": dearest["centre"],
         "price_rent_rank_correlation": round(
@@ -109,7 +113,8 @@ def main() -> None:
     spread.to_csv(OUT_PATH, index=False)
     columns = ["product", "tier", "region_max_over_min", "centre_min_weekly_sgd",
                "centre_max_weekly_sgd", "centre_max_over_min", "centre_over_region_median",
-               "centres_at_least_1_5x_region", "price_rent_rank_correlation",
+               "centres_at_least_1_5x_region", "centres_premium_over_yearly_cap",
+               "price_rent_rank_correlation",
                "low_rent_quarter_median_weekly_sgd", "high_rent_quarter_median_weekly_sgd"]
     print(spread[spread["tier"] == "tier_1"][columns].to_string(index=False))
     print(f"Wrote {OUT_PATH.relative_to(REPO_ROOT)}: {len(spread)} rows")
