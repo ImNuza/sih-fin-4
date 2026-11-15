@@ -31,9 +31,10 @@ function paidCell(p) {
 }
 
 /* ---------- stallholder ---------- */
-function accountForm(account) {
+function accountForm(account, preferredLanguage) {
+  const language = account?.sms_language || preferredLanguage;
   const options = Object.entries(LANGUAGES)
-    .map(([key, label]) => `<option value="${key}" ${account?.sms_language === key ? "selected" : ""}>${label}</option>`)
+    .map(([key, label]) => `<option value="${key}" ${language === key ? "selected" : ""}>${label}</option>`)
     .join("");
   return `<form id="paynow-form" class="payout-form" novalidate>
     <label>PayNow to
@@ -88,19 +89,20 @@ function phoneInbox(texts) {
 }
 
 async function renderSmePayouts(slot, hasPolicy) {
-  const [account, payouts, texts, application, demo] = await Promise.all([
+  const [account, payouts, texts, application, demo, preference] = await Promise.all([
     api("/api/payout-account").catch(() => null),
     api("/api/payouts"),
     api("/api/sms"),
     api("/api/applications/mine").catch(() => null),
     api("/api/demo-phone"),
+    api("/api/sms-preference").catch(() => ({ language: "en" })),
   ]);
   const editing = !account || slot.dataset.editing === "1";
   slot.innerHTML = `<div class="section-head"><div><h2>Payouts</h2>
       <p class="page-sub">When NEA readings cross your trigger, SafeDay pays by PayNow and sends you a text. There is no claim to make.</p></div></div>
     <div class="sme-grid">
       <div class="card"><h2>Get paid by PayNow</h2>
-        ${editing ? accountForm(account) : accountSummary(account)}
+        ${editing ? accountForm(account, preference.language) : accountSummary(account)}
         ${hasPolicy ? "" : notice("", "info", "Pick a cover above too, or there is nothing to pay.")}
       </div>
       <div class="card"><h2>Texts on your phone</h2><div id="sme-inbox">${phoneInbox(texts)}</div></div>
@@ -239,7 +241,8 @@ async function renderInsurerPayouts(slot) {
 
 function holderOption(h) {
   const phone = !h.texts_to ? "no mobile yet" : `${h.texts_to}${h.mobile_verified ? "" : ", not verified"}`;
-  return `<option value="${h.user_id}">${escapeHtml(h.business_name)} · ${escapeHtml(h.centre)} · ${escapeHtml(h.tier_label)} (${escapeHtml(phone)})</option>`;
+  const language = LANGUAGES[h.sms_language] || h.sms_language;
+  return `<option value="${h.user_id}">${escapeHtml(h.business_name)} · ${escapeHtml(h.centre)} · ${escapeHtml(h.tier_label)} (${escapeHtml(phone)}, texts in ${escapeHtml(language)})</option>`;
 }
 
 /* For a demo: pay one customer now, by PayNow, with the payment SMS to a +65 mobile. */
@@ -247,7 +250,8 @@ function demoPayoutCard(holders, hazards) {
   const customers = holders.policyholders;
   if (!customers.length) return `<div class="card"><h3>Demo: pay a customer now</h3><p class="fine">No customer has cover yet.</p></div>`;
   const hazardOptions = hazards.map((h) => `<option value="${h.key}" ${h.key === DEMO_READING.hazard ? "selected" : ""}>${escapeHtml(h.label)} (${escapeHtml(h.reading)})</option>`).join("");
-  const languageOptions = Object.entries(LANGUAGES).map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
+  const languageOptions = `<option value="">Customer's choice</option>` +
+    Object.entries(LANGUAGES).map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
   const fallback = holders.fallback_mobile;
   const how = holders.texts_are_real
     ? "The SMS goes to the customer's real phone through textbee: keep the sending phone online with the textbee app open."
@@ -260,7 +264,7 @@ function demoPayoutCard(holders, hazards) {
     <label>Pay and text mobile <input name="mobile" type="tel" placeholder="+6591234567" value="${escapeHtml(fallback || "")}" autocomplete="off" /></label>
     <label>SMS in <select name="sms_language">${languageOptions}</select></label>
     <button class="btn primary" type="submit">Send payout and SMS</button>
-    <p class="fine run-note">Pays today, skipping the 30-day waiting period, by PayNow, and texts the payment notice. A mobile entered here becomes the customer's PayNow and texting mobile, with no code to verify. Left blank: the customer's own verified mobile${fallback ? `, or ${escapeHtml(fallback)} if they have none` : ""}. ${how}</p>
+    <p class="fine run-note">Pays today, skipping the 30-day waiting period, by PayNow, and texts the payment notice in the language the customer chose at sign-up, unless you pick another. A mobile entered here becomes the customer's PayNow and texting mobile, with no code to verify. Left blank: the customer's own verified mobile${fallback ? `, or ${escapeHtml(fallback)} if they have none` : ""}. ${how}</p>
     <p class="run-result" id="demo-result" aria-live="polite"></p><p class="error" id="demo-error" role="alert"></p>
   </form>`;
 }
@@ -339,8 +343,8 @@ function wireInsurerPayouts(slot) {
     const body = {
       user_id: Number(data.user_id),
       readings: { [data.hazard]: Number(data.reading) },
-      sms_language: data.sms_language,
     };
+    if (data.sms_language) body.sms_language = data.sms_language;
     if (data.mobile.trim()) body.mobile = data.mobile.trim();
     busy(event.submitter, "demo-error", async () => {
       const sent = await post("/api/insurer/demo-payouts", body);

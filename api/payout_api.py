@@ -16,7 +16,7 @@ from api.accounts import (
 )
 from api.day_history import day_readings
 from api.kyc import api_key
-from api.payouts import payout_accounts, payout_events, payouts, sms_messages
+from api.payouts import payout_accounts, payout_events, payouts, sms_messages, sms_preferences
 
 router = APIRouter(prefix="/api")
 # The demo phone: the demo card fills it in, and a demo payout goes to it when the insurer types
@@ -73,7 +73,9 @@ class DemoPayoutIn(BaseModel):
         description="Singapore mobile to pay by PayNow and text, taken as verified. Leave out "
         "to use the customer's verified mobile, or else the DEMO_PAYOUT_MOBILE fallback.",
     )
-    sms_language: sms.SmsLanguage = "en"
+    sms_language: sms.SmsLanguage | None = Field(
+        default=None, description="Leave out to text in the customer's preferred language."
+    )
 
     @field_validator("mobile")
     @classmethod
@@ -185,6 +187,13 @@ def load_payouts(engine: Engine, user_id: int | None, payout_id: int | None = No
     ]
 
 
+@router.get("/sms-preference")
+def get_sms_preference(user: SmeDep, request: Request) -> dict:
+    """The language the customer's texts go out in, as they chose it."""
+    with request.app.state.db.connect() as db:
+        return {"language": customer_language(db, user.id)}
+
+
 @router.get("/payout-account")
 def get_payout_account(user: SmeDep, request: Request) -> dict:
     row = find_account(request.app.state.db, user.id)
@@ -215,6 +224,7 @@ def put_payout_account(body: PayoutAccountIn, user: SmeDep, request: Request) ->
         db.execute(
             insert(payout_accounts).values(user_id=user.id, created_at=created_at, **values)
         )
+        sms.set_preferred_language(db, user.id, body.sms_language)
     return account_view(find_account(engine, user.id))
 
 
@@ -392,9 +402,11 @@ def list_policyholders(user: InsurerDep, request: Request) -> dict:
     the demo payouts' fallback phone."""
     query = (
         select(policies, users.c.business_name, payout_accounts.c.sms_mobile,
-               payout_accounts.c.sms_language, payout_accounts.c.mobile_verified_at)
+               payout_accounts.c.sms_language, payout_accounts.c.mobile_verified_at,
+               sms_preferences.c.language.label("preferred_language"))
         .join(users, users.c.id == policies.c.user_id)
         .outerjoin(payout_accounts, payout_accounts.c.user_id == policies.c.user_id)
+        .outerjoin(sms_preferences, sms_preferences.c.user_id == policies.c.user_id)
         .order_by(users.c.business_name)
     )
     with request.app.state.db.connect() as db:
@@ -410,7 +422,7 @@ def list_policyholders(user: InsurerDep, request: Request) -> dict:
                 "tier_label": row.tier_label,
                 "daily_payout_sgd": row.daily_payout_sgd,
                 "texts_to": paynow.mask("mobile", row.sms_mobile) if row.sms_mobile else None,
-                "sms_language": row.sms_language,
+                "sms_language": row.preferred_language or row.sms_language or "en",
                 "mobile_verified": row.mobile_verified_at is not None,
             }
             for row in rows
@@ -437,11 +449,18 @@ def send_demo_payout(body: DemoPayoutIn, user: InsurerDep, request: Request) -> 
         policy = db.execute(select(policies).where(policies.c.user_id == body.user_id)).first()
         if policy is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "That customer has no cover")
+        language = body.sms_language or customer_language(db, body.user_id)
         mobile = body.mobile
         if mobile is None and not has_verified_mobile(db, body.user_id):
             mobile = fallback_mobile()
         if mobile:
-            point_account_at(db, body.user_id, mobile, body.sms_language)
+            point_account_at(db, body.user_id, mobile, language)
+        else:
+            db.execute(
+                update(payout_accounts)
+                .where(payout_accounts.c.user_id == body.user_id)
+                .values(sms_language=language)
+            )
         outcome, loss_date = payout_flow.pay_demo(
             db, policy, saved.tariff, saved.version, body.readings
         )
@@ -462,6 +481,14 @@ def fallback_mobile() -> str | None:
             f"{FALLBACK_MOBILE_SETTING} in .env must be +65 then 8 digits starting 8 or 9",
         )
     return mobile
+
+
+def customer_language(db: Connection, user_id: int) -> str:
+    """The language the customer chose, at sign-up or with their PayNow details; else English."""
+    account_language = db.execute(
+        select(payout_accounts.c.sms_language).where(payout_accounts.c.user_id == user_id)
+    ).scalar_one_or_none()
+    return sms.preferred_language(db, user_id) or account_language or "en"
 
 
 def has_verified_mobile(db: Connection, user_id: int) -> bool:

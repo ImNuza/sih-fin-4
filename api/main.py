@@ -42,7 +42,7 @@ from sqlalchemy import select as sa_select
 
 from api import (
     accounts, burn, calculator, kyc, onboarding, payout_api, payout_flow, paynow_qr,
-    postcodes, premium, readings, store, underwriting,
+    postcodes, premium, readings, sms, store, underwriting,
 )
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.calculator import BidRecord, History, Readings, Site, Sites
@@ -900,6 +900,9 @@ class BuyRequest(BaseModel):
     applicant_type: Literal["individual", "company"]
     uen: str | None = None
     phone: str
+    sms_language: sms.SmsLanguage = Field(
+        default="en", description="The language of every text SafeDay sends this customer."
+    )
     add_safeday: bool
     tier: str | None = None
     declined_before: bool
@@ -1205,6 +1208,8 @@ def buy(
         db.execute(
             sa_insert(accounts.application_channel).values(application_id=application["id"], **channel)
         )
+        sms.set_preferred_language(db, user_id, body.sms_language)
+        payout_flow.send_welcome_if_due(db, user_id, tariff)
         application.update(details, **profile, **channel)
     accounts.start_session(engine, user_id, response)
     return {

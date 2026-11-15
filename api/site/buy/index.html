@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/buy.css?v=5" />
     <script src="/ui.js?v=2" defer></script>
     <script src="/site.js?v=16" defer></script>
-    <script src="/buy.js?v=13" defer></script>
+    <script src="/buy.js?v=14" defer></script>
   </head>
   <body>
     <header class="topnav">
@@ -170,6 +170,14 @@
             <label>Mobile number
               <input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="e.g. 9123 4567" required pattern="(\+65)?\s*[3689]\d{3}\s*-?\d{4}" />
               <span class="hint">We send payout alerts here.</span></label>
+            <fieldset class="choice">
+              <legend>Send my texts in</legend>
+              <label><input type="radio" name="sms_language" value="en" required checked /> English</label>
+              <label lang="zh"><input type="radio" name="sms_language" value="zh" /> 中文 (Chinese)</label>
+              <label lang="ms"><input type="radio" name="sms_language" value="ms" /> Bahasa Melayu</label>
+              <label lang="ta"><input type="radio" name="sms_language" value="ta" /> தமிழ் (Tamil)</label>
+              <span class="hint">Your cover SMS and every payout alert come in this language.</span>
+            </fieldset>
             <label>Email <input name="email" type="email" inputmode="email" autocomplete="email" required /></label>
             <label>Password <input name="password" type="password" autocomplete="new-password" required />
               <span class="hint">You sign in to your dashboard with it.</span></label>

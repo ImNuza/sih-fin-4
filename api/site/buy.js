@@ -523,12 +523,13 @@ async function renderSummary() {
     row("Term", `${chosen("term_months")} months`),
     dates ? row("Payouts from", `${DATE(dates.payoutsFrom)} (after the ${buyState.options.waiting_period_days}-day waiting period)`) : "",
     dates ? row("Cover ends", DATE(dates.ends)) : "",
+    row("Texts in", SMS_LANGUAGES[chosen("sms_language")] || "English"),
     row("Contact", `${field("name").value}${field("designation").value ? ` (${field("designation").value})` : ""} · ${field("phone").value} · ${field("email").value}`),
   ].join("") + (tier ? `<p class="fine">What you are buying, in the SMS we will send you:</p>
     <div class="cover-sms" id="buy-cover-sms"></div>` : "");
   if (tier) {
     showDue(tier.weekly_premium_sgd);
-    coverSms(el("buy-cover-sms"), tier.tier);
+    coverSms(el("buy-cover-sms"), tier.tier, chosen("sms_language") || "en");
   }
 }
 
@@ -603,6 +604,7 @@ function requestBody() {
     adviser_code: soldBy() === "adviser" ? data.adviser_code.trim() : null,
     association: soldBy() === "association" ? data.association.trim() : null,
     name: data.name, email: data.email, password: data.password,
+    sms_language: data.sms_language || "en",
     business_name: platformWorker ? null : data.business_name,
     centre: hawker ? data.centre : null,
     stall_unit: hawker ? data.stall_unit || null : null,

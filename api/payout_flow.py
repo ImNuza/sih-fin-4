@@ -117,31 +117,62 @@ def first_band(tariff: Tariff, hazard_key: str) -> float:
     return calculator.find(tariff.hazards, hazard_key, "hazard").bands[0].at_least
 
 
+def welcome_contact(db: Connection, user_id: int) -> tuple[str, str] | None:
+    """Where the welcome text goes, and in which language: the verified PayNow mobile, else the
+    mobile given at sign-up (a landline is never texted). None when there is no mobile."""
+    account = db.execute(
+        select(payout_accounts).where(payout_accounts.c.user_id == user_id)
+    ).first()
+    language = sms.preferred_language(db, user_id) or (account.sms_language if account else "en")
+    if account is not None and account.mobile_verified_at is not None:
+        return account.sms_mobile, language
+    phone = db.execute(
+        select(applications.c.phone)
+        .where(applications.c.user_id == user_id)
+        .order_by(applications.c.id.desc())
+    ).scalar()
+    mobile = f"+65{phone}" if phone else None
+    return (mobile, language) if mobile and paynow.is_valid_mobile(mobile) else None
+
+
+def bought_at(db: Connection, policy) -> datetime:
+    """When the policy was bought: its start, or for cover starting on a later date, the time of
+    the buy-flow application that bought it."""
+    started = as_utc(policy.started_at)
+    if started <= datetime.now(UTC):
+        return started
+    applied = db.execute(
+        select(applications.c.created_at)
+        .where(applications.c.user_id == policy.user_id)
+        .order_by(applications.c.id.desc())
+    ).scalar()
+    return as_utc(applied) if applied else started
+
+
 def send_welcome_if_due(db: Connection, user_id: int, tariff: Tariff) -> None:
-    """Text the cover in one SMS once the stallholder has a policy and a verified mobile.
+    """Text the cover in one SMS once the customer has paid for a policy and has a mobile.
 
     Sent once per policy: a new tier starts a new policy and gets its own welcome.
     """
     policy = db.execute(select(policies).where(policies.c.user_id == user_id)).first()
-    account = db.execute(
-        select(payout_accounts).where(payout_accounts.c.user_id == user_id)
-    ).first()
-    if policy is None or account is None or account.mobile_verified_at is None:
+    contact = welcome_contact(db, user_id)
+    if policy is None or contact is None:
         return
     welcomed = db.execute(
         select(sms_messages.c.id).where(
             sms_messages.c.user_id == user_id,
             sms_messages.c.kind == "welcome",
-            sms_messages.c.created_at >= as_utc(policy.started_at),
+            sms_messages.c.created_at >= bought_at(db, policy),
         )
     ).first()
     if welcomed:
         return
+    mobile, language = contact
     body = cover_text(
-        tariff, account.sms_language, policy.daily_payout_sgd, policy.max_paid_days_per_year,
+        tariff, language, policy.daily_payout_sgd, policy.max_paid_days_per_year,
         first_covered_day(policy.started_at),
     )
-    sms.send(db, user_id, "welcome", account.sms_mobile, account.sms_language, body)
+    sms.send(db, user_id, "welcome", mobile, language, body)
 
 
 def cover_text(tariff: Tariff, language: str, payout_sgd: float, max_days: int,

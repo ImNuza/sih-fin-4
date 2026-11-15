@@ -407,11 +407,11 @@ def test_welcome_text_explains_the_cover_with_the_tariff_numbers(client):
     stallholder_with_cover(client)
     [welcome] = texts_of_kind(client, "welcome")
     body = welcome["body"]
-    phrases = ("S$20/day", "WBGT 32C+ 2h+", "rain 20mm/h+", "PSI 101+", "flood alert",
-               "Max 10 days/yr")
+    phrases = ("up to S$20", "2h WBGT 32C+", "rain 20mm/h+", "PSI 101+", "flood alert",
+               "10 days/yr")
     for phrase in phrases:
         assert phrase in body
-    assert "even if you lose income" in body
+    assert "no pay, even with losses" in body
     assert len(body) <= SMS_LIMIT
 
 
@@ -436,8 +436,8 @@ def test_buying_cover_with_a_verified_mobile_sends_the_welcome_text(client):
 
     client.post("/api/policies", json={"tier": "tier_2"})
     [welcome] = texts_of_kind(client, "welcome")
-    assert "S$40/day" in welcome["body"]
-    assert "Max 15 days/yr" in welcome["body"]
+    assert "up to S$40" in welcome["body"]
+    assert "15 days/yr" in welcome["body"]
 
 
 def test_welcome_text_is_sent_once_per_cover(client):
@@ -644,3 +644,87 @@ def test_a_text_the_phone_fails_to_send_shows_as_failed_with_the_reason(client, 
     assert listed["status"] == "paid"
     assert listed["texts"][-1]["status"] == "failed"
     assert listed["texts"][-1]["error"] == "The phone has no mobile service."
+
+
+def signs_up_in(client, language: str) -> None:
+    body = buy_body(payment_method="giro", sms_language=language)
+    response = client.post("/api/buy", json=body)
+    assert response.status_code == 200, response.text
+
+
+def test_sign_up_keeps_the_language_the_customer_picked(client):
+    signs_up_in(client, "zh")
+    assert client.get("/api/sms-preference").json() == {"language": "zh"}
+
+
+def test_sign_up_refuses_a_language_with_no_texts(client):
+    response = client.post("/api/buy", json=buy_body(payment_method="giro", sms_language="fr"))
+    assert response.status_code == 422
+
+
+def test_demo_payout_texts_in_the_language_picked_at_sign_up(client, monkeypatch):
+    monkeypatch.setattr(payout_api, "api_key", lambda name: None)
+    signs_up_in(client, "ta")
+    user_id = insurer_sees_one_policyholder(client)
+    [holder] = client.get("/api/insurer/policyholders").json()["policyholders"]
+    assert holder["sms_language"] == "ta"
+    response = client.post(
+        "/api/insurer/demo-payouts",
+        json={"user_id": user_id, "readings": RAIN_STORM, "mobile": "+6581112222"},
+    )
+    text = response.json()["payout"]["texts"][-1]
+    assert text["language"] == "ta"
+    assert any(name in text["body"] for name in sms.DAY_NAMES["ta"].values())
+
+
+def test_insurer_can_send_the_demo_text_in_another_language(client, monkeypatch):
+    monkeypatch.setattr(payout_api, "api_key", lambda name: None)
+    signs_up_in(client, "ta")
+    user_id = insurer_sees_one_policyholder(client)
+    response = client.post("/api/insurer/demo-payouts", json={
+        "user_id": user_id, "readings": RAIN_STORM, "mobile": "+6581112222", "sms_language": "ms",
+    })
+    assert response.json()["payout"]["texts"][-1]["language"] == "ms"
+
+
+def test_changing_the_texting_language_with_paynow_details_updates_the_choice(client):
+    signs_up_in(client, "zh")
+    account = {"paynow_proxy_type": "mobile", "paynow_proxy": GOOD_MOBILE, "sms_language": "ms"}
+    assert client.put("/api/payout-account", json=account).status_code == 200
+    assert client.get("/api/sms-preference").json() == {"language": "ms"}
+
+
+
+def welcomes(client) -> list[dict]:
+    return [text for text in client.get("/api/sms").json() if text["kind"] == "welcome"]
+
+
+def test_paying_in_the_buy_flow_texts_the_welcome_in_the_chosen_language(client):
+    signs_up_in(client, "zh")
+    [welcome] = welcomes(client)
+    assert welcome["to"] == "+65 ****4567"
+    assert welcome["language"] == "zh"
+    assert "红色日最多赔" in welcome["body"]
+
+
+def test_a_landline_given_at_sign_up_gets_no_welcome_text(client):
+    body = buy_body(payment_method="giro", phone="6123 4567")
+    assert client.post("/api/buy", json=body).status_code == 200
+    assert welcomes(client) == []
+
+
+def test_an_application_sent_to_an_underwriter_gets_no_welcome_text(client):
+    body = buy_body(payment_method=None, declined_before=True, declined_details="Flooded in 2025")
+    assert client.post("/api/buy", json=body).status_code == 200
+    assert welcomes(client) == []
+
+
+def test_verifying_paynow_later_does_not_resend_the_welcome(client):
+    cover_start = (datetime.now(payout_flow.SINGAPORE).date() + timedelta(days=10)).isoformat()
+    body = buy_body(payment_method="giro", sms_language="ms", cover_start=cover_start)
+    assert client.post("/api/buy", json=body).status_code == 200
+    account = {"paynow_proxy_type": "mobile", "paynow_proxy": GOOD_MOBILE, "sms_language": "ms"}
+    client.put("/api/payout-account", json=account)
+    code = client.post("/api/payout-account/verify/start").json()["demo_code"]
+    assert client.post("/api/payout-account/verify", json={"code": code}).status_code == 200
+    assert len(welcomes(client)) == 1

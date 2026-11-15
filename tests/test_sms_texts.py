@@ -61,8 +61,8 @@ def test_welcome_text_fits_for_every_tier(language):
 
 def test_welcome_text_names_every_trigger_and_the_no_pay_rule():
     body = welcome("en", TARIFF.tiers[-1])
-    for phrase in ("WBGT 32C+ 2h+", "rain 20mm/h+", "PSI 101+", "flood alert", "7am-7pm",
-                   "S$100/day", "Max 30 days/yr", "even if you lose income"):
+    for phrase in ("PSI 101+", "rain 20mm/h+", "2h WBGT 32C+", "flood alert", "7am-7pm",
+                   "up to S$100", "most on a Red day", "30 days/yr", "no pay, even with losses"):
         assert phrase in body
 
 
@@ -103,6 +103,15 @@ def test_cover_text_rejects_an_unknown_tier_or_language(client):
 
 def test_mandarin_welcome_keeps_every_part_of_the_cover():
     body = welcome("zh", TARIFF.tiers[-1])
-    for phrase in ("7-19时", "WBGT≥32°C达2小时", "雨≥20mm/时", "PSI≥101", "水灾", "日赔≤S$100",
+    for phrase in ("7-19时", "WBGT≥32达2时", "雨≥20mm/时", "PSI≥101", "水灾", "红色日最多赔S$100",
                    "年限30天", "12月31日起", "否则亏损也不赔"):
         assert phrase in body
+
+
+@pytest.mark.parametrize("language", sms.LANGUAGES)
+def test_welcome_text_never_says_only_a_red_day_pays(language):
+    """Payouts are graded: a milder day pays a share, so the text promises "up to"."""
+    body = welcome(language, TARIFF.tiers[0])
+    assert "S$20" in body
+    for wrong in ("No Red Day", "no Red day", "无红色日", "Tiada Hari"):
+        assert wrong not in body
