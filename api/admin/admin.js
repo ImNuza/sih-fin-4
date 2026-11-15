@@ -4,6 +4,7 @@ const SECTIONS = [
   {
     key: "hazards",
     label: "Hazards",
+    icon: "cloud-rain",
     intro:
       "What makes a bad day and how much of a normal day's sales it takes. " +
       "Loss is the weight times the severity of the band the reading reaches.",
@@ -11,6 +12,7 @@ const SECTIONS = [
   {
     key: "products",
     label: "Products",
+    icon: "store",
     intro:
       "What the business sells. A lost day costs the margin on sales that never come back, " +
       "plus the cost of stock that spoils first: the shorter the shelf life and the slower " +
@@ -19,6 +21,7 @@ const SECTIONS = [
   {
     key: "tiers",
     label: "Tiers",
+    icon: "banknote",
     intro:
       "What each tier pays for a day with no sales, and how many such days it pays a year. " +
       "Each tier pays more than the one before it.",
@@ -26,17 +29,27 @@ const SECTIONS = [
   {
     key: "pricing",
     label: "Pricing",
+    icon: "sliders-horizontal",
     intro: "Loads that turn the expected payout into the premium the customer pays.",
   },
   {
     key: "rent",
     label: "Rent classes",
+    icon: "building-2",
     intro:
       "Hawker centres grouped by the median winning NEA bid for a cooked-food stall. " +
       "A stall's rent per trading day sets the tier we recommend: the smallest tier " +
       "that pays a whole day's rent. Rent never changes the premium.",
   },
 ];
+
+const HAZARD_ICONS = {
+  haze: "cloud-fog",
+  rain: "cloud-rain",
+  heat: "thermometer-sun",
+  flood: "waves",
+  closure: "store",
+};
 
 const PRICING_FIELDS = [
   {
@@ -64,6 +77,8 @@ const FIELD_LABELS = {
   weight: "Weight",
   scaled_by_product: "Depends on the product",
   bands: "Bands",
+  at_least: "From reading",
+  severity: "Severity",
   sites_used: "Nearest stations read",
   assumed_days_per_year: "Assumed days a year",
   source: "Source",
@@ -72,27 +87,56 @@ const FIELD_LABELS = {
   demand_sensitivity: "Demand lost on a bad day",
   gross_margin: "Gross margin",
   recovered_share: "Sales recovered later",
-  daily_payout_sgd: "Payout for a day with no sales, S$",
+  daily_payout_sgd: "Payout for a day with no sales",
   max_paid_days_per_year: "Paid days a year, at most",
-  at_least_monthly_sgd: "From median monthly bid, S$",
+  at_least_monthly_sgd: "From median monthly bid",
+  trading_days_per_month: "Trading days a month",
+  ...Object.fromEntries(PRICING_FIELDS.map((f) => [f.key, f.label])),
 };
+
+const FIELD_HELP = {
+  weight: "Share of a normal day's sales lost when the reading reaches the top band.",
+  sites_used: "How many of the nearest NEA stations or gauges the price reads.",
+  assumed_days_per_year:
+    "Days a year this hazard reaches its top band, when there is no NEA history to count.",
+  shelf_life_days: "How long stock keeps. 0 for work with no stock: nothing spoils.",
+  restock_every_days: "Days between deliveries. Slow restocks mean more stock is thrown away.",
+  demand_sensitivity: "Share of customers who stay away on a bad day.",
+  gross_margin: "Share of each sale left after the cost of goods.",
+  recovered_share: "Share of lost sales made up on later days.",
+  daily_payout_sgd: "What the tier pays for a day at 100% loss.",
+  max_paid_days_per_year: "The most full days the tier pays in a year.",
+};
+
 const PERCENT_FIELDS = new Set([
   "weight",
+  "severity",
   "demand_sensitivity",
   "gross_margin",
   "recovered_share",
   ...PRICING_FIELDS.map((f) => f.key),
 ]);
 
+const NUMBER_LIMITS = {
+  number: 'min="0" step="any"',
+  optional: 'min="0" step="any"',
+  percent: 'min="0" max="100" step="any"',
+  int: 'min="0" step="1"',
+};
+
 const PREVIEW_DELAY_MS = 250;
 const TOAST_MS = 4000;
+const CHART_TICK_GAP = 22;
+const AUTH_KEY = "auth";
 
 const state = {
-  auth: sessionStorage.getItem("auth"),
+  auth: sessionStorage.getItem(AUTH_KEY),
+  editor: null,
   regions: [],
   hazardsWithHistory: new Set(),
   centreRents: [],
   saved: null,
+  savedQuote: null,
   draft: null,
   section: "hazards",
   region: null,
@@ -101,6 +145,7 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+const icon = (name, className) => SafeUI.icon(name, className);
 
 // ---------- API ----------
 
@@ -114,7 +159,12 @@ class ApiError extends Error {
 async function api(path, { method = "GET", body } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (state.auth) headers.Authorization = `Basic ${state.auth}`;
-  const response = await fetch(path, { method, headers, body: body && JSON.stringify(body) });
+  let response;
+  try {
+    response = await fetch(path, { method, headers, body: body && JSON.stringify(body) });
+  } catch {
+    throw new ApiError(0, "Could not reach the server. Check your connection and try again.");
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(response.status, describeError(data.detail));
   return data;
@@ -141,55 +191,111 @@ function encodeLogin(username, password) {
   return btoa(String.fromCharCode(...bytes));
 }
 
-async function signIn(event) {
-  event.preventDefault();
-  const form = new FormData(event.target);
-  state.auth = encodeLogin(form.get("username"), form.get("password"));
+function loginMessage(error) {
+  if (error.status === 401) return "";
+  if (error.status === 403) {
+    return (
+      "You are signed in to SafeDay as a business owner. The tariff desk is for insurer " +
+      "staff: sign in as an insurer, or use the tariff desk login."
+    );
+  }
+  return error.message;
+}
+
+async function begin() {
   try {
     await openDesk();
-    sessionStorage.setItem("auth", state.auth);
   } catch (error) {
-    state.auth = null;
-    $("login-error").textContent = error.message;
+    if (state.auth && error.status === 401) {
+      forgetLogin();
+      return begin();
+    }
+    showLogin(loginMessage(error));
   }
 }
 
-function clearLogin() {
-  const form = $("login-form");
-  form.elements.username.value = "";
-  form.elements.password.value = "";
-  $("login-error").textContent = "";
+async function signIn(event) {
+  event.preventDefault();
+  const form = event.target;
+  const { username, password } = form.elements;
+  const missing = [username, password].filter((input) => !input.value);
+  [username, password].forEach((input) => markInvalid(input, missing.includes(input)));
+  if (missing.length) {
+    showLoginError("Enter the tariff desk username and password.");
+    missing[0].focus();
+    return;
+  }
+  state.auth = encodeLogin(username.value, password.value);
+  $("login-submit").setAttribute("aria-busy", "true");
+  try {
+    await openDesk();
+    sessionStorage.setItem(AUTH_KEY, state.auth);
+    password.value = "";
+  } catch (error) {
+    state.auth = null;
+    const wrong = error.status === 401;
+    markInvalid(password, wrong);
+    showLoginError(wrong ? "Wrong username or password. Check both and try again." : error.message);
+    if (wrong) password.select();
+  } finally {
+    $("login-submit").removeAttribute("aria-busy");
+  }
 }
 
-function signOut(message = "") {
-  if ($("review-dialog").open) $("review-dialog").close();
-  sessionStorage.removeItem("auth");
+function showLoginError(message) {
+  $("login-error").innerHTML = message ? `${icon("circle-alert")}<span>${esc(message)}</span>` : "";
+}
+
+function forgetLogin() {
+  sessionStorage.removeItem(AUTH_KEY);
   state.auth = null;
-  state.saved = state.draft = null;
+}
+
+function showLogin(message = "") {
+  if ($("drawer")?.open) $("drawer").close();
+  state.saved = state.draft = state.editor = null;
+  $("loading").hidden = true;
   $("desk").hidden = true;
   $("login").hidden = false;
-  $("login-error").textContent = message;
+  showLoginError(message);
+}
+
+async function signOut() {
+  if (isDirty() && !confirm("Sign out and lose your unsaved changes?")) return;
+  if (state.editor.signed_in_with === "session") {
+    state.draft = null;
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    location.href = "/login/";
+    return;
+  }
+  forgetLogin();
+  showLogin();
 }
 
 function handleAuthError(error) {
-  if (error.status !== 401) return false;
-  signOut("Your session has ended. Sign in again.");
+  if (error.status !== 401 && error.status !== 403) return false;
+  forgetLogin();
+  showLogin("Your sign-in has ended. Sign in again to keep editing.");
   return true;
 }
 
 async function openDesk() {
+  const editor = await api("/api/admin/me");
   const [options, saved, rents] = await Promise.all([
     api("/api/options"),
     api("/api/admin/tariff"),
     api("/api/rent").catch(() => ({ centres: {} })),
   ]);
+  state.editor = editor;
   state.regions = options.regions;
   state.centreRents = Object.values(rents.centres);
   state.hazardsWithHistory = new Set(
     options.hazards.filter((hazard) => hazard.has_history).map((hazard) => hazard.key),
   );
   state.region ??= options.regions[0];
+  renderWho();
   showSaved(saved);
+  $("loading").hidden = true;
   $("login").hidden = true;
   $("desk").hidden = false;
 }
@@ -197,7 +303,6 @@ async function openDesk() {
 function showSaved(saved) {
   state.saved = saved;
   state.draft = structuredClone(saved.tariff);
-  renderNav();
   renderEditor();
   renderPickers();
   renderReadings();
@@ -207,8 +312,12 @@ function showSaved(saved) {
 
 // ---------- Draft editing ----------
 
+function pathIn(root, path) {
+  return path.split(".").reduce((node, part) => node?.[part], root);
+}
+
 function getPath(path) {
-  return path.split(".").reduce((node, part) => node?.[part], state.draft);
+  return pathIn(state.draft, path);
 }
 
 function setPath(path, value) {
@@ -221,20 +330,79 @@ function readInput(input) {
   const { kind } = input.dataset;
   if (kind === "bool") return input.checked;
   if (kind === "text") return input.value;
-  if (input.value === "") return kind === "optional" ? null : NaN;
+  if (input.value === "") return kind === "optional" && input.validity.valid ? null : NaN;
+  if (!input.validity.valid) return NaN;
   const value = Number(input.value);
   return kind === "percent" ? value / 100 : value;
 }
 
 function isDirty() {
-  return JSON.stringify(state.draft) !== JSON.stringify(state.saved.tariff);
+  return Boolean(state.draft) && JSON.stringify(state.draft) !== JSON.stringify(state.saved.tariff);
+}
+
+function invalidPaths(node = state.draft, path = "") {
+  if (typeof node === "number") return Number.isNaN(node) ? [path] : [];
+  if (node === null || typeof node !== "object") return [];
+  return Object.entries(node).flatMap(([key, child]) =>
+    invalidPaths(child, path ? `${path}.${key}` : key),
+  );
+}
+
+function sectionOf(path) {
+  return path.startsWith("rent.") ? "rent" : path.split(".")[0];
+}
+
+function fieldName(path) {
+  const parts = path.split(".");
+  const name = FIELD_LABELS[parts.at(-1)];
+  const item = parts.length > 2 ? getPath(parts.slice(0, 2).join("."))?.label : null;
+  if (parts.includes("bands")) return `${item}, band ${Number(parts[3]) + 1}: ${name}`;
+  return item && parts[0] !== "rent" ? `${item}: ${name}` : name;
+}
+
+function fixMessage(path) {
+  const percent = PERCENT_FIELDS.has(path.split(".").at(-1));
+  return `${fieldName(path)} needs ${percent ? "a number from 0 to 100" : "a number, 0 or more"}.`;
 }
 
 function draftChanged() {
-  const dirty = isDirty();
-  $("review").disabled = !dirty;
-  $("discard").disabled = !dirty;
+  const changes = tariffChanges(state.saved.tariff, state.draft);
+  const invalid = invalidPaths();
+  const ready = changes.length > 0 && invalid.length === 0;
+  const review = $("review");
+  review.disabled = !ready;
+  review.innerHTML = ready
+    ? `Review changes <span class="count-badge num">${changes.length}</span>`
+    : "Review changes";
+  review.setAttribute("aria-label", ready ? `Review ${plural(changes.length, "change")}` : "Review changes");
+  $("discard").disabled = changes.length === 0 && invalid.length === 0;
+  renderDraftStatus(changes.length, invalid);
+  renderNav(changes, invalid);
   schedulePreview();
+}
+
+function renderDraftStatus(changeCount, invalid) {
+  const status = $("draft-status");
+  status.className = "draft-status";
+  if (invalid.length) {
+    status.classList.add("critical");
+    status.innerHTML = `${icon("circle-alert")}<button type="button" class="linklike" id="fix-first">
+      ${esc(fixMessage(invalid[0]))}</button>`;
+    $("fix-first").addEventListener("click", () => focusPath(invalid[0]));
+  } else if (changeCount) {
+    status.classList.add("accent");
+    status.innerHTML = `<span class="dot" aria-hidden="true"></span>${plural(changeCount, "unsaved change")}`;
+  } else {
+    status.innerHTML = `${icon("check")}No unsaved changes`;
+  }
+}
+
+function focusPath(path) {
+  const section = sectionOf(path);
+  if (section !== state.section) showSection(section);
+  const input = document.querySelector(`[data-path="${path}"]`);
+  input?.scrollIntoView({ block: "center" });
+  input?.focus({ preventScroll: true });
 }
 
 function newItem(path, list) {
@@ -272,12 +440,21 @@ function onEdit(event) {
   const input = event.target.closest("[data-path]");
   if (!input) return;
   const { path } = input.dataset;
-  setPath(path, readInput(input));
+  const value = readInput(input);
+  setPath(path, value);
+  markInvalid(input, Number.isNaN(value));
+  input.classList.toggle("changed", isChanged(path));
   const hazard = path.match(/^hazards\.(\d+)\./);
   if (hazard) $(`chart-${hazard[1]}`).innerHTML = bandChart(state.draft.hazards[hazard[1]]);
   if (path.startsWith("products.")) renderPickers();
+  if (path.endsWith(".label")) retitle(path, value);
   if (path.startsWith("rent.")) $("rent-spread").innerHTML = rentSpread();
   draftChanged();
+}
+
+function retitle(path, label) {
+  const title = document.querySelector(`[data-title-for="${path}"]`);
+  if (title) title.textContent = label || "Unnamed";
 }
 
 function onEditorClick(event) {
@@ -289,9 +466,9 @@ function onEditorClick(event) {
   } else {
     getPath(button.dataset.remove).splice(Number(button.dataset.index), 1);
   }
-  renderNav();
   renderEditor();
   renderPickers();
+  renderReadings();
   draftChanged();
 }
 
@@ -299,6 +476,10 @@ function onEditorClick(event) {
 
 function percent(share) {
   return `${+(share * 100).toFixed(2)}%`;
+}
+
+function plural(count, word) {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
 function shown(field, value) {
@@ -348,13 +529,10 @@ function tariffChanges(before, after) {
     before: shown(key, before.pricing[key]),
     after: shown(key, after.pricing[key]),
   }));
-  const rent = [
-    ["trading_days_per_month", "Trading days a month"],
-    ["source", "Source"],
-  ]
-    .filter(([key]) => before.rent[key] !== after.rent[key])
-    .map(([key, label]) => ({
-      where: `Rent classes › ${label}`,
+  const rent = ["trading_days_per_month", "source"]
+    .filter((key) => before.rent[key] !== after.rent[key])
+    .map((key) => ({
+      where: `Rent classes › ${FIELD_LABELS[key]}`,
       before: shown(key, before.rent[key]),
       after: shown(key, after.rent[key]),
     }));
@@ -372,13 +550,13 @@ function changesTable(changes) {
   const rows = changes
     .map(
       ({ where, before, after }) => `<tr>
-        <th scope="row">${esc(where)}</th>
-        <td class="before">${esc(before)}</td>
-        <td class="after">${esc(after)}</td>
+        <td>${esc(where)}</td>
+        <td class="before"><div class="cell-text">${esc(before) || "–"}</div></td>
+        <td class="after"><div class="cell-text">${esc(after)}</div></td>
       </tr>`,
     )
     .join("");
-  return `<div class="table-wrap"><table class="changes">
+  return `<div class="table-wrap"><table class="data changes">
     <thead><tr><th>What</th><th>Before</th><th>After</th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
@@ -395,58 +573,78 @@ function impactTable(before, after) {
     .map((tier) => {
       const old = before.find((candidate) => candidate.tier === tier.tier);
       const was = old ? money(old.weekly_premium_sgd) : "–";
-      return `<tr><th scope="row">${esc(tier.label)}</th>
-        <td class="before">${was}</td><td class="after">${money(tier.weekly_premium_sgd)}</td></tr>`;
+      return `<tr><td>${esc(tier.label)}</td>
+        <td class="num before">${was}</td><td class="num after">${money(tier.weekly_premium_sgd)}</td></tr>`;
     })
     .join("");
-  return `<table class="changes">
-    <thead><tr><th>Tier</th><th>Before</th><th>After</th></tr></thead>
+  return `<div class="table-wrap"><table class="data changes">
+    <thead><tr><th>Tier</th><th class="num">Before</th><th class="num">After</th></tr></thead>
     <tbody>${rows}</tbody>
-  </table>`;
+  </table></div>`;
 }
 
 function showReviewError(message) {
   $("review-error").hidden = !message;
-  $("review-error").textContent = message;
-  $("apply").disabled = Boolean(message);
+  $("review-error").innerHTML = message ? `${icon("circle-alert")}<span>${esc(message)}</span>` : "";
+}
+
+function reviewBody(changes) {
+  const product = state.draft.products.find((item) => item.key === state.product);
+  return `<section>
+      <h3>What changes</h3>
+      ${changesTable(changes)}
+    </section>
+    <section>
+      <h3>Weekly premium: ${esc(product.label)}, ${esc(titleCase(state.region))}</h3>
+      <div id="review-impact"><span class="skeleton line"></span><span class="skeleton line"></span></div>
+    </section>
+    <div class="review-actions">
+      <p class="notice critical" id="review-error" role="alert" hidden></p>
+      <button type="button" class="btn" data-close-review>Keep editing</button>
+      <button type="button" class="btn primary" id="apply" disabled>Apply changes</button>
+    </div>`;
 }
 
 async function openReview() {
   const changes = tariffChanges(state.saved.tariff, state.draft);
-  const plural = changes.length === 1 ? "change" : "changes";
-  $("review-summary").textContent =
-    `${changes.length} ${plural} to version ${state.saved.version}. Nothing is saved until you apply.`;
-  $("review-changes").innerHTML = changesTable(changes);
-  const product = state.draft.products.find((item) => item.key === state.product);
-  $("impact-title").textContent = `Weekly premium: ${product.label}, ${titleCase(state.region)}`;
-  $("review-impact").innerHTML = "";
-  showReviewError("");
-  $("apply").disabled = true;
-  $("review-dialog").showModal();
+  const dialog = SafeUI.openDrawer({
+    title: "Review changes",
+    subtitle: `${plural(changes.length, "change")} to version ${state.saved.version}. Nothing is saved until you apply.`,
+    body: reviewBody(changes),
+  });
+  dialog.querySelector("[data-close-review]").addEventListener("click", () => dialog.close());
+  $("apply").addEventListener("click", apply);
   try {
     const [before, after] = await Promise.all([
-      premiumsOf(state.saved.tariff),
+      premiumsOf(state.saved.tariff).catch(() => []),
       premiumsOf(state.draft),
     ]);
     $("review-impact").innerHTML = impactTable(before, after);
     $("apply").disabled = false;
   } catch (error) {
     if (handleAuthError(error)) return;
+    $("review-impact").innerHTML = "";
     showReviewError(`Fix this before applying. ${error.message}`);
   }
 }
 
 async function apply() {
-  $("apply").disabled = true;
+  const button = $("apply");
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  showReviewError("");
   try {
     const body = { based_on_version: state.saved.version, tariff: state.draft };
     const saved = await api("/api/admin/tariff", { method: "PUT", body });
-    $("review-dialog").close();
+    $("drawer").close();
     showSaved(saved);
-    toast(`Applied. The tariff is now version ${saved.version}.`);
+    toast(`Saved. The tariff is now version ${saved.version}.`);
   } catch (error) {
     if (handleAuthError(error)) return;
-    showReviewError(`Not applied. ${error.message}`);
+    showReviewError(`Not saved. ${error.message}`);
+    button.disabled = error.status !== 0;
+  } finally {
+    button.removeAttribute("aria-busy");
   }
 }
 
@@ -477,31 +675,52 @@ function titleCase(word) {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
+function initials(name) {
+  const words = name.trim().split(/\s+/);
+  return words.map((word) => word[0]).join("").slice(0, 2).toUpperCase() || "?";
+}
+
+function isChanged(path) {
+  return pathIn(state.saved.tariff, path) !== getPath(path);
+}
+
+function markInvalid(input, invalid) {
+  if (invalid) input.setAttribute("aria-invalid", "true");
+  else input.removeAttribute("aria-invalid");
+}
+
 function field(path, kind, label) {
   const value = getPath(path);
-  const named = `data-path="${path}" data-kind="${kind}" aria-label="${esc(label)}"`;
+  const changed = isChanged(path) ? "changed" : "";
+  const named = `data-path="${path}" data-kind="${kind}" aria-label="${esc(label)}" class="${changed}"`;
   if (kind === "bool") return `<input type="checkbox" ${named} ${value ? "checked" : ""}>`;
   if (kind === "text") return `<input ${named} value="${esc(value)}">`;
   if (kind === "long-text") {
-    return `<textarea data-path="${path}" data-kind="text" aria-label="${esc(label)}">${esc(value)}</textarea>`;
+    return `<textarea data-path="${path}" data-kind="text" aria-label="${esc(label)}" class="${changed}">${esc(value)}</textarea>`;
   }
-  const shown = kind === "percent" ? +(value * 100).toFixed(2) : value;
-  const limits = kind === "percent" ? 'min="0" max="100"' : 'min="0"';
-  const display = Number.isFinite(shown) ? shown : "";
-  return `<input type="number" step="any" ${limits} ${named} value="${display}">`;
+  const display = kind === "percent" ? +(value * 100).toFixed(2) : value;
+  const limits = NUMBER_LIMITS[kind] ?? NUMBER_LIMITS.number;
+  const invalid = Number.isNaN(value) ? 'aria-invalid="true"' : "";
+  const shownValue = Number.isFinite(display) ? display : "";
+  return `<input type="number" inputmode="decimal" ${limits} ${named} ${invalid} value="${shownValue}">`;
 }
 
-function withUnit(input, unit) {
-  return `<span class="with-unit">${input}<span>${unit}</span></span>`;
+function withUnit(input, unit, side = "after") {
+  return `<span class="unit-input ${side}">${input}<span class="unit" aria-hidden="true">${unit}</span></span>`;
 }
 
-function removeButton(listPath, index, allowed) {
+function labelled(label, control, help = "") {
+  return `<label class="field"><span class="field-label">${esc(label)}${help ? SafeUI.help(help) : ""}</span>${control}</label>`;
+}
+
+function removeButton(listPath, index, allowed, what) {
   if (!allowed) return "";
-  return `<button type="button" class="remove" data-remove="${listPath}" data-index="${index}">Remove</button>`;
+  return `<button type="button" class="icon-btn remove" data-remove="${listPath}" data-index="${index}"
+    aria-label="Remove ${esc(what)}" data-tip="Remove ${esc(what)}">${icon("x")}</button>`;
 }
 
 function addButton(listPath, label) {
-  return `<button type="button" class="add" data-add="${listPath}">${label}</button>`;
+  return `<button type="button" class="btn small add" data-add="${listPath}">${icon("plus")}${label}</button>`;
 }
 
 function option(value, label, selected) {
@@ -511,7 +730,7 @@ function option(value, label, selected) {
 
 function toast(message) {
   const box = $("toast");
-  box.textContent = message;
+  box.innerHTML = `${icon("check")}<span>${esc(message)}</span>`;
   box.hidden = false;
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => (box.hidden = true), TOAST_MS);
@@ -519,22 +738,37 @@ function toast(message) {
 
 // ---------- Layout ----------
 
+function renderWho() {
+  const { name, organisation } = state.editor;
+  const text = `${name} · ${organisation}`;
+  $("who").title = text;
+  $("who").innerHTML = `<span class="avatar" aria-hidden="true">${esc(initials(name))}</span>
+    <span class="who-text">${esc(text)}</span><span class="visually-hidden">Signed in as ${esc(text)}</span>`;
+}
+
 function renderVersion() {
   const { version, saved_at, saved_by } = state.saved;
   const when = new Date(saved_at).toLocaleString("en-SG", {
     dateStyle: "medium",
     timeStyle: "short",
   });
-  $("version").innerHTML = `Version <b>${version}</b>, saved by ${esc(saved_by)} on ${esc(when)}`;
+  $("version").title = `Version ${version}, saved ${when} by ${saved_by}`;
+  $("version").innerHTML = `<b>Version ${version}</b>
+    <span class="saved-when">saved ${esc(when)} by ${esc(saved_by)}</span>`;
 }
 
-function renderNav() {
+function renderNav(changes, invalid) {
   $("sections").innerHTML = SECTIONS.map((section) => {
-    const items = section.key === "rent" ? state.draft.rent.classes : state.draft[section.key];
-    const count = Array.isArray(items) ? items.length : "";
     const current = section.key === state.section;
+    const changed = changes.some((change) => change.where.startsWith(`${section.label} ›`));
+    const broken = invalid.some((path) => sectionOf(path) === section.key);
+    const mark = broken
+      ? `<span class="nav-mark critical">${icon("circle-alert")}<span class="visually-hidden">needs a fix</span></span>`
+      : changed
+        ? `<span class="nav-mark accent"><span class="dot"></span><span class="visually-hidden">changed</span></span>`
+        : "";
     return `<button type="button" data-section="${section.key}" aria-current="${current}">
-      ${section.label}<span class="count">${count}</span></button>`;
+      ${icon(section.icon)}<span class="nav-label">${section.label}</span>${mark}</button>`;
   }).join("");
 }
 
@@ -548,16 +782,24 @@ function renderEditor() {
     rent: rentEditor,
   };
   $("editor").innerHTML = `
-    <header><h1>${section.label}</h1><p class="hint">${section.intro}</p></header>
+    <header class="editor-head"><h2 class="page-title">${section.label}</h2>
+      <p class="page-sub">${section.intro}</p></header>
     ${editors[section.key]()}`;
+}
+
+function showSection(key) {
+  state.section = key;
+  renderEditor();
+  draftChanged();
+  scrollTo({ top: 0 });
+  $("sections")
+    .querySelector('[aria-current="true"]')
+    .scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 function onSectionClick(event) {
   const button = event.target.closest("button[data-section]");
-  if (!button) return;
-  state.section = button.dataset.section;
-  renderNav();
-  renderEditor();
+  if (button) showSection(button.dataset.section);
 }
 
 // ---------- Section editors ----------
@@ -566,59 +808,82 @@ function hazardsEditor() {
   return state.draft.hazards.map(hazardCard).join("");
 }
 
-function hazardCard(hazard, i) {
-  const base = `hazards.${i}`;
-  const bandRows = hazard.bands
+function hazardMark(key) {
+  return `<span class="hazard-mark" style="--mark: var(--${esc(key)}, var(--closure))">${icon(HAZARD_ICONS[key] ?? "triangle-alert")}</span>`;
+}
+
+function bandRows(hazard, base) {
+  return hazard.bands
     .map(
       (_, b) => `<tr>
-        <td>${field(`${base}.bands.${b}.at_least`, "number", `Band ${b + 1} starts at`)}</td>
-        <td>${withUnit(field(`${base}.bands.${b}.severity`, "percent", `Band ${b + 1} severity`), "%")}</td>
-        <td>${removeButton(`${base}.bands`, b, hazard.bands.length > 1)}</td>
+        <td>${field(`${base}.bands.${b}.at_least`, "number", `${hazard.label} band ${b + 1} starts at`)}</td>
+        <td>${withUnit(field(`${base}.bands.${b}.severity`, "percent", `${hazard.label} band ${b + 1} severity`), "%")}</td>
+        <td class="row-action">${removeButton(`${base}.bands`, b, hazard.bands.length > 1, `band ${b + 1}`)}</td>
       </tr>`,
     )
     .join("");
+}
+
+function hazardCard(hazard, i) {
+  const base = `hazards.${i}`;
   const daysNote = state.hazardsWithHistory.has(hazard.key)
     ? "Leave empty to price from NEA history."
     : "No NEA history. Set the days to price this hazard.";
   return `<article class="card hazard" style="--mark: var(--${esc(hazard.key)}, var(--closure))">
-    <div>
-      <div class="hazard-title"><span class="mark"></span><h2>${esc(hazard.label)}</h2></div>
-      <p class="hint">${esc(hazard.reading)}</p>
-      <div class="hazard-fields">
-        <label>Weight: sales lost at full severity
-          ${withUnit(field(`${base}.weight`, "percent", "Weight"), "%")}</label>
-        <label>Nearest stations read
-          ${field(`${base}.sites_used`, "number", "Nearest stations read")}</label>
-        <label>Assumed days a year
-          ${field(`${base}.assumed_days_per_year`, "optional", "Assumed days a year")}
-          <span class="history-note">${daysNote}</span></label>
-        <label class="check wide">
-          ${field(`${base}.scaled_by_product`, "bool", "Loss depends on the product")}
-          Loss depends on the product sold</label>
-        <div class="wide table-wrap">
-          <table>
-            <thead><tr><th>From reading</th><th>Severity</th><th></th></tr></thead>
-            <tbody>${bandRows}</tbody>
-          </table>
-          ${addButton(`${base}.bands`, "Add band")}
-        </div>
-        <label class="wide">Source ${field(`${base}.source`, "long-text", "Source")}</label>
-      </div>
+    <header class="hazard-head">
+      ${hazardMark(hazard.key)}
+      <div><h3 class="card-title">${esc(hazard.label)}</h3><p class="fine">${esc(hazard.reading)}</p></div>
+    </header>
+    <div class="field-grid">
+      ${labelled("Weight", withUnit(field(`${base}.weight`, "percent", `${hazard.label} weight`), "%"), FIELD_HELP.weight)}
+      ${labelled("Nearest stations read", field(`${base}.sites_used`, "int", `${hazard.label} nearest stations read`), FIELD_HELP.sites_used)}
+      <label class="field"><span class="field-label">Assumed days a year${SafeUI.help(FIELD_HELP.assumed_days_per_year)}</span>
+        ${field(`${base}.assumed_days_per_year`, "optional", `${hazard.label} assumed days a year`)}
+        <span class="hint">${daysNote}</span></label>
     </div>
-    <figure class="chart" id="chart-${i}">${bandChart(hazard)}</figure>
+    <label class="check">
+      ${field(`${base}.scaled_by_product`, "bool", `${hazard.label} loss depends on the product`)}
+      Loss depends on the product sold</label>
+    <div class="bands">
+      <div class="bands-table">
+        <h4>Severity bands</h4>
+        <div class="table-wrap"><table class="data edit">
+          <thead><tr><th>From reading</th><th>Severity</th><th><span class="visually-hidden">Remove</span></th></tr></thead>
+          <tbody>${bandRows(hazard, base)}</tbody>
+        </table></div>
+        ${addButton(`${base}.bands`, "Add band")}
+      </div>
+      <figure class="chart" id="chart-${i}">${bandChart(hazard)}</figure>
+    </div>
+    ${labelled("Source", field(`${base}.source`, "long-text", `${hazard.label} source`))}
   </article>`;
+}
+
+function chartTicks(bands, x, height) {
+  let lastX = -Infinity;
+  return bands
+    .map((band) => {
+      const at = x(band.at_least);
+      if (at - lastX < CHART_TICK_GAP) return "";
+      lastX = at;
+      return `<text x="${at}" y="${height - 6}" text-anchor="middle">${number(band.at_least)}</text>`;
+    })
+    .join("");
 }
 
 function bandChart(hazard) {
   const { bands, weight } = hazard;
-  const complete = [weight, ...bands.flatMap((b) => [b.at_least, b.severity])].every(
-    Number.isFinite,
-  );
-  if (!complete) return "<figcaption>Fill in every band to see the chart.</figcaption>";
-  const width = 280,
-    height = 150,
-    left = 36,
-    right = 10,
+  const values = [weight, ...bands.flatMap((b) => [b.at_least, b.severity])];
+  if (!values.every(Number.isFinite)) {
+    return `<p class="chart-note">Fill in the weight and every band to see the chart.</p>`;
+  }
+  if (bands.some((band, b) => b > 0 && band.at_least <= bands[b - 1].at_least)) {
+    return `<p class="chart-note">Put the bands in rising order to see the chart.</p>`;
+  }
+  const width = 300,
+    height = 160,
+    left = 38,
+    right = 12,
     top = 10,
     bottom = 24;
   const first = Math.min(0, bands[0].at_least);
@@ -630,55 +895,50 @@ function bandChart(hazard) {
   const line = `M${x(first)},${y(0)}${steps}H${x(end)}`;
   const grid = [0, 0.5, 1]
     .map(
-      (
-        share,
-      ) => `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(share)}" y2="${y(share)}"/>
-        <text x="${left - 6}" y="${y(share) + 3}" text-anchor="end">${share * 100}%</text>`,
-    )
-    .join("");
-  const ticks = bands
-    .map(
-      (b) =>
-        `<text x="${x(b.at_least)}" y="${height - 8}" text-anchor="middle">${number(b.at_least)}</text>`,
+      (share) => `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(share)}" y2="${y(share)}"/>
+        <text x="${left - 6}" y="${y(share) + 4}" text-anchor="end">${share * 100}%</text>`,
     )
     .join("");
   const peak = Math.max(...bands.map((b) => weight * b.severity));
   const summary = `${hazard.label}: loss rises in ${bands.length} steps to ${Math.round(peak * 100)}%`;
   return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(summary)}">
-      ${grid}<path class="area" d="${line}V${y(0)}Z"/><path class="line" d="${line}"/>${ticks}
+      ${grid}<path class="area" d="${line}V${y(0)}Z"/><path class="line" d="${line}"/>
+      ${chartTicks(bands, x, height)}
     </svg>
-    <figcaption>Share of sales lost by reading, before the product adjustment.</figcaption>`;
+    <figcaption>Share of a day's sales lost by reading, before the product adjustment.</figcaption>`;
+}
+
+function productCard(product, i) {
+  const base = `products.${i}`;
+  const amount = (key, kind = "number") =>
+    labelled(FIELD_LABELS[key], field(`${base}.${key}`, kind, `${product.label} ${FIELD_LABELS[key]}`), FIELD_HELP[key]);
+  const share = (key) =>
+    labelled(
+      FIELD_LABELS[key],
+      withUnit(field(`${base}.${key}`, "percent", `${product.label} ${FIELD_LABELS[key]}`), "%"),
+      FIELD_HELP[key],
+    );
+  return `<article class="card item">
+    <header class="card-head">
+      <h3 class="card-title" data-title-for="${base}.label">${esc(product.label) || "Unnamed"}</h3>
+      ${removeButton("products", i, state.draft.products.length > 1, product.label || "this product")}
+    </header>
+    <div class="field-grid">
+      ${labelled("Name", field(`${base}.label`, "text", "Product name"))}
+      ${labelled("Key", field(`${base}.key`, "text", "Product key"), "The code quotes and policies use. Change it only for a new product.")}
+      ${amount("shelf_life_days")}
+      ${amount("restock_every_days")}
+      ${share("demand_sensitivity")}
+      ${share("gross_margin")}
+      ${share("recovered_share")}
+    </div>
+    ${labelled("Source", field(`${base}.source`, "long-text", `${product.label} source`))}
+  </article>`;
 }
 
 function productsEditor() {
-  const rows = state.draft.products
-    .map((product, i) => {
-      const base = `products.${i}`;
-      return `<tr>
-        <td>${field(`${base}.label`, "text", "Product")}</td>
-        <td>${field(`${base}.key`, "text", "Key")}</td>
-        <td>${field(`${base}.shelf_life_days`, "number", "Shelf life in days")}</td>
-        <td>${field(`${base}.restock_every_days`, "number", "Days between restocks")}</td>
-        <td>${withUnit(field(`${base}.demand_sensitivity`, "percent", "Demand lost on a bad day"), "%")}</td>
-        <td>${withUnit(field(`${base}.gross_margin`, "percent", "Gross margin"), "%")}</td>
-        <td>${withUnit(field(`${base}.recovered_share`, "percent", "Sales recovered later"), "%")}</td>
-        <td>${removeButton("products", i, state.draft.products.length > 1)}</td>
-      </tr>
-      <tr class="source-row">
-        <td colspan="8">${field(`${base}.source`, "long-text", "Source")}</td>
-      </tr>`;
-    })
-    .join("");
-  return `<div class="card table-wrap">
-    <table>
-      <thead><tr>
-        <th>Product</th><th>Key</th><th>Shelf life, days</th><th>Restock every, days</th>
-        <th>Demand lost on a bad day</th><th>Gross margin</th><th>Sales recovered later</th><th></th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    ${addButton("products", "Add product")}
-  </div>`;
+  return `${state.draft.products.map(productCard).join("")}
+    <div>${addButton("products", "Add product")}</div>`;
 }
 
 function tiersEditor() {
@@ -686,60 +946,72 @@ function tiersEditor() {
     .map((tier, i) => {
       const base = `tiers.${i}`;
       return `<tr>
-        <td>${field(`${base}.label`, "text", "Tier")}</td>
-        <td>${field(`${base}.key`, "text", "Key")}</td>
-        <td>${field(`${base}.daily_payout_sgd`, "number", "Payout for a day with no sales, S$")}</td>
-        <td>${field(`${base}.max_paid_days_per_year`, "number", "Paid days a year")}</td>
-        <td>${removeButton("tiers", i, state.draft.tiers.length > 1)}</td>
+        <td>${field(`${base}.label`, "text", "Tier name")}</td>
+        <td>${field(`${base}.key`, "text", "Tier key")}</td>
+        <td>${withUnit(field(`${base}.daily_payout_sgd`, "number", `${tier.label} payout for a day with no sales`), "S$", "before")}</td>
+        <td>${field(`${base}.max_paid_days_per_year`, "int", `${tier.label} paid days a year`)}</td>
+        <td class="row-action">${removeButton("tiers", i, state.draft.tiers.length > 1, tier.label || "this tier")}</td>
       </tr>`;
     })
     .join("");
-  return `<div class="card table-wrap">
-    <table>
+  return `<section class="card">
+    <div class="table-wrap"><table class="data edit">
       <thead><tr>
-        <th>Tier</th><th>Key</th><th>Payout for a day with no sales, S$</th><th>Paid days a year, at most</th><th></th>
+        <th>Name</th><th>Key</th>
+        <th>Payout a day ${SafeUI.help(FIELD_HELP.daily_payout_sgd)}</th>
+        <th>Paid days a year ${SafeUI.help(FIELD_HELP.max_paid_days_per_year)}</th>
+        <th><span class="visually-hidden">Remove</span></th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     ${addButton("tiers", "Add tier")}
-  </div>`;
+  </section>`;
 }
 
 function pricingEditor() {
   const rows = PRICING_FIELDS.map(
-    ({ key, label, hint }) => `<label>
-      <span><b>${label}</b>${hint}</span>
+    ({ key, label, hint }) => `<label class="setting">
+      <span><b>${label}</b><span class="hint">${hint}</span></span>
       ${withUnit(field(`pricing.${key}`, "percent", label), "%")}
     </label>`,
   ).join("");
-  return `<div class="card pricing-fields">${rows}</div>`;
+  return `<section class="card settings">${rows}</section>`;
 }
 
 function rentSpread() {
   const { classes, trading_days_per_month: days } = state.draft.rent;
   const known = state.centreRents.filter((rent) => !rent.estimated);
-  if (!known.length) return "";
+  if (!known.length) {
+    return `<div class="empty">${icon("building-2")}<h3>No rent data</h3>
+      <p>The NEA bid table did not load, so the desk cannot show how centres fall into classes.</p></div>`;
+  }
   const levels = classes.map((c) => c.at_least_monthly_sgd);
-  if (![days, ...levels].every(Number.isFinite)) return "Fill in every limit to see the spread.";
+  if (![days, ...levels].every(Number.isFinite)) {
+    return `<p class="chart-note">Fill in every limit to see how the centres spread.</p>`;
+  }
   const rows = classes
     .map((rentClass, i) => {
       const upper = levels[i + 1] ?? Infinity;
       const inside = known.filter(
         (rent) => rent.median_bid_sgd >= levels[i] && rent.median_bid_sgd < upper,
       );
-      const range = upper === Infinity ? `${money(levels[i])} and up` : `${money(levels[i])} to ${money(upper)}`;
-      const perDay =
-        upper === Infinity ? `from ${money(levels[i] / days)}` : `${money(levels[i] / days)} to ${money(upper / days)}`;
-      return `<tr><th scope="row">${esc(rentClass.label)}</th><td>${range}</td><td>${perDay}</td><td>${inside.length}</td></tr>`;
+      const open = upper === Infinity;
+      const range = open ? `${money(levels[i])} and up` : `${money(levels[i])} to ${money(upper)}`;
+      const perDay = open
+        ? `from ${money(levels[i] / days)}`
+        : `${money(levels[i] / days)} to ${money(upper / days)}`;
+      return `<tr><td>${esc(rentClass.label)}</td><td class="num">${range}</td>
+        <td class="num">${perDay}</td><td class="num">${inside.length}</td></tr>`;
     })
     .join("");
   const missing = state.centreRents.length - known.length;
-  return `<table>
-      <thead><tr><th>Class</th><th>Monthly rent</th><th>Rent per trading day</th><th>Centres</th></tr></thead>
+  return `<div class="card-head"><h3 class="card-title">How centres spread</h3></div>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th>Class</th><th class="num">Monthly rent</th><th class="num">Rent per trading day</th><th class="num">Centres</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
-    <p class="hint">${known.length} centres have a bid on record. ${missing} have none and borrow the
-    median of all centres.</p>`;
+    </table></div>
+    <p class="fine spread-note">${known.length} centres have a bid on record. ${missing} have none and
+      borrow the median of all centres.</p>`;
 }
 
 function rentEditor() {
@@ -748,29 +1020,30 @@ function rentEditor() {
       const base = `rent.classes.${i}`;
       const from =
         i === 0
-          ? `<span class="hint">S$0 (fixed)</span>`
-          : field(`${base}.at_least_monthly_sgd`, "number", "From median monthly bid, S$");
+          ? `<span class="fixed">S$0 (fixed)</span>`
+          : withUnit(field(`${base}.at_least_monthly_sgd`, "number", `${rentClass.label} from median monthly bid`), "S$", "before");
       return `<tr>
-        <td>${field(`${base}.label`, "text", "Class")}</td>
-        <td>${field(`${base}.key`, "text", "Key")}</td>
+        <td>${field(`${base}.label`, "text", "Class name")}</td>
+        <td>${field(`${base}.key`, "text", "Class key")}</td>
         <td>${from}</td>
-        <td>${removeButton("rent.classes", i, i > 0)}</td>
+        <td class="row-action">${removeButton("rent.classes", i, i > 0, rentClass.label || "this class")}</td>
       </tr>`;
     })
     .join("");
-  return `<div class="card table-wrap">
-    <table>
-      <thead><tr><th>Class</th><th>Key</th><th>From median monthly bid, S$</th><th></th></tr></thead>
+  return `<section class="card">
+    <div class="table-wrap"><table class="data edit">
+      <thead><tr><th>Name</th><th>Key</th><th>From median monthly bid</th><th><span class="visually-hidden">Remove</span></th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     ${addButton("rent.classes", "Add class")}
-  </div>
-  <div class="card pricing-fields">
-    <label><span><b>Trading days a month</b>Turns monthly rent into rent per trading day.</span>
+  </section>
+  <section class="card settings">
+    <label class="setting"><span><b>Trading days a month</b>
+      <span class="hint">Turns monthly rent into rent per trading day.</span></span>
       ${field("rent.trading_days_per_month", "number", "Trading days a month")}</label>
-    <label class="wide">Source ${field("rent.source", "long-text", "Source")}</label>
-  </div>
-  <div class="card table-wrap" id="rent-spread">${rentSpread()}</div>`;
+    ${labelled("Source", field("rent.source", "long-text", "Rent source"))}
+  </section>
+  <section class="card" id="rent-spread">${rentSpread()}</section>`;
 }
 
 // ---------- Preview ----------
@@ -779,25 +1052,29 @@ function renderPickers() {
   const { products } = state.draft;
   if (!products.some((product) => product.key === state.product)) state.product = products[0].key;
   $("region").innerHTML = state.regions.map((r) => option(r, titleCase(r), state.region)).join("");
-  $("product").innerHTML = products.map((p) => option(p.key, p.label, state.product)).join("");
+  $("product").innerHTML = products.map((p) => option(p.key, p.label || p.key, state.product)).join("");
 }
 
 function renderReadings() {
   $("readings").innerHTML = state.draft.hazards
     .map(
-      (hazard) => `<label>${esc(hazard.label)}
-        <input type="number" step="any" data-reading="${esc(hazard.key)}"
-          value="${state.readings[hazard.key] ?? ""}" aria-describedby="reading-${esc(hazard.key)}">
-        <span id="reading-${esc(hazard.key)}">${esc(hazard.reading)}</span></label>`,
+      (hazard) => `<label class="reading">
+        <span class="reading-name">${hazardMark(hazard.key)}<span>${esc(hazard.label)}</span>${SafeUI.help(hazard.reading)}</span>
+        <input type="number" inputmode="decimal" step="any" min="0" data-reading="${esc(hazard.key)}"
+          value="${state.readings[hazard.key] ?? ""}" placeholder="None" aria-label="${esc(hazard.label)}: ${esc(hazard.reading)}">
+      </label>`,
     )
     .join("");
 }
 
 function onReading(event) {
-  const { reading } = event.target.dataset;
+  const input = event.target;
+  const { reading } = input.dataset;
   if (!reading) return;
-  if (event.target.value === "") delete state.readings[reading];
-  else state.readings[reading] = Number(event.target.value);
+  const valid = input.validity.valid;
+  markInvalid(input, !valid);
+  if (input.value === "" || !valid) delete state.readings[reading];
+  else state.readings[reading] = Number(input.value);
   schedulePreview();
 }
 
@@ -812,18 +1089,35 @@ function schedulePreview() {
   schedulePreview.timer = setTimeout(refreshPreview, PREVIEW_DELAY_MS);
 }
 
+async function savedPremiums() {
+  const key = `${state.saved.version}|${state.region}|${state.product}`;
+  if (state.savedQuote?.key !== key) {
+    const tiers = await premiumsOf(state.saved.tariff).catch(() => []);
+    state.savedQuote = { key, tiers };
+  }
+  return state.savedQuote.tiers;
+}
+
 async function refreshPreview() {
+  if (!state.draft) return;
   const request = (refreshPreview.latest = (refreshPreview.latest ?? 0) + 1);
+  if (invalidPaths().length) {
+    showPreviewError("The preview waits until every field holds a number.");
+    return;
+  }
   const hazardKeys = new Set(state.draft.hazards.map((hazard) => hazard.key));
   const readings = Object.fromEntries(
     Object.entries(state.readings).filter(([key]) => hazardKeys.has(key)),
   );
   const body = { tariff: state.draft, region: state.region, product: state.product, readings };
   try {
-    const preview = await api("/api/admin/preview", { method: "POST", body });
+    const [preview, before] = await Promise.all([
+      api("/api/admin/preview", { method: "POST", body }),
+      isDirty() ? savedPremiums() : [],
+    ]);
     if (request !== refreshPreview.latest) return;
     showPreviewError("");
-    renderQuote(preview.quote);
+    renderQuote(preview.quote, before);
     renderAssessment(preview.assessments);
   } catch (error) {
     if (request !== refreshPreview.latest || handleAuthError(error)) return;
@@ -833,70 +1127,95 @@ async function refreshPreview() {
 
 function showPreviewError(message) {
   $("preview-error").hidden = !message;
-  $("preview-error").textContent = message;
+  $("preview-error").innerHTML = message
+    ? `${icon("circle-alert")}<span><b>Preview out of date.</b> ${esc(message)}</span>`
+    : "";
   $("quote").classList.toggle("stale", Boolean(message));
   $("assessment").classList.toggle("stale", Boolean(message));
+  const chip = $("preview-state");
+  const [label, tone] = message
+    ? ["Out of date", "critical"]
+    : isDirty()
+      ? ["Unsaved tariff", "accent"]
+      : ["Saved tariff", "muted"];
+  chip.textContent = label;
+  chip.className = `chip ${tone}`;
 }
 
-function renderQuote(quote) {
+function rung(tier, highest, before) {
+  const share = Math.max((tier.weekly_premium_sgd / highest) * 100, 4);
+  const old = before.find((candidate) => candidate.tier === tier.tier);
+  const moved = old && money(old.weekly_premium_sgd) !== money(tier.weekly_premium_sgd);
+  const was = moved ? `<s class="was num">${money(old.weekly_premium_sgd)}</s>` : "";
+  return `<li class="rung">
+    <span class="rung-name">${esc(tier.label)}</span>
+    <span class="rung-bar"><i style="width: ${share}%"></i></span>
+    <span class="rung-price">${was}<span class="num">${money(tier.weekly_premium_sgd)}</span><small>/wk</small></span>
+    <span class="rung-detail">Pays up to ${money(tier.daily_payout_sgd)} a day, ${money(tier.max_payout_per_year_sgd)} a year</span>
+  </li>`;
+}
+
+function renderQuote(quote, before) {
   const highest = Math.max(...quote.tiers.map((tier) => tier.weekly_premium_sgd), 0.01);
-  const rungs = quote.tiers
-    .map((tier) => {
-      const share = Math.max((tier.weekly_premium_sgd / highest) * 100, 4);
-      return `<li class="rung">
-        <span class="rung-name">${esc(tier.label)}</span>
-        <span class="rung-bar"><i style="width: ${share}%"></i></span>
-        <span class="rung-price">${money(tier.weekly_premium_sgd)} a week</span>
-        <span class="rung-detail">Pays up to ${money(tier.daily_payout_sgd)} a day,
-          ${money(tier.max_payout_per_year_sgd)} a year</span>
-      </li>`;
-    })
-    .join("");
   $("quote").innerHTML = `
-    <p class="loss-days">An average year here brings <b>${number(quote.expected_loss_days)}</b>
+    <p class="loss-days">An average year here brings <b class="num">${number(quote.expected_loss_days)}</b>
       days of full loss.</p>
-    <ol class="ladder">${rungs}</ol>`;
+    <ol class="ladder">${quote.tiers.map((tier) => rung(tier, highest, before)).join("")}</ol>`;
 }
 
 function renderAssessment(assessments) {
   const [day] = assessments;
   if (!day || day.hazards.length === 0) {
-    $("assessment").innerHTML = "";
+    $("assessment").innerHTML = `<p class="fine try-empty">Enter a reading above to see the day's loss and what each tier pays.</p>`;
     return;
   }
   const labelOf = (items, key) => items.find((item) => item.key === key)?.label ?? key;
   const causes = day.hazards
     .map(
-      (
-        h,
-      ) => `<li><span>${esc(labelOf(state.draft.hazards, h.hazard))} at ${number(h.reading)}</span>
-        <span>${h.loss_percent}%</span></li>`,
+      (h) => `<div class="kv"><span class="k">${esc(labelOf(state.draft.hazards, h.hazard))} at
+        <span class="num">${number(h.reading)}</span></span><span class="v num">${h.loss_percent}%</span></div>`,
     )
     .join("");
   const payouts = assessments
     .map(
-      (a) => `<li><span>${esc(labelOf(state.draft.tiers, a.tier))}</span>
-        <span>${money(a.payout_sgd)}</span></li>`,
+      (a) => `<div class="kv"><span class="k">${esc(labelOf(state.draft.tiers, a.tier))}</span>
+        <span class="v num">${money(a.payout_sgd)}</span></div>`,
     )
     .join("");
   $("assessment").innerHTML = `
-    <div class="day-loss"><strong>${day.loss_percent}%</strong>
-      <span>of a normal day's sales lost</span> ${dayChip(day.loss_percent)}</div>
-    <ul class="breakdown">${causes}</ul>
-    <h3>Payout for this day</h3>
-    <ul class="payouts">${payouts}</ul>`;
+    <div class="day-loss"><strong class="num">${day.loss_percent}%</strong>
+      <span>of a normal day's sales lost</span>${dayChip(day.loss_percent)}</div>
+    <div class="breakdown">${causes}</div>
+    <h4>Payout for this day</h4>
+    <div class="payouts">${payouts}</div>`;
+}
+
+// ---------- Theme ----------
+
+function paintThemeToggle() {
+  const dark = document.documentElement.dataset.theme === "dark";
+  $("theme-toggle").innerHTML = icon(dark ? "sun" : "moon");
+  $("theme-toggle").setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+}
+
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try {
+    localStorage.setItem("safeday-theme", next);
+  } catch {
+    // Private windows can refuse storage; the theme still changes for this visit.
+  }
+  paintThemeToggle();
 }
 
 // ---------- Start ----------
 
 function start() {
   $("login-form").addEventListener("submit", signIn);
-  $("login-clear").addEventListener("click", clearLogin);
-  $("sign-out").addEventListener("click", () => {
-    if (!isDirty() || confirm("Sign out and lose your unsaved changes?")) signOut();
-  });
+  $("sign-out").addEventListener("click", signOut);
+  $("theme-toggle").addEventListener("click", toggleTheme);
   $("review").addEventListener("click", openReview);
-  $("apply").addEventListener("click", apply);
   $("discard").addEventListener("click", discard);
   $("sections").addEventListener("click", onSectionClick);
   $("editor").addEventListener("input", onEdit);
@@ -905,10 +1224,10 @@ function start() {
   $("product").addEventListener("change", onPick);
   $("readings").addEventListener("input", onReading);
   window.addEventListener("beforeunload", (event) => {
-    if (state.draft && isDirty()) event.preventDefault();
+    if (isDirty()) event.preventDefault();
   });
-  if (state.auth) openDesk().catch(() => signOut("Sign in again."));
-  else signOut();
+  paintThemeToggle();
+  begin();
 }
 
 start();
