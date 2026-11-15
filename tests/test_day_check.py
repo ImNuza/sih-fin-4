@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from api.main import DEFAULT_TARIFF_PATH
+from api.models import Tariff
 from api import burn, readings
 from tests.test_payout_api import (
     CENTRE,
@@ -36,7 +38,8 @@ def centre_readings(client, day: str) -> dict:
     where = readings.history_place(
         centre["region"], centre["lat"], centre["lng"], client.app.state.sites
     )
-    return readings.day_readings_at(burn.load_day_table()[day], where, 3)
+    rule = readings.station_rule(Tariff.model_validate_json(DEFAULT_TARIFF_PATH.read_text()))
+    return readings.day_readings_at(burn.load_day_table()[day], where, rule)
 
 
 def test_a_quiet_day_says_it_pays_nothing_and_shows_each_reading(client):

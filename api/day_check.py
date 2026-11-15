@@ -110,7 +110,7 @@ def my_day(user: SmeDep, request: Request, day: date) -> dict:
     if recorded is None:
         return check | {"outcome": "no_record", "hazards": []}
     where = payout_api.policy_place(policy, payout_api.shop_postcodes(engine), request)
-    site = readings.site_readings(recorded, where, *readings.stations_read(tariff))
+    site = readings.site_readings(recorded, where, readings.station_rule(tariff))
     values = {hazard: site.readings.get(hazard) for hazard in readings.HAZARDS}
     with engine.connect() as db:
         outcome = unpaid_outcome(db, policy, tariff, day, site)
