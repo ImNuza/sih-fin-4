@@ -407,11 +407,11 @@ def test_welcome_text_explains_the_cover_with_the_tariff_numbers(client):
     stallholder_with_cover(client)
     [welcome] = texts_of_kind(client, "welcome")
     body = welcome["body"]
-    phrases = ("up to S$20", "2h WBGT 32C+", "rain 20mm/h+", "PSI 101+", "flood alert",
+    phrases = ("Up to S$20", "Heat 2h WBGT 32C+", "rain 20mm/h+", "Haze PSI 101+",
                "10 days/yr")
     for phrase in phrases:
         assert phrase in body
-    assert "no pay, even with losses" in body
+    assert "no pay, even if you lose income" in body
     assert len(body) <= SMS_LIMIT
 
 
@@ -436,7 +436,7 @@ def test_buying_cover_with_a_verified_mobile_sends_the_welcome_text(client):
 
     client.post("/api/policies", json={"tier": "tier_2"})
     [welcome] = texts_of_kind(client, "welcome")
-    assert "up to S$40" in welcome["body"]
+    assert "Up to S$40" in welcome["body"]
     assert "15 days/yr" in welcome["body"]
 
 

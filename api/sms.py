@@ -70,19 +70,20 @@ UCS2_SINGLE, UCS2_PART = 70, 67
 TEMPLATES = {
     "welcome": {
         # Payouts are graded: a Red day (loss 70%+, see DAY_COLOUR_FROM_PERCENT) pays most, a
-        # milder day a share, so the text says "up to" and never "no Red day, no pay".
-        "en": "SafeDay: PSI {psi}+, rain {rain}mm/h+, {heat_hours}h WBGT {wbgt}C+ or flood alert "
-        "{hours} = up to S${payout}, most on a Red day. {days} days/yr from {start}. "
-        "Else no pay, even with losses.",
+        # milder day a share, so the text says "up to" and never "no Red day, no pay". The PUB
+        # flood alert also pays; the team left it out of this text to keep one SMS readable.
+        "en": "SafeDay: Haze PSI {psi}+, rain {rain}mm/h+, Heat {heat_hours}h WBGT {wbgt}C+ "
+        "{hours}. Up to S${payout}, most on a Red day. {days} days/yr from {start}. "
+        "Else no pay, even if you lose income.",
         # Mandarin leaves out the "SafeDay：" prefix to fit one 70-character SMS.
-        "zh": "{hours}PSI≥{psi}、雨≥{rain}mm/时、WBGT≥{wbgt}达{heat_hours}时或水灾，"
+        "zh": "{hours}烟霾PSI≥{psi}、雨≥{rain}mm/时、酷热WBGT≥{wbgt}达{heat_hours}时："
         "红色日最多赔S${payout}，年限{days}天，{start}起，否则亏损也不赔",
-        "ms": "SafeDay: PSI {psi}+, hujan {rain}mm/j+, {heat_hours}j WBGT {wbgt}C+ atau banjir "
-        "{hours} = hingga S${payout}, terbanyak Hari merah. {days} hari/thn dari {start}. "
+        "ms": "SafeDay: jerebu PSI {psi}+, hujan {rain}mm/j+, panas {heat_hours}j WBGT {wbgt}C+ "
+        "{hours}: hingga S${payout}, terbanyak Hari merah. {days} hari/thn dari {start}. "
         "Lain tak dibayar walau rugi.",
-        "ta": "SafeDay: {hours} PSI {psi}+, மழை {rain}mm/மணி+, WBGT {wbgt}C+ {heat_hours} மணி "
-        "அல்லது வெள்ளம்: S${payout} வரை PayNow, சிவப்பு நாளில் அதிகம். ஆண்டுக்கு {days} நாள், "
-        "{start} முதல். இல்லையெனில் இழப்பிலும் பணம் இல்லை.",
+        "ta": "SafeDay: {hours} புகைமூட்டம் PSI {psi}+, மழை {rain}mm/மணி+, வெப்பம் WBGT {wbgt}C+ "
+        "{heat_hours} மணி: S${payout} வரை PayNow, சிவப்பு நாளில் அதிகம். ஆண்டுக்கு {days} நாள், "
+        "{start} முதல். இதற்குக் கீழே இழப்பிலும் பணம் இல்லை.",
     },
     "payout_paid": {
         "en": "SafeDay: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
