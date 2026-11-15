@@ -41,8 +41,8 @@ from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
 from api import (
-    accounts, assistant, burn, calculator, kyc, model_history, onboarding, payout_api,
-    payout_flow, paynow_qr, postcodes, premium, readings, sms, store, underwriting,
+    accounts, assistant, burn, calculator, day_check, kyc, model_history, onboarding,
+    payout_api, payout_flow, paynow_qr, postcodes, premium, readings, sms, store, underwriting,
 )
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.calculator import BidRecord, History, Readings, Site, Sites
@@ -1582,6 +1582,7 @@ def preview(request: PreviewRequest, _: AdminDep, history: HistoryDep) -> Previe
 
 app.include_router(accounts.router)
 app.include_router(payout_api.router)
+app.include_router(day_check.router)
 app.include_router(underwriting.router)
 app.include_router(premium.router)
 app.include_router(assistant.router)

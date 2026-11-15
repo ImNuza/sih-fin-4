@@ -109,6 +109,19 @@ sms_preferences = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )
 
+# A customer's report that a day's reading or their shop category is wrong. It corrects data
+# only; it never adds money for the size of a loss (Income product lead, 15 Nov 2026).
+service_requests = Table(
+    "service_requests",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", Integer, nullable=False),
+    Column("loss_date", Date, nullable=False),
+    Column("kind", String, nullable=False),
+    Column("note", String),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
 sms_codes = Table(
     "sms_codes",
     metadata,

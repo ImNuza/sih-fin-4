@@ -71,7 +71,8 @@ function smePayoutList(payouts) {
   return `<ul class="payout-list card flush">${payouts.map((p) => `<li>
     <div><b>${dayLabel(p.loss_date)}</b><span class="fine">${escapeHtml(p.main_hazard)} · ${p.loss_percent.toFixed(0)}% ${dayChip(p.loss_percent)}</span>
       ${p.failure_reason ? `<span class="fine">${escapeHtml(p.failure_reason)}</span>` : ""}</div>
-    <div class="payout-amount"><span class="num">${paidCell(p)}</span>${statusPill(p.status)}<span class="fine num">${escapeHtml(p.reference)}</span></div>
+    <div class="payout-amount"><span class="num">${paidCell(p)}</span>${statusPill(p.status)}<span class="fine num">${escapeHtml(p.reference)}</span>
+      <button class="btn small quiet see-reading" type="button" data-day="${p.loss_date}">See the reading</button></div>
   </li>`).join("")}</ul>`;
 }
 
@@ -108,9 +109,13 @@ async function renderSmePayouts(slot, hasPolicy) {
       <div class="card"><h2>Texts on your phone</h2><div id="sme-inbox">${phoneInbox(texts)}</div></div>
     </div>
     <h3 class="subhead">Your payouts</h3>
-    <div id="sme-payout-list">${smePayoutList(payouts)}</div>`;
+    <div id="sme-payout-list">${smePayoutList(payouts)}</div>
+    ${hasPolicy ? `<h3 class="subhead">See the reading for any day</h3>
+    <p class="page-sub">There is no claim and no appeal: every day, paid or not, shows the reading and the rule that decided it.</p>
+    <div class="card" id="day-check"></div>` : ""}`;
   if (!account) prefillPaynowMobile(application?.phone, demo.mobile);
   wireSmePayouts(slot, hasPolicy);
+  if (hasPolicy) await renderDayCheck(el("day-check"));
   keepInboxFresh();
 }
 
@@ -168,6 +173,12 @@ function wireSmePayouts(slot, hasPolicy) {
       await rerender();
     });
   });
+  el("sme-payout-list").addEventListener("click", (event) => {
+    const button = event.target.closest(".see-reading");
+    if (!button) return;
+    showDay(button.dataset.day);
+    el("day-check").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   el("change-account")?.addEventListener("click", () => { slot.dataset.editing = "1"; rerender(); });
   el("send-code")?.addEventListener("click", (event) => busy(event.currentTarget, "verify-error", async () => {
     const sent = await post("/api/payout-account/verify/start", {});
@@ -207,11 +218,12 @@ function insurerPayoutTable(payouts, hazardLabels) {
 }
 
 async function renderInsurerPayouts(slot) {
-  const [payouts, options, history, holders] = await Promise.all([
+  const [payouts, options, history, holders, requests] = await Promise.all([
     api("/api/payouts"),
     api("/api/options"),
     api("/api/map/day?date=0000-00-00"),
     api("/api/insurer/policyholders"),
+    api("/api/insurer/service-requests"),
   ]);
   const latest = history.available.max;
   const paid = payouts.filter((p) => p.status === "paid");
@@ -234,9 +246,22 @@ async function renderInsurerPayouts(slot) {
       <p class="fine run-note">History runs to ${dayLabel(latest)}.</p>
       <p class="run-result" id="run-result" aria-live="polite"></p><p class="error" id="run-error" role="alert"></p>
     </form>
-    ${insurerPayoutTable(payouts, hazardLabels)}`;
+    ${insurerPayoutTable(payouts, hazardLabels)}
+    <h3 class="subhead">Service requests: wrong reading or shop category</h3>
+    ${serviceRequestTable(requests)}`;
   if (el("payouts-table")) SafeUI.sortable(el("payouts-table"));
   wireInsurerPayouts(slot);
+}
+
+/* Customers' reports from the 'see the reading' card. They correct data, never a loss size. */
+function serviceRequestTable(requests) {
+  if (!requests.length) return `<p class="fine">No service requests. A customer files one from a day's readings on their dashboard.</p>`;
+  const kinds = { wrong_reading: "Wrong reading", wrong_category: "Wrong shop category" };
+  return `<div class="table-wrap"><table class="data">
+    <thead><tr><th>Ref</th><th>Business</th><th class="num">Day</th><th>About</th><th>What they saw</th></tr></thead>
+    <tbody>${requests.map((r) => `<tr><td>${escapeHtml(r.reference)}</td><td>${escapeHtml(r.business_name)}</td>
+      <td class="num">${dayLabel(r.loss_date)}</td><td>${kinds[r.kind] || escapeHtml(r.kind)}</td><td>${escapeHtml(r.note || "")}</td></tr>`).join("")}</tbody>
+  </table></div>`;
 }
 
 function holderOption(h) {
