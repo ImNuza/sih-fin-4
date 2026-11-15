@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Sign in · SafeDay</title>
     <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
-    <link rel="stylesheet" href="/theme.css?v=1" />
-    <link rel="stylesheet" href="/site.css?v=3" />
-    <script src="/site.js?v=3" defer></script>
+    <link rel="stylesheet" href="/theme.css?v=2" />
+    <link rel="stylesheet" href="/site.css?v=4" />
+    <script src="/site.js?v=5" defer></script>
   </head>
   <body>
     <header class="topnav">
@@ -35,26 +35,7 @@
               <p class="error" id="sme-login-error" role="alert"></p>
               <button class="btn primary wide" type="submit">Sign in</button>
             </form>
-            <p class="switchline">New to SafeDay? <button class="linklike" data-goto="register" type="button">Create an account</button></p>
-          </div>
-          <div data-step="register" hidden>
-            <h2>Create your account</h2>
-            <p class="fine">Pick your hawker centre and what you sell. Your price comes from your own area's weather history.</p>
-            <form id="sme-register">
-              <label>Your name <input name="name" autocomplete="name" required /></label>
-              <label>Business name <input name="business_name" placeholder="e.g. Ah Hock Chicken Rice" /></label>
-              <label>Hawker centre
-                <select name="centre" id="centre-select" required><option value="">Loading centres…</option></select>
-              </label>
-              <label>What you sell
-                <select name="product" id="product-select" required></select>
-              </label>
-              <label>Email <input name="email" type="email" autocomplete="email" required /></label>
-              <label>Password (8+ characters) <input name="password" type="password" minlength="8" autocomplete="new-password" required /></label>
-              <p class="error" id="sme-register-error" role="alert"></p>
-              <button class="btn primary wide" type="submit">Create account</button>
-            </form>
-            <p class="switchline">Already have an account? <button class="linklike" data-goto="signin" type="button">Sign in</button></p>
+            <p class="switchline">New to SafeDay? <a class="linklike" href="/buy/">Get covered</a></p>
           </div>
         </div>
       </section>

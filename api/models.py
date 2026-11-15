@@ -84,11 +84,50 @@ class Pricing(BaseModel):
     gst_rate: Share
 
 
+class RentClass(BaseModel):
+    key: str
+    label: str
+    at_least_monthly_sgd: float = Field(ge=0, description="Lowest median monthly bid in the class.")
+
+
+class Rent(BaseModel):
+    """Rent classes of hawker centres. They set the recommended tier, never the premium."""
+
+    trading_days_per_month: float = Field(gt=0, le=31)
+    classes: list[RentClass] = Field(min_length=1)
+    source: str
+
+    @model_validator(mode="after")
+    def classes_start_at_zero_and_rise(self) -> Rent:
+        unique_keys(self.classes, "rent class")
+        levels = [c.at_least_monthly_sgd for c in self.classes]
+        if levels[0] != 0:
+            raise ValueError("The first rent class must start at S$0")
+        if levels != sorted(set(levels)):
+            raise ValueError("Rent class limits must rise with no repeats")
+        return self
+
+
+DEFAULT_RENT = Rent(
+    trading_days_per_month=26,
+    classes=[
+        RentClass(key="lower", label="Lower rent", at_least_monthly_sgd=0),
+        RentClass(key="mid", label="Mid rent", at_least_monthly_sgd=1500),
+        RentClass(key="high", label="High rent", at_least_monthly_sgd=3000),
+    ],
+    source="NEA successful tender bids for cooked-food stalls, Jan 2019 to Jul 2026, median per "
+    "centre over the bids since Aug 2023. The limits split the 81 centres with a bid into "
+    "thirds, rounded. 26 trading days a month (one rest day a week) is an assumption.",
+)
+
+
 class Tariff(BaseModel):
     hazards: list[Hazard] = Field(min_length=1)
     products: list[Product] = Field(min_length=1)
     tiers: list[Tier] = Field(min_length=1)
     pricing: Pricing
+    # Tariffs saved before rent classes existed load with the defaults.
+    rent: Rent = Field(default_factory=lambda: DEFAULT_RENT.model_copy(deep=True))
 
     @model_validator(mode="after")
     def keys_unique_and_tiers_rise(self) -> Tariff:
@@ -210,6 +249,29 @@ class PreviewRequest(BaseModel):
 class Preview(BaseModel):
     quote: Quote
     assessments: list[Assessment]
+
+
+class CentreRent(BaseModel):
+    centre: str
+    median_bid_sgd: float = Field(description="Median winning monthly bid, or the all-centre median.")
+    bids: int = Field(description="NEA bids behind the median. 0: no bid on record.")
+    basis: str
+    first_month: str | None
+    last_month: str | None
+    estimated: bool = Field(description="True when the centre has no bid and the median is borrowed.")
+    rent_class: str
+    rent_class_label: str
+    rent_per_day_sgd: float
+    recommended_tier: str = Field(description="Smallest tier whose payout covers a day's rent.")
+    covers_rent: bool = Field(description="False when even the biggest tier pays less than a day's rent.")
+
+
+class RentTable(BaseModel):
+    trading_days_per_month: float
+    classes: list[RentClass]
+    source: str
+    all_centre_median_sgd: float
+    centres: dict[str, CentreRent]
 
 
 class KycPhoto(BaseModel):

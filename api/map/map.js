@@ -14,6 +14,7 @@ const COLORS = {
   ...Object.fromEntries(["heat", "rain", "haze", "flood", "good", "warning", "serious", "ink", "muted"]
     .map((name) => [name, themeRgb(name)])),
   lossLow: [82, 81, 78], lossHigh: [230, 103, 103],
+  rentLow: [96, 110, 128], rentHigh: [244, 196, 78], rentNone: [70, 74, 80],
 };
 const CSS_BY_HAZARD = { haze: "var(--haze)", rain: "var(--rain)", heat: "var(--heat)", flood: "var(--flood)", closure: "var(--closure)" };
 const AFFORDABLE_WEEKLY_SGD = 3;   // the brief's "a few dollars a week"
@@ -52,8 +53,9 @@ const state = {
   rev: 0,                          // bumped on anything that changes layer accessors
   selected: null,                  // {type, index|obj}
   tier: null,                      // portfolio tier key
+  smeByRent: false,                // colour hawker centres by NEA rent class instead of pricing
 };
-let STATIC = null, QUOTES = null, OPTIONS = null, BUILDINGS = null, deckgl = null;
+let STATIC = null, QUOTES = null, OPTIONS = null, BUILDINGS = null, RENT = null, deckgl = null;
 let lastView = null;               // the camera, kept across presets, orbit and user drags
 const ONEMAP_TILES = "https://www.onemap.gov.sg/maps/tiles/Night/{z}/{x}/{y}.png";
 
@@ -71,6 +73,7 @@ const api = {
   static: () => getJson("/api/map/static"),
   quotes: () => getJson("/api/map/quotes?product=cooked_food"),
   options: () => getJson("/api/options"),
+  rent: () => getJson("/api/rent").catch(() => null),
   live: () => getJson("/api/map/live?product=cooked_food"),
   assess: (readings) => getJson("/api/assess", {
     method: "POST",
@@ -182,8 +185,23 @@ function rainLift(gauge) {
   }
   return gauge.share_days_ge_20 * 26000;
 }
+function rentOf(centre) { return RENT?.centres[centre.name] || null; }
+function rentColor(centre) {
+  const rent = rentOf(centre);
+  if (!rent || rent.estimated) return COLORS.rentNone.concat(200);
+  const classes = RENT.classes, at = classes.findIndex((c) => c.key === rent.rent_class);
+  const t = classes.length > 1 ? at / (classes.length - 1) : 1;
+  return [0, 1, 2].map((i) => COLORS.rentLow[i] + (COLORS.rentHigh[i] - COLORS.rentLow[i]) * t).concat(235);
+}
+function rentChip(rent) {
+  if (!rent) return "";
+  return rent.estimated
+    ? `${rent.rent_class_label} (estimated: no NEA bid on record)`
+    : `${rent.rent_class_label} · ${SGD0(rent.median_bid_sgd)}/mo median NEA bid · ${SGD(rent.rent_per_day_sgd)}/trading day`;
+}
 function smeColor(centre, index) {
   if (state.mode === "sim" && state.circles.length && !circlesAt(centre).length) return [70, 74, 80, 150];
+  if (state.smeByRent && state.mode === "history") return rentColor(centre);
   if (state.mode !== "history") {
     const t = Math.min(1, currentLossFraction(index));
     return [0, 1, 2].map((i) => COLORS.lossLow[i] + (COLORS.lossHigh[i] - COLORS.lossLow[i]) * t).concat(235);
@@ -264,7 +282,7 @@ function buildLayers() {
     getFillColor: (d, { index }) => smeColor(d, index),
     getLineColor: [16, 18, 20, 255], getLineWidth: 1.5, lineWidthUnits: "pixels",
     onClick: (info) => select("sme", info.index),
-    updateTriggers: { getFillColor: [state.rev, state.mode] },
+    updateTriggers: { getFillColor: [state.rev, state.mode, state.smeByRent] },
   }));
   if (state.layers.sme && zoom >= 13) layers.push(new TextLayer({
     id: "sme-labels", data: STATIC.hawker_centres,
@@ -309,7 +327,9 @@ function tooltip({ object, layer, index }) {
     const quote = regionQuote(object.region), tier = recommendedTier(quote);
     const live = state.mode !== "history"
       ? ` · today's loss ${(currentLossFraction(index) * 100).toFixed(0)}%` : "";
-    return { html: `<b>${object.name}</b><div class="m">${object.food_stalls} food stalls · ${object.region} region · ${SGD(tier.weekly_premium_sgd)}/wk at ${tier.label}${live}</div>` };
+    const rent = rentOf(object);
+    const rentLine = rent ? `<div class="m">${rentChip(rent)}</div>` : "";
+    return { html: `<b>${object.name}</b><div class="m">${object.food_stalls} food stalls · ${object.region} region · ${SGD(tier.weekly_premium_sgd)}/wk at ${tier.label}${live}</div>${rentLine}` };
   }
   if (layer.id === "heat") return { html: `<b>${object.name}</b><div class="m">reached 32 °C on ${(object.share_days_ge_32 * 100).toFixed(0)}% of its ${object.days} recorded days · hottest ${object.max_wbgt.toFixed(1)} °C</div>` };
   if (layer.id === "rain") return { html: `<b>${object.name}</b><div class="m">rain gauge · a 20 mm downpour hour on ${(object.share_days_ge_20 * 100).toFixed(1)}% of its ${object.days} recorded days</div>` };
@@ -653,6 +673,21 @@ function dayDetail(index, tier) {
       <span class="v">${SGD(stressed.weekly_baseline_sgd)} → <span class="delta-up">${SGD(stressed.weekly_stressed_sgd)}</span></span></div>` : ""}
     <p class="note">Paid automatically on NEA readings - no claim form, no loss adjuster.</p></div>`;
 }
+function rentSection(centre, quote) {
+  const rent = rentOf(centre);
+  if (!rent) return "";
+  const tier = quote.tiers.find((t) => t.tier === rent.recommended_tier);
+  const share = Math.round((100 * tier.daily_payout_sgd) / rent.rent_per_day_sgd);
+  const source = rent.estimated
+    ? `No NEA bid on record for this centre, so it borrows the median of all centres (${SGD0(RENT.all_centre_median_sgd)} a month).`
+    : `Median of ${rent.bids} winning NEA bid${rent.bids === 1 ? "" : "s"} for a cooked-food stall, ${rent.first_month} to ${rent.last_month}.`;
+  return `<div class="sec"><p class="cap">Stall rent · ${rent.rent_class_label}</p>
+    <div class="kv"><span class="k">Monthly rent</span><span class="v">${SGD0(rent.median_bid_sgd)}</span></div>
+    <div class="kv"><span class="k">Per trading day (${RENT.trading_days_per_month} a month)</span><span class="v">${SGD(rent.rent_per_day_sgd)}</span></div>
+    <div class="kv"><span class="k">${rent.covers_rent ? "Smallest tier that covers it" : "No tier covers it; biggest"}</span><span class="v">${tier.label} · ${share}% at ${SGD(tier.weekly_premium_sgd)}/wk</span></div>
+    <p class="note">${source} Rent sets the tier a stallholder is offered, not the premium.</p></div>`;
+}
+
 function renderDetail() {
   const panel = el("detail"), body = el("detail-body"), kind = el("detail-kind");
   if (!state.selected) { panel.hidden = true; return; }
@@ -672,6 +707,7 @@ function renderDetail() {
       <div class="chips">
         <span class="chip">${centre.food_stalls} cooked-food stalls (NEA)</span>
         <span class="chip ${basisFar ? "warning" : "good"}">trigger stations ${nearHeat.km.toFixed(1)} km (heat) · ${nearRain.km.toFixed(1)} km (rain)</span>
+        ${rentOf(centre) ? `<span class="chip">${rentChip(rentOf(centre))}</span>` : ""}
       </div>
       <div class="verdict"><div class="mark" style="background:var(--${v.cls})"></div>
         <div><div class="t1">${v.word} · ${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week</div>
@@ -685,6 +721,7 @@ function renderDetail() {
         <table class="tiers"><tr><th>Tier</th><th>Payout/day</th><th>Cap</th><th>Max/yr</th><th>Weekly</th></tr>
         ${quote.tiers.map((t) => `<tr class="${t.tier === rec.tier ? "rec" : ""}"><td>${t.label}</td><td>${SGD0(t.daily_payout_sgd)}</td><td>${t.max_paid_days_per_year ?? Math.round(t.max_payout_per_year_sgd / t.daily_payout_sgd)} d</td><td>${SGD0(t.max_payout_per_year_sgd)}</td><td>${SGD(t.weekly_premium_sgd)}</td></tr>`).join("")}
         </table></div>
+      ${rentSection(centre, quote)}
       <div class="sec"><p class="cap">Premium build-up · ${rec.label}</p>${premiumBuildup(rec)}
         <p class="note">Insurable interest (Insurance Act 1966 s151): the payout is a pre-estimate of a stall's lost daily takings, so this is insurance, not a wager.</p></div>
       ${dayDetail(value, rec)}`;
@@ -1086,6 +1123,12 @@ function wireUi() {
   for (const key of Object.keys(state.layers)) {
     el(`ly-${key}`).addEventListener("change", (event) => { state.layers[key] = event.target.checked; redraw(); });
   }
+  el("sme-by-rent").addEventListener("change", (event) => {
+    state.smeByRent = event.target.checked;
+    el("sme-note").hidden = state.smeByRent;
+    el("rent-note").hidden = !state.smeByRent;
+    redraw();
+  });
   el("s-psi").addEventListener("input", (e) => setSim({ psi: +e.target.value }));
   el("s-rain").addEventListener("input", (e) => setSim({ rain: +e.target.value }));
   el("s-heat").addEventListener("input", (e) => setSim({ heat: +e.target.value }));
@@ -1164,7 +1207,7 @@ function wireUi() {
 async function boot() {
   try {
     if (!window.deck) throw new Error("deck.gl failed to load (vendor/deck.min.js)");
-    [STATIC, QUOTES, OPTIONS] = await Promise.all([api.static(), api.quotes(), api.options()]);
+    [STATIC, QUOTES, OPTIONS, RENT] = await Promise.all([api.static(), api.quotes(), api.options(), api.rent()]);
     const { DeckGL, AmbientLight, DirectionalLight, LightingEffect, MapView } = deck;
     lastView = {
       longitude: 103.832, latitude: 1.322, zoom: 10.6, pitch: 52, bearing: -12,

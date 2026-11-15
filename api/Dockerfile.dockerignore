@@ -8,6 +8,7 @@
 !data/processed/map_static.json
 !data/processed/map_buildings.json
 !data/processed/day_readings.csv.gz
+!data/processed/hawker_rent.csv
 api/tariff.db
 **/__pycache__/
 **/.DS_Store

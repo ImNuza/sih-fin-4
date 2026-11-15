@@ -7,6 +7,7 @@ Usage:
 
 Reads  data/processed/site_hazard_readings.csv      (from scripts/region_hazard_readings.py)
        data/processed/map_static.json              (from scripts/build_map_static.py)
+       data/processed/hawker_rent.csv              (from scripts/build_hawker_rent.py)
        api/default_tariff.json                     (the first tariff, when the database is empty)
 Writes the tariff database at DATABASE_URL         (default sqlite:///api/tariff.db)
 """
@@ -16,28 +17,30 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import secrets
+import statistics
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import numpy as np
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
 from api import accounts, calculator, kyc, store
-from api.accounts import InsurerDep, SmeDep, UserDep
+from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.live import LiveFeed
-from api.calculator import History, Readings, Site, Sites
+from api.calculator import BidRecord, History, Readings, Site, Sites
 from api.models import (
     Assessment,
     AssessRequest,
@@ -50,6 +53,7 @@ from api.models import (
     PreviewRequest,
     Quote,
     QuoteRequest,
+    RentTable,
     SavedTariff,
     Tariff,
     TariffChange,
@@ -60,6 +64,7 @@ REPO_ROOT = API_DIR.parent
 HISTORY_PATH = REPO_ROOT / "data" / "processed" / "site_hazard_readings.csv"
 MAP_STATIC_PATH = REPO_ROOT / "data" / "processed" / "map_static.json"
 MAP_BUILDINGS_PATH = REPO_ROOT / "data" / "processed" / "map_buildings.json"
+RENT_PATH = REPO_ROOT / "data" / "processed" / "hawker_rent.csv"
 DEFAULT_TARIFF_PATH = API_DIR / "default_tariff.json"
 DEFAULT_DATABASE_URL = f"sqlite:///{API_DIR / 'tariff.db'}"
 
@@ -92,6 +97,23 @@ def load_history(path: Path) -> tuple[History, Sites]:
     return history, dict(sites)
 
 
+def load_rent(path: Path) -> dict[str, BidRecord]:
+    if not path.exists():
+        raise SystemExit(f"{path} is missing. Run scripts/build_hawker_rent.py first.")
+    with path.open(newline="") as file:
+        return {
+            row["centre"]: BidRecord(
+                centre=row["centre"],
+                median_bid_sgd=float(row["median_bid_sgd"]) if row["median_bid_sgd"] else None,
+                bids=int(row["bids"]),
+                basis=row["basis"],
+                first_month=row["first_month"] or None,
+                last_month=row["last_month"] or None,
+            )
+            for row in csv.DictReader(file)
+        }
+
+
 def admin_login_from_env() -> tuple[str, str]:
     username, password = os.environ.get("ADMIN_USERNAME"), os.environ.get("ADMIN_PASSWORD")
     if not username or not password:
@@ -107,6 +129,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         raise SystemExit(f"{MAP_STATIC_PATH} is missing. Run scripts/build_map_static.py first.")
     app.state.map_static = json.loads(MAP_STATIC_PATH.read_text())
     app.state.places = kyc.load_places(app.state.map_static)
+    app.state.rent = load_rent(RENT_PATH)
     app.state.live = LiveFeed()
     app.state.db = store.connect(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
     try:
@@ -207,6 +230,28 @@ def quote(
     return calculator.quote_at(
         tariff, history, sites, request.latitude, request.longitude, request.product
     )
+
+
+def rent_table(tariff: Tariff, records: dict[str, BidRecord]) -> RentTable:
+    medians = [r.median_bid_sgd for r in records.values() if r.median_bid_sgd is not None]
+    fallback = statistics.median(medians)
+    return RentTable(
+        trading_days_per_month=tariff.rent.trading_days_per_month,
+        classes=tariff.rent.classes,
+        source=tariff.rent.source,
+        all_centre_median_sgd=round(fallback, 2),
+        centres={
+            name: calculator.centre_rent(tariff, record, fallback)
+            for name, record in records.items()
+        },
+    )
+
+
+@app.get("/api/rent")
+def rent(tariff: TariffDep, request: Request) -> RentTable:
+    """Rent class of every hawker centre, from NEA's winning bids, and the tier that covers a
+    day's rent. The class sets the recommended tier; the premium still comes from the hazards."""
+    return rent_table(tariff, request.app.state.rent)
 
 
 @app.post("/api/assess")
@@ -448,28 +493,44 @@ class PolicyRequest(BaseModel):
     product: str | None = None
 
 
-@app.post("/api/policies")
-def buy_policy(
-    body: PolicyRequest, user: SmeDep, tariff: TariffDep, history: HistoryDep, request: Request
+def policy_values(
+    tariff: Tariff, history: History, user_id: int, region: str, centre: str | None,
+    product: str, tier_key: str,
 ) -> dict:
-    """Start a cover for the signed-in stallholder, priced server-side from their region."""
-    product = body.product or user.product or "cooked_food"
-    priced = calculator.quote(tariff, history, user.region, product)
-    tier = next((t for t in priced.tiers if t.tier == body.tier), None)
+    """A policies row priced server-side from the region, for one tier. Raises on an unknown tier."""
+    priced = calculator.quote(tariff, history, region, product)
+    tier = next((t for t in priced.tiers if t.tier == tier_key), None)
     if tier is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {body.tier}")
-    values = {
-        "user_id": user.id,
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier_key}")
+    return {
+        "user_id": user_id,
         "tier": tier.tier,
         "tier_label": tier.label,
         "product": product,
-        "region": user.region,
-        "centre": user.centre,
+        "region": region,
+        "centre": centre,
         "weekly_premium_sgd": tier.weekly_premium_sgd,
         "daily_payout_sgd": tier.daily_payout_sgd,
         "max_paid_days_per_year": round(tier.max_payout_per_year_sgd / tier.daily_payout_sgd),
         "started_at": datetime.now(UTC),
     }
+
+
+@app.post("/api/policies")
+def buy_policy(
+    body: PolicyRequest, user: SmeDep, tariff: TariffDep, history: HistoryDep, request: Request
+) -> dict:
+    """Start a cover for the signed-in stallholder, priced server-side from their region.
+
+    Refused while an underwriter is reviewing the stallholder's application.
+    """
+    application = latest_application(request.app.state.db, user.id)
+    if application and application["status"] == "referred":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "An underwriter is reviewing your application. Cover starts after they reply"
+        )
+    product = body.product or user.product or "cooked_food"
+    values = policy_values(tariff, history, user.id, user.region, user.centre, product, body.tier)
     engine = request.app.state.db
     with engine.begin() as db:
         db.execute(sa_delete(accounts.policies).where(accounts.policies.c.user_id == user.id))
@@ -477,6 +538,144 @@ def buy_policy(
             sa_insert(accounts.policies).values(**values).returning(accounts.policies.c.id)
         ).scalar_one()
     return {"id": policy_id, **{k: v for k, v in values.items() if k != "user_id"}}
+
+
+# UEN formats from ACRA: 8 digits + letter (businesses), 9 digits + letter (local companies),
+# or T/S/R + 2 digits + 2 letters + 4 digits + letter (other entities).
+UEN = re.compile(r"^(\d{8}[A-Z]|\d{9}[A-Z]|[TSR]\d{2}[A-Z]{2}\d{4}[A-Z])$")
+# Singapore mobile and fixed-line numbers: 8 digits starting with 3, 6, 8 or 9.
+SG_PHONE = re.compile(r"^[3689]\d{7}$")
+
+
+class BuyRequest(BaseModel):
+    """Everything the guided buy flow (/buy/) collects, sent once at the pay step."""
+
+    name: str = Field(min_length=1, max_length=120)
+    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    password: str = Field(min_length=8, max_length=200)
+    business_name: str | None = Field(default=None, max_length=120)
+    centre: str
+    product: str
+    applicant_type: Literal["individual", "company"]
+    uen: str | None = None
+    phone: str
+    add_safeday: bool
+    tier: str | None = None
+    declined_before: bool
+    declined_details: str | None = Field(default=None, max_length=500)
+    accept_declaration: bool
+    accept_pdpa: bool
+    marketing_email: bool = False
+    marketing_sms: bool = False
+    payment_method: Literal["paynow", "giro"] | None = None
+
+    @field_validator("phone")
+    @classmethod
+    def singapore_phone(cls, value: str) -> str:
+        digits = re.sub(r"[\s-]", "", value).removeprefix("+65")
+        if not SG_PHONE.match(digits):
+            raise ValueError("Enter an 8-digit Singapore number")
+        return digits
+
+    @field_validator("uen")
+    @classmethod
+    def uen_format(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.strip().upper()
+        if not UEN.match(value):
+            raise ValueError("That UEN does not look right, e.g. 53123456A or 201912345K")
+        return value
+
+    @model_validator(mode="after")
+    def complete(self) -> BuyRequest:
+        if self.applicant_type == "company" and self.uen is None:
+            raise ValueError("A company needs its UEN")
+        if not (self.accept_declaration and self.accept_pdpa):
+            raise ValueError("Tick the declaration and the personal data consent to continue")
+        if self.add_safeday and self.tier is None:
+            raise ValueError("Pick a SafeDay tier")
+        if self.declined_before and not (self.declined_details or "").strip():
+            raise ValueError("Say which insurer declined you and why")
+        return self
+
+
+@app.post("/api/buy")
+def buy(
+    body: BuyRequest, tariff: TariffDep, history: HistoryDep, request: Request, response: Response
+) -> dict:
+    """Create the account, the application and, when SafeDay is added, its policy, then sign in.
+
+    A past decline sends the application to an underwriter: no policy starts and nothing is
+    charged. Payment is a prototype step: no money moves, the reference is made up here.
+    """
+    engine = request.app.state.db
+    calculator.find(tariff.products, body.product, "product")
+    account = Registration(
+        role="sme", name=body.name, email=body.email, password=body.password,
+        business_name=body.business_name, centre=body.centre, product=body.product,
+    )
+    user = accounts.user_values(account, request)
+    referred = body.declined_before
+    pays = body.add_safeday and not referred
+    if pays and body.payment_method is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick how to pay")
+    now = datetime.now(UTC)
+    with engine.begin() as db:
+        user_id = db.execute(
+            sa_insert(accounts.users).values(**user).returning(accounts.users.c.id)
+        ).scalar_one()
+        policy = None
+        if pays:
+            policy = policy_values(
+                tariff, history, user_id, user["region"], user["centre"], body.product, body.tier
+            )
+            policy["id"] = db.execute(
+                sa_insert(accounts.policies).values(**policy).returning(accounts.policies.c.id)
+            ).scalar_one()
+        application = {
+            "user_id": user_id,
+            "applicant_type": body.applicant_type,
+            "uen": body.uen,
+            "phone": body.phone,
+            "add_safeday": body.add_safeday,
+            "tier": body.tier if body.add_safeday else None,
+            "declined_before": body.declined_before,
+            "declined_details": body.declined_details if body.declined_before else None,
+            "status": "referred" if referred else "accepted",
+            "declaration_accepted_at": now,
+            "pdpa_accepted_at": now,
+            "marketing_email": body.marketing_email,
+            "marketing_sms": body.marketing_sms,
+            "payment_method": body.payment_method if pays else None,
+            "payment_ref": f"DEMO-{secrets.token_hex(3).upper()}" if pays else None,
+            "created_at": now,
+        }
+        application["id"] = db.execute(
+            sa_insert(accounts.applications).values(**application).returning(accounts.applications.c.id)
+        ).scalar_one()
+    accounts.start_session(engine, user_id, response)
+    return {
+        "application": {k: v for k, v in application.items() if k != "user_id"},
+        "policy": {k: v for k, v in policy.items() if k != "user_id"} if policy else None,
+    }
+
+
+def latest_application(engine, user_id: int) -> dict | None:
+    query = (
+        sa_select(accounts.applications)
+        .where(accounts.applications.c.user_id == user_id)
+        .order_by(accounts.applications.c.id.desc())
+    )
+    with engine.connect() as db:
+        row = db.execute(query).mappings().first()
+    return {k: v for k, v in row.items() if k != "user_id"} if row else None
+
+
+@app.get("/api/applications/mine")
+def my_application(user: SmeDep, request: Request) -> dict | None:
+    """The signed-in stallholder's latest buy-flow application, or null."""
+    return latest_application(request.app.state.db, user.id)
 
 
 @app.get("/api/policies")

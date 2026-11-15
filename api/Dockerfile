@@ -16,7 +16,8 @@ WORKDIR /srv/app
 COPY api/ api/
 COPY scripts/dgs.py scripts/
 COPY data/processed/site_hazard_readings.csv data/processed/map_static.json \
-     data/processed/map_buildings.json data/processed/day_readings.csv.gz data/processed/
+     data/processed/map_buildings.json data/processed/day_readings.csv.gz \
+     data/processed/hawker_rent.csv data/processed/
 
 RUN useradd --uid 10002 --no-create-home --shell /usr/sbin/nologin pricing
 USER 10002

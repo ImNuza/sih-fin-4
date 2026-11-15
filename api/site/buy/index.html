@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Get covered · SafeDay</title>
+    <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
+    <link rel="stylesheet" href="/theme.css?v=2" />
+    <link rel="stylesheet" href="/site.css?v=4" />
+    <script src="/site.js?v=5" defer></script>
+    <script src="/buy.js?v=1" defer></script>
+  </head>
+  <body>
+    <header class="topnav">
+      <p class="brand"><a href="/">SafeDay</a></p>
+      <nav>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">☾</button>
+        <a href="/map/">Risk atlas</a>
+        <a id="nav-auth" href="/login/">Sign in</a>
+      </nav>
+    </header>
+
+    <p class="prototype">Prototype. Designed to sit inside SmartBiz 360 by Income. This is not an Income page, and no money moves.</p>
+
+    <main class="buy">
+      <div class="buy-main">
+        <h1 class="buy-title">SmartBiz 360 <span>with SafeDay climate income cover</span></h1>
+        <div class="progress" aria-hidden="true"><div class="bar" id="progress-bar"></div></div>
+        <ol class="stepper" id="stepper">
+          <li data-for="business">Business</li>
+          <li data-for="cover">Cover</li>
+          <li data-for="details">Details</li>
+          <li data-for="confirm">Confirm</li>
+          <li data-for="pay">Pay</li>
+        </ol>
+
+        <form id="buy" class="card buy-card" novalidate>
+          <section data-step="business">
+            <h2>Hi, tell us about your stall</h2>
+            <p class="statement">Statement under section 23(5) of the Insurance Act 1966: you must tell us every fact you know, or ought to know, that may affect the cover you apply for. If you do not, the policy may not be valid.</p>
+            <fieldset class="choice">
+              <legend>Are you applying as an individual or a company?</legend>
+              <label><input type="radio" name="applicant_type" value="individual" required checked /> Individual</label>
+              <label><input type="radio" name="applicant_type" value="company" /> Company</label>
+            </fieldset>
+            <label id="uen-field" hidden>UEN
+              <input name="uen" autocomplete="off" placeholder="e.g. 53123456A" />
+              <span class="fine">Your business registration number from ACRA.</span></label>
+            <label>Business name <input name="business_name" placeholder="e.g. Ah Hock Chicken Rice" required /></label>
+            <label>Hawker centre
+              <select name="centre" id="buy-centre" required><option value="">Loading centres…</option></select>
+            </label>
+            <p class="fine rent-hint" id="buy-rent" hidden></p>
+            <label>What you sell <select name="product" id="buy-product" required></select></label>
+          </section>
+
+          <section data-step="cover" hidden>
+            <h2>Your cover</h2>
+            <div class="package">
+              <p class="package-head"><span class="tick" aria-hidden="true">✓</span> SmartBiz 360 · base package</p>
+              <p class="fine">All-risk cover for your stock and equipment, a daily payout when an insured loss stops your business, and public liability. Income sets this price from your business details. This prototype does not price it.</p>
+            </div>
+            <div class="addon" id="addon">
+              <label class="addon-head"><input type="checkbox" name="add_safeday" id="add-safeday" />
+                <span><b>Add climate income cover · SafeDay</b>
+                <span class="fine" id="addon-pitch">Pays a fixed amount on days when NEA readings show haze, heavy rain, extreme heat or a flood alert near your stall. No claim form and no proof of damage.</span></span></label>
+              <div id="addon-body" hidden>
+                <div class="tiers-row" id="buy-tiers" role="radiogroup" aria-label="SafeDay tier"></div>
+                <p class="fine" id="tier-note"></p>
+              </div>
+            </div>
+          </section>
+
+          <section data-step="details" hidden>
+            <h2>Your details</h2>
+            <label>Your name <input name="name" autocomplete="name" required /></label>
+            <label>Mobile number
+              <input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="e.g. 9123 4567" required pattern="(\+65)?\s*[3689]\d{3}\s*-?\d{4}" />
+              <span class="fine">We send payout alerts here.</span></label>
+            <label>Email <input name="email" type="email" autocomplete="email" required /></label>
+            <label>Password (8+ characters) <input name="password" type="password" minlength="8" autocomplete="new-password" required /></label>
+          </section>
+
+          <section data-step="confirm" hidden>
+            <h2>Check and confirm</h2>
+            <div id="summary"></div>
+            <fieldset class="choice">
+              <legend>Has any insurer ever declined, cancelled or refused to renew cover for this business?</legend>
+              <label><input type="radio" name="declined_before" value="no" required /> No</label>
+              <label><input type="radio" name="declined_before" value="yes" /> Yes</label>
+            </fieldset>
+            <div id="declined-box" hidden>
+              <label>Which insurer, and why? <textarea name="declined_details" rows="3" maxlength="500"></textarea></label>
+              <p class="fine">An underwriter will review your application. No cover starts and nothing is charged until they reply.</p>
+            </div>
+            <div class="declare">
+              <label class="check"><input type="checkbox" name="accept_declaration" required />
+                <span>I declare that what I have told you is true and complete. Cover starts only after the application is accepted and the first premium is paid. SafeDay pays on NEA readings near my stall, not on my actual loss, so a bad day can pay more or less than I lost.</span></label>
+              <label class="check"><input type="checkbox" name="accept_pdpa" required />
+                <span>I agree that the insurer may collect, use and disclose my personal data to assess this application, run the policy and make payouts, as its data protection policy describes.</span></label>
+              <p class="fine">Optional: send me news and offers by</p>
+              <div class="optins">
+                <label class="check"><input type="checkbox" name="marketing_email" /> <span>Email</span></label>
+                <label class="check"><input type="checkbox" name="marketing_sms" /> <span>SMS</span></label>
+              </div>
+            </div>
+          </section>
+
+          <section data-step="pay" hidden>
+            <h2>Pay</h2>
+            <div class="due">
+              <span>Due today: first week of SafeDay</span>
+              <b id="due-amount">–</b>
+            </div>
+            <p class="fine">Income bills your SmartBiz 360 premium separately, as quoted.</p>
+            <fieldset class="choice">
+              <legend>How would you like to pay?</legend>
+              <label><input type="radio" name="payment_method" value="paynow" required checked /> PayNow</label>
+              <label><input type="radio" name="payment_method" value="giro" /> GIRO, every week</label>
+            </fieldset>
+            <p class="fine">Prototype: nothing is charged. You get a made-up reference.</p>
+          </section>
+
+          <section data-step="done" hidden>
+            <div id="done"></div>
+          </section>
+
+          <p class="error" id="buy-error" role="alert"></p>
+          <div class="buy-actions" id="buy-actions">
+            <button class="btn quiet" id="buy-back" type="button" hidden>Back</button>
+            <button class="btn primary" id="buy-next" type="submit">Next</button>
+          </div>
+        </form>
+      </div>
+
+      <aside class="buy-side card">
+        <p class="side-time">About 5 minutes</p>
+        <h2>What you need</h2>
+        <ul>
+          <li>Your hawker centre and what you sell</li>
+          <li>Your UEN, if you apply as a company</li>
+          <li>A Singapore mobile number for payout alerts</li>
+        </ul>
+        <h2>When an underwriter looks first</h2>
+        <ul>
+          <li>An insurer has declined, cancelled or refused to renew your cover before</li>
+        </ul>
+        <p class="fine">Already have an account? <a href="/login/">Sign in</a></p>
+      </aside>
+    </main>
+  </body>
+</html>

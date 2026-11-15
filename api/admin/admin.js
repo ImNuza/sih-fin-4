@@ -28,6 +28,14 @@ const SECTIONS = [
     label: "Pricing",
     intro: "Loads that turn the expected payout into the premium the customer pays.",
   },
+  {
+    key: "rent",
+    label: "Rent classes",
+    intro:
+      "Hawker centres grouped by the median winning NEA bid for a cooked-food stall. " +
+      "A stall's rent per trading day sets the tier we recommend: the smallest tier " +
+      "that pays a whole day's rent. Rent never changes the premium.",
+  },
 ];
 
 const PRICING_FIELDS = [
@@ -66,6 +74,7 @@ const FIELD_LABELS = {
   recovered_share: "Sales recovered later",
   daily_payout_sgd: "Payout for a day with no sales, S$",
   max_paid_days_per_year: "Paid days a year, at most",
+  at_least_monthly_sgd: "From median monthly bid, S$",
 };
 const PERCENT_FIELDS = new Set([
   "weight",
@@ -82,6 +91,7 @@ const state = {
   auth: sessionStorage.getItem("auth"),
   regions: [],
   hazardsWithHistory: new Set(),
+  centreRents: [],
   saved: null,
   draft: null,
   section: "hazards",
@@ -161,8 +171,13 @@ function handleAuthError(error) {
 }
 
 async function openDesk() {
-  const [options, saved] = await Promise.all([api("/api/options"), api("/api/admin/tariff")]);
+  const [options, saved, rents] = await Promise.all([
+    api("/api/options"),
+    api("/api/admin/tariff"),
+    api("/api/rent").catch(() => ({ centres: {} })),
+  ]);
   state.regions = options.regions;
+  state.centreRents = Object.values(rents.centres);
   state.hazardsWithHistory = new Set(
     options.hazards.filter((hazard) => hazard.has_history).map((hazard) => hazard.key),
   );
@@ -218,6 +233,13 @@ function draftChanged() {
 function newItem(path, list) {
   const top = list.at(-1);
   if (path.endsWith(".bands")) return { at_least: top.at_least + 1, severity: top.severity };
+  if (path === "rent.classes") {
+    return {
+      key: `class_${list.length + 1}`,
+      label: "New class",
+      at_least_monthly_sgd: top.at_least_monthly_sgd + 1000,
+    };
+  }
   const number = list.length + 1;
   if (path === "products") {
     return {
@@ -247,6 +269,7 @@ function onEdit(event) {
   const hazard = path.match(/^hazards\.(\d+)\./);
   if (hazard) $(`chart-${hazard[1]}`).innerHTML = bandChart(state.draft.hazards[hazard[1]]);
   if (path.startsWith("products.")) renderPickers();
+  if (path.startsWith("rent.")) $("rent-spread").innerHTML = rentSpread();
   draftChanged();
 }
 
@@ -318,11 +341,23 @@ function tariffChanges(before, after) {
     before: shown(key, before.pricing[key]),
     after: shown(key, after.pricing[key]),
   }));
+  const rent = [
+    ["trading_days_per_month", "Trading days a month"],
+    ["source", "Source"],
+  ]
+    .filter(([key]) => before.rent[key] !== after.rent[key])
+    .map(([key, label]) => ({
+      where: `Rent classes › ${label}`,
+      before: shown(key, before.rent[key]),
+      after: shown(key, after.rent[key]),
+    }));
   return [
     ...itemChanges("Hazards", before.hazards, after.hazards),
     ...itemChanges("Products", before.products, after.products),
     ...itemChanges("Tiers", before.tiers, after.tiers),
     ...pricing,
+    ...itemChanges("Rent classes", before.rent.classes, after.rent.classes),
+    ...rent,
   ];
 }
 
@@ -488,7 +523,7 @@ function renderVersion() {
 
 function renderNav() {
   $("sections").innerHTML = SECTIONS.map((section) => {
-    const items = state.draft[section.key];
+    const items = section.key === "rent" ? state.draft.rent.classes : state.draft[section.key];
     const count = Array.isArray(items) ? items.length : "";
     const current = section.key === state.section;
     return `<button type="button" data-section="${section.key}" aria-current="${current}">
@@ -503,6 +538,7 @@ function renderEditor() {
     products: productsEditor,
     tiers: tiersEditor,
     pricing: pricingEditor,
+    rent: rentEditor,
   };
   $("editor").innerHTML = `
     <header><h1>${section.label}</h1><p class="hint">${section.intro}</p></header>
@@ -670,6 +706,64 @@ function pricingEditor() {
     </label>`,
   ).join("");
   return `<div class="card pricing-fields">${rows}</div>`;
+}
+
+function rentSpread() {
+  const { classes, trading_days_per_month: days } = state.draft.rent;
+  const known = state.centreRents.filter((rent) => !rent.estimated);
+  if (!known.length) return "";
+  const levels = classes.map((c) => c.at_least_monthly_sgd);
+  if (![days, ...levels].every(Number.isFinite)) return "Fill in every limit to see the spread.";
+  const rows = classes
+    .map((rentClass, i) => {
+      const upper = levels[i + 1] ?? Infinity;
+      const inside = known.filter(
+        (rent) => rent.median_bid_sgd >= levels[i] && rent.median_bid_sgd < upper,
+      );
+      const range = upper === Infinity ? `${money(levels[i])} and up` : `${money(levels[i])} to ${money(upper)}`;
+      const perDay =
+        upper === Infinity ? `from ${money(levels[i] / days)}` : `${money(levels[i] / days)} to ${money(upper / days)}`;
+      return `<tr><th scope="row">${esc(rentClass.label)}</th><td>${range}</td><td>${perDay}</td><td>${inside.length}</td></tr>`;
+    })
+    .join("");
+  const missing = state.centreRents.length - known.length;
+  return `<table>
+      <thead><tr><th>Class</th><th>Monthly rent</th><th>Rent per trading day</th><th>Centres</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="hint">${known.length} centres have a bid on record. ${missing} have none and borrow the
+    median of all centres.</p>`;
+}
+
+function rentEditor() {
+  const rows = state.draft.rent.classes
+    .map((rentClass, i) => {
+      const base = `rent.classes.${i}`;
+      const from =
+        i === 0
+          ? `<span class="hint">S$0 (fixed)</span>`
+          : field(`${base}.at_least_monthly_sgd`, "number", "From median monthly bid, S$");
+      return `<tr>
+        <td>${field(`${base}.label`, "text", "Class")}</td>
+        <td>${field(`${base}.key`, "text", "Key")}</td>
+        <td>${from}</td>
+        <td>${removeButton("rent.classes", i, i > 0)}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<div class="card table-wrap">
+    <table>
+      <thead><tr><th>Class</th><th>Key</th><th>From median monthly bid, S$</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${addButton("rent.classes", "Add class")}
+  </div>
+  <div class="card pricing-fields">
+    <label><span><b>Trading days a month</b>Turns monthly rent into rent per trading day.</span>
+      ${field("rent.trading_days_per_month", "number", "Trading days a month")}</label>
+    <label class="wide">Source ${field("rent.source", "long-text", "Source")}</label>
+  </div>
+  <div class="card table-wrap" id="rent-spread">${rentSpread()}</div>`;
 }
 
 // ---------- Preview ----------

@@ -86,5 +86,14 @@
     "catastrophe_load": 0.1,
     "expense_ratio": 0.25,
     "gst_rate": 0.09
+  },
+  "rent": {
+    "trading_days_per_month": 26,
+    "classes": [
+      {"key": "lower", "label": "Lower rent", "at_least_monthly_sgd": 0},
+      {"key": "mid", "label": "Mid rent", "at_least_monthly_sgd": 1500},
+      {"key": "high", "label": "High rent", "at_least_monthly_sgd": 3000}
+    ],
+    "source": "NEA successful tender bids for cooked-food stalls, Jan 2019 to Jul 2026, median per centre over the bids since Aug 2023. The limits split the 81 centres with a bid into thirds, rounded. 26 trading days a month (one rest day a week) is an assumption."
   }
 }
