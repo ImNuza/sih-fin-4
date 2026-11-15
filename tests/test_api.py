@@ -387,6 +387,8 @@ def test_the_what_if_circle_prices_each_centre_from_its_own_stations(client):
     assert scenario["centres"][MAXWELL]["weekly_baseline_sgd"] == weekly(shown)
     assert scenario["centres"][MAXWELL]["weekly_stressed_sgd"] > weekly(shown)
     assert scenario["centres"][MAXWELL]["offered"] is True
+    maxwell_tier_2 = next(t for t in shown["tiers"] if t["tier"] == "tier_2")
+    assert scenario["centres"][MAXWELL]["yearly_baseline_sgd"] == maxwell_tier_2["yearly_premium_sgd"]
 
 
 def test_the_what_if_circle_leaves_out_centres_where_the_tier_is_not_offered(client):

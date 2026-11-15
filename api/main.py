@@ -578,8 +578,8 @@ class ScenarioRequest(BaseModel):
 
 
 SCENARIO_PRICES = (
-    "expected_loss_days", "stressed_loss_days", "weekly_baseline_sgd", "weekly_stressed_sgd",
-    "offered",
+    "expected_loss_days", "stressed_loss_days", "yearly_baseline_sgd", "weekly_baseline_sgd",
+    "weekly_stressed_sgd", "offered",
 )
 
 
@@ -618,6 +618,7 @@ def map_scenario(body: ScenarioRequest, saved: SavedTariffDep, request: Request)
         return {
             "expected_loss_days": priced.expected_loss_days,
             "stressed_loss_days": round(stressed_days, 2),
+            "yearly_baseline_sgd": baseline.yearly_premium_sgd,
             "weekly_baseline_sgd": baseline.weekly_premium_sgd,
             "weekly_stressed_sgd": round(stressed_yearly / calculator.WEEKS_PER_YEAR, 2),
             "offered": baseline.offered,

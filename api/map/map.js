@@ -37,7 +37,7 @@ const PSI_BANDS = [[301, "Hazardous"], [201, "Very unhealthy"], [101, "Unhealthy
 const HAZARD_ICON = { haze: "cloud-fog", rain: "cloud-rain", heat: "thermometer-sun", flood: "waves" };
 // Hawker centre dot colours: the pricing verdict in History, the day's loss label otherwise.
 const SME_LEGEND = {
-  history: [["good", "Offer"], ["warning", "Co-pay"], ["serious", "Refer"]],
+  history: [["good", "Offer"], ["warning", "Co-pay"], ["serious", "Not offered"]],
   day: [["good", "Under 30%"], ["warning", "Under 70%"], ["critical", "70% and up"], ["muted", "No payout"]],
 };
 // Inside a dashboard iframe, or on a small screen, the panels start folded so the map stays visible.
@@ -570,6 +570,16 @@ function buildExtraHazardControls() {
 }
 
 /* ---------- floating circle records ---------- */
+/* The portfolio tier's monthly price per stall at the centres in a circle, as each is charged:
+   one price, or the lowest to the highest. */
+function circlePrice(scn) {
+  const offered = scn.affected.filter((a) => a.offered);
+  if (!scn.affected.length) return "–";
+  if (!offered.length) return "Not offered here";
+  const monthly = offered.map((a) => a.yearly_baseline_sgd / 12);
+  const [low, high] = [Math.min(...monthly), Math.max(...monthly)];
+  return high - low < 0.005 ? `${SGD(low)} a month` : `${SGD(low)} to ${SGD(high)} a month`;
+}
 function floatCardHtml(circle) {
   const scn = circle.scn, active = circle.id === state.activeId;
   const head = `<div class="chead">
@@ -584,6 +594,7 @@ function floatCardHtml(circle) {
     <div class="kv"><span class="k" style="white-space:nowrap">Priced as</span><span class="v">${productLabel(circle.product)}</span></div>
     <div class="kv"><span class="k">Loss score today</span><span class="v">${scn.assessment.loss_percent.toFixed(0)}% ${dayChip(scn.assessment.loss_percent)}</span></div>
     <div class="kv"><span class="k">Payout per stall today</span><span class="v">${SGD(scn.assessment.payout_sgd)}</span></div>
+    <div class="kv"><span class="k">${tierLabel(state.tier)} price per stall</span><span class="v">${circlePrice(scn)}</span></div>
     <div class="kv"><span class="k">Centres hit · stalls covered</span><span class="v">${scn.totals.centres} · ${scn.totals.stalls.toLocaleString("en-SG")}</span></div>
     <div class="kv"><span class="k">Weekly premium, now → if more common</span><span class="v">${SGD(scn.totals.weekly_premium_baseline_sgd)} → <span class="delta-up">${SGD(scn.totals.weekly_premium_stressed_sgd)}</span></span></div>
     <p class="hintline">${active ? "editing: the sliders shape this circle" : "click to edit this circle's readings"}</p>
