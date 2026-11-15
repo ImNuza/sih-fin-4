@@ -3,9 +3,11 @@ own numbers.
 
 POST /api/assistant/chat. A language model picks which tool to run; the tools call the same
 engine as every page (quotes, the station rule in api/readings.py, payouts, the burn, the
-underwriting queue), so every number in a reply comes from the API. The model never sets a
-price or decides a payout, and replies in the language the person writes in: English, Chinese,
-Malay or Tamil (Singlish is fine).
+underwriting queue), so every number in a reply comes from the API. A place is priced exactly
+as POST /api/quote prices it: a hawker at its centre, a shop at its postcode's area point, a
+map point at its nearest region, a region as a whole. The model never sets a price or decides
+a payout, and replies in the language the person writes in: English, Chinese, Malay or Tamil
+(Singlish is fine).
 
 The model is DeepSeek, Grok or OpenAI, by the first of DEEPSEEK_API_KEY, XAI_API_KEY or
 OPENAI_API_KEY set (environment or the repo's env file), else a local model served by Ollama
@@ -24,6 +26,7 @@ import logging
 import os
 import re
 import urllib.request
+from calendar import month_name
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -39,7 +42,7 @@ from api import (
     accounts, calculator, kyc, payout_flow, readings, store, translate, underwriting,
 )
 from api.day_history import day_readings
-from api.models import KycRequest, Tariff
+from api.models import HazeBonusQuote, KycRequest, Quote, Tariff, TierQuote
 from api.payouts import payouts
 
 log = logging.getLogger(__name__)
@@ -55,6 +58,14 @@ MAX_REPLY_TOKENS = 1600
 MAX_TURNS_KEPT = 12
 MAX_MESSAGE_CHARS = 2000
 HAZARDS = ("haze", "rain", "heat")
+DEFAULT_PRODUCT, DEFAULT_TIER = "cooked_food", "tier_2"
+CLOSURE = "closure"
+# The headline price is the yearly premium over 12 months (api/site/tier-proof.js); billing is
+# weekly.
+MONTHS_PER_YEAR = 12
+# The lockdown example every page uses (api/site/tier-proof.js).
+LOCKDOWN_EXAMPLE_DAYS = 40
+POSTCODE_IN_TEXT = re.compile(r"\b(\d{6})\b")
 # Fields of the buy form (api/site/buy/index.html) the assistant may fill from what a person
 # says. Identity and payment fields stay with the person, so a password is never among them.
 FORM_FIELDS = (
@@ -95,7 +106,7 @@ TRANSLATED_LOCALLY = ("ms", "ta")
 
 @dataclass
 class Context:
-    """What one chat request can see: the live tariff and history, and who is asking."""
+    """What one chat request can see: the live tariff, the app's replays, and who is asking."""
 
     request: Request
     tariff: Tariff
@@ -130,15 +141,56 @@ def today() -> date:
 
 @dataclass(frozen=True)
 class Where:
+    """A place as POST /api/quote prices it: a hawker centre, a shop's postcode area, a map point
+    (priced for its nearest region) or a whole PSI region."""
+
     name: str
     region: str
     lat: float
     lng: float
-    centre: str | None
+    centre: str | None = None
+    postcode: str | None = None
+    whole_region: bool = False
+
+    @property
+    def who(self) -> str:
+        """Who the proof lines are about, as api/site/tier-proof.js words them."""
+        if self.centre:
+            return "a stall here"
+        return "a shop here" if self.postcode else "a business here"
 
 
-def find_place(ctx: Context, centre: str | None = None, region: str | None = None) -> Where | None:
-    """A hawker centre by (fuzzy) name, else a PSI region's label point."""
+def centre_place(centre: dict) -> Where:
+    return Where(centre["name"], centre["region"], centre["lat"], centre["lng"], centre["name"])
+
+
+def postcode_place(ctx: Context, postcode: str) -> Where:
+    """A shop's postcode at its area's point (postcodes.area_point), as its price reads it."""
+    from api import main as app_main  # the app, loaded by now; main imports this module
+
+    point = app_main.postcode_point(ctx.request, postcode)
+    return Where(f"postcode {postcode} ({point['basis']})", point["region"], point["lat"],
+                 point["lng"], postcode=postcode)
+
+
+def point_place(ctx: Context, name: str, lat: float, lng: float) -> Where:
+    """A map point, paid on the PSI region of its nearest NEA station, as POST /api/quote."""
+    from api import main as app_main
+
+    return Where(name, app_main.nearest_region(ctx.request, lat, lng), lat, lng)
+
+
+def region_place(ctx: Context, region: str) -> Where:
+    lat, lng = ctx.state.map_static["region_points"][region]
+    return Where(f"the {region} region", region, lat, lng, whole_region=True)
+
+
+def find_place(ctx: Context, centre: str | None = None, region: str | None = None,
+               postcode: str | None = None) -> Where | None:
+    """A shop's postcode, else a hawker centre by (fuzzy) name, else a named area's point, else
+    a PSI region."""
+    if postcode:
+        return postcode_place(ctx, postcode.strip())
     centres = ctx.state.map_static["hawker_centres"]
     if centre:
         by_name = {c["name"].lower(): c for c in centres}
@@ -149,52 +201,230 @@ def find_place(ctx: Context, centre: str | None = None, region: str | None = Non
             close = get_close_matches(centre.lower(), list(by_name), n=1, cutoff=0.6)
             match = by_name[close[0]] if close else None
         if match:
-            return Where(match["name"], match["region"], match["lat"], match["lng"], match["name"])
+            return centre_place(match)
     named = kyc.match_place(centre or region or "", ctx.state.places)
     if named is not None:
-        is_centre = named.match == "hawker_centre"
+        if named.match == "hawker_centre":
+            return centre_place(ctx.state.centres_by_name[named.name])
         label = f"{named.name} (for {named.area})" if named.area and named.area != named.name else named.name
-        return Where(label, named.region, named.lat, named.lng, named.name if is_centre else None)
+        return point_place(ctx, label, named.lat, named.lng)
     if region and region.lower() in ctx.state.map_static["region_points"]:
-        lat, lng = ctx.state.map_static["region_points"][region.lower()]
-        return Where(f"the {region.lower()} region", region.lower(), lat, lng, None)
+        return region_place(ctx, region.lower())
     return None
 
 
 def my_policy(ctx: Context):
+    """The signed-in owner's policy with the terms in force today, or None."""
     if ctx.user is None or ctx.user.role != "sme":
         return None
     with ctx.state.db.connect() as db:
-        return db.execute(
+        policy = db.execute(
             select(accounts.policies).where(accounts.policies.c.user_id == ctx.user.id)
         ).first()
+        return payout_flow.policy_on(db, policy, today()) if policy else None
 
 
 def policy_place(ctx: Context, policy) -> Where | None:
-    return find_place(ctx, policy.centre, policy.region) if policy else None
+    """Where a policy is priced and paid from (payout_api.policy_point): its hawker centre, else
+    its shop's postcode area, else its region's point."""
+    from api import main as app_main
+
+    if policy is None:
+        return None
+    if policy.centre in ctx.state.centres_by_name:
+        return centre_place(ctx.state.centres_by_name[policy.centre])
+    postcode = app_main.shop_postcode(app_main.latest_application(ctx.state.db, policy.user_id))
+    if postcode:
+        return postcode_place(ctx, postcode)
+    return region_place(ctx, policy.region)
 
 
-def tier_rows(quote) -> list[dict]:
-    return [
-        {
-            "tier": t.tier, "label": t.label, "weekly_premium_sgd": t.weekly_premium_sgd,
-            "pays_on_a_full_bad_day_sgd": t.daily_payout_sgd,
-            "most_paid_in_a_year_sgd": t.max_payout_per_year_sgd,
-        }
-        for t in quote.tiers
-    ]
+def place_quote(ctx: Context, where: Where, product: str) -> Quote:
+    """The quote POST /api/quote gives this place: what a business there is shown and charged."""
+    from api import main as app_main
 
-
-def place_quote(ctx: Context, where: Where, product: str):
-    from api import main as app_main  # the app, loaded by now; main imports this module
-
-    if where.centre:
+    if where.centre or where.postcode or where.whole_region:
         return app_main.business_quote(
-            ctx.request, ctx.tariff, ctx.state.history, product, where.region, where.centre
+            ctx.request, ctx.tariff, product, where.region, where.centre, where.postcode
         )
-    return calculator.quote_at(
-        ctx.tariff, ctx.state.history, ctx.state.sites, where.lat, where.lng, product
+    return app_main.place_quote(
+        ctx.request, ctx.tariff, product, where.region, where.lat, where.lng
     )
+
+
+def chosen_tier(quote: Quote, tier: str) -> TierQuote:
+    found = next((t for t in quote.tiers if t.tier == tier), None)
+    if found is None:
+        raise calculator.UnknownKey(f"Unknown tier: {tier}")
+    return found
+
+
+def monthly(yearly_sgd: float) -> float:
+    return round(yearly_sgd / MONTHS_PER_YEAR, 2)
+
+
+def paid_days_limit(tier: TierQuote) -> int:
+    return round(tier.max_payout_per_year_sgd / tier.daily_payout_sgd)
+
+
+def year_money(value: float) -> str:
+    """A year's payout in whole dollars, as api/site/tier-proof.js shows it."""
+    return f"S${int(value + 0.5):,}"
+
+
+def proof_lines(tier: TierQuote, who: str) -> list[str]:
+    """The replay at the customer's own place in the words of api/site/tier-proof.js."""
+    proof = tier.proof
+    if proof is None:
+        return []
+    years = proof.years_replayed
+    days = int(proof.payout_days_per_year + 0.5)
+    spread = f"about {days} day{'' if days == 1 else 's'}" if days >= 1 else "less than one day"
+    lines = []
+    if proof.typical_year_paid_sgd > 0:
+        lines.append(f"A typical year paid {year_money(proof.typical_year_paid_sgd)}, spread over "
+                     f"{spread} with a part payout.")
+    if proof.years_paid == 0:
+        lines.append(f"{who.capitalize()} would not have been paid in any of the last {years} "
+                     "years.")
+    elif proof.years_paid == years:
+        lines.append(f"{who.capitalize()} would have been paid in each of the last {years} years.")
+    else:
+        lines.append(f"{who.capitalize()} would have been paid in {proof.years_paid} of the last "
+                     f"{years} years.")
+    year = calculator.PROOF_YEAR
+    paid = proof.paid_2026_sgd
+    lines.append(f"In {year}, {who} would have been paid {year_money(paid)} in total." if paid > 0
+                 else f"In {year}, {who} would not have been paid.")
+    lines.append(f"We estimate a year like {calculator.HAZE_YEAR} would pay about "
+                 f"{year_money(proof.haze_2015_like_sgd)}. It does not run out before "
+                 f"{paid_days_limit(tier)} bad days.")
+    return lines
+
+
+def haze_bonus_row(bonus: HazeBonusQuote | None) -> dict | None:
+    if bonus is None:
+        return None
+    return {
+        "pays_once_sgd": bonus.lump_sum_sgd,
+        "pays_when": f"{bonus.trigger_days} or more days at PSI {bonus.trigger_psi:g} or above in "
+                     "the region in a policy year",
+        "monthly_sgd": monthly(bonus.yearly_sgd), "yearly_sgd": bonus.yearly_sgd,
+        "weekly_billed_sgd": bonus.weekly_sgd,
+        "pays_times_its_price": bonus.multiple,
+        "can_be_added_now": bonus.on_sale_now,
+        "would_have_paid_here_in_years": bonus.would_have_paid_years,
+    }
+
+
+def tier_row(tier: TierQuote, who: str) -> dict:
+    return {
+        "tier": tier.tier, "label": tier.label,
+        "monthly_premium_sgd": monthly(tier.yearly_premium_sgd),
+        "yearly_premium_sgd": tier.yearly_premium_sgd,
+        "weekly_billed_sgd": tier.weekly_premium_sgd,
+        "pays_for_a_day_with_no_sales_sgd": tier.daily_payout_sgd,
+        "paid_days_a_year_up_to": paid_days_limit(tier),
+        "most_paid_in_a_year_sgd": tier.max_payout_per_year_sgd,
+        "price_per_day_sgd": tier.price_per_day_sgd,
+        "pays_up_to_times_its_price": tier.cover_multiple,
+        "best_value": tier.best_value,
+        "sold_directly": tier.sold_directly,
+        "proof": proof_lines(tier, who),
+        "severe_haze_payout_add_on": haze_bonus_row(tier.haze_bonus),
+    }
+
+
+def tier_rows(quote: Quote, who: str) -> list[dict]:
+    return [tier_row(t, who) for t in quote.tiers]
+
+
+def amount(value: float) -> str:
+    return f"S${value:,.0f}" if float(value).is_integer() else f"S${value:,.2f}"
+
+
+def listed(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+def months_text(months: list[int]) -> str:
+    """'May to October' for a run of months, else the months listed."""
+    if months == list(range(months[0], months[0] + len(months))) and len(months) > 2:
+        return f"{month_name[months[0]]} to {month_name[months[-1]]}"
+    return listed([month_name[m] for m in months])
+
+
+def product_facts(tariff: Tariff) -> dict[str, str]:
+    """What the product is, worded from the live tariff, never from numbers written here."""
+    tiers = tariff.tiers
+    limits = sorted({t.max_paid_days_per_year for t in tiers})
+    wait = payout_flow.WAITING_PERIOD_DAYS
+    closure = next((h for h in tariff.hazards if h.key == CLOSURE), None)
+    lockdown_in_full = (
+        f", so a {LOCKDOWN_EXAMPLE_DAYS}-day lockdown or closure order is paid in full"
+        if closure is not None and LOCKDOWN_EXAMPLE_DAYS <= limits[0] else ""
+    )
+    facts = {
+        "daily_amounts": (
+            "Each tier pays a fixed amount for a day with no sales: "
+            + listed([f"{t.label} {amount(t.daily_payout_sgd)}" for t in tiers]) + "."
+        ),
+        "partial_days": "A partly bad day pays the share of the day lost.",
+        "yearly_limit": (
+            f"Every tier pays up to {limits[0]} full days a year{lockdown_in_full}."
+            if len(limits) == 1 else
+            "Each tier pays up to " + listed([f"{t.max_paid_days_per_year} full days a year on "
+                                              f"{t.label}" for t in tiers]) + "."
+        ),
+        "monthly_price": "The price is shown a month: the yearly premium over 12. It is billed "
+                         "weekly.",
+        "higher_tiers": f"{listed([t.label for t in tiers[-2:]])} can pay more than a hawker stall "
+                        "takes in a day, so they suit businesses with higher takings. Not every "
+                        "tier matches a stall's loss.",
+        "waiting_period": f"Cover pays from {wait} days after it starts. A move to a higher "
+                          f"tier starts the {wait}-day wait again; the same or a lower tier "
+                          "keeps it.",
+        "proof": "Each quote carries proof numbers from a replay at the customer's own place: "
+                 "'A typical year paid ...' with its payout days, 'In "
+                 f"{calculator.PROOF_YEAR} ... in total' (rain and heat as well as haze), and 'We "
+                 f"estimate a year like {calculator.HAZE_YEAR} ...' (an estimate).",
+        "forecast": "The evening warning text uses NEA's own forecast, and a forecast is not a "
+                    "payout. Payung's trained models only rebuild past years' readings; no "
+                    "model predicts bad days.",
+    }
+    if closure is not None and closure.assumed_days_per_year:
+        every = LOCKDOWN_EXAMPLE_DAYS / closure.assumed_days_per_year
+        facts["lockdown"] = (
+            "A lockdown or closure order pays the daily amount for every day it lasts, within "
+            "the yearly limit. It has no history, so it is priced as one "
+            f"{LOCKDOWN_EXAMPLE_DAYS}-day lockdown every {every:g} years, a team assumption "
+            "until Income gives its view."
+        )
+    if all(t.premium_shares for t in tiers):
+        facts["premium_shares"] = (
+            "Of the premium before GST, expected payouts are "
+            + listed([f"{t.premium_shares.expected_payouts:.0%} on {t.label}" for t in tiers])
+            + f"; the rest pays reinsurance, running costs and profit. GST of "
+            f"{tariff.pricing.gst_rate:.0%} goes on top."
+        )
+    bonus = tariff.haze_bonus
+    if bonus is not None:
+        facts["severe_haze_payout"] = (
+            f"Optional severe haze payout: when the customer's PSI region has {bonus.trigger_days} "
+            f"or more days at PSI {bonus.trigger_psi:g} or above in a policy year, it pays "
+            f"{bonus.lump_sum_daily_multiple:g} times the daily amount once that year, on top of "
+            f"the daily cover's limit. It costs the lump sum divided by {bonus.payout_multiple:g} "
+            f"a year, cannot be added from {months_text(bonus.no_sale_months)}, and has its own "
+            f"{bonus.waiting_days}-day wait. The daily cover still pays from the first hazy day."
+        )
+    held = [(h, h.stations_on_hold) for h in tariff.hazards if h.stations_on_hold]
+    if held:
+        facts["stations_on_hold"] = " ".join(
+            f"{hazard.label} stations {listed(stations)} are on hold until NEA confirms them, so "
+            "places near them read the next nearest station."
+            for hazard, stations in held
+        )
+    return facts
 
 
 def trigger_levels(tariff: Tariff) -> dict[str, str]:
@@ -241,7 +471,7 @@ def readings_on(ctx: Context, where: Where, day: date) -> tuple[dict[str, float]
         if not snapshot.get("available"):
             return {}, {}, "the live NEA feed is still loading"
         scored = app_main.live_loss(
-            app_main.LiveToday(snapshot), ctx.tariff, "cooked_food", where.region,
+            app_main.LiveToday(snapshot), ctx.tariff, DEFAULT_PRODUCT, where.region,
             where.lat, where.lng,
         )
         return scored["readings"], {}, f"live NEA readings at {snapshot.get('fetched_at')}"
@@ -250,7 +480,7 @@ def readings_on(ctx: Context, where: Where, day: date) -> tuple[dict[str, float]
     if recorded is None:
         return {}, {}, "no NEA record for that day"
     place = readings.history_place(where.region, where.lat, where.lng, ctx.state.sites)
-    site = readings.site_readings(recorded, place, *readings.stations_read(ctx.tariff))
+    site = readings.site_readings(recorded, place, readings.station_rule(ctx.tariff))
     values = {hazard: site.readings.get(hazard, 0.0) for hazard in HAZARDS}
     return values, site.basis, "NEA's recorded readings"
 
@@ -258,78 +488,105 @@ def readings_on(ctx: Context, where: Where, day: date) -> tuple[dict[str, float]
 # ---------- tools ----------
 
 
-def tool_describe_business(ctx: Context, description: str) -> dict:
+def tool_describe_business(ctx: Context, description: str, postcode: str | None = None) -> dict:
     """Read a business from the owner's words into a product, a place and cover options."""
     shop = kyc.read_shop(KycRequest(text=description), ctx.tariff.products, ctx.state.places)
-    if shop.product is None or shop.place is None:
+    postcode = postcode or next(iter(POSTCODE_IN_TEXT.findall(description)), None)
+    if shop.product is None or (shop.place is None and postcode is None):
         return {
             "understood": shop.summary,
-            "missing": [n for n, v in (("what you sell", shop.product), ("where", shop.place)) if v is None],
+            "missing": [n for n, v in (("what you sell", shop.product),
+                                       ("where (the hawker centre or the shop's postcode)",
+                                        shop.place or postcode)) if v is None],
         }
-    is_centre = shop.place.match == "hawker_centre"
-    where = Where(shop.place.name, shop.place.region, shop.place.lat, shop.place.lng,
-                  shop.place.name if is_centre else None)
     from api import main as app_main
 
+    if postcode:
+        where = postcode_place(ctx, postcode)
+    elif shop.place.match == "hawker_centre":
+        where = centre_place(ctx.state.centres_by_name[shop.place.name])
+    else:
+        where = point_place(ctx, shop.place.name, shop.place.lat, shop.place.lng)
     quote = place_quote(ctx, where, shop.product)
     rents = app_main.rent_table(ctx.tariff, ctx.state.rent).centres
-    rent = rents.get(shop.place.name) if is_centre else None
+    rent = rents.get(where.centre) if where.centre else None
     product = calculator.find(ctx.tariff.products, shop.product, "product")
-    fields = {"business_class": "hawker" if is_centre else "shop", "product": shop.product}
-    if is_centre:
-        fields["centre"] = shop.place.name
+    fields = {"business_class": "hawker" if where.centre else "shop", "product": shop.product}
+    if where.centre:
+        fields["centre"] = where.centre
+    if where.postcode:
+        fields["postcode"] = where.postcode
     ctx.actions.append(Action(type="start_signup", label="Start sign-up with these details",
                               url="/buy/?via=adviser", fields=fields))
+    facts = product_facts(ctx.tariff)
     return {
-        "product": product.label, "place": shop.place.name, "region": shop.place.region,
+        "product": product.label, "place": where.name, "region": where.region,
         "expected_full_loss_days_a_year": quote.expected_loss_days,
-        "tiers": tier_rows(quote),
+        "tiers": tier_rows(quote, where.who),
         "recommended_tier": rent.recommended_tier if rent else quote.tiers[0].tier,
         "why_recommended": (
             f"the smallest tier that pays a day's rent at this centre (about "
             f"S${rent.rent_per_day_sgd:.0f} a day)" if rent else "the lowest-cost tier"
         ),
         "triggers": trigger_levels(ctx.tariff),
+        "cover_rules": [facts[k] for k in ("daily_amounts", "partial_days", "yearly_limit",
+                                           "lockdown", "higher_tiers", "waiting_period")
+                        if k in facts],
     }
 
 
 def tool_explain_price(ctx: Context, centre: str | None = None, product: str | None = None,
-                       tier: str | None = None) -> dict:
+                       tier: str | None = None, postcode: str | None = None) -> dict:
     """Why a cover costs what it does: the stations, the bad days and the price build-up."""
     policy = my_policy(ctx)
-    where = find_place(ctx, centre) if centre else policy_place(ctx, policy)
+    where = (find_place(ctx, centre, postcode=postcode) if (centre or postcode)
+             else policy_place(ctx, policy))
     if where is None:
-        return {"error": "Tell me which hawker centre, or sign in so I can use your cover."}
-    product = product or (policy.product if policy else "cooked_food")
+        return {"error": "Tell me which hawker centre or the shop's postcode, or sign in so I "
+                         "can use your cover."}
+    product = product or (policy.product if policy else DEFAULT_PRODUCT)
     quote = place_quote(ctx, where, product)
-    chosen = next((t for t in quote.tiers if t.tier == (tier or (policy.tier if policy else "tier_2"))),
-                  quote.tiers[1])
-    p = ctx.tariff.pricing
-    risk = chosen.expected_paid_days * chosen.daily_payout_sgd
-    loaded = risk * (1 + p.uncertainty_load + p.catastrophe_load)
-    before_gst = loaded / (1 - p.expense_ratio)
+    chosen = chosen_tier(quote, tier or (policy.tier if policy else DEFAULT_TIER))
+    shares = calculator.find(ctx.tariff.tiers, chosen.tier, "tier").premium_shares
+    assumed = {h.key: h.assumed_days_per_year for h in ctx.tariff.hazards
+               if h.assumed_days_per_year is not None}
+    local = {r.hazard: r for r in quote.local_risks}
     return {
         "place": where.name, "product": product, "tier": chosen.label,
         "expected_full_loss_days_a_year": quote.expected_loss_days,
         "by_hazard": [
-            {"hazard": r.hazard, "stations_read": r.stations, "days_of_station_data": r.station_days,
-             "weight_on_these_stations": r.credibility, "full_loss_days_a_year": r.loss_days}
-            for r in quote.local_risks
+            {"hazard": hazard, "full_loss_days_a_year": days,
+             **({"priced_from": f"an assumed {assumed[hazard]:g} days a year"} if hazard in assumed
+                else {"priced_from": "NEA's recorded readings at this place"}),
+             **({"stations_read": local[hazard].stations,
+                 "days_of_station_data": local[hazard].station_days} if hazard in local else {})}
+            for hazard, days in quote.loss_day_parts.items()
         ],
+        "expected_paid_days_a_year": chosen.expected_paid_days,
+        "paid_days_a_year_up_to": paid_days_limit(chosen),
+        "expected_payouts_share_of_premium_before_gst": (
+            f"{shares.expected_payouts:.0%}" if shares else None
+        ),
         "build_up_sgd_a_year": {
-            "expected_payouts": round(risk, 2),
-            f"plus_{round(p.uncertainty_load * 100)}pc_uncertainty_and_{round(p.catastrophe_load * 100)}pc_rare_event_loads": round(loaded - risk, 2),
-            f"plus_running_costs_{round(p.expense_ratio * 100)}pc_of_premium": round(before_gst - loaded, 2),
-            f"plus_gst_{round(p.gst_rate * 100)}pc": round(chosen.yearly_premium_sgd - before_gst, 2),
+            **{step.key: step.amount_sgd for step in chosen.build_up},
             "yearly_premium": chosen.yearly_premium_sgd,
         },
-        "weekly_premium_sgd": chosen.weekly_premium_sgd,
+        "monthly_premium_sgd": monthly(chosen.yearly_premium_sgd),
+        "weekly_billed_sgd": chosen.weekly_premium_sgd,
+        "how_it_is_priced": (
+            "Yearly premium = expected paid days x the daily amount / the tier's payout share, "
+            "plus GST. Expected paid days are the average, over the years replayed, of each "
+            "year's full-loss days within the yearly limit, every day read as a payout reads it."
+        ),
+        "proof": proof_lines(chosen, where.who),
         "note": "No personal data goes into the price: only the place's NEA history and the product.",
     }
 
 
 def tool_my_cover(ctx: Context) -> dict:
     """The signed-in owner's cover and their latest payouts."""
+    from api import main as app_main
+
     policy = my_policy(ctx)
     if policy is None:
         return {"covered": False}
@@ -338,13 +595,18 @@ def tool_my_cover(ctx: Context) -> dict:
             select(payouts).where(payouts.c.user_id == ctx.user.id)
             .order_by(payouts.c.loss_date.desc()).limit(8)
         ).mappings().all()
+        bonus = app_main.haze_bonuses(db).get(policy.id)
     return {
         "covered": True, "tier": policy.tier_label, "product": policy.product,
-        "place": policy.centre or f"the {policy.region} region",
+        "place": policy_place(ctx, policy).name,
         "weekly_premium_sgd": policy.weekly_premium_sgd,
-        "pays_on_a_full_bad_day_sgd": policy.daily_payout_sgd,
+        "pays_for_a_day_with_no_sales_sgd": policy.daily_payout_sgd,
         "most_paid_days_a_year": policy.max_paid_days_per_year,
         "cover_pays_from": payout_flow.first_covered_day(policy.started_at).isoformat(),
+        "severe_haze_payout_add_on": (
+            {"pays_once_sgd": bonus["lump_sum_sgd"], "weekly_sgd": bonus["weekly_sgd"],
+             "pays_from": bonus["starts_on"].isoformat()} if bonus else None
+        ),
         "latest_payouts": [
             {"date": r["loss_date"].isoformat(), "status": r["status"],
              "amount_sgd": r["amount_cents"] / 100, "share_of_day_lost_pc": r["loss_percent"],
@@ -369,7 +631,9 @@ def tool_why_paid(ctx: Context, day: str) -> dict:
     covered_from = payout_flow.first_covered_day(policy.started_at)
     where = policy_place(ctx, policy)
     values, basis, source = readings_on(ctx, where, when)
-    assessment = calculator.assess(ctx.tariff, policy.product, policy.tier, values) if values else None
+    assessment = calculator.assess(
+        ctx.tariff, policy.product, policy.tier, values, policy.daily_payout_sgd
+    ) if values else None
     return {
         "date": when.isoformat(), "place": where.name, "readings": values,
         "how_each_reading_was_chosen": basis, "readings_source": source,
@@ -384,34 +648,45 @@ def tool_why_paid(ctx: Context, day: str) -> dict:
     }
 
 
-def tool_weather_now(ctx: Context, centre: str | None = None, region: str | None = None) -> dict:
+def tool_weather_now(ctx: Context, centre: str | None = None, region: str | None = None,
+                     postcode: str | None = None) -> dict:
     """Today's live readings at a place and the loss they would score."""
     policy = my_policy(ctx)
-    where = find_place(ctx, centre, region) if (centre or region) else policy_place(ctx, policy)
+    where = (find_place(ctx, centre, region, postcode) if (centre or region or postcode)
+             else policy_place(ctx, policy))
     if where is None:
-        return {"error": "Name a hawker centre or a region (north, south, east, west, central)."}
+        return {"error": "Name a hawker centre, a postcode or a region (north, south, east, "
+                         "west, central)."}
     values, basis, source = readings_on(ctx, where, today())
     if not values:
         return {"error": source}
-    product = policy.product if policy else "cooked_food"
+    product = policy.product if policy else DEFAULT_PRODUCT
     loss = calculator.assess(ctx.tariff, product, ctx.tariff.tiers[0].key, values).loss_percent
     return {"place": where.name, "readings": values, "readings_source": source,
             "triggers": trigger_levels(ctx.tariff), "share_of_day_lost_pc_so_far": loss}
 
 
 def tool_ten_year_record(ctx: Context, centre: str | None = None, product: str | None = None,
-                         tier: str | None = None, daily_sales_sgd: float = 500.0) -> dict:
+                         tier: str | None = None, daily_sales_sgd: float = 500.0,
+                         postcode: str | None = None) -> dict:
     """What this cover would have paid a business here, year by year, since 2017."""
     from api import main as app_main
 
     policy = my_policy(ctx)
-    where = find_place(ctx, centre) if centre else policy_place(ctx, policy)
-    if where is None or where.centre is None:
-        return {"error": "Name the hawker centre."}
+    where = (find_place(ctx, centre, postcode=postcode) if (centre or postcode)
+             else policy_place(ctx, policy))
+    if where is None:
+        return {"error": "Name the hawker centre or the shop's postcode."}
+    if where.centre:
+        place = {"centre": where.centre}
+    elif where.whole_region:
+        place = {"region": where.region}
+    else:
+        place = {"lat": where.lat, "lng": where.lng, "region": where.region}
     record = app_main.map_burn(
-        ctx.request, ctx.tariff, ctx.state.history, centre=where.centre,
-        product=product or (policy.product if policy else "cooked_food"),
-        tier=tier or (policy.tier if policy else "tier_2"), takings=daily_sales_sgd,
+        ctx.request, ctx.tariff, **place,
+        product=product or (policy.product if policy else DEFAULT_PRODUCT),
+        tier=tier or (policy.tier if policy else DEFAULT_TIER), takings=daily_sales_sgd,
     )
     return {"place": where.name, "tier": record["tier_label"], "totals": record["totals"],
             "years": [{k: y[k] for k in ("year", "trigger_days", "paid_sgd", "est_lost_sgd")}
@@ -459,11 +734,13 @@ def tool_what_if_day(ctx: Context, psi: float = 0, rain_mm: float = 0, heat_hour
     for row in rows:
         if region and row["region"] != region.lower():
             continue
-        paid = calculator.assess(ctx.tariff, row["product"], row["tier"], day).payout_sgd
+        paid = calculator.assess(
+            ctx.tariff, row["product"], row["tier"], day, row["daily_payout_sgd"]
+        ).payout_sgd
         entry = by_region.setdefault(row["region"], {"policies": 0, "payout_sgd": 0.0})
         entry["policies"] += 1
         entry["payout_sgd"] = round(entry["payout_sgd"] + paid, 2)
-    cooked = calculator.assess(ctx.tariff, "cooked_food", "tier_2", day)
+    cooked = calculator.assess(ctx.tariff, DEFAULT_PRODUCT, DEFAULT_TIER, day)
     stalls = sum(c["food_stalls"] for c in ctx.state.map_static["hawker_centres"]
                  if not region or c["region"] == region.lower())
     return {
@@ -489,24 +766,41 @@ def tool_underwriting_queue(ctx: Context) -> dict:
     }
 
 
+HAZARD_SETTINGS = ("weight", "assumed_days_per_year")
+TIER_LIMIT_SETTING = "yearly_limit_days"
+
+
 def tool_tariff_change(ctx: Context, setting: str, value: float, hazard: str | None = None) -> dict:
-    """What a tariff change would do to Tier 2 cooked-food prices in each region. Saves nothing."""
+    """What a tariff change would do to Tier 2 cooked-food prices in each region, priced on the
+    replayed years as every quote is (main.region_quote). Saves nothing."""
+    from api import main as app_main
+
     changed = ctx.tariff.model_copy(deep=True)
-    if setting == "weight":
+    if setting in HAZARD_SETTINGS:
         if hazard is None:
-            return {"error": "Which hazard's weight: haze, rain, heat, flood or closure?"}
-        calculator.find(changed.hazards, hazard, "hazard").weight = value
-    elif setting in ("uncertainty_load", "catastrophe_load", "expense_ratio"):
-        setattr(changed.pricing, setting, value)
+            return {"error": "Which hazard: " + ", ".join(h.key for h in ctx.tariff.hazards) + "?"}
+        setattr(calculator.find(changed.hazards, hazard, "hazard"), setting, value)
+    elif setting == TIER_LIMIT_SETTING:
+        for tier in changed.tiers:
+            tier.max_paid_days_per_year = int(value)
     else:
-        return {"error": "I can test a hazard weight, uncertainty_load, catastrophe_load or expense_ratio."}
+        return {"error": "I can test a hazard's weight or assumed_days_per_year, or every "
+                         f"tier's {TIER_LIMIT_SETTING}."}
+    changed = Tariff.model_validate(changed.model_dump())
     rows = []
-    for region in sorted(ctx.state.history):
-        before = calculator.quote(ctx.tariff, ctx.state.history, region, "cooked_food").tiers[1]
-        after = calculator.quote(changed, ctx.state.history, region, "cooked_food").tiers[1]
-        rows.append({"region": region, "weekly_now_sgd": before.weekly_premium_sgd,
-                     "weekly_after_sgd": after.weekly_premium_sgd})
-    return {"change": f"{hazard + ' ' if hazard else ''}{setting} -> {value}",
+    for region in ctx.state.regions:
+        before = chosen_tier(
+            app_main.region_quote(ctx.request, ctx.tariff, DEFAULT_PRODUCT, region), DEFAULT_TIER
+        )
+        after = chosen_tier(
+            app_main.region_quote(ctx.request, changed, DEFAULT_PRODUCT, region), DEFAULT_TIER
+        )
+        rows.append({"region": region,
+                     "monthly_now_sgd": monthly(before.yearly_premium_sgd),
+                     "monthly_after_sgd": monthly(after.yearly_premium_sgd),
+                     "yearly_now_sgd": before.yearly_premium_sgd,
+                     "yearly_after_sgd": after.yearly_premium_sgd})
+    return {"change": f"{hazard + ' ' if hazard else ''}{setting} -> {value:g}",
             "tier_2_cooked_food": rows,
             "note": "Nothing is saved. An admin applies changes in the tariff desk (/admin/)."}
 
@@ -537,16 +831,19 @@ STRING, NUMBER = {"type": "string"}, {"type": "number"}
 TOOLS: dict[str, Tool] = {
     "describe_business": Tool(
         tool_describe_business,
-        "Read an owner's description of their business (what they sell, where) and return the "
-        "matching product, place and every tier with its weekly price and payout.",
-        params(["description"], description=STRING)),
+        "Read an owner's description of their business (what they sell, and the hawker centre "
+        "or the shop's 6-digit postcode) and return the matching product, the place and every "
+        "tier as POST /api/quote prices it there: monthly price, what it pays for a day with no "
+        "sales, the yearly day limit, proof lines and the optional severe haze payout.",
+        params(["description"], description=STRING, postcode=STRING)),
     "explain_price": Tool(
         tool_explain_price,
-        "Explain why cover at a place costs what it does: stations read, bad days a year and the "
-        "premium build-up. Defaults to the signed-in owner's own cover.",
-        params(centre=STRING, product=STRING, tier=STRING)),
-    "my_cover": Tool(tool_my_cover, "The signed-in owner's cover and latest payouts.", params(),
-                     roles=("sme",)),
+        "Explain why cover at a hawker centre or a shop's postcode costs what it does: stations "
+        "read, full-loss days a year, expected paid days within the yearly limit and the "
+        "premium in its five parts plus GST. Defaults to the signed-in owner's own cover.",
+        params(centre=STRING, product=STRING, tier=STRING, postcode=STRING)),
+    "my_cover": Tool(tool_my_cover, "The signed-in owner's cover, its severe haze payout add-on "
+                     "if any, and latest payouts.", params(), roles=("sme",)),
     "why_paid": Tool(
         tool_why_paid,
         "Why the signed-in owner was or was not paid on a day: readings, triggers, payout record.",
@@ -554,14 +851,16 @@ TOOLS: dict[str, Tool] = {
         roles=("sme",)),
     "weather_now": Tool(
         tool_weather_now,
-        "Today's live NEA readings at a hawker centre or region, the trigger levels and the "
-        "share of the day lost so far. Use for warnings and stock advice.",
-        params(centre=STRING, region=STRING)),
+        "Today's live NEA readings at a hawker centre, postcode or region, the trigger levels "
+        "and the share of the day lost so far. These are readings, not a forecast.",
+        params(centre=STRING, region=STRING, postcode=STRING)),
     "ten_year_record": Tool(
         tool_ten_year_record,
-        "What this cover would have paid a business at a hawker centre each year since 2017, "
-        "against its estimated losses at its daily sales.",
-        params(centre=STRING, product=STRING, tier=STRING, daily_sales_sgd=NUMBER)),
+        "What this cover would have paid a business at a hawker centre or a shop's postcode "
+        "each year since 2017, replayed on NEA's readings, against its estimated losses at its "
+        "daily sales.",
+        params(centre=STRING, product=STRING, tier=STRING, daily_sales_sgd=NUMBER,
+               postcode=STRING)),
     "check_dispute": Tool(
         tool_check_dispute,
         "Check someone's challenge to a payout or non-payout against the published readings for "
@@ -581,8 +880,9 @@ TOOLS: dict[str, Tool] = {
                                roles=("insurer",)),
     "tariff_change": Tool(
         tool_tariff_change,
-        "Preview a tariff change (a hazard weight, or uncertainty_load, catastrophe_load, "
-        "expense_ratio as a share like 0.2) on Tier 2 weekly prices by region. Saves nothing.",
+        "Preview a tariff change on Tier 2 cooked-food monthly and yearly prices by region, "
+        "priced on the replayed years: a hazard's weight (a share like 0.6) or "
+        "assumed_days_per_year (closure), or every tier's yearly_limit_days. Saves nothing.",
         params(["setting", "value"], setting=STRING, value=NUMBER, hazard=STRING),
         roles=("insurer",)),
     "fill_buy_form": Tool(
@@ -615,14 +915,17 @@ def run_tool(ctx: Context, name: str, arguments: dict) -> dict:
 
 def system_prompt(ctx: Context) -> str:
     products = ", ".join(f"{p.key} ({p.label})" for p in ctx.tariff.products)
+    facts = "\n".join(f"- {fact}" for fact in product_facts(ctx.tariff).values())
     who = {"sme": f"a signed-in business owner ({ctx.user.name if ctx.user else ''})",
            "insurer": "an Income underwriter", "visitor": "a visitor who has not signed in"}[ctx.role]
     return (
         "You are Payung's assistant. Payung is parametric climate-income cover for Singapore "
         "hawker stalls and small shops, offered by Income Insurance. When NEA's published "
         "readings near a business cross a trigger (haze, heavy rain, heat stress, a PUB flood "
-        "alert), it pays a share of a fixed daily amount by PayNow the same day, with no claim "
-        f"form. You are talking to {who}, on the {ctx.page} page. Today is {today():%d %b %Y}.\n"
+        "alert), or a lockdown or closure order stops trading, it pays the share of a fixed "
+        "daily amount the day lost, by PayNow, with no claim form. You are talking to "
+        f"{who}, on the {ctx.page} page. Today is {today():%d %b %Y}.\n"
+        f"The product (from the live tariff):\n{facts}\n"
         "Rules:\n"
         "- Every number you state must come from a tool result in this conversation. Never "
         "estimate a price, payout, reading or date yourself.\n"
@@ -636,9 +939,12 @@ def system_prompt(ctx: Context) -> str:
         "owners are over 60. Keep a reply under 120 words: lists of tiers as short lines. No emoji.\n"
         "- Read places generously: 'the Indian market' or 'Little India market' is Tekka "
         "Centre; pass the real centre name to tools.\n"
-        "- When someone asks for the most cover, show the highest tier and what it pays.\n"
+        "- When someone asks for the most cover, show the highest tier and what it pays, and "
+        "say the top tiers suit businesses with higher takings.\n"
         "- When someone describes their business, call describe_business and lay out the tiers "
-        "as choices with the weekly price and what each pays on a bad day.\n"
+        "as choices with the monthly price and what each pays for a day with no sales. Use a "
+        "tier's proof lines as worded; never call a past year's payout a promise.\n"
+        "- Never say a model predicts or forecasts bad days.\n"
         "- On the buy page, when the person tells you their details, call fill_buy_form with "
         "only what they said, then ask them to check the form.\n"
         "- No medical, legal or investment advice. Health and injury are not covered.\n"
@@ -734,6 +1040,48 @@ def plain(values: dict[str, float]) -> str:
             f"hour, {values.get('heat', 0):g} hours of heat stress")
 
 
+# Questions about the product itself, answered from product_facts.
+FACT_KEYWORDS = (
+    (("lockdown", "closure", "circuit breaker"), ("yearly_limit", "lockdown")),
+    (("severe haze", "haze payout", "add-on", "addon", "lump sum"), ("severe_haze_payout",)),
+    (("wait",), ("waiting_period",)),
+    (("forecast", "predict"), ("forecast",)),
+    (("on hold",), ("stations_on_hold",)),
+)
+
+
+def facts_reply(ctx: Context, low: str) -> str | None:
+    facts = product_facts(ctx.tariff)
+    for words, keys in FACT_KEYWORDS:
+        if any(w in low for w in words):
+            found = [facts[k] for k in keys if k in facts]
+            if found:
+                return " ".join(found)
+    return None
+
+
+def cover_reply(ctx: Context, r: dict, low: str) -> str:
+    """The tiers of describe_business as short choices, with the yearly limit and the add-on."""
+    lines = "; ".join(f"{t['label']} {money(t['monthly_premium_sgd'])}/month, pays "
+                      f"{amount(t['pays_for_a_day_with_no_sales_sgd'])} for a day with no sales"
+                      for t in r["tiers"])
+    suggested = next(t for t in r["tiers"] if t["tier"] == r["recommended_tier"])
+    facts = product_facts(ctx.tariff)
+    reply = (f"{r['product']} at {r['place']}: {lines}. {facts['partial_days']} "
+             f"{facts['yearly_limit']} I'd suggest {suggested['label']}, {r['why_recommended']}.")
+    if bonus := suggested["severe_haze_payout_add_on"]:
+        reply += (f" Optional severe haze payout: {money(bonus['monthly_sgd'])}/month more, pays "
+                  f"{amount(bonus['pays_once_sgd'])} once if there are {bonus['pays_when']}.")
+        if not bonus["can_be_added_now"]:
+            reply += " It cannot be added this month."
+    if re.search(r"most|max|highest|best", low):
+        top = r["tiers"][-1]
+        reply += (f" The most cover is {top['label']}: "
+                  f"{amount(top['pays_for_a_day_with_no_sales_sgd'])} for a day with no sales and up to {amount(top['most_paid_in_a_year_sgd'])} a "
+                  f"year, for {money(top['monthly_premium_sgd'])} a month. {facts['higher_tiers']}")
+    return reply
+
+
 def rules_reply(ctx: Context, text: str) -> str:
     """Pick a tool by keywords and answer from a template. English only."""
     low = text.lower()
@@ -741,6 +1089,7 @@ def rules_reply(ctx: Context, text: str) -> str:
     day = day_match.group(0) if day_match else None
     named = kyc.match_place(text, ctx.state.places)
     centre = named.name if named else None
+    postcode = next(iter(POSTCODE_IN_TEXT.findall(text)), None)
 
     if ctx.page == "buy" and re.search(r"\bmy name is\b|\bphone\b|\bemail\b|\bfill\b", low):
         fields = {}
@@ -781,19 +1130,25 @@ def rules_reply(ctx: Context, text: str) -> str:
         return (f"On {r['date']} at {r['place']}, {r['readings_source']} were {plain(r['readings'])}: "
                 f"{verdict}. Triggers: haze {r['triggers']['haze']}; rain {r['triggers']['rain']}; "
                 f"heat {r['triggers']['heat']}.")
+    if fact := facts_reply(ctx, low):
+        return fact
     if any(w in low for w in ("why", "cost", "price", "expensive", "premium", "贵", "mahal")):
-        r = tool_explain_price(ctx, centre)
+        r = tool_explain_price(ctx, centre, postcode=postcode)
         if "error" in r:
             return r["error"]
         parts = "; ".join(f"{h['hazard']} {h['full_loss_days_a_year']} days" for h in r["by_hazard"])
         b = r["build_up_sgd_a_year"]
-        return (f"{r['tier']} at {r['place']} costs {money(r['weekly_premium_sgd'])} a week. "
-                f"Its nearest NEA stations show {r['expected_full_loss_days_a_year']} full bad days "
-                f"a year ({parts}). Expected payouts {money(b['expected_payouts'])} a year, plus "
-                f"loads, running costs and GST, make {money(b['yearly_premium'])} a year. "
-                "No personal data goes into the price.")
+        return (f"{r['tier']} at {r['place']} costs {money(r['monthly_premium_sgd'])} a month "
+                f"({money(b['yearly_premium'])} a year, billed {money(r['weekly_billed_sgd'])} a "
+                f"week). Its NEA readings give {r['expected_full_loss_days_a_year']} full bad days "
+                f"a year ({parts}), and it expects to pay {r['expected_paid_days_a_year']} days a "
+                f"year within its {r['paid_days_a_year_up_to']}-day limit. Expected payouts "
+                f"{money(b['expected_payouts'])} a year are "
+                f"{r['expected_payouts_share_of_premium_before_gst']} of the premium before GST; "
+                "reinsurance, running costs, profit and GST make the rest. No personal data goes "
+                "into the price.")
     if any(w in low for w in ("10 year", "ten year", "would have", "history", "past years")):
-        r = tool_ten_year_record(ctx, centre)
+        r = tool_ten_year_record(ctx, centre, postcode=postcode)
         if "error" in r:
             return r["error"]
         t = r["totals"]
@@ -807,20 +1162,10 @@ def rules_reply(ctx: Context, text: str) -> str:
         r = tool_describe_business(ctx, text)
         if "missing" in r:
             return (f"I understood: {r['understood']}. Please also tell me "
-                    f"{' and '.join(r['missing'])}, for example the hawker centre's name.")
-        top = r["tiers"][-1]
-        lines = "; ".join(f"{t['label']} {money(t['weekly_premium_sgd'])}/week, pays up to "
-                          f"{money(t['pays_on_a_full_bad_day_sgd'])} a bad day" for t in r["tiers"])
-        most = ""
-        if re.search(r"most|max|highest|best", low):
-            most = (f" The most cover is {top['label']}: up to "
-                    f"{money(top['pays_on_a_full_bad_day_sgd'])} a bad day and "
-                    f"{money(top['most_paid_in_a_year_sgd'])} a year, for "
-                    f"{money(top['weekly_premium_sgd'])} a week.")
-        return (f"{r['product']} at {r['place']}: {lines}. I'd suggest "
-                f"{r['recommended_tier'].replace('_', ' ').title()}, {r['why_recommended']}.{most}")
+                    f"{' and '.join(r['missing'])}.")
+        return cover_reply(ctx, r, low)
     if any(w in low for w in ("weather", "today", "haze", "rain", "psi", "hot", "heat")):
-        r = tool_weather_now(ctx, centre)
+        r = tool_weather_now(ctx, centre, postcode=postcode)
         if "error" in r:
             return r["error"]
         return (f"Right now at {r['place']}: {plain(r['readings'])} ({r['readings_source']}). That is "
@@ -829,17 +1174,18 @@ def rules_reply(ctx: Context, text: str) -> str:
         r = tool_my_cover(ctx)
         if not r["covered"]:
             return "You have no cover yet. Tell me what you sell and where, and I'll show the options."
-        return (f"You hold {r['tier']} at {r['place']}: {money(r['weekly_premium_sgd'])} a week, "
-                f"up to {money(r['pays_on_a_full_bad_day_sgd'])} a bad day, paying from "
-                f"{r['cover_pays_from']}.")
+        reply = (f"You hold {r['tier']} at {r['place']}: {money(r['weekly_premium_sgd'])} a week, "
+                 f"{amount(r['pays_for_a_day_with_no_sales_sgd'])} for a day with no sales, up to "
+                 f"{r['most_paid_days_a_year']} days a year, paying from {r['cover_pays_from']}.")
+        if bonus := r["severe_haze_payout_add_on"]:
+            reply += (f" Your severe haze payout pays {amount(bonus['pays_once_sgd'])} once, from "
+                      f"{bonus['pays_from']}.")
+        return reply
     if any(w in low for w in ("sell", "stall", "shop", "hawker", "卖", "jual", "கடை")):
         r = tool_describe_business(ctx, text)
         if "missing" in r:
             return f"I understood: {r['understood']}. Please also tell me {' and '.join(r['missing'])}."
-        lines = "; ".join(f"{t['label']} {money(t['weekly_premium_sgd'])}/week, pays up to "
-                          f"{money(t['pays_on_a_full_bad_day_sgd'])} a bad day" for t in r["tiers"])
-        return (f"{r['product']} at {r['place']}: {lines}. I'd suggest "
-                f"{r['recommended_tier'].replace('_', ' ').title()}, {r['why_recommended']}.")
+        return cover_reply(ctx, r, low)
     return ("I can explain your price, tell you why a day did or didn't pay, show today's "
             "weather readings, or find cover for your business. Try: \"I sell chicken rice at "
             "Maxwell Food Centre\".")
