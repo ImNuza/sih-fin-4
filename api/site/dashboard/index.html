@@ -9,25 +9,25 @@
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/theme.css?v=5" />
     <link rel="stylesheet" href="/ui.css?v=1" />
-    <link rel="stylesheet" href="/dashboard.css?v=1" />
+    <link rel="stylesheet" href="/dashboard.css?v=2" />
     <script src="/ui.js?v=1" defer></script>
     <script src="/day-colour.js?v=2" defer></script>
-    <script src="/payouts.js?v=3" defer></script>
-    <script src="/site.js?v=12" defer></script>
+    <script src="/payouts.js?v=4" defer></script>
+    <script src="/site.js?v=13" defer></script>
   </head>
   <body>
     <header class="topnav">
-      <p class="brand"><a href="/">SafeDay</a></p>
-      <nav>
+      <a class="brand" href="/"><span class="brand-mark"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg></span>SafeDay</a>
+      <nav aria-label="Main">
+        <a href="/map/" aria-label="Risk atlas"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#map"/></svg><span class="label-wide">Risk atlas</span></a>
         <span id="whoami" class="who"></span>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">☾</button>
-        <a href="/map/">Risk atlas</a>
-        <button class="btn-link" id="signout" type="button">Sign out</button>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#moon"/></svg></button>
+        <button class="btn small" id="signout" type="button" aria-label="Sign out"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#log-out"/></svg><span class="label-wide">Sign out</span></button>
       </nav>
     </header>
 
-    <main class="dash" id="dash">
-      <p class="loading" id="dash-loading">Loading your dashboard…</p>
+    <main class="dash" id="dash" aria-busy="true">
+      <p class="loading" id="dash-loading">Loading your dashboard</p>
     </main>
   </body>
 </html>
