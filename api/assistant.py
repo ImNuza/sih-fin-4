@@ -8,16 +8,22 @@ price or decides a payout, and replies in the language the person writes in: Eng
 Malay or Tamil (Singlish is fine).
 
 The model is DeepSeek, Grok or OpenAI, by the first of DEEPSEEK_API_KEY, XAI_API_KEY or
-OPENAI_API_KEY set (environment or .env at the repo root). With no key, or no route to the
-model, keywords pick the tool and the reply comes from English templates. Nothing sent here is
-stored: the conversation lives in the browser tab.
+OPENAI_API_KEY set (environment or the repo's env file), else a local model served by Ollama
+(OLLAMA_MODEL, qwen3:8b by default), which keeps the conversation on this machine. The reply
+is always in the language picked in the chat: a remote model writes it directly; the local
+model writes English and Chinese directly, and for Malay and Tamil answers in English that
+api/translate.py turns into the picked language. With no model at all, keywords pick the tool
+and an English template answers, translated the same way. Nothing sent here is stored: the conversation lives in
+the browser tab.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -29,7 +35,9 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from api import accounts, calculator, kyc, payout_flow, readings, store, underwriting
+from api import (
+    accounts, calculator, kyc, payout_flow, readings, store, translate, underwriting,
+)
 from api.day_history import day_readings
 from api.models import KycRequest, Tariff
 from api.payouts import payouts
@@ -39,8 +47,11 @@ SINGAPORE = ZoneInfo("Asia/Singapore")
 
 DEEPSEEK_KEY_NAME, DEEPSEEK_MODEL = "DEEPSEEK_API_KEY", "deepseek-chat"
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+OLLAMA_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3:8b")
+LANGUAGE_NAMES = {"en": "English", "zh": "Simplified Chinese", "ms": "Malay", "ta": "Tamil"}
 MAX_TOOL_ROUNDS = 5
-MAX_REPLY_TOKENS = 700
+MAX_REPLY_TOKENS = 1600
 MAX_TURNS_KEPT = 12
 MAX_MESSAGE_CHARS = 2000
 HAZARDS = ("haze", "rain", "heat")
@@ -62,6 +73,7 @@ class Turn(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[Turn] = Field(min_length=1, max_length=40)
     page: str = Field(default="site", max_length=20)
+    language: str = Field(default="en", pattern="^(en|zh|ms|ta)$")
 
 
 class Action(BaseModel):
@@ -77,6 +89,10 @@ class ChatReply(BaseModel):
     source: str
 
 
+# Languages the local model writes poorly: it answers in English and api/translate.py translates.
+TRANSLATED_LOCALLY = ("ms", "ta")
+
+
 @dataclass
 class Context:
     """What one chat request can see: the live tariff and history, and who is asking."""
@@ -85,6 +101,8 @@ class Context:
     tariff: Tariff
     page: str
     user: accounts.Account | None
+    language: str = "en"
+    reply_language: str = "en"
     actions: list[Action] = field(default_factory=list)
 
     @property
@@ -612,14 +630,19 @@ def system_prompt(ctx: Context) -> str:
         "if asked to change one.\n"
         "- Be honest about basis risk: a business can lose sales and receive nothing when the "
         "readings near it stay below the triggers.\n"
-        "- Reply in the language the person writes in: English, Chinese, Malay or Tamil. "
-        "Singlish is fine. Use short sentences and plain words; many owners are over 60.\n"
+        f"- Always reply in {LANGUAGE_NAMES[ctx.reply_language]}, whatever language the person "
+        "writes or speaks in, and translate tool results into it. Keep numbers, S$ amounts, "
+        "dates and hawker centre names as they are. Use short sentences and plain words; many "
+        "owners are over 60. Keep a reply under 120 words: lists of tiers as short lines. No emoji.\n"
+        "- Read places generously: 'the Indian market' or 'Little India market' is Tekka "
+        "Centre; pass the real centre name to tools.\n"
+        "- When someone asks for the most cover, show the highest tier and what it pays.\n"
         "- When someone describes their business, call describe_business and lay out the tiers "
         "as choices with the weekly price and what each pays on a bad day.\n"
         "- On the buy page, when the person tells you their details, call fill_buy_form with "
         "only what they said, then ask them to check the form.\n"
         "- No medical, legal or investment advice. Health and injury are not covered.\n"
-        f"Products: {products}."
+        f"Products: {products}.\n/no_think"
     )
 
 
@@ -637,12 +660,31 @@ MODELS = (
 )
 
 
-def model_client() -> tuple[openai.OpenAI, str] | None:
+def local_model_ready() -> bool:
+    """True when Ollama answers on this machine and has OLLAMA_MODEL."""
+    try:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=1) as response:
+            names = {m["name"] for m in json.load(response).get("models", [])}
+    except (OSError, ValueError):
+        return False
+    return OLLAMA_MODEL in names or f"{OLLAMA_MODEL}:latest" in names
+
+
+def model_client() -> tuple[openai.OpenAI, str, bool] | None:
+    """The model to ask, its name, and whether it runs on this machine."""
     for key_name, model, base_url, _host in MODELS:
         key = kyc.api_key(key_name)
         if key:
-            return openai.OpenAI(api_key=key, base_url=base_url, timeout=40), model
+            return openai.OpenAI(api_key=key, base_url=base_url, timeout=40), model, False
+    if local_model_ready():
+        local = openai.OpenAI(api_key="ollama", base_url=f"{OLLAMA_URL}/v1", timeout=180)
+        return local, OLLAMA_MODEL, True
     return None
+
+
+def without_thinking(text: str) -> str:
+    """Drop a reasoning block some local models put before the answer."""
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
 
 
 def ask_model(ctx: Context, turns: list[Turn]) -> str | None:
@@ -650,7 +692,9 @@ def ask_model(ctx: Context, turns: list[Turn]) -> str | None:
     chosen = model_client()
     if chosen is None:
         return None
-    client, model = chosen
+    client, model, local = chosen
+    translating = local and ctx.language in TRANSLATED_LOCALLY and translate.installed()
+    ctx.reply_language = "en" if translating else ctx.language
     messages: list[dict] = [{"role": "system", "content": system_prompt(ctx)}]
     messages += [{"role": t.role, "content": t.content} for t in turns[-MAX_TURNS_KEPT:]]
     tools = openai_tools(ctx)
@@ -662,7 +706,7 @@ def ask_model(ctx: Context, turns: list[Turn]) -> str | None:
             )
             message = response.choices[0].message
             if not message.tool_calls:
-                return message.content or ""
+                return without_thinking(message.content or "")
             messages.append(message.model_dump(exclude_none=True))
             for call in message.tool_calls:
                 try:
@@ -755,6 +799,26 @@ def rules_reply(ctx: Context, text: str) -> str:
         t = r["totals"]
         return (f"At {r['place']} on {r['tier']}, from {t['from_year']} to {t['to_year']} this "
                 f"cover would have paid {money(t['paid_sgd'])} over {t['trigger_days']} bad days.")
+    describes_business = re.search(
+        r"\b(i sell|i have a|i run|my (?:stall|shop|business))\b|卖|jual|கடை", low)
+    wants_cover = any(w in low for w in ("plan", "cover", "tier", "coverage")) and \
+        any(w in low for w in ("shop", "stall", "sell"))
+    if describes_business or wants_cover:
+        r = tool_describe_business(ctx, text)
+        if "missing" in r:
+            return (f"I understood: {r['understood']}. Please also tell me "
+                    f"{' and '.join(r['missing'])}, for example the hawker centre's name.")
+        top = r["tiers"][-1]
+        lines = "; ".join(f"{t['label']} {money(t['weekly_premium_sgd'])}/week, pays up to "
+                          f"{money(t['pays_on_a_full_bad_day_sgd'])} a bad day" for t in r["tiers"])
+        most = ""
+        if re.search(r"most|max|highest|best", low):
+            most = (f" The most cover is {top['label']}: up to "
+                    f"{money(top['pays_on_a_full_bad_day_sgd'])} a bad day and "
+                    f"{money(top['most_paid_in_a_year_sgd'])} a year, for "
+                    f"{money(top['weekly_premium_sgd'])} a week.")
+        return (f"{r['product']} at {r['place']}: {lines}. I'd suggest "
+                f"{r['recommended_tier'].replace('_', ' ').title()}, {r['why_recommended']}.{most}")
     if any(w in low for w in ("weather", "today", "haze", "rain", "psi", "hot", "heat")):
         r = tool_weather_now(ctx, centre)
         if "error" in r:
@@ -785,10 +849,14 @@ def rules_reply(ctx: Context, text: str) -> str:
 def chat(body: ChatRequest, request: Request) -> ChatReply:
     """One reply to a conversation, grounded in the platform's own numbers."""
     ctx = Context(request, store.latest(request.app.state.db).tariff, body.page,
-                  current_user_or_none(request))
+                  current_user_or_none(request), body.language)
     reply = ask_model(ctx, body.messages)
-    if reply is not None:
-        return ChatReply(reply=reply, actions=ctx.actions, source="llm")
-    ctx.actions.clear()
-    last = next(t.content for t in reversed(body.messages) if t.role == "user")
-    return ChatReply(reply=rules_reply(ctx, last), actions=ctx.actions, source="rules")
+    source = "llm"
+    if reply is None:
+        ctx.actions.clear()
+        ctx.reply_language = "en"
+        last = next(t.content for t in reversed(body.messages) if t.role == "user")
+        reply, source = rules_reply(ctx, last), "rules"
+    if ctx.reply_language != ctx.language and translate.installed():
+        reply = translate.translate(reply, ctx.language)
+    return ChatReply(reply=reply, actions=ctx.actions, source=source)
