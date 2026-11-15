@@ -17,6 +17,7 @@ Writes ml/output/:
     optuna.db              every trial
     backtest_yearly.csv    payouts per year, product and tier (see ml/backtest.py)
     confusion.md           confusion matrix, accuracy, precision and recall per model
+    model_notes.md         why each model is compared, and how it responded to tuning
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ import traceback
 import optuna
 import pandas as pd
 
-from ml import backtest, confusion
+from ml import backtest, confusion, model_notes
 from ml.config import (
     BUDGETS,
     DAILY_TASKS,
@@ -169,6 +170,7 @@ def main() -> None:
     write_report(board, device, args.budget)
     print(f"\nReport: {REPORT_PATH}")
     confusion.main()
+    model_notes.main()
     done = set(board.loc[board["status"] == "ok", "job"]) if not board.empty else set()
     if args.skip_backtest:
         print("Back-test skipped (--skip-backtest).")

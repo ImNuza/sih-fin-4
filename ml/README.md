@@ -75,9 +75,12 @@ on Poisson deviance.
 - `backtest_yearly.csv`: per year since 1980, product and tier, the mean, 95th percentile and
   largest payout per customer, the share of customers who hit the yearly cap, the premium and the
   loss ratio. Years before 2014 have no haze.
-- `confusion.md`, `confusion_matrices.csv`: per daily model, the test-year confusion matrix
+- `confusion.md`, `confusion_metrics.csv`: per daily model, the test-year confusion matrix
   (trigger day called or not), accuracy, precision, recall and F1, and what each error means for
   the product. `uv run --group ml python -m ml.confusion` rebuilds them alone.
+- `model_notes.md`: why each model is in the comparison, and per job its best, median and worst
+  validation score over the trials and the hyperparameters that moved it most.
+  `uv run --group ml python -m ml.model_notes` rebuilds it alone.
 - `models/`, `predictions/`, `optuna.db`.
 
 ## Share the results (`ml/results/`, in git)
@@ -90,10 +93,12 @@ uv run --group ml python -m ml.publish
 git add ml/results && git commit -m "Add training results" && git push
 ```
 
-`ml/results/` gets the leaderboard, the report, the back-test, the best model of each job moved
-to the CPU (so the API and a laptop without a GPU can load it, up to 50 MB each), and
-`confusion_matrices.md` and `.csv`: for every daily job, days per actual and predicted outcome
-on the test years, both as trigger or no trigger and as the tariff's payout band.
+`ml/results/` gets the leaderboard, the report, the back-test, `confusion.md`, `model_notes.md`,
+the best model of each job moved to the CPU (so the API and a laptop without a GPU can load it,
+up to 50 MB each), and `confusion_matrices.md` and `.csv`: for every daily job, days per actual
+and predicted outcome on the test years, both as trigger or no trigger and as the tariff's payout
+band. The best model is the one with the best validation score, so the test years play no part
+in choosing it. Loading a model needs the `ml` group, and `ml.models` for the neural network.
 
 ## Limits
 

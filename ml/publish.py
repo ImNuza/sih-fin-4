@@ -11,7 +11,7 @@ The best model of each job is the one with the best cross-validated score, not t
 score, so the test years play no part in the choice.
 
 Reads  ml/output/: leaderboard.csv, report.md, backtest_yearly.csv, confusion.md,
-       confusion_metrics.csv, predictions/, models/
+       confusion_metrics.csv, model_notes.md, predictions/, models/
 Writes ml/results/: the same files, plus
        confusion_matrices.csv   one row per job, model, threshold and cell
        confusion_matrices.md    the best model of each job, readable
@@ -41,6 +41,7 @@ from ml.confusion import CONFUSION_CSV_PATH, CONFUSION_REPORT_PATH, called_and_f
 from ml.data import load_tariff
 from ml.features import trigger_level
 from ml.metrics import CLASS_CUTOFF, best_per_job
+from ml.model_notes import MODEL_NOTES_PATH
 from ml.tune import PREDICTION_DIR
 
 RESULTS_DIR = REPO_ROOT / "ml" / "results"
@@ -57,7 +58,7 @@ def require(path) -> None:
 
 TRIGGER_LABELS = ["no trigger", "trigger"]
 COPIED_OUTPUTS = (LEADERBOARD_PATH, REPORT_PATH, BACKTEST_PATH, CONFUSION_REPORT_PATH,
-                  CONFUSION_CSV_PATH)
+                  CONFUSION_CSV_PATH, MODEL_NOTES_PATH)
 
 
 def trigger_label(flags: np.ndarray) -> np.ndarray:
