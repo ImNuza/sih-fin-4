@@ -430,6 +430,7 @@ async function submitApplication(body) {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(errorText(result.detail) || `/api/buy: HTTP ${response.status}`);
+  rememberDemoAccount("sme", body.email, body.password);
   return result;
 }
 

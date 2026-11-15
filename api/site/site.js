@@ -208,7 +208,9 @@ async function renderSme(user) {
     <h1>${user.business_name || user.name}</h1>
     ${proof ? `<p class="sub proof">${esc(proof)}</p>` : ""}
     <p class="sub">${[user.centre, `${user.region} region`, "priced from your region's own NEA history"].filter(Boolean).join(" · ")}</p>
-    ${mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")}
+    ${user.centre
+      ? mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")
+      : mapPreview({ view: "owner", camera: "city" }, `The ${user.region} region on the risk atlas`)}
     <div class="kpis">
       ${kpi("Today's loss score", todays ? `${todays.loss_percent.toFixed(0)}%` : "–", status.text)}
       ${inWaitingPeriod
@@ -246,7 +248,7 @@ async function renderSme(user) {
         ${waitingEnds ? kv("Payouts from", SG_DATE(waitingEnds)) : ""}
         ${application?.cover_ends ? kv("Cover ends", SG_DATE(application.cover_ends)) : ""}
         ${decision?.decision === "approve" && decision.note ? `<p class="fine">Underwriter's note: ${esc(decision.note)}</p>` : ""}
-        <p class="fine">Pays when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${user.centre}. Below those levels nothing is paid.</p>
+        <p class="fine">Pays when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${user.centre || `you, in the ${user.region} region`}. Below those levels nothing is paid.</p>
         <button class="btn small" id="cancel-policy" type="button">Cancel cover</button>`
         : `<div class="tiers-row">${quote.tiers.map((t) => `
           <button class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}" type="button">
@@ -262,7 +264,7 @@ async function renderSme(user) {
         <p class="error" id="buy-error"></p>`}
       </div>
     </div>
-    <div class="card" id="burn-card">
+    ${user.centre ? `<div class="card" id="burn-card">
       <h2>Your last ten years, replayed</h2>
       <p class="fine">Every NEA reading since 2017 at ${user.centre}, scored by the live tariff.
         Set your normal daily sales; the losses scale with it, the payouts do not.</p>
@@ -271,7 +273,7 @@ async function renderSme(user) {
           <input type="number" id="burn-takings" min="50" max="20000" step="50" value="500" /></label>
       </div>
       <div id="burn-body"><p class="fine">Computing…</p></div>
-    </div>
+    </div>` : ""}
     <div id="payouts-panel"></div>
 `;
   renderSmePayouts(el("payouts-panel"), Boolean(policy)).catch((error) => {
@@ -301,6 +303,7 @@ async function renderSme(user) {
       el("burn-body").innerHTML = `<p class="error">${error.message}</p>`;
     }
   };
+  if (!user.centre) return;
   el("burn-takings").addEventListener("change", loadBurn);
   loadBurn();
 }
@@ -460,7 +463,7 @@ async function wireDashboard() {
     location.href = "/login/";
     return;
   }
-  el("whoami").textContent = `${user.name} · ${user.role === "insurer" ? user.insurer : user.centre}`;
+  el("whoami").textContent = `${user.name} · ${user.role === "insurer" ? user.insurer : user.centre || user.business_name}`;
   el("signout").addEventListener("click", async () => {
     await post("/api/auth/logout", {});
     location.href = "/";

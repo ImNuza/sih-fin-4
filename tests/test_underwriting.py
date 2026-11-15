@@ -81,6 +81,16 @@ def test_decline_starts_no_policy_and_the_owner_sees_the_note(client):
     assert client.get("/api/applications/mine/decision").json()["note"] == "Floods every year"
 
 
+def test_a_declined_owner_cannot_start_cover_later(client):
+    application_id = refer(client)
+    sign_in_as_insurer(client)
+    decide(client, application_id, "decline")
+    client.post("/api/auth/logout")
+    owner = {"email": buy_body()["email"], "password": buy_body()["password"]}
+    client.post("/api/auth/login", json=owner)
+    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 409
+
+
 def test_an_application_is_decided_only_once(client):
     application_id = refer(client)
     sign_in_as_insurer(client)

@@ -563,6 +563,8 @@ def buy_policy(
         raise HTTPException(
             status.HTTP_409_CONFLICT, "An underwriter is reviewing your application. Cover starts after they reply"
         )
+    if application and application["status"] == "declined":
+        raise HTTPException(status.HTTP_409_CONFLICT, "An underwriter declined this application")
     product = body.product or user.product or "cooked_food"
     values = policy_values(tariff, history, user.id, user.region, user.centre, product, body.tier)
     engine = request.app.state.db
