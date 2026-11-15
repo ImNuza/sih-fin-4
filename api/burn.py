@@ -2,7 +2,9 @@
 
 The batch version with figures is scripts/burn_analysis.py; this module answers one site
 at a time for the SME dashboard and the map's time machine, from the same inputs:
-data/processed/day_readings.csv.gz and data/processed/burn_site_map.json.
+data/processed/day_readings.csv.gz, data/processed/burn_site_map.json (each hawker centre's
+gauge and station per year) and data/processed/burn_active_stations.json (the stations that
+reported enough of each year, to place any other point the same way).
 """
 
 from __future__ import annotations
@@ -19,7 +21,10 @@ from api.models import Tariff
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DAY_READINGS_PATH = REPO_ROOT / "data" / "processed" / "day_readings.csv.gz"
 SITE_MAP_PATH = REPO_ROOT / "data" / "processed" / "burn_site_map.json"
+ACTIVE_STATIONS_PATH = REPO_ROOT / "data" / "processed" / "burn_active_stations.json"
 FIRST_FULL_YEAR = 2017
+
+ActiveStations = dict[str, dict[str, list[str]]]
 
 
 def load_day_table() -> dict[str, dict[str, dict[str, float]]]:
@@ -35,6 +40,39 @@ def load_day_table() -> dict[str, dict[str, dict[str, float]]]:
 
 def load_site_map() -> dict[str, dict]:
     return json.loads(SITE_MAP_PATH.read_text())
+
+
+def load_active_stations() -> ActiveStations:
+    return json.loads(ACTIVE_STATIONS_PATH.read_text())
+
+
+def ranked(stations: list[dict], lat: float, lng: float) -> list[str]:
+    """Station ids from nearest to farthest."""
+    order = sorted(stations, key=lambda s: (s["lat"] - lat) ** 2 + (s["lng"] - lng) ** 2)
+    return [s["id"] for s in order]
+
+
+def nearest_active(ranked_ids: list[str], active: list[str]) -> str | None:
+    reporting = set(active)
+    return next((station_id for station_id in ranked_ids if station_id in reporting), None)
+
+
+def point_site(
+    lat: float, lng: float, region: str, map_static: dict, active: ActiveStations
+) -> dict:
+    """The site site_burn reads for one point: its PSI region, and per year its nearest rain
+    gauge and WBGT station among those that reported enough of that year."""
+    gauges = ranked(map_static["rain_stations"], lat, lng)
+    stations = ranked(map_static["wbgt_stations"], lat, lng)
+    by_year = {
+        kind: {
+            year: station_id
+            for year, ids in active[kind].items()
+            if (station_id := nearest_active(order, ids))
+        }
+        for kind, order in (("rain", gauges), ("heat", stations))
+    }
+    return {"region": region, "gauge_by_year": by_year["rain"], "station_by_year": by_year["heat"]}
 
 
 def site_burn(

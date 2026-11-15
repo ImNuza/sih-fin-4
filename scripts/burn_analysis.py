@@ -12,7 +12,8 @@ Usage:
 Reads  data/processed/day_readings.csv.gz, data/processed/map_static.json
        data/processed/site_hazard_readings.csv, api/default_tariff.json
        data/mss_daily/mss_daily.parquet
-Writes data/processed/burn_site_map.json       each centre's active gauge and station per year
+Writes data/processed/burn_active_stations.json  the gauges and WBGT stations active each year
+       data/processed/burn_site_map.json       each centre's active gauge and station per year
        data/processed/burn_yearly_hero.csv     the hero stall, year by year
        data/processed/burn_yearly_island.csv   all 103 centres summed, year by year
        data/processed/burn_daily_hero.csv      the hero stall, every day with a payout
@@ -39,6 +40,7 @@ from dgs import REPO_ROOT
 sys.path.insert(0, str(REPO_ROOT))
 
 from api import calculator  # noqa: E402
+from api.burn import point_site  # noqa: E402
 from api.main import load_history  # noqa: E402
 from api.models import Tariff  # noqa: E402
 
@@ -55,32 +57,16 @@ DAILY_TAKINGS_SGD = 500.0
 HAZE_COLOR, RAIN_COLOR, HEAT_COLOR, LOST_COLOR = "#6f63c8", "#2a78d6", "#d95926", "#b9b7ae"
 
 
-def ranked(stations: list[dict], centre: dict) -> list[str]:
-    """Station ids from nearest to farthest."""
-    order = sorted(
-        stations,
-        key=lambda s: (s["lat"] - centre["lat"]) ** 2 + (s["lng"] - centre["lng"]) ** 2,
-    )
-    return [s["id"] for s in order]
-
-
-def active_days_by_year(parquet: str, min_days: int) -> dict[int, set[str]]:
+def active_stations_by_year(parquet: str, min_days: int) -> dict[str, list[str]]:
     """Which stations reported enough of each year to serve as a site's trigger station."""
     days = pd.read_parquet(PROC_DIR / parquet, columns=["station_id", "day"])
     days["year"] = pd.to_datetime(days["day"]).dt.year
     counts = days.groupby(["year", "station_id"]).size()
-    active: dict[int, set[str]] = defaultdict(set)
+    active: dict[str, list[str]] = defaultdict(list)
     for (year, station), count in counts.items():
         if count >= min_days:
-            active[year].add(station)
-    return active
-
-
-def pick(ranked_ids: list[str], active: set[str]) -> str | None:
-    for station_id in ranked_ids:
-        if station_id in active:
-            return station_id
-    return None
+            active[str(year)].append(station)
+    return dict(active)
 
 
 def load_day_table() -> dict[str, dict[str, dict[str, float]]]:
@@ -101,18 +87,13 @@ def burn() -> None:
     cap_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
 
     centres = static["hawker_centres"]
-    rain_active = active_days_by_year("rain_station_days.parquet", 300)
-    heat_active = active_days_by_year("wbgt_station_days.parquet", 150)
-    for centre in centres:
-        gauges, stations = ranked(static["rain_stations"], centre), ranked(static["wbgt_stations"], centre)
-        centre["gauge_by_year"] = {y: pick(gauges, rain_active[y]) for y in rain_active}
-        centre["station_by_year"] = {y: pick(stations, heat_active[y]) for y in heat_active}
+    active = {
+        "rain": active_stations_by_year("rain_station_days.parquet", 300),
+        "heat": active_stations_by_year("wbgt_station_days.parquet", 150),
+    }
+    (PROC_DIR / "burn_active_stations.json").write_text(json.dumps(active, separators=(",", ":")))
     site_map = {
-        centre["name"]: {
-            "region": centre["region"],
-            "gauge_by_year": {str(y): g for y, g in centre["gauge_by_year"].items() if g},
-            "station_by_year": {str(y): st for y, st in centre["station_by_year"].items() if st},
-        }
+        centre["name"]: point_site(centre["lat"], centre["lng"], centre["region"], static, active)
         for centre in centres
     }
     (PROC_DIR / "burn_site_map.json").write_text(json.dumps(site_map, separators=(",", ":")))
@@ -140,10 +121,11 @@ def burn() -> None:
         readings_of_day = table[day]
         year = int(day[:4])
         for centre in centres:
-            gauge = centre["gauge_by_year"].get(year)
-            station = centre["station_by_year"].get(year)
+            site = site_map[centre["name"]]
+            gauge = site["gauge_by_year"].get(str(year))
+            station = site["station_by_year"].get(str(year))
             readings = {
-                "haze": readings_of_day.get("haze", {}).get(centre["region"], 0.0),
+                "haze": readings_of_day.get("haze", {}).get(site["region"], 0.0),
                 "rain": readings_of_day.get("rain", {}).get(gauge, 0.0),
                 "heat": readings_of_day.get("heat", {}).get(station, 0.0),
             }
@@ -208,7 +190,7 @@ def burn() -> None:
     pd.DataFrame(hero_days).to_csv(PROC_DIR / "burn_daily_hero.csv", index=False)
     figures(hero_rows, hero_days)
     summary(hero_rows, island_rows, hero_days)
-    sensitivity(table, centres, history, sites, premiums[HERO] / 52)
+    sensitivity(table, hero, site_map[HERO], history, sites, premiums[HERO] / 52)
 
 
 def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
@@ -262,7 +244,7 @@ def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
     fig.savefig(FIG_DIR / "burn_loss_ratio.png", dpi=200)
 
 
-def sensitivity(table, centres, history, sites, premiums_base) -> None:
+def sensitivity(table, hero, hero_site, history, sites, premiums_base) -> None:
     """The same burn with haze severities raised to 0.5/0.8/1.0: the tariff desk's one knob
     that most changes what haze pays. Labelled a what-if; the base tariff stays the truth."""
     tariff = Tariff.model_validate_json((REPO_ROOT / "api" / "default_tariff.json").read_text())
@@ -271,7 +253,6 @@ def sensitivity(table, centres, history, sites, premiums_base) -> None:
         band.severity = severity
     tier = calculator.find(tariff.tiers, TIER, "tier")
     cap_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
-    hero = next(c for c in centres if c["name"] == HERO)
     premium = next(
         t
         for t in calculator.quote_at(
@@ -283,10 +264,12 @@ def sensitivity(table, centres, history, sites, premiums_base) -> None:
     lost_by_year: dict[int, float] = defaultdict(float)
     for day in sorted(table):
         year = int(day[:4])
+        gauge = hero_site["gauge_by_year"].get(str(year))
+        station = hero_site["station_by_year"].get(str(year))
         readings = {
-            "haze": table[day].get("haze", {}).get(hero["region"], 0.0),
-            "rain": table[day].get("rain", {}).get(hero["gauge_by_year"].get(year), 0.0),
-            "heat": table[day].get("heat", {}).get(hero["station_by_year"].get(year), 0.0),
+            "haze": table[day].get("haze", {}).get(hero_site["region"], 0.0),
+            "rain": table[day].get("rain", {}).get(gauge, 0.0),
+            "heat": table[day].get("heat", {}).get(station, 0.0),
         }
         if readings["haze"] < 101 and readings["rain"] < 20 and readings["heat"] < 2:
             continue
