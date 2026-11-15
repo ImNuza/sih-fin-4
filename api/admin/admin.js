@@ -154,6 +154,13 @@ async function signIn(event) {
   }
 }
 
+function clearLogin() {
+  const form = $("login-form");
+  form.elements.username.value = "";
+  form.elements.password.value = "";
+  $("login-error").textContent = "";
+}
+
 function signOut(message = "") {
   if ($("review-dialog").open) $("review-dialog").close();
   sessionStorage.removeItem("auth");
@@ -884,6 +891,7 @@ function renderAssessment(assessments) {
 
 function start() {
   $("login-form").addEventListener("submit", signIn);
+  $("login-clear").addEventListener("click", clearLogin);
   $("sign-out").addEventListener("click", () => {
     if (!isDirty() || confirm("Sign out and lose your unsaved changes?")) signOut();
   });
