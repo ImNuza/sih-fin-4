@@ -1,7 +1,5 @@
 /* Buy flow (/buy/). Tokens in /theme.css, shared parts in /ui.css. Phone first: 375px wide,
    44px touch targets; the side panel joins the right column from 960px. */
-.topnav #nav-auth { border-radius: var(--r-pill); color: var(--ink); }
-.topnav #nav-auth .label-wide { display: inline; }
 
 .buy { display: grid; gap: var(--s-5); align-items: start; max-width: 1080px; }
 .buy-main { min-width: 0; }

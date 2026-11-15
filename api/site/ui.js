@@ -110,6 +110,7 @@
     dialog.querySelector("#drawer-title").textContent = title;
     dialog.querySelector("[data-close]").addEventListener("click", () => dialog.close());
     dialog.showModal();
+    dialog.scrollTop = 0;
     return dialog;
   }
 

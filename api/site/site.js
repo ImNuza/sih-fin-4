@@ -15,10 +15,16 @@ function rentSource(rent, table) {
   return `Median winning NEA bid for a cooked-food stall: ${SGD(rent.median_bid_sgd)} a month (${rent.bids} bid${rent.bids === 1 ? "" : "s"}, ${span}).`;
 }
 
+/* FastAPI sends a string, or a list of field errors for a bad request body. */
+function errorText(detail) {
+  if (!Array.isArray(detail)) return detail;
+  return detail.map((error) => `${error.loc?.at(-1) ?? "field"}: ${error.msg}`).join("; ");
+}
+
 async function api(url, options) {
   const response = await fetch(url, options);
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.detail || `${url}: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(errorText(body.detail) || `${url}: HTTP ${response.status}`);
   return body;
 }
 const post = (url, data) =>

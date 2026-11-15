@@ -1,6 +1,4 @@
 /* Sign-in and insurer sign-up page (/login/). Tokens in /theme.css, shared parts in /ui.css. */
-.topnav #nav-auth { border-radius: var(--r-pill); color: var(--ink); }
-.topnav #nav-auth .label-wide { display: inline; }
 
 .auth { max-width: 480px; padding-top: var(--s-7); }
 .auth .page-sub { margin-top: var(--s-2); }
