@@ -158,7 +158,7 @@ function mapFrame(params, caption) {
 }
 const WAITING_PERIOD_DAYS = 30;
 const BUSINESS_CLASSES = { hawker: "Hawker stall", shop: "Neighbourhood shop", platform_worker: "Platform worker" };
-const esc = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const escapeHtml = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /* "Hawker stall · licence SFA-123": the business class and the proof the owner gave, or "". */
 function businessProof(application) {
@@ -206,7 +206,7 @@ async function renderSme(user) {
 
   el("dash").innerHTML = `
     <h1>${user.business_name || user.name}</h1>
-    ${proof ? `<p class="sub proof">${esc(proof)}</p>` : ""}
+    ${proof ? `<p class="sub proof">${escapeHtml(proof)}</p>` : ""}
     <p class="sub">${[user.centre, `${user.region} region`, "priced from your region's own NEA history"].filter(Boolean).join(" · ")}</p>
     ${user.centre
       ? mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")
@@ -236,7 +236,7 @@ async function renderSme(user) {
         : declined && !policy ? `
         <p><span class="pill critical">Declined</span></p>
         <p class="fine" style="margin-top:10px">Application ${application.id}: the underwriter declined cover for this business. No cover started and you were not charged.</p>
-        ${decision?.note ? `<p class="fine">Their note: ${esc(decision.note)}</p>` : ""}`
+        ${decision?.note ? `<p class="fine">Their note: ${escapeHtml(decision.note)}</p>` : ""}`
         : policy ? `
         <div class="kv"><span class="k">Tier</span><span class="v">${policy.tier_label}</span></div>
         <div class="kv"><span class="k">Pays per bad day</span><span class="v">${SGD(policy.daily_payout_sgd)}</span></div>
@@ -247,7 +247,7 @@ async function renderSme(user) {
         ${application?.term_months ? kv("Term", `${application.term_months} months`) : ""}
         ${waitingEnds ? kv("Payouts from", SG_DATE(waitingEnds)) : ""}
         ${application?.cover_ends ? kv("Cover ends", SG_DATE(application.cover_ends)) : ""}
-        ${decision?.decision === "approve" && decision.note ? `<p class="fine">Underwriter's note: ${esc(decision.note)}</p>` : ""}
+        ${decision?.decision === "approve" && decision.note ? `<p class="fine">Underwriter's note: ${escapeHtml(decision.note)}</p>` : ""}
         <p class="fine">Pays when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${user.centre || `you, in the ${user.region} region`}. Below those levels nothing is paid.</p>
         <button class="btn small" id="cancel-policy" type="button">Cancel cover</button>`
         : `<div class="tiers-row">${quote.tiers.map((t) => `
@@ -342,9 +342,9 @@ function referralCard(application, quotes) {
   const place = [application.centre, application.stall_unit && `unit ${application.stall_unit}`,
     `${application.region} region`, application.postcode && `postcode ${application.postcode}`].filter(Boolean).join(" · ");
   const applicant = application.applicant_type === "company" ? `Company, UEN ${application.uen}` : "Individual";
-  const row = (key, value) => value ? `<div class="kv"><span class="k">${key}</span><span class="v">${esc(value)}</span></div>` : "";
+  const row = (key, value) => value ? `<div class="kv"><span class="k">${key}</span><span class="v">${escapeHtml(value)}</span></div>` : "";
   return `<article class="referral" data-application="${application.id}">
-    <div class="referral-head"><b>${esc(application.business_name || application.name)}</b>
+    <div class="referral-head"><b>${escapeHtml(application.business_name || application.name)}</b>
       <span class="fine">Application ${application.id} · sent ${String(application.created_at).slice(0, 10)}</span></div>
     ${row("Owner", `${application.name}${application.designation ? `, ${application.designation}` : ""} · ${application.phone}`)}
     ${row("Business", businessProof(application))}
@@ -352,7 +352,7 @@ function referralCard(application, quotes) {
     ${row("Applicant", applicant)}
     ${row("Staff", application.staff_band)}
     ${row("Cover asked for", cover)}
-    <p class="declined-why"><span class="k">Why an insurer declined before</span>${esc(application.declined_details)}</p>
+    <p class="declined-why"><span class="k">Why an insurer declined before</span>${escapeHtml(application.declined_details)}</p>
     <label class="referral-note">Note for the owner (optional)
       <textarea maxlength="500" rows="2"></textarea></label>
     <div class="referral-actions">
@@ -371,9 +371,9 @@ function underwriterQueue(queue, quotes) {
       : `<p class="fine">No applications are waiting.</p>`}
     ${decided.length ? `<h3>Recent decisions</h3><table class="list">
       <tr><th>Business</th><th>Decision</th><th>Note</th><th>By</th><th>Date</th></tr>
-      ${decided.map((d) => `<tr><td>${esc(d.business_name || d.name)}</td>
-        <td>${d.decision === "approve" ? "Approved" : "Declined"}</td><td>${esc(d.note || "–")}</td>
-        <td>${esc(d.decided_by_name)}</td><td class="num">${SG_DATE(d.decided_at)}</td></tr>`).join("")}
+      ${decided.map((d) => `<tr><td>${escapeHtml(d.business_name || d.name)}</td>
+        <td>${d.decision === "approve" ? "Approved" : "Declined"}</td><td>${escapeHtml(d.note || "–")}</td>
+        <td>${escapeHtml(d.decided_by_name)}</td><td class="num">${SG_DATE(d.decided_at)}</td></tr>`).join("")}
     </table>` : ""}
   </div>`;
 }
