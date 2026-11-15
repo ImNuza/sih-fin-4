@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 from datetime import UTC, datetime
 
 import pytest
@@ -8,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import insert
 
 from api import store
-from api.main import DEFAULT_TARIFF_PATH, app
+from api.main import DEFAULT_TARIFF_PATH, SINGAPORE, app
 
 ADMIN = ("admin", "secret")
 
@@ -138,6 +139,8 @@ def buy_body(**changes) -> dict:
         "accept_declaration": True,
         "accept_pdpa": True,
         "payment_method": "paynow",
+        "stall_unit": "01-23",
+        "designation": "Owner",
     }
     body.update(changes)
     return body
@@ -179,6 +182,8 @@ def test_past_decline_is_referred_and_cannot_buy_from_the_dashboard(client):
         {"declined_before": True, "declined_details": ""},
         {"payment_method": None},
         {"centre": "Nowhere Food Centre"},
+        {"cover_start": "2020-01-01"},
+        {"email": ""},
     ],
 )
 def test_buy_rejects_incomplete_applications(client, changes):
@@ -229,3 +234,23 @@ def test_a_tariff_saved_in_the_old_shape_is_replaced_by_the_default(tmp_path, mo
     with TestClient(app) as client:
         saved = client.get("/api/admin/tariff", auth=ADMIN).json()
     assert (saved["version"], saved["saved_by"]) == (2, "default")
+
+
+def test_buy_keeps_the_new_details_and_defaults_cover_to_today(client):
+    result = client.post("/api/buy", json=buy_body()).json()
+    application = result["application"]
+    assert (application["stall_unit"], application["designation"]) == ("01-23", "Owner")
+    assert application["cover_start"] == datetime.now(SINGAPORE).date().isoformat()
+    assert client.get("/api/applications/mine").json()["stall_unit"] == "01-23"
+
+
+def test_cover_can_start_later_and_the_policy_starts_then(client):
+    later = (datetime.now(SINGAPORE).date() + timedelta(days=7)).isoformat()
+    result = client.post("/api/buy", json=buy_body(cover_start=later)).json()
+    assert result["policy"]["started_at"].startswith(later)
+
+
+def test_demo_email_and_password_need_only_be_present(client):
+    body = buy_body(email="not-an-email", password="x")
+    assert client.post("/api/buy", json=body).status_code == 200
+    assert client.post("/api/buy", json=body).status_code == 409

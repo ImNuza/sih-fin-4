@@ -23,7 +23,8 @@ import statistics
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -547,15 +548,26 @@ UEN = re.compile(r"^(\d{8}[A-Z]|\d{9}[A-Z]|[TSR]\d{2}[A-Z]{2}\d{4}[A-Z])$")
 SG_PHONE = re.compile(r"^[3689]\d{7}$")
 
 
+SINGAPORE = ZoneInfo("Asia/Singapore")
+LATEST_COVER_START_DAYS = 90
+
+
 class BuyRequest(BaseModel):
-    """Everything the guided buy flow (/buy/) collects, sent once at the pay step."""
+    """Everything the guided buy flow (/buy/) collects, sent once at the pay step.
+
+    Email and password are only checked for being present: the demo fills them with made-up
+    values. An email that already has an account is still refused.
+    """
 
     name: str = Field(min_length=1, max_length=120)
-    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-    password: str = Field(min_length=8, max_length=200)
+    email: str = Field(min_length=1, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
     business_name: str | None = Field(default=None, max_length=120)
     centre: str
+    stall_unit: str | None = Field(default=None, max_length=20)
     product: str
+    designation: str | None = Field(default=None, max_length=60)
+    cover_start: date | None = Field(default=None, description="Singapore date. Empty: today.")
     applicant_type: Literal["individual", "company"]
     uen: str | None = None
     phone: str
@@ -587,6 +599,16 @@ class BuyRequest(BaseModel):
             raise ValueError("That UEN does not look right, e.g. 53123456A or 201912345K")
         return value
 
+    @field_validator("cover_start")
+    @classmethod
+    def cover_start_soon(cls, value: date | None) -> date | None:
+        if value is None:
+            return None
+        today = datetime.now(SINGAPORE).date()
+        if not today <= value <= today + timedelta(days=LATEST_COVER_START_DAYS):
+            raise ValueError(f"Cover can start today or within {LATEST_COVER_START_DAYS} days")
+        return value
+
     @model_validator(mode="after")
     def complete(self) -> BuyRequest:
         if self.applicant_type == "company" and self.uen is None:
@@ -611,9 +633,10 @@ def buy(
     """
     engine = request.app.state.db
     calculator.find(tariff.products, body.product, "product")
-    account = Registration(
+    # model_construct skips Registration's email and password rules, which the demo does not need.
+    account = Registration.model_construct(
         role="sme", name=body.name, email=body.email, password=body.password,
-        business_name=body.business_name, centre=body.centre, product=body.product,
+        business_name=body.business_name, centre=body.centre, product=body.product, insurer=None,
     )
     user = accounts.user_values(account, request)
     referred = body.declined_before
@@ -621,6 +644,8 @@ def buy(
     if pays and body.payment_method is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick how to pay")
     now = datetime.now(UTC)
+    cover_start = body.cover_start or now.astimezone(SINGAPORE).date()
+    starts_at = max(now, datetime.combine(cover_start, datetime.min.time(), SINGAPORE))
     with engine.begin() as db:
         user_id = db.execute(
             sa_insert(accounts.users).values(**user).returning(accounts.users.c.id)
@@ -630,6 +655,7 @@ def buy(
             policy = policy_values(
                 tariff, history, user_id, user["region"], user["centre"], body.product, body.tier
             )
+            policy["started_at"] = starts_at
             policy["id"] = db.execute(
                 sa_insert(accounts.policies).values(**policy).returning(accounts.policies.c.id)
             ).scalar_one()
@@ -654,6 +680,15 @@ def buy(
         application["id"] = db.execute(
             sa_insert(accounts.applications).values(**application).returning(accounts.applications.c.id)
         ).scalar_one()
+        details = {
+            "stall_unit": body.stall_unit,
+            "designation": body.designation,
+            "cover_start": cover_start,
+        }
+        db.execute(
+            sa_insert(accounts.application_details).values(application_id=application["id"], **details)
+        )
+        application.update(details)
     accounts.start_session(engine, user_id, response)
     return {
         "application": {k: v for k, v in application.items() if k != "user_id"},
@@ -662,8 +697,10 @@ def buy(
 
 
 def latest_application(engine, user_id: int) -> dict | None:
+    details = accounts.application_details
     query = (
-        sa_select(accounts.applications)
+        sa_select(accounts.applications, details.c.stall_unit, details.c.designation, details.c.cover_start)
+        .outerjoin(details, details.c.application_id == accounts.applications.c.id)
         .where(accounts.applications.c.user_id == user_id)
         .order_by(accounts.applications.c.id.desc())
     )

@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     DateTime,
     Engine,
     Float,
@@ -94,6 +95,16 @@ applications = Table(
     Column("payment_method", String),
     Column("payment_ref", String),
     Column("created_at", DateTime(timezone=True), nullable=False),
+)
+# Fields added to the buy flow after `applications` reached the hosted database. create_all adds
+# tables but never columns, so they live in a table of their own, one row per application.
+application_details = Table(
+    "application_details",
+    metadata,
+    Column("application_id", Integer, primary_key=True),
+    Column("stall_unit", String),
+    Column("designation", String),
+    Column("cover_start", Date, nullable=False),
 )
 
 
