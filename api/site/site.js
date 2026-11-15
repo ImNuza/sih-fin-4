@@ -55,6 +55,39 @@ async function updateNav() {
 }
 
 /* ---------- login page ---------- */
+const DEMO_ACCOUNTS_KEY = "safeday-demo-accounts";
+const DEMO_INSURER_STAFF = ["Chua Li Hui", "Daniel Teo", "Nur Aisyah binte Hassan", "Arjun Menon", "Rachel Koh", "Benjamin Lee"];
+const demoPick = (list) => list[Math.floor(Math.random() * list.length)];
+const demoDigits = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("");
+
+/* The last account this browser created per role, so the demo signs in with no typing. */
+function demoAccounts() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(DEMO_ACCOUNTS_KEY));
+    return stored && typeof stored === "object" ? stored : {};
+  } catch {
+    return {};
+  }
+}
+function rememberDemoAccount(role, email, password) {
+  const accounts = { ...demoAccounts(), [role]: { email, password, role } };
+  try { localStorage.setItem(DEMO_ACCOUNTS_KEY, JSON.stringify(accounts)); } catch { /* private window */ }
+}
+function fillDemoSignIn(formId, hintId, role) {
+  const account = demoAccounts()[role];
+  el(hintId).hidden = Boolean(account);
+  if (!account) return;
+  el(formId).elements.email.value = account.email;
+  el(formId).elements.password.value = account.password;
+}
+function fillDemoInsurerRegister() {
+  const form = el("ins-register");
+  const name = demoPick(DEMO_INSURER_STAFF);
+  form.elements.name.value = name;
+  form.elements.email.value = `${name.toLowerCase().replace(/[^a-z]+/g, ".")}.${demoDigits(4)}@example.test`;
+  form.elements.password.value = `demo-${demoDigits(6)}`;
+}
+
 function wireLogin() {
   if (!el("tab-sme")) return;
   const showPane = (role) => {
@@ -79,7 +112,9 @@ function wireLogin() {
       el(errorId).textContent = "";
       try {
         const data = formData(event.target);
-        await (build ? post("/api/auth/register", build(data)) : post("/api/auth/login", data));
+        const body = build ? build(data) : data;
+        await post(build ? "/api/auth/register" : "/api/auth/login", body);
+        if (build) rememberDemoAccount(body.role, body.email, body.password);
         location.href = "/dashboard/";
       } catch (error) {
         el(errorId).textContent = error.message;
@@ -89,6 +124,16 @@ function wireLogin() {
   submit("sme-login", "sme-login-error", null);
   submit("ins-login", "ins-login-error", null);
   submit("ins-register", "ins-register-error", (d) => ({ ...d, role: "insurer" }));
+
+  fillDemoSignIn("sme-login", "sme-login-hint", "sme");
+  fillDemoSignIn("ins-login", "ins-login-hint", "insurer");
+  fillDemoInsurerRegister();
+  document.querySelectorAll(".authcard [data-clear]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const form = button.closest("form");
+      form.reset();
+      form.querySelector(".error").textContent = "";
+    }));
 }
 
 /* ---------- dashboards ---------- */

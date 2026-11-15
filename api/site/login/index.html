@@ -7,7 +7,7 @@
     <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
     <link rel="stylesheet" href="/theme.css?v=2" />
     <link rel="stylesheet" href="/site.css?v=5" />
-    <script src="/site.js?v=6" defer></script>
+    <script src="/site.js?v=7" defer></script>
   </head>
   <body>
     <header class="topnav">
@@ -29,11 +29,13 @@
         <div class="card authcard">
           <div data-step="signin">
             <h2>Sign in</h2>
+            <p class="fine" id="sme-login-hint" hidden>No demo account in this browser yet. Get covered first.</p>
             <form id="sme-login">
               <label>Email <input name="email" type="email" autocomplete="email" required /></label>
               <label>Password <input name="password" type="password" autocomplete="current-password" required /></label>
               <p class="error" id="sme-login-error" role="alert"></p>
               <button class="btn primary wide" type="submit">Sign in</button>
+              <button class="btn quiet small" data-clear type="button">Clear</button>
             </form>
             <p class="switchline">New to SafeDay? <a class="linklike" href="/buy/">Get covered</a></p>
           </div>
@@ -44,11 +46,13 @@
         <div class="card authcard">
           <div data-step="signin">
             <h2>Sign in</h2>
+            <p class="fine" id="ins-login-hint" hidden>No demo account in this browser yet. Set up insurer access first.</p>
             <form id="ins-login">
               <label>Email <input name="email" type="email" autocomplete="email" required /></label>
               <label>Password <input name="password" type="password" autocomplete="current-password" required /></label>
               <p class="error" id="ins-login-error" role="alert"></p>
               <button class="btn primary wide" type="submit">Sign in</button>
+              <button class="btn quiet small" data-clear type="button">Clear</button>
             </form>
             <p class="switchline">First time here? <button class="linklike" data-goto="register" type="button">Set up insurer access</button></p>
           </div>
@@ -64,6 +68,7 @@
               <label>Password (8+ characters) <input name="password" type="password" minlength="8" autocomplete="new-password" required /></label>
               <p class="error" id="ins-register-error" role="alert"></p>
               <button class="btn primary wide" type="submit">Open the portfolio desk</button>
+              <button class="btn quiet small" data-clear type="button">Clear</button>
             </form>
             <p class="switchline">Already have an account? <button class="linklike" data-goto="signin" type="button">Sign in</button></p>
           </div>
