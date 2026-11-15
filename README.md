@@ -67,6 +67,7 @@ The API docs are on http://localhost:8000/docs, the admin panel is on http://loc
 | `POST /api/auth/register`, `/login`, `/logout`, `GET /api/auth/me` | Accounts and sessions; roles `sme` and `insurer`. |
 | `GET`, `POST`, `DELETE /api/policies` | A stallholder's cover, priced server-side; an insurer lists every policy. |
 | `POST /api/assistant/chat` | The SafeDay assistant: one chat on every page that answers from the platform's own numbers (needs `DEEPSEEK_API_KEY`, `XAI_API_KEY` or `OPENAI_API_KEY`; keyword answers without). |
+| `POST /api/assistant/listen`, `/speak` | The assistant's voice: Whisper writes down a recording in the chat's language; a neural voice reads a reply (Singapore English and Tamil voices). |
 | `GET /api/insurer/portfolio` | The insurer's book: policies, premium and payout exposure by region. |
 | `POST /api/insurer/payout-runs` | Assess every policy for one date and pay what its readings give (insurer login). A policy pays the daily amount it was sold with, and stops paying when the term of its latest application ends. |
 | `GET`, `PUT /api/admin/tariff` | Read or save the tariff (admin login). |
