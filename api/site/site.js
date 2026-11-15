@@ -359,7 +359,8 @@ async function renderSme(user) {
   // Recommend the smallest tier that pays a full day's rent at this centre, if it is sold directly.
   const rec = directTier(quote, rent?.recommended_tier).tier;
   const kind = application?.business_class || (user.centre ? "hawker" : null);
-  const view = { user, quote, policy, rent, rentTable, application, decision, site, place, todays, rec, live, kind };
+  const examples = policy ? {} : await partialExamples(quote.product, quote.product_factor, quote.tiers.map((t) => t.tier));
+  const view = { user, quote, policy, rent, rentTable, application, decision, site, place, todays, rec, live, kind, examples };
 
   el("dash").innerHTML = `<div id="sme-dash">
     ${smeHead(view)}
@@ -502,19 +503,20 @@ function policyCover({ user, quote, policy, rent, application, decision, kind })
     </div>`;
 }
 
-function chooseCover({ quote, rent, rentTable, rec, kind }) {
+function chooseCover({ quote, rent, rentTable, rec, kind, examples }) {
   const rentShare = (payout) => Math.round((100 * payout) / rent.rent_per_day_sgd);
   const cards = quote.tiers.map((t) => `
     <div class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}">
       <span class="t">${t.label}${t.tier === rec ? ` <span class="chip accent">Recommended</span>` : ""}${t.best_value ? ` <span class="chip good">Best value</span>` : ""}${t.sold_directly === false ? ` <span class="chip warning">Refer to underwriter</span>` : ""}</span>
-      <span class="p">${SGD(t.weekly_premium_sgd)}<small>/wk</small></span>
-      <span class="d">${[dayPrice(t), `${SGD(t.daily_payout_sgd)} a bad day`].filter(Boolean).join(" · ")}</span>
-      <span class="d">${coverLine(t)}</span>
-      ${centsBack(t) ? `<span class="d">${centsBack(t)}</span>` : ""}
+      <span class="p">${SGD(monthlyPrice(t))}<small>/mo</small></span>
+      <span class="d">${[`${SGD(t.weekly_premium_sgd)} a week`, dayPrice(t)].filter(Boolean).join(" · ")}</span>
+      <span class="d">${fullLossLine(t, examples[t.tier])}</span>
+      <span class="d">${lockdownLine(t)}</span>
+      ${t.tier === rec ? `<span class="d">${lockdownExample(t)}</span>` : ""}
       ${rent ? `<span class="d">${rentShare(t.daily_payout_sgd)}% of a day's rent</span>` : ""}
     </div>`).join("");
   const recTier = quote.tiers.find((t) => t.tier === rec);
-  const proof = proofLines(recTier, kind);
+  const proof = [coverLine(recTier), centsBack(recTier), ...proofLines(recTier, kind)].filter(Boolean);
   const refers = quote.tiers.some((t) => t.sold_directly === false)
     ? " A tier marked Refer to underwriter costs a lot here compared with what it can pay in a year: choosing it sends your application to an Income underwriter before cover starts." : "";
   const why = !rent ? "We mark the recommended tier."
@@ -524,7 +526,7 @@ function chooseCover({ quote, rent, rentTable, rec, kind }) {
       + ` ${rentSource(rent, rentTable)}`;
   return `<h2>Payung prices for your stall</h2>
     <div class="tiers-row">${cards}</div>
-    ${proof.length ? `<p class="fine"><b>What ${recTier.label} would have paid here</b></p>${fineLines(proof)}` : ""}
+    <p class="fine"><b>What ${recTier.label} gives you here</b></p>${fineLines(proof)}
     <p class="fine">${[why, bestValueLine(quote, rec)].filter(Boolean).join(" ")}${refers}</p>
     ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add Payung to your policy with you. Payung is not sold directly.")}
     <p class="fine">The recommended tier in one SMS, as we would text it to you:</p>

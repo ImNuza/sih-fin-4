@@ -43,6 +43,58 @@ function centsBack(tier) {
   return share == null ? "" : `Priced to return about ${Math.round(share * 100)} cents of every S$1 on average.`;
 }
 
+const MONTHS_PER_YEAR = 12;
+const LOCKDOWN_EXAMPLE_DAYS = 40;
+
+/* The headline price: the yearly premium over 12 months, to the cent. Billing stays weekly. */
+function monthlyPrice(tier) {
+  return Math.round((tier.yearly_premium_sgd / MONTHS_PER_YEAR) * 100) / 100;
+}
+
+/* "A day with no sales (100% lost): we pay S$40. (on a partly bad day we pay that share: S$9.60
+   on a 24% haze day)". `example` is the server's assessment of the first haze band for this tier
+   (partialExamples), or null for the generic share. */
+function fullLossLine(tier, example) {
+  const daily = proofMoney(tier.daily_payout_sgd);
+  const partly = example
+    ? `that share: ${proofMoney(example.payout_sgd)} on a ${Math.round(example.loss_percent)}% haze day`
+    : `that share of ${daily}`;
+  return `A day with no sales (100% lost): we pay ${daily}. (on a partly bad day we pay ${partly})`;
+}
+
+/* "Lockdown or closure order: we pay S$40 for every day it lasts, up to 35 days a year (S$1,400)." */
+function lockdownLine(tier) {
+  return `Lockdown or closure order: we pay ${proofMoney(tier.daily_payout_sgd)} for every day it lasts, up to ${tierDays(tier)} days a year (${proofMoney(tier.max_payout_per_year_sgd)}).`;
+}
+
+/* "In a 40-day lockdown: S$1,400 (35 days)." */
+function lockdownExample(tier) {
+  const days = Math.min(LOCKDOWN_EXAMPLE_DAYS, tierDays(tier));
+  return `In a ${LOCKDOWN_EXAMPLE_DAYS}-day lockdown: ${proofMoney(days * tier.daily_payout_sgd)} (${days} days).`;
+}
+
+/* What each tier pays on a day at the first haze band, from POST /api/assess, by tier key. Only
+   for a product that loses a full bad day's sales (product factor 1, cooked food); any other
+   product gets {} and the generic share wording. Cached per product. */
+function partialExamples(product, productFactor, tierKeys) {
+  if (productFactor !== 1) return Promise.resolve({});
+  partialExamples.cache ??= {};
+  partialExamples.cache[product] ??= (async () => {
+    const options = await (await fetch("/api/options")).json();
+    const haze = options.hazards.find((h) => h.key === "haze");
+    if (!haze) return {};
+    const days = await Promise.all(tierKeys.map(async (tier) => {
+      const response = await fetch("/api/assess", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product, tier, readings: { haze: haze.first_band } }),
+      });
+      return response.ok ? response.json() : null;
+    }));
+    return Object.fromEntries(days.filter(Boolean).map((day) => [day.tier, day]));
+  })();
+  return partialExamples.cache[product];
+}
+
 /* The four proof numbers as sentences, in order. [] when there is no replay. */
 function proofLines(tier, businessClass) {
   const proof = tier?.proof;

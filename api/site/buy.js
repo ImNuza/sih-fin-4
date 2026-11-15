@@ -417,9 +417,10 @@ async function renderTiers() {
   el("addon").classList.toggle("on", addsSafeDay());
   body.hidden = !addsSafeDay();
   if (!addsSafeDay()) { buyState.tierQuote = null; return; }
-  let quote;
+  let quote, examples = {};
   try {
     quote = await quoteFor(businessPlace(), businessProduct());
+    if (quote) examples = await partialExamples(quote.product, quote.product_factor, quote.tiers.map((t) => t.tier));
     if (run !== renderTiers.latest) return; // a newer change is drawing the tiers
   } catch (error) {
     buyState.tierQuote = null;
@@ -450,10 +451,11 @@ async function renderTiers() {
       aria-checked="${t.tier === buyState.tier}" data-tier="${t.tier}">
       <span class="tier-check">${SafeUI.icon("check")}</span>
       <span class="t">${t.label}${t.tier === marked ? ' <span class="chip accent">Suggested</span>' : ""}${t.best_value ? ' <span class="chip good">Best value</span>' : ""}${t.sold_directly === false ? ' <span class="chip warning">Refer to underwriter</span>' : ""}</span>
-      <span class="p">${SGD(t.weekly_premium_sgd)}<small>/wk</small></span>
-      <span class="d">${[dayPrice(t), `${SGD(t.daily_payout_sgd)} a bad day`].filter(Boolean).join(" · ")}</span>
-      <span class="d">${coverLine(t)}</span>
-      ${centsBack(t) ? `<span class="d">${centsBack(t)}</span>` : ""}
+      <span class="p">${SGD(monthlyPrice(t))}<small>/mo</small></span>
+      <span class="d">${[`${SGD(t.weekly_premium_sgd)} a week`, dayPrice(t)].filter(Boolean).join(" · ")}</span>
+      <span class="d">${fullLossLine(t, examples[t.tier])}</span>
+      <span class="d">${lockdownLine(t)}</span>
+      ${t.tier === buyState.tier ? `<span class="d">${lockdownExample(t)}</span>` : ""}
       ${rent ? `<span class="d">${share(t)}</span>` : ""}
     </button>`).join("");
   const suggestion = rent
@@ -488,10 +490,11 @@ function showCoverBoxes(proofHtml, hazeHtml, paysHtml) {
   el("what-pays").innerHTML = paysHtml;
 }
 
+/* The chosen tier's detail: what it gives for the price, then what it would have paid here. */
 function proofBox(tier) {
-  const proof = proofLines(tier, businessClass());
-  return proof.length ? `<h3>What ${tier.label} would have paid here</h3>
-    <ul>${proof.map((line) => `<li>${line}</li>`).join("")}</ul>` : "";
+  const lines = [coverLine(tier), centsBack(tier), ...proofLines(tier, businessClass())].filter(Boolean);
+  return `<h3>What ${tier.label} gives you here</h3>
+    <ul>${lines.map((line) => `<li>${line}</li>`).join("")}</ul>`;
 }
 
 function referNote(tier) {
@@ -623,6 +626,8 @@ function showDue(amountSgd) {
   buyState.paymentRef ??= `DEMO-${hex(3)}`;
   buyState.dueSgd = amountSgd;
   el("due-amount").textContent = SGD(amountSgd);
+  // The tier cards show a monthly price; billing is weekly, so say what is paid today.
+  el("due-amount").previousElementSibling.textContent = "First week's premium, due today";
 }
 
 /* ---------- navigation ---------- */
@@ -643,13 +648,15 @@ function showStep(step, scroll = true) {
   el("buy-actions").hidden = step === "done";
   const last = step === "pay" || (step === "confirm" && !pays());
   el("buy-next").textContent = step === "pay"
-    ? `Pay ${el("due-amount").textContent}`
+    ? payLabel()
     : last ? "Submit application" : step === "confirm" ? "Continue to payment" : "Next";
   showBuyError("");
   el("buy-next").removeAttribute("aria-busy");
   if (step !== "pay") resetPayNow();
   if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
 }
+
+function payLabel() { return `Pay first week's premium: ${el("due-amount").textContent}`; }
 
 function stepIsValid(step) {
   if (step === "business") checkPostcode();
@@ -893,7 +900,7 @@ async function checkPayment() {
       stopPolling();
       paynowState.payment = null;
       el("paynow-status").textContent = `Payment ${now.status}. Press Pay to get a new QR.`;
-      el("buy-next").textContent = `Pay ${el("due-amount").textContent}`;
+      el("buy-next").textContent = payLabel();
       el("buy-next").removeAttribute("aria-busy");
     }
   } catch (error) {

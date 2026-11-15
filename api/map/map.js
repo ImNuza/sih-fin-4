@@ -71,6 +71,7 @@ const state = {
   smeByRent: false,                // colour hawker centres by NEA rent class instead of pricing
 };
 let STATIC = null, QUOTES = null, OPTIONS = null, BUILDINGS = null, RENT = null, deckgl = null;
+let PARTIAL_DAYS = {}; // each tier's payout on a day at the first haze band (partialExamples)
 let lastView = null;               // the camera, kept across presets, orbit and user drags
 const ONEMAP_TILES = "https://www.onemap.gov.sg/maps/tiles/Night/{z}/{x}/{y}.png";
 
@@ -769,7 +770,7 @@ function renderDetail() {
         ${rentOf(centre) ? `<span class="chip">${rentChip(rentOf(centre))}</span>` : ""}
       </div>
       <div class="verdict"><span class="chip ${v.cls}">${v.word}</span>
-        <div class="t1">${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week, ${dayPrice(rec)}${rec.best_value ? ` <span class="chip good">Best value</span>` : ""}</div>
+        <div class="t1">${rec.label} at ${SGD(monthlyPrice(rec))} a month (${SGD(rec.weekly_premium_sgd)} a week)${rec.best_value ? ` <span class="chip good">Best value</span>` : ""}</div>
         <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. ${coverLine(rec)} ${centsBack(rec)} Paid on NEA readings, usually the same day, up to ${SGD0(rec.max_payout_per_year_sgd)} a year. <b>If readings stay below the trigger levels, nothing is paid, even if sales were down.</b> No payout in the first ${WAITING_PERIOD_DAYS} days of cover. Injury, medical costs and damaged goods are not covered.${v.cls === "serious" ? ` ${v.detail}` : ""}${bestValueLine(quote, rec.tier) ? ` ${bestValueLine(quote, rec.tier)}` : ""}</div></div>
       ${rec.proof ? `<div class="sec"><p class="cap">What ${rec.label} would have paid here</p>
         ${proofLines(rec, "hawker").map((line) => `<p class="note">${line}</p>`).join("")}
@@ -784,7 +785,7 @@ function renderDetail() {
         <table class="tiers"><tr><th>Tier</th><th>Payout/day</th><th>Cap</th><th>Max/yr</th><th>Weekly</th></tr>
         ${quote.tiers.map((t) => `<tr class="${t.tier === rec.tier ? "rec" : ""}"><td>${t.label}</td><td>${SGD0(t.daily_payout_sgd)}</td><td>${tierDays(t)} d</td><td>${SGD0(t.max_payout_per_year_sgd)}</td><td>${SGD(t.weekly_premium_sgd)}${t.sold_directly === false ? " · refer" : ""}</td></tr>`).join("")}
         </table>
-        ${quote.tiers.filter((t) => t.cover_multiple != null).map((t) => `<p class="note">${t.label}${t.best_value ? " (best value)" : ""}: ${dayPrice(t)}. ${coverLine(t)} ${centsBack(t)}</p>`).join("")}</div>
+        ${quote.tiers.map((t) => `<p class="note">${t.label}${t.best_value ? " (best value)" : ""}: ${SGD(monthlyPrice(t))} a month, ${SGD(t.weekly_premium_sgd)} a week, ${dayPrice(t)}. ${fullLossLine(t, PARTIAL_DAYS[t.tier])} ${lockdownLine(t)}${t.tier === rec.tier ? ` ${lockdownExample(t)}` : ""} ${coverLine(t)} ${centsBack(t)}</p>`).join("")}</div>
       ${rentSection(centre, quote)}
       <div class="sec"><p class="cap">Premium build-up · ${rec.label}</p>${premiumBuildup(rec)}
         <p class="note">Insurable interest (Insurance Act 1966 s151): the payout is a pre-estimate of a stall's lost daily takings, so this is insurance, not a wager.</p></div>
@@ -1445,6 +1446,8 @@ async function boot() {
   try {
     if (!window.deck) throw new Error("deck.gl failed to load (vendor/deck.min.js)");
     [STATIC, QUOTES, OPTIONS, RENT] = await Promise.all([api.static(), api.quotes(), api.options(), api.rent()]);
+    const anyQuote = Object.values(QUOTES.quotes)[0];
+    PARTIAL_DAYS = await partialExamples(QUOTES.product, anyQuote.product_factor, anyQuote.tiers.map((t) => t.tier));
     const { DeckGL, AmbientLight, DirectionalLight, LightingEffect, MapView } = deck;
     lastView = {
       longitude: 103.832, latitude: 1.322, zoom: 10.6, pitch: 52, bearing: -12,
