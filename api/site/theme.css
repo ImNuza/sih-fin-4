@@ -33,13 +33,13 @@
   --red-100: #ffe9e7; --red-300: #e48780; --red-600: #ab2c23; --red-900: #241615;
   --yellow-100: #fdf8e2; --yellow-400: #edc536;
 
-  /* warm neutrals: Income's greys nudged toward the orange (our own) */
+  /* neutrals: Income's greys with a trace of warmth so they sit with the orange (our own) */
   --warm-0: #ffffff;
-  --warm-50: #faf9f7;
-  --warm-100: #f5f3ef;
-  --warm-200: #ebe8e3;
-  --warm-300: #ddd9d2;
-  --warm-400: #bfbab2;
+  --warm-50: #fafaf9;
+  --warm-100: #f5f5f3;
+  --warm-200: #ebebe8;
+  --warm-300: #dcdcd8;
+  --warm-400: #bdbcb7;
   --warm-500: #8c8780;
   --warm-600: #5e5a54;
   --warm-700: #474440;
