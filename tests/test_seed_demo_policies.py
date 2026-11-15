@@ -48,7 +48,7 @@ def test_seed_adds_200_priced_demo_policies_once(database):
                   for kind, policy in first_of_each_class(book).items()}
     assert len(book) == seed_demo_policies.DEMO_POLICIES
     assert all(policy["demo"] for policy in book)
-    assert {policy["business_class"] for policy in book} == {"hawker", "shop", "platform_worker"}
+    assert {policy["business_class"] for policy in book} == {"hawker", "shop"}
     assert len({policy["region"] for policy in book}) == 5
     assert all(policy["term_months"] in (12, 24) for policy in book)
     assert {policy["sold_by"] for policy in book} == {"adviser", "association"}
@@ -70,9 +70,7 @@ def quote_request(policy: dict) -> dict:
     """The /api/quote body for where the buy flow prices this business."""
     if policy["business_class"] == "hawker":
         return {"centre": policy["centre"], "product": policy["product"]}
-    if policy["business_class"] == "shop":
-        return {"postcode": policy["postcode"], "product": policy["product"]}
-    return {"region": policy["region"], "product": policy["product"]}
+    return {"postcode": policy["postcode"], "product": policy["product"]}
 
 
 def test_remove_deletes_only_demo_records(database):

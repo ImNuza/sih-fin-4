@@ -944,7 +944,8 @@ function bookSection(book, options) {
       <label class="input-icon">${SafeUI.icon("search")}<input type="search" id="book-search" placeholder="Search businesses" aria-label="Search policies" autocomplete="off" /></label>
       ${filterSelect("book-tier", "Tier", "All tiers", options.tiers.map((t) => [t.key, t.label]))}
       ${filterSelect("book-region", "Region", "All regions", options.regions.map((r) => [r, titleCase(r)]))}
-      ${filterSelect("book-class", "Business type", "All business types", Object.entries(BUSINESS_CLASSES))}
+      ${filterSelect("book-class", "Business type", "All business types",
+        Object.entries(BUSINESS_CLASSES).filter(([key]) => book.some((p) => businessClassOf(p) === key)))}
       ${filterSelect("book-channel", "Filled in with", "All channels", Object.entries(SOLD_BY))}
       ${filterSelect("book-status", "Status", "All statuses", Object.entries(POLICY_STATUS).map(([k, s]) => [k, s.label]))}
       <span class="count" id="book-count" aria-live="polite"></span>

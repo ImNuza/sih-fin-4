@@ -59,7 +59,8 @@ RANDOM_SEED = 2026
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 DAYS_BACK = 365
 DAYS_APPLIED_BEFORE_START = (1, 6)
-CLASS_WEIGHTS = {"hawker": 0.55, "shop": 0.30, "platform_worker": 0.15}
+# The pilot sells to hawker stalls and shops only (api/onboarding.py OPEN_CLASSES).
+CLASS_WEIGHTS = {"hawker": 0.65, "shop": 0.35}
 TIER_WEIGHTS = {"tier_1": 0.25, "tier_2": 0.40, "tier_3": 0.25, "tier_4": 0.10}
 TERM_WEIGHTS = {12: 0.7, 24: 0.3}
 SOLD_BY_WEIGHTS = {"adviser": 0.7, "association": 0.3}
@@ -99,7 +100,6 @@ SHOP_KINDS = {
     "96011": ("general_goods", "Laundry"),
     "96021": ("general_goods", "Hair Studio"),
 }
-PLATFORMS = ("Grab", "Gojek", "foodpanda", "Deliveroo", "Lalamove", "Ryde", "TADA", "CDG Zig")
 APPROVAL_NOTES = (
     "The past decline was for flood damage at an earlier stall. This place has no flood record, "
     "so cover is approved at the standard price.",
@@ -178,25 +178,7 @@ def shop_business(rng: random.Random, number: int, centres: list[dict]) -> dict:
     }
 
 
-def platform_worker(rng: random.Random, number: int, centres: list[dict]) -> dict:
-    postcode = sector_postcode(rng)
-    person = rng.choice(PEOPLE)
-    return {
-        "business_class": "platform_worker",
-        "business_name": person,
-        "name": person,
-        "region": postcodes.region_of(postcode),
-        "product": "platform_work",
-        "platform": rng.choice(PLATFORMS),
-        "platform_worker_id": f"DEMO-DRV-{number:04d}",
-        "postcode": postcode,
-        "staff_band": "1-4",
-    }
-
-
-MAKE_BUSINESS = {
-    "hawker": hawker_business, "shop": shop_business, "platform_worker": platform_worker,
-}
+MAKE_BUSINESS = {"hawker": hawker_business, "shop": shop_business}
 
 
 def demo_records(centres: list[dict], today: date) -> list[dict]:
@@ -231,10 +213,10 @@ def demo_records(centres: list[dict], today: date) -> list[dict]:
 
 def demo_channel(rng: random.Random, business: dict) -> dict:
     """Who arranged a demo policy: a made-up Income adviser code, or the association a hawker or
-    shop would join through. Platform workers have no association in the pilot."""
+    shop would join through."""
     sold_by = weighted(rng, SOLD_BY_WEIGHTS)
-    if sold_by == "adviser" or business["business_class"] == "platform_worker":
-        return {"sold_by": "adviser", "adviser_code": f"DEMO{rng.randrange(10**4):04d}",
+    if sold_by == "adviser":
+        return {"sold_by": sold_by, "adviser_code": f"DEMO{rng.randrange(10**4):04d}",
                 "association": None}
     return {"sold_by": sold_by, "adviser_code": None,
             "association": onboarding.association_for(business.get("centre"))}
@@ -299,8 +281,7 @@ def add_record(
         application_id=application_id, stall_unit=record.get("stall_unit"),
         cover_start=record["cover_start"],
     ))
-    profile_fields = ("business_class", "licence_no", "ssic_code", "platform", "platform_worker_id",
-                      "postcode", "staff_band")
+    profile_fields = ("business_class", "licence_no", "ssic_code", "postcode", "staff_band")
     db.execute(insert(accounts.application_profile).values(
         application_id=application_id,
         **{field: record.get(field) for field in profile_fields},
@@ -319,8 +300,7 @@ def add_record(
 
 def priced_places(map_static: dict, sites) -> SimpleNamespace:
     """What api.main.business_quote reads from the running app, so each demo business is priced
-    where the buy flow would price it: a hawker at its centre, a shop at its postcode's area, a
-    platform worker by region."""
+    where the buy flow would price it: a hawker at its centre, a shop at its postcode's area."""
     state = SimpleNamespace(
         sites=sites,
         map_static=map_static,
