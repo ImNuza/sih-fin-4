@@ -11,7 +11,8 @@ customer, and the premium is priced from the years with all three hazards.
 Usage:
     uv run --group ml python -m ml.backtest       (after ml.run_all has trained the models)
 
-Reads  ml/output/leaderboard.csv and the models it names, the data tables of ml.data
+Reads  ml/output/leaderboard.csv and the model it chooses per job (best validation score),
+       the data tables of ml.data
 Writes ml/output/backtest_yearly.csv   one row per year, product and tier
 """
 
@@ -31,6 +32,7 @@ from ml.config import (
     RECONSTRUCTION,
 )
 from ml.features import add_weather_calendar_place
+from ml.metrics import best_per_job
 from ml.models import predict
 
 HAZARD_KEYS = ("haze", "rain", "heat")
@@ -41,10 +43,9 @@ def best_model_path(job: str) -> tuple[str, object]:
     if not LEADERBOARD_PATH.exists():
         raise SystemExit(f"Missing {LEADERBOARD_PATH}. Run ml.run_all first.")
     board = pd.read_csv(LEADERBOARD_PATH)
-    candidates = board[(board["job"] == job) & (board["status"] == "ok")]
-    if candidates.empty:
+    if not ((board["job"] == job) & (board["status"] == "ok")).any():
         raise SystemExit(f"No trained model for {job} in {LEADERBOARD_PATH}.")
-    best = candidates.sort_values("test_rmse").iloc[0]
+    best = best_per_job(board[board["job"] == job]).iloc[0]
     return best["model"], MODEL_DIR / f"{job}__{best['model']}.joblib"
 
 
