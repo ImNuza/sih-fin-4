@@ -1,0 +1,15 @@
+job,model,cv_score_name,cv_score,score_name,score,source_mb,copied
+heat_h0_regression,random_forest,cv_rmse,0.6224473534541163,test_rmse,0.7840405566600105,21.5,True
+heat_h0_classification,random_forest,cv_average_precision,0.24796333497889397,test_average_precision,0.1693555393454077,3.0,True
+heat_h1_regression,mlp,cv_rmse,0.591012181194307,test_rmse,0.6894832077044939,0.6,True
+heat_h1_classification,random_forest,cv_average_precision,0.29327097788328516,test_average_precision,0.4058319178253176,0.5,True
+rain_h0_regression,lightgbm,cv_rmse,2.774559396624621,test_rmse,2.748016228484674,1.1,True
+rain_h0_classification,xgboost,cv_average_precision,0.9294948753597123,test_average_precision,0.931028622477474,1.1,True
+rain_h1_regression,random_forest,cv_rmse,9.797430414774498,test_rmse,9.814104986192573,19.1,True
+rain_h1_classification,lightgbm,cv_average_precision,0.12585551134479256,test_average_precision,0.12811299103493762,0.4,True
+haze_season_count,xgboost,cv_poisson_deviance,0.9938962457822846,test_poisson_deviance,2.256871820750307,0.2,True
+rain_season_count,random_forest,cv_poisson_deviance,0.6357014792172396,test_poisson_deviance,0.7218734259775827,2.7,True
+haze_h1_regression,random_forest,cv_rmse,6.827452085776057,test_rmse,7.988585037393455,7.7,True
+haze_h1_classification,random_forest,cv_average_precision,0.47141620511682414,test_average_precision,0.6504767727876443,1.0,True
+haze_h7_regression,mlp,cv_rmse,10.185887133256053,test_rmse,15.488495671032169,0.4,True
+haze_h7_classification,linear,cv_average_precision,0.2585939428805786,test_average_precision,0.24277458567845428,0.0,True

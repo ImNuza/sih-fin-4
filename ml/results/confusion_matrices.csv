@@ -1,0 +1,1141 @@
+job,model,view,actual,predicted,days
+heat_h0_regression,climatology,reading >= 2,no trigger,no trigger,4609
+heat_h0_regression,climatology,reading >= 2,no trigger,trigger,0
+heat_h0_regression,climatology,reading >= 2,trigger,no trigger,274
+heat_h0_regression,climatology,reading >= 2,trigger,trigger,0
+heat_h0_regression,climatology,tariff band,none,none,4609
+heat_h0_regression,climatology,tariff band,none,from 2,0
+heat_h0_regression,climatology,tariff band,none,from 4,0
+heat_h0_regression,climatology,tariff band,none,from 6,0
+heat_h0_regression,climatology,tariff band,from 2,none,204
+heat_h0_regression,climatology,tariff band,from 2,from 2,0
+heat_h0_regression,climatology,tariff band,from 2,from 4,0
+heat_h0_regression,climatology,tariff band,from 2,from 6,0
+heat_h0_regression,climatology,tariff band,from 4,none,62
+heat_h0_regression,climatology,tariff band,from 4,from 2,0
+heat_h0_regression,climatology,tariff band,from 4,from 4,0
+heat_h0_regression,climatology,tariff band,from 4,from 6,0
+heat_h0_regression,climatology,tariff band,from 6,none,8
+heat_h0_regression,climatology,tariff band,from 6,from 2,0
+heat_h0_regression,climatology,tariff band,from 6,from 4,0
+heat_h0_regression,climatology,tariff band,from 6,from 6,0
+heat_h0_regression,linear,reading >= 2,no trigger,no trigger,4609
+heat_h0_regression,linear,reading >= 2,no trigger,trigger,0
+heat_h0_regression,linear,reading >= 2,trigger,no trigger,274
+heat_h0_regression,linear,reading >= 2,trigger,trigger,0
+heat_h0_regression,linear,tariff band,none,none,4609
+heat_h0_regression,linear,tariff band,none,from 2,0
+heat_h0_regression,linear,tariff band,none,from 4,0
+heat_h0_regression,linear,tariff band,none,from 6,0
+heat_h0_regression,linear,tariff band,from 2,none,204
+heat_h0_regression,linear,tariff band,from 2,from 2,0
+heat_h0_regression,linear,tariff band,from 2,from 4,0
+heat_h0_regression,linear,tariff band,from 2,from 6,0
+heat_h0_regression,linear,tariff band,from 4,none,62
+heat_h0_regression,linear,tariff band,from 4,from 2,0
+heat_h0_regression,linear,tariff band,from 4,from 4,0
+heat_h0_regression,linear,tariff band,from 4,from 6,0
+heat_h0_regression,linear,tariff band,from 6,none,8
+heat_h0_regression,linear,tariff band,from 6,from 2,0
+heat_h0_regression,linear,tariff band,from 6,from 4,0
+heat_h0_regression,linear,tariff band,from 6,from 6,0
+heat_h0_regression,random_forest,reading >= 2,no trigger,no trigger,4594
+heat_h0_regression,random_forest,reading >= 2,no trigger,trigger,15
+heat_h0_regression,random_forest,reading >= 2,trigger,no trigger,258
+heat_h0_regression,random_forest,reading >= 2,trigger,trigger,16
+heat_h0_regression,random_forest,tariff band,none,none,4594
+heat_h0_regression,random_forest,tariff band,none,from 2,15
+heat_h0_regression,random_forest,tariff band,none,from 4,0
+heat_h0_regression,random_forest,tariff band,none,from 6,0
+heat_h0_regression,random_forest,tariff band,from 2,none,195
+heat_h0_regression,random_forest,tariff band,from 2,from 2,9
+heat_h0_regression,random_forest,tariff band,from 2,from 4,0
+heat_h0_regression,random_forest,tariff band,from 2,from 6,0
+heat_h0_regression,random_forest,tariff band,from 4,none,55
+heat_h0_regression,random_forest,tariff band,from 4,from 2,7
+heat_h0_regression,random_forest,tariff band,from 4,from 4,0
+heat_h0_regression,random_forest,tariff band,from 4,from 6,0
+heat_h0_regression,random_forest,tariff band,from 6,none,8
+heat_h0_regression,random_forest,tariff band,from 6,from 2,0
+heat_h0_regression,random_forest,tariff band,from 6,from 4,0
+heat_h0_regression,random_forest,tariff band,from 6,from 6,0
+heat_h0_regression,hist_gbm,reading >= 2,no trigger,no trigger,4563
+heat_h0_regression,hist_gbm,reading >= 2,no trigger,trigger,46
+heat_h0_regression,hist_gbm,reading >= 2,trigger,no trigger,229
+heat_h0_regression,hist_gbm,reading >= 2,trigger,trigger,45
+heat_h0_regression,hist_gbm,tariff band,none,none,4563
+heat_h0_regression,hist_gbm,tariff band,none,from 2,46
+heat_h0_regression,hist_gbm,tariff band,none,from 4,0
+heat_h0_regression,hist_gbm,tariff band,none,from 6,0
+heat_h0_regression,hist_gbm,tariff band,from 2,none,179
+heat_h0_regression,hist_gbm,tariff band,from 2,from 2,25
+heat_h0_regression,hist_gbm,tariff band,from 2,from 4,0
+heat_h0_regression,hist_gbm,tariff band,from 2,from 6,0
+heat_h0_regression,hist_gbm,tariff band,from 4,none,43
+heat_h0_regression,hist_gbm,tariff band,from 4,from 2,19
+heat_h0_regression,hist_gbm,tariff band,from 4,from 4,0
+heat_h0_regression,hist_gbm,tariff band,from 4,from 6,0
+heat_h0_regression,hist_gbm,tariff band,from 6,none,7
+heat_h0_regression,hist_gbm,tariff band,from 6,from 2,1
+heat_h0_regression,hist_gbm,tariff band,from 6,from 4,0
+heat_h0_regression,hist_gbm,tariff band,from 6,from 6,0
+heat_h0_regression,xgboost,reading >= 2,no trigger,no trigger,4560
+heat_h0_regression,xgboost,reading >= 2,no trigger,trigger,49
+heat_h0_regression,xgboost,reading >= 2,trigger,no trigger,237
+heat_h0_regression,xgboost,reading >= 2,trigger,trigger,37
+heat_h0_regression,xgboost,tariff band,none,none,4560
+heat_h0_regression,xgboost,tariff band,none,from 2,49
+heat_h0_regression,xgboost,tariff band,none,from 4,0
+heat_h0_regression,xgboost,tariff band,none,from 6,0
+heat_h0_regression,xgboost,tariff band,from 2,none,179
+heat_h0_regression,xgboost,tariff band,from 2,from 2,25
+heat_h0_regression,xgboost,tariff band,from 2,from 4,0
+heat_h0_regression,xgboost,tariff band,from 2,from 6,0
+heat_h0_regression,xgboost,tariff band,from 4,none,51
+heat_h0_regression,xgboost,tariff band,from 4,from 2,11
+heat_h0_regression,xgboost,tariff band,from 4,from 4,0
+heat_h0_regression,xgboost,tariff band,from 4,from 6,0
+heat_h0_regression,xgboost,tariff band,from 6,none,7
+heat_h0_regression,xgboost,tariff band,from 6,from 2,1
+heat_h0_regression,xgboost,tariff band,from 6,from 4,0
+heat_h0_regression,xgboost,tariff band,from 6,from 6,0
+heat_h0_regression,lightgbm,reading >= 2,no trigger,no trigger,4587
+heat_h0_regression,lightgbm,reading >= 2,no trigger,trigger,22
+heat_h0_regression,lightgbm,reading >= 2,trigger,no trigger,237
+heat_h0_regression,lightgbm,reading >= 2,trigger,trigger,37
+heat_h0_regression,lightgbm,tariff band,none,none,4587
+heat_h0_regression,lightgbm,tariff band,none,from 2,22
+heat_h0_regression,lightgbm,tariff band,none,from 4,0
+heat_h0_regression,lightgbm,tariff band,none,from 6,0
+heat_h0_regression,lightgbm,tariff band,from 2,none,183
+heat_h0_regression,lightgbm,tariff band,from 2,from 2,21
+heat_h0_regression,lightgbm,tariff band,from 2,from 4,0
+heat_h0_regression,lightgbm,tariff band,from 2,from 6,0
+heat_h0_regression,lightgbm,tariff band,from 4,none,47
+heat_h0_regression,lightgbm,tariff band,from 4,from 2,15
+heat_h0_regression,lightgbm,tariff band,from 4,from 4,0
+heat_h0_regression,lightgbm,tariff band,from 4,from 6,0
+heat_h0_regression,lightgbm,tariff band,from 6,none,7
+heat_h0_regression,lightgbm,tariff band,from 6,from 2,1
+heat_h0_regression,lightgbm,tariff band,from 6,from 4,0
+heat_h0_regression,lightgbm,tariff band,from 6,from 6,0
+heat_h0_regression,catboost,reading >= 2,no trigger,no trigger,4545
+heat_h0_regression,catboost,reading >= 2,no trigger,trigger,64
+heat_h0_regression,catboost,reading >= 2,trigger,no trigger,242
+heat_h0_regression,catboost,reading >= 2,trigger,trigger,32
+heat_h0_regression,catboost,tariff band,none,none,4545
+heat_h0_regression,catboost,tariff band,none,from 2,64
+heat_h0_regression,catboost,tariff band,none,from 4,0
+heat_h0_regression,catboost,tariff band,none,from 6,0
+heat_h0_regression,catboost,tariff band,from 2,none,182
+heat_h0_regression,catboost,tariff band,from 2,from 2,21
+heat_h0_regression,catboost,tariff band,from 2,from 4,1
+heat_h0_regression,catboost,tariff band,from 2,from 6,0
+heat_h0_regression,catboost,tariff band,from 4,none,52
+heat_h0_regression,catboost,tariff band,from 4,from 2,10
+heat_h0_regression,catboost,tariff band,from 4,from 4,0
+heat_h0_regression,catboost,tariff band,from 4,from 6,0
+heat_h0_regression,catboost,tariff band,from 6,none,8
+heat_h0_regression,catboost,tariff band,from 6,from 2,0
+heat_h0_regression,catboost,tariff band,from 6,from 4,0
+heat_h0_regression,catboost,tariff band,from 6,from 6,0
+heat_h0_regression,mlp,reading >= 2,no trigger,no trigger,4609
+heat_h0_regression,mlp,reading >= 2,no trigger,trigger,0
+heat_h0_regression,mlp,reading >= 2,trigger,no trigger,274
+heat_h0_regression,mlp,reading >= 2,trigger,trigger,0
+heat_h0_regression,mlp,tariff band,none,none,4609
+heat_h0_regression,mlp,tariff band,none,from 2,0
+heat_h0_regression,mlp,tariff band,none,from 4,0
+heat_h0_regression,mlp,tariff band,none,from 6,0
+heat_h0_regression,mlp,tariff band,from 2,none,204
+heat_h0_regression,mlp,tariff band,from 2,from 2,0
+heat_h0_regression,mlp,tariff band,from 2,from 4,0
+heat_h0_regression,mlp,tariff band,from 2,from 6,0
+heat_h0_regression,mlp,tariff band,from 4,none,62
+heat_h0_regression,mlp,tariff band,from 4,from 2,0
+heat_h0_regression,mlp,tariff band,from 4,from 4,0
+heat_h0_regression,mlp,tariff band,from 4,from 6,0
+heat_h0_regression,mlp,tariff band,from 6,none,8
+heat_h0_regression,mlp,tariff band,from 6,from 2,0
+heat_h0_regression,mlp,tariff band,from 6,from 4,0
+heat_h0_regression,mlp,tariff band,from 6,from 6,0
+heat_h0_classification,climatology,probability >= 0.5,no trigger,no trigger,4609
+heat_h0_classification,climatology,probability >= 0.5,no trigger,trigger,0
+heat_h0_classification,climatology,probability >= 0.5,trigger,no trigger,274
+heat_h0_classification,climatology,probability >= 0.5,trigger,trigger,0
+heat_h0_classification,hist_gbm,probability >= 0.5,no trigger,no trigger,3688
+heat_h0_classification,hist_gbm,probability >= 0.5,no trigger,trigger,921
+heat_h0_classification,hist_gbm,probability >= 0.5,trigger,no trigger,93
+heat_h0_classification,hist_gbm,probability >= 0.5,trigger,trigger,181
+heat_h0_classification,xgboost,probability >= 0.5,no trigger,no trigger,4163
+heat_h0_classification,xgboost,probability >= 0.5,no trigger,trigger,446
+heat_h0_classification,xgboost,probability >= 0.5,trigger,no trigger,162
+heat_h0_classification,xgboost,probability >= 0.5,trigger,trigger,112
+heat_h0_classification,lightgbm,probability >= 0.5,no trigger,no trigger,4590
+heat_h0_classification,lightgbm,probability >= 0.5,no trigger,trigger,19
+heat_h0_classification,lightgbm,probability >= 0.5,trigger,no trigger,256
+heat_h0_classification,lightgbm,probability >= 0.5,trigger,trigger,18
+heat_h0_classification,mlp,probability >= 0.5,no trigger,no trigger,4609
+heat_h0_classification,mlp,probability >= 0.5,no trigger,trigger,0
+heat_h0_classification,mlp,probability >= 0.5,trigger,no trigger,274
+heat_h0_classification,mlp,probability >= 0.5,trigger,trigger,0
+heat_h1_regression,climatology,reading >= 2,no trigger,no trigger,4609
+heat_h1_regression,climatology,reading >= 2,no trigger,trigger,0
+heat_h1_regression,climatology,reading >= 2,trigger,no trigger,274
+heat_h1_regression,climatology,reading >= 2,trigger,trigger,0
+heat_h1_regression,climatology,tariff band,none,none,4609
+heat_h1_regression,climatology,tariff band,none,from 2,0
+heat_h1_regression,climatology,tariff band,none,from 4,0
+heat_h1_regression,climatology,tariff band,none,from 6,0
+heat_h1_regression,climatology,tariff band,from 2,none,204
+heat_h1_regression,climatology,tariff band,from 2,from 2,0
+heat_h1_regression,climatology,tariff band,from 2,from 4,0
+heat_h1_regression,climatology,tariff band,from 2,from 6,0
+heat_h1_regression,climatology,tariff band,from 4,none,62
+heat_h1_regression,climatology,tariff band,from 4,from 2,0
+heat_h1_regression,climatology,tariff band,from 4,from 4,0
+heat_h1_regression,climatology,tariff band,from 4,from 6,0
+heat_h1_regression,climatology,tariff band,from 6,none,8
+heat_h1_regression,climatology,tariff band,from 6,from 2,0
+heat_h1_regression,climatology,tariff band,from 6,from 4,0
+heat_h1_regression,climatology,tariff band,from 6,from 6,0
+heat_h1_regression,persistence,reading >= 2,no trigger,no trigger,4447
+heat_h1_regression,persistence,reading >= 2,no trigger,trigger,162
+heat_h1_regression,persistence,reading >= 2,trigger,no trigger,181
+heat_h1_regression,persistence,reading >= 2,trigger,trigger,93
+heat_h1_regression,persistence,tariff band,none,none,4447
+heat_h1_regression,persistence,tariff band,none,from 2,129
+heat_h1_regression,persistence,tariff band,none,from 4,30
+heat_h1_regression,persistence,tariff band,none,from 6,3
+heat_h1_regression,persistence,tariff band,from 2,none,148
+heat_h1_regression,persistence,tariff band,from 2,from 2,43
+heat_h1_regression,persistence,tariff band,from 2,from 4,12
+heat_h1_regression,persistence,tariff band,from 2,from 6,1
+heat_h1_regression,persistence,tariff band,from 4,none,32
+heat_h1_regression,persistence,tariff band,from 4,from 2,15
+heat_h1_regression,persistence,tariff band,from 4,from 4,13
+heat_h1_regression,persistence,tariff band,from 4,from 6,2
+heat_h1_regression,persistence,tariff band,from 6,none,1
+heat_h1_regression,persistence,tariff band,from 6,from 2,4
+heat_h1_regression,persistence,tariff band,from 6,from 4,1
+heat_h1_regression,persistence,tariff band,from 6,from 6,2
+heat_h1_regression,linear,reading >= 2,no trigger,no trigger,4569
+heat_h1_regression,linear,reading >= 2,no trigger,trigger,40
+heat_h1_regression,linear,reading >= 2,trigger,no trigger,219
+heat_h1_regression,linear,reading >= 2,trigger,trigger,55
+heat_h1_regression,linear,tariff band,none,none,4569
+heat_h1_regression,linear,tariff band,none,from 2,40
+heat_h1_regression,linear,tariff band,none,from 4,0
+heat_h1_regression,linear,tariff band,none,from 6,0
+heat_h1_regression,linear,tariff band,from 2,none,176
+heat_h1_regression,linear,tariff band,from 2,from 2,28
+heat_h1_regression,linear,tariff band,from 2,from 4,0
+heat_h1_regression,linear,tariff band,from 2,from 6,0
+heat_h1_regression,linear,tariff band,from 4,none,42
+heat_h1_regression,linear,tariff band,from 4,from 2,20
+heat_h1_regression,linear,tariff band,from 4,from 4,0
+heat_h1_regression,linear,tariff band,from 4,from 6,0
+heat_h1_regression,linear,tariff band,from 6,none,1
+heat_h1_regression,linear,tariff band,from 6,from 2,7
+heat_h1_regression,linear,tariff band,from 6,from 4,0
+heat_h1_regression,linear,tariff band,from 6,from 6,0
+heat_h1_regression,random_forest,reading >= 2,no trigger,no trigger,4573
+heat_h1_regression,random_forest,reading >= 2,no trigger,trigger,36
+heat_h1_regression,random_forest,reading >= 2,trigger,no trigger,232
+heat_h1_regression,random_forest,reading >= 2,trigger,trigger,42
+heat_h1_regression,random_forest,tariff band,none,none,4573
+heat_h1_regression,random_forest,tariff band,none,from 2,36
+heat_h1_regression,random_forest,tariff band,none,from 4,0
+heat_h1_regression,random_forest,tariff band,none,from 6,0
+heat_h1_regression,random_forest,tariff band,from 2,none,182
+heat_h1_regression,random_forest,tariff band,from 2,from 2,22
+heat_h1_regression,random_forest,tariff band,from 2,from 4,0
+heat_h1_regression,random_forest,tariff band,from 2,from 6,0
+heat_h1_regression,random_forest,tariff band,from 4,none,46
+heat_h1_regression,random_forest,tariff band,from 4,from 2,16
+heat_h1_regression,random_forest,tariff band,from 4,from 4,0
+heat_h1_regression,random_forest,tariff band,from 4,from 6,0
+heat_h1_regression,random_forest,tariff band,from 6,none,4
+heat_h1_regression,random_forest,tariff band,from 6,from 2,4
+heat_h1_regression,random_forest,tariff band,from 6,from 4,0
+heat_h1_regression,random_forest,tariff band,from 6,from 6,0
+heat_h1_regression,hist_gbm,reading >= 2,no trigger,no trigger,4605
+heat_h1_regression,hist_gbm,reading >= 2,no trigger,trigger,4
+heat_h1_regression,hist_gbm,reading >= 2,trigger,no trigger,255
+heat_h1_regression,hist_gbm,reading >= 2,trigger,trigger,19
+heat_h1_regression,hist_gbm,tariff band,none,none,4605
+heat_h1_regression,hist_gbm,tariff band,none,from 2,4
+heat_h1_regression,hist_gbm,tariff band,none,from 4,0
+heat_h1_regression,hist_gbm,tariff band,none,from 6,0
+heat_h1_regression,hist_gbm,tariff band,from 2,none,194
+heat_h1_regression,hist_gbm,tariff band,from 2,from 2,10
+heat_h1_regression,hist_gbm,tariff band,from 2,from 4,0
+heat_h1_regression,hist_gbm,tariff band,from 2,from 6,0
+heat_h1_regression,hist_gbm,tariff band,from 4,none,56
+heat_h1_regression,hist_gbm,tariff band,from 4,from 2,6
+heat_h1_regression,hist_gbm,tariff band,from 4,from 4,0
+heat_h1_regression,hist_gbm,tariff band,from 4,from 6,0
+heat_h1_regression,hist_gbm,tariff band,from 6,none,5
+heat_h1_regression,hist_gbm,tariff band,from 6,from 2,3
+heat_h1_regression,hist_gbm,tariff band,from 6,from 4,0
+heat_h1_regression,hist_gbm,tariff band,from 6,from 6,0
+heat_h1_regression,xgboost,reading >= 2,no trigger,no trigger,4574
+heat_h1_regression,xgboost,reading >= 2,no trigger,trigger,35
+heat_h1_regression,xgboost,reading >= 2,trigger,no trigger,231
+heat_h1_regression,xgboost,reading >= 2,trigger,trigger,43
+heat_h1_regression,xgboost,tariff band,none,none,4574
+heat_h1_regression,xgboost,tariff band,none,from 2,35
+heat_h1_regression,xgboost,tariff band,none,from 4,0
+heat_h1_regression,xgboost,tariff band,none,from 6,0
+heat_h1_regression,xgboost,tariff band,from 2,none,183
+heat_h1_regression,xgboost,tariff band,from 2,from 2,21
+heat_h1_regression,xgboost,tariff band,from 2,from 4,0
+heat_h1_regression,xgboost,tariff band,from 2,from 6,0
+heat_h1_regression,xgboost,tariff band,from 4,none,44
+heat_h1_regression,xgboost,tariff band,from 4,from 2,18
+heat_h1_regression,xgboost,tariff band,from 4,from 4,0
+heat_h1_regression,xgboost,tariff band,from 4,from 6,0
+heat_h1_regression,xgboost,tariff band,from 6,none,4
+heat_h1_regression,xgboost,tariff band,from 6,from 2,4
+heat_h1_regression,xgboost,tariff band,from 6,from 4,0
+heat_h1_regression,xgboost,tariff band,from 6,from 6,0
+heat_h1_regression,lightgbm,reading >= 2,no trigger,no trigger,4583
+heat_h1_regression,lightgbm,reading >= 2,no trigger,trigger,26
+heat_h1_regression,lightgbm,reading >= 2,trigger,no trigger,240
+heat_h1_regression,lightgbm,reading >= 2,trigger,trigger,34
+heat_h1_regression,lightgbm,tariff band,none,none,4583
+heat_h1_regression,lightgbm,tariff band,none,from 2,26
+heat_h1_regression,lightgbm,tariff band,none,from 4,0
+heat_h1_regression,lightgbm,tariff band,none,from 6,0
+heat_h1_regression,lightgbm,tariff band,from 2,none,189
+heat_h1_regression,lightgbm,tariff band,from 2,from 2,15
+heat_h1_regression,lightgbm,tariff band,from 2,from 4,0
+heat_h1_regression,lightgbm,tariff band,from 2,from 6,0
+heat_h1_regression,lightgbm,tariff band,from 4,none,47
+heat_h1_regression,lightgbm,tariff band,from 4,from 2,15
+heat_h1_regression,lightgbm,tariff band,from 4,from 4,0
+heat_h1_regression,lightgbm,tariff band,from 4,from 6,0
+heat_h1_regression,lightgbm,tariff band,from 6,none,4
+heat_h1_regression,lightgbm,tariff band,from 6,from 2,4
+heat_h1_regression,lightgbm,tariff band,from 6,from 4,0
+heat_h1_regression,lightgbm,tariff band,from 6,from 6,0
+heat_h1_regression,catboost,reading >= 2,no trigger,no trigger,4588
+heat_h1_regression,catboost,reading >= 2,no trigger,trigger,21
+heat_h1_regression,catboost,reading >= 2,trigger,no trigger,249
+heat_h1_regression,catboost,reading >= 2,trigger,trigger,25
+heat_h1_regression,catboost,tariff band,none,none,4588
+heat_h1_regression,catboost,tariff band,none,from 2,21
+heat_h1_regression,catboost,tariff band,none,from 4,0
+heat_h1_regression,catboost,tariff band,none,from 6,0
+heat_h1_regression,catboost,tariff band,from 2,none,193
+heat_h1_regression,catboost,tariff band,from 2,from 2,11
+heat_h1_regression,catboost,tariff band,from 2,from 4,0
+heat_h1_regression,catboost,tariff band,from 2,from 6,0
+heat_h1_regression,catboost,tariff band,from 4,none,50
+heat_h1_regression,catboost,tariff band,from 4,from 2,12
+heat_h1_regression,catboost,tariff band,from 4,from 4,0
+heat_h1_regression,catboost,tariff band,from 4,from 6,0
+heat_h1_regression,catboost,tariff band,from 6,none,6
+heat_h1_regression,catboost,tariff band,from 6,from 2,2
+heat_h1_regression,catboost,tariff band,from 6,from 4,0
+heat_h1_regression,catboost,tariff band,from 6,from 6,0
+heat_h1_regression,mlp,reading >= 2,no trigger,no trigger,4560
+heat_h1_regression,mlp,reading >= 2,no trigger,trigger,49
+heat_h1_regression,mlp,reading >= 2,trigger,no trigger,210
+heat_h1_regression,mlp,reading >= 2,trigger,trigger,64
+heat_h1_regression,mlp,tariff band,none,none,4560
+heat_h1_regression,mlp,tariff band,none,from 2,49
+heat_h1_regression,mlp,tariff band,none,from 4,0
+heat_h1_regression,mlp,tariff band,none,from 6,0
+heat_h1_regression,mlp,tariff band,from 2,none,170
+heat_h1_regression,mlp,tariff band,from 2,from 2,34
+heat_h1_regression,mlp,tariff band,from 2,from 4,0
+heat_h1_regression,mlp,tariff band,from 2,from 6,0
+heat_h1_regression,mlp,tariff band,from 4,none,39
+heat_h1_regression,mlp,tariff band,from 4,from 2,23
+heat_h1_regression,mlp,tariff band,from 4,from 4,0
+heat_h1_regression,mlp,tariff band,from 4,from 6,0
+heat_h1_regression,mlp,tariff band,from 6,none,1
+heat_h1_regression,mlp,tariff band,from 6,from 2,7
+heat_h1_regression,mlp,tariff band,from 6,from 4,0
+heat_h1_regression,mlp,tariff band,from 6,from 6,0
+heat_h1_classification,climatology,probability >= 0.5,no trigger,no trigger,4609
+heat_h1_classification,climatology,probability >= 0.5,no trigger,trigger,0
+heat_h1_classification,climatology,probability >= 0.5,trigger,no trigger,274
+heat_h1_classification,climatology,probability >= 0.5,trigger,trigger,0
+heat_h1_classification,persistence,probability >= 0.5,no trigger,no trigger,4447
+heat_h1_classification,persistence,probability >= 0.5,no trigger,trigger,162
+heat_h1_classification,persistence,probability >= 0.5,trigger,no trigger,181
+heat_h1_classification,persistence,probability >= 0.5,trigger,trigger,93
+heat_h1_classification,hist_gbm,probability >= 0.5,no trigger,no trigger,4331
+heat_h1_classification,hist_gbm,probability >= 0.5,no trigger,trigger,278
+heat_h1_classification,hist_gbm,probability >= 0.5,trigger,no trigger,141
+heat_h1_classification,hist_gbm,probability >= 0.5,trigger,trigger,133
+heat_h1_classification,xgboost,probability >= 0.5,no trigger,no trigger,4575
+heat_h1_classification,xgboost,probability >= 0.5,no trigger,trigger,34
+heat_h1_classification,xgboost,probability >= 0.5,trigger,no trigger,231
+heat_h1_classification,xgboost,probability >= 0.5,trigger,trigger,43
+heat_h1_classification,lightgbm,probability >= 0.5,no trigger,no trigger,4606
+heat_h1_classification,lightgbm,probability >= 0.5,no trigger,trigger,3
+heat_h1_classification,lightgbm,probability >= 0.5,trigger,no trigger,267
+heat_h1_classification,lightgbm,probability >= 0.5,trigger,trigger,7
+heat_h1_classification,mlp,probability >= 0.5,no trigger,no trigger,3747
+heat_h1_classification,mlp,probability >= 0.5,no trigger,trigger,862
+heat_h1_classification,mlp,probability >= 0.5,trigger,no trigger,77
+heat_h1_classification,mlp,probability >= 0.5,trigger,trigger,197
+rain_h0_regression,climatology,reading >= 20,no trigger,no trigger,66504
+rain_h0_regression,climatology,reading >= 20,no trigger,trigger,0
+rain_h0_regression,climatology,reading >= 20,trigger,no trigger,5735
+rain_h0_regression,climatology,reading >= 20,trigger,trigger,0
+rain_h0_regression,climatology,tariff band,none,none,66504
+rain_h0_regression,climatology,tariff band,none,from 20,0
+rain_h0_regression,climatology,tariff band,none,from 30,0
+rain_h0_regression,climatology,tariff band,none,from 50,0
+rain_h0_regression,climatology,tariff band,from 20,none,2972
+rain_h0_regression,climatology,tariff band,from 20,from 20,0
+rain_h0_regression,climatology,tariff band,from 20,from 30,0
+rain_h0_regression,climatology,tariff band,from 20,from 50,0
+rain_h0_regression,climatology,tariff band,from 30,none,2164
+rain_h0_regression,climatology,tariff band,from 30,from 20,0
+rain_h0_regression,climatology,tariff band,from 30,from 30,0
+rain_h0_regression,climatology,tariff band,from 30,from 50,0
+rain_h0_regression,climatology,tariff band,from 50,none,599
+rain_h0_regression,climatology,tariff band,from 50,from 20,0
+rain_h0_regression,climatology,tariff band,from 50,from 30,0
+rain_h0_regression,climatology,tariff band,from 50,from 50,0
+rain_h0_regression,linear,reading >= 20,no trigger,no trigger,65761
+rain_h0_regression,linear,reading >= 20,no trigger,trigger,743
+rain_h0_regression,linear,reading >= 20,trigger,no trigger,1332
+rain_h0_regression,linear,reading >= 20,trigger,trigger,4403
+rain_h0_regression,linear,tariff band,none,none,65761
+rain_h0_regression,linear,tariff band,none,from 20,566
+rain_h0_regression,linear,tariff band,none,from 30,132
+rain_h0_regression,linear,tariff band,none,from 50,45
+rain_h0_regression,linear,tariff band,from 20,none,1311
+rain_h0_regression,linear,tariff band,from 20,from 20,1182
+rain_h0_regression,linear,tariff band,from 20,from 30,371
+rain_h0_regression,linear,tariff band,from 20,from 50,108
+rain_h0_regression,linear,tariff band,from 30,none,19
+rain_h0_regression,linear,tariff band,from 30,from 20,937
+rain_h0_regression,linear,tariff band,from 30,from 30,1020
+rain_h0_regression,linear,tariff band,from 30,from 50,188
+rain_h0_regression,linear,tariff band,from 50,none,2
+rain_h0_regression,linear,tariff band,from 50,from 20,0
+rain_h0_regression,linear,tariff band,from 50,from 30,313
+rain_h0_regression,linear,tariff band,from 50,from 50,284
+rain_h0_regression,hist_gbm,reading >= 20,no trigger,no trigger,65602
+rain_h0_regression,hist_gbm,reading >= 20,no trigger,trigger,902
+rain_h0_regression,hist_gbm,reading >= 20,trigger,no trigger,712
+rain_h0_regression,hist_gbm,reading >= 20,trigger,trigger,5023
+rain_h0_regression,hist_gbm,tariff band,none,none,65602
+rain_h0_regression,hist_gbm,tariff band,none,from 20,767
+rain_h0_regression,hist_gbm,tariff band,none,from 30,135
+rain_h0_regression,hist_gbm,tariff band,none,from 50,0
+rain_h0_regression,hist_gbm,tariff band,from 20,none,691
+rain_h0_regression,hist_gbm,tariff band,from 20,from 20,1766
+rain_h0_regression,hist_gbm,tariff band,from 20,from 30,503
+rain_h0_regression,hist_gbm,tariff band,from 20,from 50,12
+rain_h0_regression,hist_gbm,tariff band,from 30,none,19
+rain_h0_regression,hist_gbm,tariff band,from 30,from 20,568
+rain_h0_regression,hist_gbm,tariff band,from 30,from 30,1490
+rain_h0_regression,hist_gbm,tariff band,from 30,from 50,87
+rain_h0_regression,hist_gbm,tariff band,from 50,none,2
+rain_h0_regression,hist_gbm,tariff band,from 50,from 20,6
+rain_h0_regression,hist_gbm,tariff band,from 50,from 30,299
+rain_h0_regression,hist_gbm,tariff band,from 50,from 50,292
+rain_h0_regression,xgboost,reading >= 20,no trigger,no trigger,65599
+rain_h0_regression,xgboost,reading >= 20,no trigger,trigger,905
+rain_h0_regression,xgboost,reading >= 20,trigger,no trigger,747
+rain_h0_regression,xgboost,reading >= 20,trigger,trigger,4988
+rain_h0_regression,xgboost,tariff band,none,none,65599
+rain_h0_regression,xgboost,tariff band,none,from 20,777
+rain_h0_regression,xgboost,tariff band,none,from 30,128
+rain_h0_regression,xgboost,tariff band,none,from 50,0
+rain_h0_regression,xgboost,tariff band,from 20,none,726
+rain_h0_regression,xgboost,tariff band,from 20,from 20,1746
+rain_h0_regression,xgboost,tariff band,from 20,from 30,486
+rain_h0_regression,xgboost,tariff band,from 20,from 50,14
+rain_h0_regression,xgboost,tariff band,from 30,none,19
+rain_h0_regression,xgboost,tariff band,from 30,from 20,597
+rain_h0_regression,xgboost,tariff band,from 30,from 30,1463
+rain_h0_regression,xgboost,tariff band,from 30,from 50,85
+rain_h0_regression,xgboost,tariff band,from 50,none,2
+rain_h0_regression,xgboost,tariff band,from 50,from 20,0
+rain_h0_regression,xgboost,tariff band,from 50,from 30,347
+rain_h0_regression,xgboost,tariff band,from 50,from 50,250
+rain_h0_regression,lightgbm,reading >= 20,no trigger,no trigger,65622
+rain_h0_regression,lightgbm,reading >= 20,no trigger,trigger,882
+rain_h0_regression,lightgbm,reading >= 20,trigger,no trigger,760
+rain_h0_regression,lightgbm,reading >= 20,trigger,trigger,4975
+rain_h0_regression,lightgbm,tariff band,none,none,65622
+rain_h0_regression,lightgbm,tariff band,none,from 20,794
+rain_h0_regression,lightgbm,tariff band,none,from 30,88
+rain_h0_regression,lightgbm,tariff band,none,from 50,0
+rain_h0_regression,lightgbm,tariff band,from 20,none,738
+rain_h0_regression,lightgbm,tariff band,from 20,from 20,1760
+rain_h0_regression,lightgbm,tariff band,from 20,from 30,466
+rain_h0_regression,lightgbm,tariff band,from 20,from 50,8
+rain_h0_regression,lightgbm,tariff band,from 30,none,20
+rain_h0_regression,lightgbm,tariff band,from 30,from 20,620
+rain_h0_regression,lightgbm,tariff band,from 30,from 30,1445
+rain_h0_regression,lightgbm,tariff band,from 30,from 50,79
+rain_h0_regression,lightgbm,tariff band,from 50,none,2
+rain_h0_regression,lightgbm,tariff band,from 50,from 20,6
+rain_h0_regression,lightgbm,tariff band,from 50,from 30,308
+rain_h0_regression,lightgbm,tariff band,from 50,from 50,283
+rain_h0_regression,mlp,reading >= 20,no trigger,no trigger,65647
+rain_h0_regression,mlp,reading >= 20,no trigger,trigger,857
+rain_h0_regression,mlp,reading >= 20,trigger,no trigger,812
+rain_h0_regression,mlp,reading >= 20,trigger,trigger,4923
+rain_h0_regression,mlp,tariff band,none,none,65647
+rain_h0_regression,mlp,tariff band,none,from 20,769
+rain_h0_regression,mlp,tariff band,none,from 30,87
+rain_h0_regression,mlp,tariff band,none,from 50,1
+rain_h0_regression,mlp,tariff band,from 20,none,765
+rain_h0_regression,mlp,tariff band,from 20,from 20,1753
+rain_h0_regression,mlp,tariff band,from 20,from 30,400
+rain_h0_regression,mlp,tariff band,from 20,from 50,54
+rain_h0_regression,mlp,tariff band,from 30,none,45
+rain_h0_regression,mlp,tariff band,from 30,from 20,680
+rain_h0_regression,mlp,tariff band,from 30,from 30,1330
+rain_h0_regression,mlp,tariff band,from 30,from 50,109
+rain_h0_regression,mlp,tariff band,from 50,none,2
+rain_h0_regression,mlp,tariff band,from 50,from 20,11
+rain_h0_regression,mlp,tariff band,from 50,from 30,299
+rain_h0_regression,mlp,tariff band,from 50,from 50,287
+rain_h0_classification,climatology,probability >= 0.5,no trigger,no trigger,66504
+rain_h0_classification,climatology,probability >= 0.5,no trigger,trigger,0
+rain_h0_classification,climatology,probability >= 0.5,trigger,no trigger,5735
+rain_h0_classification,climatology,probability >= 0.5,trigger,trigger,0
+rain_h0_classification,linear,probability >= 0.5,no trigger,no trigger,65748
+rain_h0_classification,linear,probability >= 0.5,no trigger,trigger,756
+rain_h0_classification,linear,probability >= 0.5,trigger,no trigger,1003
+rain_h0_classification,linear,probability >= 0.5,trigger,trigger,4732
+rain_h0_classification,random_forest,probability >= 0.5,no trigger,no trigger,65406
+rain_h0_classification,random_forest,probability >= 0.5,no trigger,trigger,1098
+rain_h0_classification,random_forest,probability >= 0.5,trigger,no trigger,413
+rain_h0_classification,random_forest,probability >= 0.5,trigger,trigger,5322
+rain_h0_classification,xgboost,probability >= 0.5,no trigger,no trigger,64846
+rain_h0_classification,xgboost,probability >= 0.5,no trigger,trigger,1658
+rain_h0_classification,xgboost,probability >= 0.5,trigger,no trigger,133
+rain_h0_classification,xgboost,probability >= 0.5,trigger,trigger,5602
+rain_h0_classification,lightgbm,probability >= 0.5,no trigger,no trigger,65304
+rain_h0_classification,lightgbm,probability >= 0.5,no trigger,trigger,1200
+rain_h0_classification,lightgbm,probability >= 0.5,trigger,no trigger,373
+rain_h0_classification,lightgbm,probability >= 0.5,trigger,trigger,5362
+rain_h0_classification,mlp,probability >= 0.5,no trigger,no trigger,63944
+rain_h0_classification,mlp,probability >= 0.5,no trigger,trigger,2560
+rain_h0_classification,mlp,probability >= 0.5,trigger,no trigger,77
+rain_h0_classification,mlp,probability >= 0.5,trigger,trigger,5658
+rain_h1_regression,climatology,reading >= 20,no trigger,no trigger,66504
+rain_h1_regression,climatology,reading >= 20,no trigger,trigger,0
+rain_h1_regression,climatology,reading >= 20,trigger,no trigger,5735
+rain_h1_regression,climatology,reading >= 20,trigger,trigger,0
+rain_h1_regression,climatology,tariff band,none,none,66504
+rain_h1_regression,climatology,tariff band,none,from 20,0
+rain_h1_regression,climatology,tariff band,none,from 30,0
+rain_h1_regression,climatology,tariff band,none,from 50,0
+rain_h1_regression,climatology,tariff band,from 20,none,2972
+rain_h1_regression,climatology,tariff band,from 20,from 20,0
+rain_h1_regression,climatology,tariff band,from 20,from 30,0
+rain_h1_regression,climatology,tariff band,from 20,from 50,0
+rain_h1_regression,climatology,tariff band,from 30,none,2164
+rain_h1_regression,climatology,tariff band,from 30,from 20,0
+rain_h1_regression,climatology,tariff band,from 30,from 30,0
+rain_h1_regression,climatology,tariff band,from 30,from 50,0
+rain_h1_regression,climatology,tariff band,from 50,none,599
+rain_h1_regression,climatology,tariff band,from 50,from 20,0
+rain_h1_regression,climatology,tariff band,from 50,from 30,0
+rain_h1_regression,climatology,tariff band,from 50,from 50,0
+rain_h1_regression,persistence,reading >= 20,no trigger,no trigger,61503
+rain_h1_regression,persistence,reading >= 20,no trigger,trigger,5001
+rain_h1_regression,persistence,reading >= 20,trigger,no trigger,5024
+rain_h1_regression,persistence,reading >= 20,trigger,trigger,711
+rain_h1_regression,persistence,tariff band,none,none,61503
+rain_h1_regression,persistence,tariff band,none,from 20,2596
+rain_h1_regression,persistence,tariff band,none,from 30,1876
+rain_h1_regression,persistence,tariff band,none,from 50,529
+rain_h1_regression,persistence,tariff band,from 20,none,2606
+rain_h1_regression,persistence,tariff band,from 20,from 20,203
+rain_h1_regression,persistence,tariff band,from 20,from 30,132
+rain_h1_regression,persistence,tariff band,from 20,from 50,31
+rain_h1_regression,persistence,tariff band,from 30,none,1898
+rain_h1_regression,persistence,tariff band,from 30,from 20,122
+rain_h1_regression,persistence,tariff band,from 30,from 30,119
+rain_h1_regression,persistence,tariff band,from 30,from 50,25
+rain_h1_regression,persistence,tariff band,from 50,none,520
+rain_h1_regression,persistence,tariff band,from 50,from 20,38
+rain_h1_regression,persistence,tariff band,from 50,from 30,31
+rain_h1_regression,persistence,tariff band,from 50,from 50,10
+rain_h1_regression,linear,reading >= 20,no trigger,no trigger,66504
+rain_h1_regression,linear,reading >= 20,no trigger,trigger,0
+rain_h1_regression,linear,reading >= 20,trigger,no trigger,5735
+rain_h1_regression,linear,reading >= 20,trigger,trigger,0
+rain_h1_regression,linear,tariff band,none,none,66504
+rain_h1_regression,linear,tariff band,none,from 20,0
+rain_h1_regression,linear,tariff band,none,from 30,0
+rain_h1_regression,linear,tariff band,none,from 50,0
+rain_h1_regression,linear,tariff band,from 20,none,2972
+rain_h1_regression,linear,tariff band,from 20,from 20,0
+rain_h1_regression,linear,tariff band,from 20,from 30,0
+rain_h1_regression,linear,tariff band,from 20,from 50,0
+rain_h1_regression,linear,tariff band,from 30,none,2164
+rain_h1_regression,linear,tariff band,from 30,from 20,0
+rain_h1_regression,linear,tariff band,from 30,from 30,0
+rain_h1_regression,linear,tariff band,from 30,from 50,0
+rain_h1_regression,linear,tariff band,from 50,none,599
+rain_h1_regression,linear,tariff band,from 50,from 20,0
+rain_h1_regression,linear,tariff band,from 50,from 30,0
+rain_h1_regression,linear,tariff band,from 50,from 50,0
+rain_h1_regression,random_forest,reading >= 20,no trigger,no trigger,66504
+rain_h1_regression,random_forest,reading >= 20,no trigger,trigger,0
+rain_h1_regression,random_forest,reading >= 20,trigger,no trigger,5735
+rain_h1_regression,random_forest,reading >= 20,trigger,trigger,0
+rain_h1_regression,random_forest,tariff band,none,none,66504
+rain_h1_regression,random_forest,tariff band,none,from 20,0
+rain_h1_regression,random_forest,tariff band,none,from 30,0
+rain_h1_regression,random_forest,tariff band,none,from 50,0
+rain_h1_regression,random_forest,tariff band,from 20,none,2972
+rain_h1_regression,random_forest,tariff band,from 20,from 20,0
+rain_h1_regression,random_forest,tariff band,from 20,from 30,0
+rain_h1_regression,random_forest,tariff band,from 20,from 50,0
+rain_h1_regression,random_forest,tariff band,from 30,none,2164
+rain_h1_regression,random_forest,tariff band,from 30,from 20,0
+rain_h1_regression,random_forest,tariff band,from 30,from 30,0
+rain_h1_regression,random_forest,tariff band,from 30,from 50,0
+rain_h1_regression,random_forest,tariff band,from 50,none,599
+rain_h1_regression,random_forest,tariff band,from 50,from 20,0
+rain_h1_regression,random_forest,tariff band,from 50,from 30,0
+rain_h1_regression,random_forest,tariff band,from 50,from 50,0
+rain_h1_regression,hist_gbm,reading >= 20,no trigger,no trigger,66504
+rain_h1_regression,hist_gbm,reading >= 20,no trigger,trigger,0
+rain_h1_regression,hist_gbm,reading >= 20,trigger,no trigger,5735
+rain_h1_regression,hist_gbm,reading >= 20,trigger,trigger,0
+rain_h1_regression,hist_gbm,tariff band,none,none,66504
+rain_h1_regression,hist_gbm,tariff band,none,from 20,0
+rain_h1_regression,hist_gbm,tariff band,none,from 30,0
+rain_h1_regression,hist_gbm,tariff band,none,from 50,0
+rain_h1_regression,hist_gbm,tariff band,from 20,none,2972
+rain_h1_regression,hist_gbm,tariff band,from 20,from 20,0
+rain_h1_regression,hist_gbm,tariff band,from 20,from 30,0
+rain_h1_regression,hist_gbm,tariff band,from 20,from 50,0
+rain_h1_regression,hist_gbm,tariff band,from 30,none,2164
+rain_h1_regression,hist_gbm,tariff band,from 30,from 20,0
+rain_h1_regression,hist_gbm,tariff band,from 30,from 30,0
+rain_h1_regression,hist_gbm,tariff band,from 30,from 50,0
+rain_h1_regression,hist_gbm,tariff band,from 50,none,599
+rain_h1_regression,hist_gbm,tariff band,from 50,from 20,0
+rain_h1_regression,hist_gbm,tariff band,from 50,from 30,0
+rain_h1_regression,hist_gbm,tariff band,from 50,from 50,0
+rain_h1_regression,xgboost,reading >= 20,no trigger,no trigger,66504
+rain_h1_regression,xgboost,reading >= 20,no trigger,trigger,0
+rain_h1_regression,xgboost,reading >= 20,trigger,no trigger,5735
+rain_h1_regression,xgboost,reading >= 20,trigger,trigger,0
+rain_h1_regression,xgboost,tariff band,none,none,66504
+rain_h1_regression,xgboost,tariff band,none,from 20,0
+rain_h1_regression,xgboost,tariff band,none,from 30,0
+rain_h1_regression,xgboost,tariff band,none,from 50,0
+rain_h1_regression,xgboost,tariff band,from 20,none,2972
+rain_h1_regression,xgboost,tariff band,from 20,from 20,0
+rain_h1_regression,xgboost,tariff band,from 20,from 30,0
+rain_h1_regression,xgboost,tariff band,from 20,from 50,0
+rain_h1_regression,xgboost,tariff band,from 30,none,2164
+rain_h1_regression,xgboost,tariff band,from 30,from 20,0
+rain_h1_regression,xgboost,tariff band,from 30,from 30,0
+rain_h1_regression,xgboost,tariff band,from 30,from 50,0
+rain_h1_regression,xgboost,tariff band,from 50,none,599
+rain_h1_regression,xgboost,tariff band,from 50,from 20,0
+rain_h1_regression,xgboost,tariff band,from 50,from 30,0
+rain_h1_regression,xgboost,tariff band,from 50,from 50,0
+rain_h1_regression,lightgbm,reading >= 20,no trigger,no trigger,66504
+rain_h1_regression,lightgbm,reading >= 20,no trigger,trigger,0
+rain_h1_regression,lightgbm,reading >= 20,trigger,no trigger,5735
+rain_h1_regression,lightgbm,reading >= 20,trigger,trigger,0
+rain_h1_regression,lightgbm,tariff band,none,none,66504
+rain_h1_regression,lightgbm,tariff band,none,from 20,0
+rain_h1_regression,lightgbm,tariff band,none,from 30,0
+rain_h1_regression,lightgbm,tariff band,none,from 50,0
+rain_h1_regression,lightgbm,tariff band,from 20,none,2972
+rain_h1_regression,lightgbm,tariff band,from 20,from 20,0
+rain_h1_regression,lightgbm,tariff band,from 20,from 30,0
+rain_h1_regression,lightgbm,tariff band,from 20,from 50,0
+rain_h1_regression,lightgbm,tariff band,from 30,none,2164
+rain_h1_regression,lightgbm,tariff band,from 30,from 20,0
+rain_h1_regression,lightgbm,tariff band,from 30,from 30,0
+rain_h1_regression,lightgbm,tariff band,from 30,from 50,0
+rain_h1_regression,lightgbm,tariff band,from 50,none,599
+rain_h1_regression,lightgbm,tariff band,from 50,from 20,0
+rain_h1_regression,lightgbm,tariff band,from 50,from 30,0
+rain_h1_regression,lightgbm,tariff band,from 50,from 50,0
+rain_h1_regression,catboost,reading >= 20,no trigger,no trigger,66504
+rain_h1_regression,catboost,reading >= 20,no trigger,trigger,0
+rain_h1_regression,catboost,reading >= 20,trigger,no trigger,5735
+rain_h1_regression,catboost,reading >= 20,trigger,trigger,0
+rain_h1_regression,catboost,tariff band,none,none,66504
+rain_h1_regression,catboost,tariff band,none,from 20,0
+rain_h1_regression,catboost,tariff band,none,from 30,0
+rain_h1_regression,catboost,tariff band,none,from 50,0
+rain_h1_regression,catboost,tariff band,from 20,none,2972
+rain_h1_regression,catboost,tariff band,from 20,from 20,0
+rain_h1_regression,catboost,tariff band,from 20,from 30,0
+rain_h1_regression,catboost,tariff band,from 20,from 50,0
+rain_h1_regression,catboost,tariff band,from 30,none,2164
+rain_h1_regression,catboost,tariff band,from 30,from 20,0
+rain_h1_regression,catboost,tariff band,from 30,from 30,0
+rain_h1_regression,catboost,tariff band,from 30,from 50,0
+rain_h1_regression,catboost,tariff band,from 50,none,599
+rain_h1_regression,catboost,tariff band,from 50,from 20,0
+rain_h1_regression,catboost,tariff band,from 50,from 30,0
+rain_h1_regression,catboost,tariff band,from 50,from 50,0
+rain_h1_regression,mlp,reading >= 20,no trigger,no trigger,66504
+rain_h1_regression,mlp,reading >= 20,no trigger,trigger,0
+rain_h1_regression,mlp,reading >= 20,trigger,no trigger,5735
+rain_h1_regression,mlp,reading >= 20,trigger,trigger,0
+rain_h1_regression,mlp,tariff band,none,none,66504
+rain_h1_regression,mlp,tariff band,none,from 20,0
+rain_h1_regression,mlp,tariff band,none,from 30,0
+rain_h1_regression,mlp,tariff band,none,from 50,0
+rain_h1_regression,mlp,tariff band,from 20,none,2972
+rain_h1_regression,mlp,tariff band,from 20,from 20,0
+rain_h1_regression,mlp,tariff band,from 20,from 30,0
+rain_h1_regression,mlp,tariff band,from 20,from 50,0
+rain_h1_regression,mlp,tariff band,from 30,none,2164
+rain_h1_regression,mlp,tariff band,from 30,from 20,0
+rain_h1_regression,mlp,tariff band,from 30,from 30,0
+rain_h1_regression,mlp,tariff band,from 30,from 50,0
+rain_h1_regression,mlp,tariff band,from 50,none,599
+rain_h1_regression,mlp,tariff band,from 50,from 20,0
+rain_h1_regression,mlp,tariff band,from 50,from 30,0
+rain_h1_regression,mlp,tariff band,from 50,from 50,0
+rain_h1_classification,climatology,probability >= 0.5,no trigger,no trigger,66504
+rain_h1_classification,climatology,probability >= 0.5,no trigger,trigger,0
+rain_h1_classification,climatology,probability >= 0.5,trigger,no trigger,5735
+rain_h1_classification,climatology,probability >= 0.5,trigger,trigger,0
+rain_h1_classification,persistence,probability >= 0.5,no trigger,no trigger,61503
+rain_h1_classification,persistence,probability >= 0.5,no trigger,trigger,5001
+rain_h1_classification,persistence,probability >= 0.5,trigger,no trigger,5024
+rain_h1_classification,persistence,probability >= 0.5,trigger,trigger,711
+rain_h1_classification,linear,probability >= 0.5,no trigger,no trigger,66504
+rain_h1_classification,linear,probability >= 0.5,no trigger,trigger,0
+rain_h1_classification,linear,probability >= 0.5,trigger,no trigger,5735
+rain_h1_classification,linear,probability >= 0.5,trigger,trigger,0
+rain_h1_classification,random_forest,probability >= 0.5,no trigger,no trigger,66466
+rain_h1_classification,random_forest,probability >= 0.5,no trigger,trigger,38
+rain_h1_classification,random_forest,probability >= 0.5,trigger,no trigger,5717
+rain_h1_classification,random_forest,probability >= 0.5,trigger,trigger,18
+rain_h1_classification,xgboost,probability >= 0.5,no trigger,no trigger,66504
+rain_h1_classification,xgboost,probability >= 0.5,no trigger,trigger,0
+rain_h1_classification,xgboost,probability >= 0.5,trigger,no trigger,5735
+rain_h1_classification,xgboost,probability >= 0.5,trigger,trigger,0
+rain_h1_classification,lightgbm,probability >= 0.5,no trigger,no trigger,66504
+rain_h1_classification,lightgbm,probability >= 0.5,no trigger,trigger,0
+rain_h1_classification,lightgbm,probability >= 0.5,trigger,no trigger,5735
+rain_h1_classification,lightgbm,probability >= 0.5,trigger,trigger,0
+rain_h1_classification,mlp,probability >= 0.5,no trigger,no trigger,53279
+rain_h1_classification,mlp,probability >= 0.5,no trigger,trigger,13225
+rain_h1_classification,mlp,probability >= 0.5,trigger,no trigger,3741
+rain_h1_classification,mlp,probability >= 0.5,trigger,trigger,1994
+heat_h0_classification,linear,probability >= 0.5,no trigger,no trigger,581
+heat_h0_classification,linear,probability >= 0.5,no trigger,trigger,4028
+heat_h0_classification,linear,probability >= 0.5,trigger,no trigger,2
+heat_h0_classification,linear,probability >= 0.5,trigger,trigger,272
+heat_h0_classification,random_forest,probability >= 0.5,no trigger,no trigger,4468
+heat_h0_classification,random_forest,probability >= 0.5,no trigger,trigger,141
+heat_h0_classification,random_forest,probability >= 0.5,trigger,no trigger,229
+heat_h0_classification,random_forest,probability >= 0.5,trigger,trigger,45
+heat_h1_classification,linear,probability >= 0.5,no trigger,no trigger,4567
+heat_h1_classification,linear,probability >= 0.5,no trigger,trigger,42
+heat_h1_classification,linear,probability >= 0.5,trigger,no trigger,212
+heat_h1_classification,linear,probability >= 0.5,trigger,trigger,62
+heat_h1_classification,random_forest,probability >= 0.5,no trigger,no trigger,4609
+heat_h1_classification,random_forest,probability >= 0.5,no trigger,trigger,0
+heat_h1_classification,random_forest,probability >= 0.5,trigger,no trigger,274
+heat_h1_classification,random_forest,probability >= 0.5,trigger,trigger,0
+haze_h1_regression,climatology,reading >= 101,no trigger,no trigger,6891
+haze_h1_regression,climatology,reading >= 101,no trigger,trigger,0
+haze_h1_regression,climatology,reading >= 101,trigger,no trigger,144
+haze_h1_regression,climatology,reading >= 101,trigger,trigger,0
+haze_h1_regression,climatology,tariff band,none,none,6891
+haze_h1_regression,climatology,tariff band,none,from 101,0
+haze_h1_regression,climatology,tariff band,none,from 201,0
+haze_h1_regression,climatology,tariff band,none,from 301,0
+haze_h1_regression,climatology,tariff band,from 101,none,136
+haze_h1_regression,climatology,tariff band,from 101,from 101,0
+haze_h1_regression,climatology,tariff band,from 101,from 201,0
+haze_h1_regression,climatology,tariff band,from 101,from 301,0
+haze_h1_regression,climatology,tariff band,from 201,none,8
+haze_h1_regression,climatology,tariff band,from 201,from 101,0
+haze_h1_regression,climatology,tariff band,from 201,from 201,0
+haze_h1_regression,climatology,tariff band,from 201,from 301,0
+haze_h1_regression,climatology,tariff band,from 301,none,0
+haze_h1_regression,climatology,tariff band,from 301,from 101,0
+haze_h1_regression,climatology,tariff band,from 301,from 201,0
+haze_h1_regression,climatology,tariff band,from 301,from 301,0
+haze_h1_regression,persistence,reading >= 101,no trigger,no trigger,6862
+haze_h1_regression,persistence,reading >= 101,no trigger,trigger,29
+haze_h1_regression,persistence,reading >= 101,trigger,no trigger,29
+haze_h1_regression,persistence,reading >= 101,trigger,trigger,115
+haze_h1_regression,persistence,tariff band,none,none,6862
+haze_h1_regression,persistence,tariff band,none,from 101,29
+haze_h1_regression,persistence,tariff band,none,from 201,0
+haze_h1_regression,persistence,tariff band,none,from 301,0
+haze_h1_regression,persistence,tariff band,from 101,none,29
+haze_h1_regression,persistence,tariff band,from 101,from 101,104
+haze_h1_regression,persistence,tariff band,from 101,from 201,3
+haze_h1_regression,persistence,tariff band,from 101,from 301,0
+haze_h1_regression,persistence,tariff band,from 201,none,0
+haze_h1_regression,persistence,tariff band,from 201,from 101,3
+haze_h1_regression,persistence,tariff band,from 201,from 201,5
+haze_h1_regression,persistence,tariff band,from 201,from 301,0
+haze_h1_regression,persistence,tariff band,from 301,none,0
+haze_h1_regression,persistence,tariff band,from 301,from 101,0
+haze_h1_regression,persistence,tariff band,from 301,from 201,0
+haze_h1_regression,persistence,tariff band,from 301,from 301,0
+haze_h1_regression,linear,reading >= 101,no trigger,no trigger,6879
+haze_h1_regression,linear,reading >= 101,no trigger,trigger,12
+haze_h1_regression,linear,reading >= 101,trigger,no trigger,47
+haze_h1_regression,linear,reading >= 101,trigger,trigger,97
+haze_h1_regression,linear,tariff band,none,none,6879
+haze_h1_regression,linear,tariff band,none,from 101,12
+haze_h1_regression,linear,tariff band,none,from 201,0
+haze_h1_regression,linear,tariff band,none,from 301,0
+haze_h1_regression,linear,tariff band,from 101,none,47
+haze_h1_regression,linear,tariff band,from 101,from 101,89
+haze_h1_regression,linear,tariff band,from 101,from 201,0
+haze_h1_regression,linear,tariff band,from 101,from 301,0
+haze_h1_regression,linear,tariff band,from 201,none,0
+haze_h1_regression,linear,tariff band,from 201,from 101,8
+haze_h1_regression,linear,tariff band,from 201,from 201,0
+haze_h1_regression,linear,tariff band,from 201,from 301,0
+haze_h1_regression,linear,tariff band,from 301,none,0
+haze_h1_regression,linear,tariff band,from 301,from 101,0
+haze_h1_regression,linear,tariff band,from 301,from 201,0
+haze_h1_regression,linear,tariff band,from 301,from 301,0
+haze_h1_regression,random_forest,reading >= 101,no trigger,no trigger,6856
+haze_h1_regression,random_forest,reading >= 101,no trigger,trigger,35
+haze_h1_regression,random_forest,reading >= 101,trigger,no trigger,26
+haze_h1_regression,random_forest,reading >= 101,trigger,trigger,118
+haze_h1_regression,random_forest,tariff band,none,none,6856
+haze_h1_regression,random_forest,tariff band,none,from 101,35
+haze_h1_regression,random_forest,tariff band,none,from 201,0
+haze_h1_regression,random_forest,tariff band,none,from 301,0
+haze_h1_regression,random_forest,tariff band,from 101,none,26
+haze_h1_regression,random_forest,tariff band,from 101,from 101,110
+haze_h1_regression,random_forest,tariff band,from 101,from 201,0
+haze_h1_regression,random_forest,tariff band,from 101,from 301,0
+haze_h1_regression,random_forest,tariff band,from 201,none,0
+haze_h1_regression,random_forest,tariff band,from 201,from 101,8
+haze_h1_regression,random_forest,tariff band,from 201,from 201,0
+haze_h1_regression,random_forest,tariff band,from 201,from 301,0
+haze_h1_regression,random_forest,tariff band,from 301,none,0
+haze_h1_regression,random_forest,tariff band,from 301,from 101,0
+haze_h1_regression,random_forest,tariff band,from 301,from 201,0
+haze_h1_regression,random_forest,tariff band,from 301,from 301,0
+haze_h1_regression,hist_gbm,reading >= 101,no trigger,no trigger,6874
+haze_h1_regression,hist_gbm,reading >= 101,no trigger,trigger,17
+haze_h1_regression,hist_gbm,reading >= 101,trigger,no trigger,38
+haze_h1_regression,hist_gbm,reading >= 101,trigger,trigger,106
+haze_h1_regression,hist_gbm,tariff band,none,none,6874
+haze_h1_regression,hist_gbm,tariff band,none,from 101,17
+haze_h1_regression,hist_gbm,tariff band,none,from 201,0
+haze_h1_regression,hist_gbm,tariff band,none,from 301,0
+haze_h1_regression,hist_gbm,tariff band,from 101,none,38
+haze_h1_regression,hist_gbm,tariff band,from 101,from 101,98
+haze_h1_regression,hist_gbm,tariff band,from 101,from 201,0
+haze_h1_regression,hist_gbm,tariff band,from 101,from 301,0
+haze_h1_regression,hist_gbm,tariff band,from 201,none,0
+haze_h1_regression,hist_gbm,tariff band,from 201,from 101,8
+haze_h1_regression,hist_gbm,tariff band,from 201,from 201,0
+haze_h1_regression,hist_gbm,tariff band,from 201,from 301,0
+haze_h1_regression,hist_gbm,tariff band,from 301,none,0
+haze_h1_regression,hist_gbm,tariff band,from 301,from 101,0
+haze_h1_regression,hist_gbm,tariff band,from 301,from 201,0
+haze_h1_regression,hist_gbm,tariff band,from 301,from 301,0
+haze_h1_regression,xgboost,reading >= 101,no trigger,no trigger,6877
+haze_h1_regression,xgboost,reading >= 101,no trigger,trigger,14
+haze_h1_regression,xgboost,reading >= 101,trigger,no trigger,54
+haze_h1_regression,xgboost,reading >= 101,trigger,trigger,90
+haze_h1_regression,xgboost,tariff band,none,none,6877
+haze_h1_regression,xgboost,tariff band,none,from 101,14
+haze_h1_regression,xgboost,tariff band,none,from 201,0
+haze_h1_regression,xgboost,tariff band,none,from 301,0
+haze_h1_regression,xgboost,tariff band,from 101,none,54
+haze_h1_regression,xgboost,tariff band,from 101,from 101,82
+haze_h1_regression,xgboost,tariff band,from 101,from 201,0
+haze_h1_regression,xgboost,tariff band,from 101,from 301,0
+haze_h1_regression,xgboost,tariff band,from 201,none,0
+haze_h1_regression,xgboost,tariff band,from 201,from 101,8
+haze_h1_regression,xgboost,tariff band,from 201,from 201,0
+haze_h1_regression,xgboost,tariff band,from 201,from 301,0
+haze_h1_regression,xgboost,tariff band,from 301,none,0
+haze_h1_regression,xgboost,tariff band,from 301,from 101,0
+haze_h1_regression,xgboost,tariff band,from 301,from 201,0
+haze_h1_regression,xgboost,tariff band,from 301,from 301,0
+haze_h1_regression,lightgbm,reading >= 101,no trigger,no trigger,6878
+haze_h1_regression,lightgbm,reading >= 101,no trigger,trigger,13
+haze_h1_regression,lightgbm,reading >= 101,trigger,no trigger,63
+haze_h1_regression,lightgbm,reading >= 101,trigger,trigger,81
+haze_h1_regression,lightgbm,tariff band,none,none,6878
+haze_h1_regression,lightgbm,tariff band,none,from 101,13
+haze_h1_regression,lightgbm,tariff band,none,from 201,0
+haze_h1_regression,lightgbm,tariff band,none,from 301,0
+haze_h1_regression,lightgbm,tariff band,from 101,none,63
+haze_h1_regression,lightgbm,tariff band,from 101,from 101,73
+haze_h1_regression,lightgbm,tariff band,from 101,from 201,0
+haze_h1_regression,lightgbm,tariff band,from 101,from 301,0
+haze_h1_regression,lightgbm,tariff band,from 201,none,0
+haze_h1_regression,lightgbm,tariff band,from 201,from 101,8
+haze_h1_regression,lightgbm,tariff band,from 201,from 201,0
+haze_h1_regression,lightgbm,tariff band,from 201,from 301,0
+haze_h1_regression,lightgbm,tariff band,from 301,none,0
+haze_h1_regression,lightgbm,tariff band,from 301,from 101,0
+haze_h1_regression,lightgbm,tariff band,from 301,from 201,0
+haze_h1_regression,lightgbm,tariff band,from 301,from 301,0
+haze_h1_regression,mlp,reading >= 101,no trigger,no trigger,6882
+haze_h1_regression,mlp,reading >= 101,no trigger,trigger,9
+haze_h1_regression,mlp,reading >= 101,trigger,no trigger,50
+haze_h1_regression,mlp,reading >= 101,trigger,trigger,94
+haze_h1_regression,mlp,tariff band,none,none,6882
+haze_h1_regression,mlp,tariff band,none,from 101,9
+haze_h1_regression,mlp,tariff band,none,from 201,0
+haze_h1_regression,mlp,tariff band,none,from 301,0
+haze_h1_regression,mlp,tariff band,from 101,none,50
+haze_h1_regression,mlp,tariff band,from 101,from 101,86
+haze_h1_regression,mlp,tariff band,from 101,from 201,0
+haze_h1_regression,mlp,tariff band,from 101,from 301,0
+haze_h1_regression,mlp,tariff band,from 201,none,0
+haze_h1_regression,mlp,tariff band,from 201,from 101,8
+haze_h1_regression,mlp,tariff band,from 201,from 201,0
+haze_h1_regression,mlp,tariff band,from 201,from 301,0
+haze_h1_regression,mlp,tariff band,from 301,none,0
+haze_h1_regression,mlp,tariff band,from 301,from 101,0
+haze_h1_regression,mlp,tariff band,from 301,from 201,0
+haze_h1_regression,mlp,tariff band,from 301,from 301,0
+haze_h1_classification,climatology,probability >= 0.5,no trigger,no trigger,6891
+haze_h1_classification,climatology,probability >= 0.5,no trigger,trigger,0
+haze_h1_classification,climatology,probability >= 0.5,trigger,no trigger,144
+haze_h1_classification,climatology,probability >= 0.5,trigger,trigger,0
+haze_h1_classification,persistence,probability >= 0.5,no trigger,no trigger,6862
+haze_h1_classification,persistence,probability >= 0.5,no trigger,trigger,29
+haze_h1_classification,persistence,probability >= 0.5,trigger,no trigger,29
+haze_h1_classification,persistence,probability >= 0.5,trigger,trigger,115
+haze_h1_classification,linear,probability >= 0.5,no trigger,no trigger,6891
+haze_h1_classification,linear,probability >= 0.5,no trigger,trigger,0
+haze_h1_classification,linear,probability >= 0.5,trigger,no trigger,93
+haze_h1_classification,linear,probability >= 0.5,trigger,trigger,51
+haze_h1_classification,random_forest,probability >= 0.5,no trigger,no trigger,6769
+haze_h1_classification,random_forest,probability >= 0.5,no trigger,trigger,122
+haze_h1_classification,random_forest,probability >= 0.5,trigger,no trigger,6
+haze_h1_classification,random_forest,probability >= 0.5,trigger,trigger,138
+haze_h1_classification,hist_gbm,probability >= 0.5,no trigger,no trigger,6883
+haze_h1_classification,hist_gbm,probability >= 0.5,no trigger,trigger,8
+haze_h1_classification,hist_gbm,probability >= 0.5,trigger,no trigger,124
+haze_h1_classification,hist_gbm,probability >= 0.5,trigger,trigger,20
+haze_h1_classification,xgboost,probability >= 0.5,no trigger,no trigger,6850
+haze_h1_classification,xgboost,probability >= 0.5,no trigger,trigger,41
+haze_h1_classification,xgboost,probability >= 0.5,trigger,no trigger,33
+haze_h1_classification,xgboost,probability >= 0.5,trigger,trigger,111
+haze_h1_classification,lightgbm,probability >= 0.5,no trigger,no trigger,6842
+haze_h1_classification,lightgbm,probability >= 0.5,no trigger,trigger,49
+haze_h1_classification,lightgbm,probability >= 0.5,trigger,no trigger,24
+haze_h1_classification,lightgbm,probability >= 0.5,trigger,trigger,120
+haze_h1_classification,mlp,probability >= 0.5,no trigger,no trigger,6786
+haze_h1_classification,mlp,probability >= 0.5,no trigger,trigger,105
+haze_h1_classification,mlp,probability >= 0.5,trigger,no trigger,9
+haze_h1_classification,mlp,probability >= 0.5,trigger,trigger,135
+haze_h7_regression,climatology,reading >= 101,no trigger,no trigger,6891
+haze_h7_regression,climatology,reading >= 101,no trigger,trigger,0
+haze_h7_regression,climatology,reading >= 101,trigger,no trigger,144
+haze_h7_regression,climatology,reading >= 101,trigger,trigger,0
+haze_h7_regression,climatology,tariff band,none,none,6891
+haze_h7_regression,climatology,tariff band,none,from 101,0
+haze_h7_regression,climatology,tariff band,none,from 201,0
+haze_h7_regression,climatology,tariff band,none,from 301,0
+haze_h7_regression,climatology,tariff band,from 101,none,136
+haze_h7_regression,climatology,tariff band,from 101,from 101,0
+haze_h7_regression,climatology,tariff band,from 101,from 201,0
+haze_h7_regression,climatology,tariff band,from 101,from 301,0
+haze_h7_regression,climatology,tariff band,from 201,none,8
+haze_h7_regression,climatology,tariff band,from 201,from 101,0
+haze_h7_regression,climatology,tariff band,from 201,from 201,0
+haze_h7_regression,climatology,tariff band,from 201,from 301,0
+haze_h7_regression,climatology,tariff band,from 301,none,0
+haze_h7_regression,climatology,tariff band,from 301,from 101,0
+haze_h7_regression,climatology,tariff band,from 301,from 201,0
+haze_h7_regression,climatology,tariff band,from 301,from 301,0
+haze_h7_regression,persistence,reading >= 101,no trigger,no trigger,6831
+haze_h7_regression,persistence,reading >= 101,no trigger,trigger,60
+haze_h7_regression,persistence,reading >= 101,trigger,no trigger,60
+haze_h7_regression,persistence,reading >= 101,trigger,trigger,84
+haze_h7_regression,persistence,tariff band,none,none,6831
+haze_h7_regression,persistence,tariff band,none,from 101,59
+haze_h7_regression,persistence,tariff band,none,from 201,1
+haze_h7_regression,persistence,tariff band,none,from 301,0
+haze_h7_regression,persistence,tariff band,from 101,none,60
+haze_h7_regression,persistence,tariff band,from 101,from 101,69
+haze_h7_regression,persistence,tariff band,from 101,from 201,7
+haze_h7_regression,persistence,tariff band,from 101,from 301,0
+haze_h7_regression,persistence,tariff band,from 201,none,0
+haze_h7_regression,persistence,tariff band,from 201,from 101,8
+haze_h7_regression,persistence,tariff band,from 201,from 201,0
+haze_h7_regression,persistence,tariff band,from 201,from 301,0
+haze_h7_regression,persistence,tariff band,from 301,none,0
+haze_h7_regression,persistence,tariff band,from 301,from 101,0
+haze_h7_regression,persistence,tariff band,from 301,from 201,0
+haze_h7_regression,persistence,tariff band,from 301,from 301,0
+haze_h7_regression,linear,reading >= 101,no trigger,no trigger,6872
+haze_h7_regression,linear,reading >= 101,no trigger,trigger,19
+haze_h7_regression,linear,reading >= 101,trigger,no trigger,119
+haze_h7_regression,linear,reading >= 101,trigger,trigger,25
+haze_h7_regression,linear,tariff band,none,none,6872
+haze_h7_regression,linear,tariff band,none,from 101,19
+haze_h7_regression,linear,tariff band,none,from 201,0
+haze_h7_regression,linear,tariff band,none,from 301,0
+haze_h7_regression,linear,tariff band,from 101,none,116
+haze_h7_regression,linear,tariff band,from 101,from 101,20
+haze_h7_regression,linear,tariff band,from 101,from 201,0
+haze_h7_regression,linear,tariff band,from 101,from 301,0
+haze_h7_regression,linear,tariff band,from 201,none,3
+haze_h7_regression,linear,tariff band,from 201,from 101,5
+haze_h7_regression,linear,tariff band,from 201,from 201,0
+haze_h7_regression,linear,tariff band,from 201,from 301,0
+haze_h7_regression,linear,tariff band,from 301,none,0
+haze_h7_regression,linear,tariff band,from 301,from 101,0
+haze_h7_regression,linear,tariff band,from 301,from 201,0
+haze_h7_regression,linear,tariff band,from 301,from 301,0
+haze_h7_regression,random_forest,reading >= 101,no trigger,no trigger,6859
+haze_h7_regression,random_forest,reading >= 101,no trigger,trigger,32
+haze_h7_regression,random_forest,reading >= 101,trigger,no trigger,98
+haze_h7_regression,random_forest,reading >= 101,trigger,trigger,46
+haze_h7_regression,random_forest,tariff band,none,none,6859
+haze_h7_regression,random_forest,tariff band,none,from 101,32
+haze_h7_regression,random_forest,tariff band,none,from 201,0
+haze_h7_regression,random_forest,tariff band,none,from 301,0
+haze_h7_regression,random_forest,tariff band,from 101,none,97
+haze_h7_regression,random_forest,tariff band,from 101,from 101,39
+haze_h7_regression,random_forest,tariff band,from 101,from 201,0
+haze_h7_regression,random_forest,tariff band,from 101,from 301,0
+haze_h7_regression,random_forest,tariff band,from 201,none,1
+haze_h7_regression,random_forest,tariff band,from 201,from 101,7
+haze_h7_regression,random_forest,tariff band,from 201,from 201,0
+haze_h7_regression,random_forest,tariff band,from 201,from 301,0
+haze_h7_regression,random_forest,tariff band,from 301,none,0
+haze_h7_regression,random_forest,tariff band,from 301,from 101,0
+haze_h7_regression,random_forest,tariff band,from 301,from 201,0
+haze_h7_regression,random_forest,tariff band,from 301,from 301,0
+haze_h7_regression,hist_gbm,reading >= 101,no trigger,no trigger,6873
+haze_h7_regression,hist_gbm,reading >= 101,no trigger,trigger,18
+haze_h7_regression,hist_gbm,reading >= 101,trigger,no trigger,121
+haze_h7_regression,hist_gbm,reading >= 101,trigger,trigger,23
+haze_h7_regression,hist_gbm,tariff band,none,none,6873
+haze_h7_regression,hist_gbm,tariff band,none,from 101,18
+haze_h7_regression,hist_gbm,tariff band,none,from 201,0
+haze_h7_regression,hist_gbm,tariff band,none,from 301,0
+haze_h7_regression,hist_gbm,tariff band,from 101,none,117
+haze_h7_regression,hist_gbm,tariff band,from 101,from 101,19
+haze_h7_regression,hist_gbm,tariff band,from 101,from 201,0
+haze_h7_regression,hist_gbm,tariff band,from 101,from 301,0
+haze_h7_regression,hist_gbm,tariff band,from 201,none,4
+haze_h7_regression,hist_gbm,tariff band,from 201,from 101,4
+haze_h7_regression,hist_gbm,tariff band,from 201,from 201,0
+haze_h7_regression,hist_gbm,tariff band,from 201,from 301,0
+haze_h7_regression,hist_gbm,tariff band,from 301,none,0
+haze_h7_regression,hist_gbm,tariff band,from 301,from 101,0
+haze_h7_regression,hist_gbm,tariff band,from 301,from 201,0
+haze_h7_regression,hist_gbm,tariff band,from 301,from 301,0
+haze_h7_regression,xgboost,reading >= 101,no trigger,no trigger,6889
+haze_h7_regression,xgboost,reading >= 101,no trigger,trigger,2
+haze_h7_regression,xgboost,reading >= 101,trigger,no trigger,141
+haze_h7_regression,xgboost,reading >= 101,trigger,trigger,3
+haze_h7_regression,xgboost,tariff band,none,none,6889
+haze_h7_regression,xgboost,tariff band,none,from 101,2
+haze_h7_regression,xgboost,tariff band,none,from 201,0
+haze_h7_regression,xgboost,tariff band,none,from 301,0
+haze_h7_regression,xgboost,tariff band,from 101,none,133
+haze_h7_regression,xgboost,tariff band,from 101,from 101,3
+haze_h7_regression,xgboost,tariff band,from 101,from 201,0
+haze_h7_regression,xgboost,tariff band,from 101,from 301,0
+haze_h7_regression,xgboost,tariff band,from 201,none,8
+haze_h7_regression,xgboost,tariff band,from 201,from 101,0
+haze_h7_regression,xgboost,tariff band,from 201,from 201,0
+haze_h7_regression,xgboost,tariff band,from 201,from 301,0
+haze_h7_regression,xgboost,tariff band,from 301,none,0
+haze_h7_regression,xgboost,tariff band,from 301,from 101,0
+haze_h7_regression,xgboost,tariff band,from 301,from 201,0
+haze_h7_regression,xgboost,tariff band,from 301,from 301,0
+haze_h7_regression,lightgbm,reading >= 101,no trigger,no trigger,6862
+haze_h7_regression,lightgbm,reading >= 101,no trigger,trigger,29
+haze_h7_regression,lightgbm,reading >= 101,trigger,no trigger,104
+haze_h7_regression,lightgbm,reading >= 101,trigger,trigger,40
+haze_h7_regression,lightgbm,tariff band,none,none,6862
+haze_h7_regression,lightgbm,tariff band,none,from 101,29
+haze_h7_regression,lightgbm,tariff band,none,from 201,0
+haze_h7_regression,lightgbm,tariff band,none,from 301,0
+haze_h7_regression,lightgbm,tariff band,from 101,none,98
+haze_h7_regression,lightgbm,tariff band,from 101,from 101,38
+haze_h7_regression,lightgbm,tariff band,from 101,from 201,0
+haze_h7_regression,lightgbm,tariff band,from 101,from 301,0
+haze_h7_regression,lightgbm,tariff band,from 201,none,6
+haze_h7_regression,lightgbm,tariff band,from 201,from 101,2
+haze_h7_regression,lightgbm,tariff band,from 201,from 201,0
+haze_h7_regression,lightgbm,tariff band,from 201,from 301,0
+haze_h7_regression,lightgbm,tariff band,from 301,none,0
+haze_h7_regression,lightgbm,tariff band,from 301,from 101,0
+haze_h7_regression,lightgbm,tariff band,from 301,from 201,0
+haze_h7_regression,lightgbm,tariff band,from 301,from 301,0
+haze_h7_regression,mlp,reading >= 101,no trigger,no trigger,6891
+haze_h7_regression,mlp,reading >= 101,no trigger,trigger,0
+haze_h7_regression,mlp,reading >= 101,trigger,no trigger,144
+haze_h7_regression,mlp,reading >= 101,trigger,trigger,0
+haze_h7_regression,mlp,tariff band,none,none,6891
+haze_h7_regression,mlp,tariff band,none,from 101,0
+haze_h7_regression,mlp,tariff band,none,from 201,0
+haze_h7_regression,mlp,tariff band,none,from 301,0
+haze_h7_regression,mlp,tariff band,from 101,none,136
+haze_h7_regression,mlp,tariff band,from 101,from 101,0
+haze_h7_regression,mlp,tariff band,from 101,from 201,0
+haze_h7_regression,mlp,tariff band,from 101,from 301,0
+haze_h7_regression,mlp,tariff band,from 201,none,8
+haze_h7_regression,mlp,tariff band,from 201,from 101,0
+haze_h7_regression,mlp,tariff band,from 201,from 201,0
+haze_h7_regression,mlp,tariff band,from 201,from 301,0
+haze_h7_regression,mlp,tariff band,from 301,none,0
+haze_h7_regression,mlp,tariff band,from 301,from 101,0
+haze_h7_regression,mlp,tariff band,from 301,from 201,0
+haze_h7_regression,mlp,tariff band,from 301,from 301,0
+haze_h7_classification,climatology,probability >= 0.5,no trigger,no trigger,6891
+haze_h7_classification,climatology,probability >= 0.5,no trigger,trigger,0
+haze_h7_classification,climatology,probability >= 0.5,trigger,no trigger,144
+haze_h7_classification,climatology,probability >= 0.5,trigger,trigger,0
+haze_h7_classification,persistence,probability >= 0.5,no trigger,no trigger,6831
+haze_h7_classification,persistence,probability >= 0.5,no trigger,trigger,60
+haze_h7_classification,persistence,probability >= 0.5,trigger,no trigger,60
+haze_h7_classification,persistence,probability >= 0.5,trigger,trigger,84
+haze_h7_classification,linear,probability >= 0.5,no trigger,no trigger,6891
+haze_h7_classification,linear,probability >= 0.5,no trigger,trigger,0
+haze_h7_classification,linear,probability >= 0.5,trigger,no trigger,144
+haze_h7_classification,linear,probability >= 0.5,trigger,trigger,0
+haze_h7_classification,random_forest,probability >= 0.5,no trigger,no trigger,6891
+haze_h7_classification,random_forest,probability >= 0.5,no trigger,trigger,0
+haze_h7_classification,random_forest,probability >= 0.5,trigger,no trigger,144
+haze_h7_classification,random_forest,probability >= 0.5,trigger,trigger,0
+haze_h7_classification,hist_gbm,probability >= 0.5,no trigger,no trigger,6780
+haze_h7_classification,hist_gbm,probability >= 0.5,no trigger,trigger,111
+haze_h7_classification,hist_gbm,probability >= 0.5,trigger,no trigger,72
+haze_h7_classification,hist_gbm,probability >= 0.5,trigger,trigger,72
+haze_h7_classification,xgboost,probability >= 0.5,no trigger,no trigger,6800
+haze_h7_classification,xgboost,probability >= 0.5,no trigger,trigger,91
+haze_h7_classification,xgboost,probability >= 0.5,trigger,no trigger,57
+haze_h7_classification,xgboost,probability >= 0.5,trigger,trigger,87
+haze_h7_classification,lightgbm,probability >= 0.5,no trigger,no trigger,6891
+haze_h7_classification,lightgbm,probability >= 0.5,no trigger,trigger,0
+haze_h7_classification,lightgbm,probability >= 0.5,trigger,no trigger,144
+haze_h7_classification,lightgbm,probability >= 0.5,trigger,trigger,0
+haze_h7_classification,mlp,probability >= 0.5,no trigger,no trigger,6868
+haze_h7_classification,mlp,probability >= 0.5,no trigger,trigger,23
+haze_h7_classification,mlp,probability >= 0.5,trigger,no trigger,140
+haze_h7_classification,mlp,probability >= 0.5,trigger,trigger,4
+heat_h0_classification,catboost,probability >= 0.5,no trigger,no trigger,4332
+heat_h0_classification,catboost,probability >= 0.5,no trigger,trigger,277
+heat_h0_classification,catboost,probability >= 0.5,trigger,no trigger,191
+heat_h0_classification,catboost,probability >= 0.5,trigger,trigger,83
