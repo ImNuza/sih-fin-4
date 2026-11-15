@@ -1,0 +1,17 @@
+/* Sign-in and sign-up page (/login/). Tokens in /theme.css, shared parts in /ui.css. */
+.auth { max-width: 500px; }
+.auth-title { font: 700 var(--t-2xl)/1.15 var(--sans); letter-spacing: -0.02em; margin: var(--s-5) 0 0; }
+.roletabs {
+  display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: var(--r-md);
+  width: fit-content; margin: var(--s-4) 0 var(--s-5); background: var(--surface);
+}
+.roletabs button {
+  appearance: none; border: 0; background: transparent; color: var(--ink-2); cursor: pointer;
+  font: 600 var(--t-base) var(--sans); padding: 10px 16px; border-radius: 7px;
+}
+.roletabs button.on { background: var(--ink); color: var(--surface); }
+.switchline { font-size: var(--t-sm); color: var(--muted); margin: var(--s-4) 0 0; }
+.linklike {
+  appearance: none; background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--ink); font: 600 var(--t-sm) var(--sans); text-decoration: underline; text-underline-offset: 3px;
+}

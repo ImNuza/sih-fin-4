@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Style guide · SafeDay</title>
+    <meta name="robots" content="noindex" />
+    <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
+    <link rel="stylesheet" href="/theme.css?v=5" />
+    <link rel="stylesheet" href="/ui.css?v=1" />
+    <script src="/ui.js?v=1" defer></script>
+    <style>
+      .sg h2.sg-h { font: var(--w-bold) var(--t-xl)/1.2 var(--sans); margin: var(--s-7) 0 var(--s-4); }
+      .sg .row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+      .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--s-2); }
+      .swatch { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; background: var(--surface); font-size: var(--t-xs); }
+      .swatch i { display: block; height: 52px; }
+      .swatch span { display: block; padding: 6px 8px; color: var(--muted); }
+      .types > * + * { margin-top: var(--s-3); }
+    </style>
+  </head>
+  <body>
+    <header class="topnav">
+      <a class="brand" href="/"><span class="brand-mark"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg></span>SafeDay</a>
+      <nav aria-label="Main">
+        <a href="/map/"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#map"/></svg><span class="label-wide">Risk atlas</span></a>
+        <a href="/styleguide/" aria-current="page"><span class="label-wide">Style guide</span></a>
+        <span class="who"><span class="avatar">AM</span><span class="who-text">Arjun Menon · Income Insurance</span></span>
+        <button class="theme-toggle" id="sg-theme" type="button" aria-label="Switch theme"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#moon"/></svg></button>
+        <button class="btn small" type="button"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#log-out"/></svg><span class="label-wide">Sign out</span></button>
+      </nav>
+    </header>
+
+    <main class="sg">
+      <h1 class="page-title">SafeDay style guide</h1>
+      <p class="page-sub">Every shared part from /theme.css, /ui.css and /ui.js. Build screens from these. The rules are in DESIGN.md.</p>
+
+      <h2 class="sg-h">Colour</h2>
+      <div class="swatches" id="swatches"></div>
+
+      <h2 class="sg-h">Type</h2>
+      <div class="types card">
+        <p style="font: var(--w-light) var(--t-display)/1.04 var(--sans); letter-spacing: -0.03em">Display 300</p>
+        <p class="page-title">Page title 32 bold</p>
+        <p style="font: var(--w-bold) var(--t-xl)/1.2 var(--sans)">Section 24 bold</p>
+        <p style="font: var(--w-bold) var(--t-lg)/1.25 var(--sans)">Card title 20 bold</p>
+        <p>Body 16 regular. SafeDay pays a fixed amount on days when NEA readings show haze, heavy rain, extreme heat or a flood alert.</p>
+        <p class="fine">Fine 14 muted. Data: NEA via data.gov.sg.</p>
+        <p class="num" style="font-size: var(--t-lg)">S$1,234,567.89 · 12.5% · 2026-11-15</p>
+      </div>
+
+      <h2 class="sg-h">Buttons</h2>
+      <div class="row">
+        <button class="btn primary" type="button">Get covered</button>
+        <button class="btn" type="button">Secondary action</button>
+        <button class="btn secondary" type="button">Soft accent</button>
+        <button class="btn ghost" type="button">Ghost</button>
+        <button class="btn quiet" type="button">Quiet link</button>
+        <button class="btn danger" type="button">Decline</button>
+        <button class="btn primary" type="button" aria-busy="true">Saving</button>
+        <button class="btn primary" type="button" disabled>Disabled</button>
+        <button class="btn small" type="button"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#maximize-2"/></svg>Open full screen</button>
+        <button class="icon-btn" type="button" aria-label="Close"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#x"/></svg></button>
+      </div>
+
+      <h2 class="sg-h">Fields</h2>
+      <div class="card" style="max-width: 560px">
+        <form onsubmit="return false">
+          <label>Business name<input value="Ah Seng Chicken Rice" /><span class="hint">As shown on your licence.</span></label>
+          <label>Region<select><option>Central</option><option>East</option></select></label>
+          <label>Postcode<input aria-invalid="true" value="12" /><span class="hint" style="color: var(--critical)">Enter all 6 digits.</span></label>
+          <label class="field">Search<span class="input-icon"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#search"/></svg><input type="search" placeholder="Search businesses" /></span></label>
+          <div class="segmented" role="tablist"><button class="on" type="button">I run a small business</button><button type="button">I am the insurer</button></div>
+          <p class="error">Could not sign in: the password is wrong.</p>
+        </form>
+      </div>
+
+      <h2 class="sg-h">KPI strip</h2>
+      <div class="kpis">
+        <div class="kpi"><div class="k">Policies in force <button type="button" class="help" data-tip="Policies that are paid and past their 30-day waiting period." aria-label="Policies that are paid and past their 30-day waiting period."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button></div><div class="v num">214</div><div class="n">200 demo · 14 sold here</div></div>
+        <div class="kpi"><div class="k">Premium booked</div><div class="v num">S$148,320/yr</div><div class="n">S$2,852/wk</div></div>
+        <div class="kpi"><div class="k">Payout exposure</div><div class="v num">S$9,840/day</div><div class="n">if every policy pays in full</div></div>
+        <div class="kpi"><div class="k">Worst live loss now</div><div class="v"><span class="skeleton value"></span></div><div class="n"><span class="skeleton line" style="width:70%"></span></div></div>
+      </div>
+
+      <h2 class="sg-h">Data table</h2>
+      <div class="table-tools">
+        <label class="input-icon" style="margin:0"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#search"/></svg><input type="search" placeholder="Search businesses" aria-label="Search businesses" /></label>
+        <select aria-label="Tier"><option>All tiers</option><option>Tier 1</option></select>
+        <span class="count">3 of 214 policies</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data" id="sg-table">
+          <thead><tr>
+            <th><button class="sort" type="button">Business<svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#arrow-up-down"/></svg></button></th>
+            <th>Region</th>
+            <th>Tier</th>
+            <th class="num"><button class="sort" type="button">Weekly<svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#arrow-up-down"/></svg></button></th>
+            <th class="num"><button class="sort" type="button">Payout/day<svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#arrow-up-down"/></svg></button> <button type="button" class="help" data-tip="What SafeDay pays on a full bad day." aria-label="What SafeDay pays on a full bad day."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button></th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody>
+            <tr class="clickable"><td>Ah Seng Chicken Rice <span class="demo-tag">demo</span></td><td>Central</td><td>Tier 2</td><td class="num" data-value="3.05">S$3.05</td><td class="num" data-value="40">S$40.00</td><td><span class="status-pill good">active</span></td></tr>
+            <tr class="clickable"><td>Mei Ling Provision Shop</td><td>East</td><td>Tier 1</td><td class="num" data-value="1.52">S$1.52</td><td class="num" data-value="20">S$20.00</td><td><span class="status-pill warning">waiting</span></td></tr>
+            <tr class="clickable"><td>Rider DEMO-DRV-0718</td><td>North</td><td>Tier 4</td><td class="num" data-value="7.62">S$7.62</td><td class="num" data-value="100">S$100.00</td><td><span class="status-pill critical">referred</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 class="sg-h">Chips, notices, states</h2>
+      <div class="row" style="margin-bottom: var(--s-4)">
+        <span class="chip">neutral</span><span class="chip good">paid</span><span class="chip warning">waiting</span><span class="chip critical">declined</span><span class="chip info">info</span><span class="chip accent">recommended</span>
+        <span class="day-chip day-green">Green day</span><span class="day-chip day-yellow">Yellow day</span><span class="day-chip day-red">Red day</span><span class="day-chip day-none">No loss</span>
+      </div>
+      <div class="stack">
+        <p class="notice"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg><span>Prototype. Designed to sit inside SmartBiz 360 by Income. No money moves.</span></p>
+        <p class="notice warning"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#triangle-alert"/></svg><span><b>Waiting period.</b> Cover starts paying 30 days after the start date.</span></p>
+        <p class="notice critical"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#circle-alert"/></svg><span>Live NEA readings are unavailable. The map shows history only.</span></p>
+        <div class="card flush"><div class="empty"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#users"/></svg><h3>No policies sold yet</h3><p>When a business owner signs up and picks a tier, it lands here with its region and payout exposure.</p><a class="btn small" href="/buy/">Open the buy flow</a></div></div>
+        <div class="row"><button class="btn primary" type="button" id="sg-drawer">Open the policy drawer</button><span class="loading" style="padding:0">Loading readings</span></div>
+      </div>
+
+      <h2 class="sg-h">Tier cards</h2>
+      <div class="tiers-row" style="max-width: 560px">
+        <button class="tier-card" type="button"><span class="t">Tier 1</span><span class="p">S$1.52<small>/wk</small></span><span class="d">S$20 a bad day · up to S$200 a year</span></button>
+        <button class="tier-card" type="button" aria-checked="true"><span class="t">Tier 2</span><span class="p">S$3.05<small>/wk</small></span><span class="d">S$40 a bad day · up to S$600 a year</span></button>
+      </div>
+    </main>
+    <footer class="sitefoot"><div class="inner">Data: NEA, URA and PUB via data.gov.sg (Singapore Open Data Licence).</div></footer>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const tokens = ["--bg", "--surface", "--surface-2", "--sunken", "--ink", "--ink-2", "--muted", "--line", "--line-strong",
+          "--accent", "--accent-hover", "--accent-fill", "--accent-soft", "--accent-soft-2", "--info", "--info-soft",
+          "--good", "--good-soft", "--warning", "--warning-soft", "--critical", "--critical-soft",
+          "--heat", "--rain", "--haze", "--flood"];
+        document.getElementById("swatches").innerHTML = tokens.map((t) =>
+          `<div class="swatch"><i style="background: var(${t})"></i><span>${t}</span></div>`).join("");
+        SafeUI.sortable(document.getElementById("sg-table"));
+        document.getElementById("sg-theme").addEventListener("click", () => {
+          const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+          document.documentElement.dataset.theme = next;
+          try { localStorage.setItem("safeday-theme", next); } catch {}
+        });
+        document.getElementById("sg-drawer").addEventListener("click", () => SafeUI.openDrawer({
+          title: "Ah Seng Chicken Rice",
+          subtitle: "Maxwell Food Centre · Central · Tier 2",
+          body: `<section><h3>Cover</h3><div class="kv"><span class="k">Weekly premium</span><span class="v num">S$3.05</span></div>
+            <div class="kv"><span class="k">Payout on a full bad day</span><span class="v num">S$40.00</span></div>
+            <div class="kv"><span class="k">Most it can pay in a year</span><span class="v num">S$600.00</span></div></section>
+            <p class="notice"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg><span>Demo policy for the pitch.</span></p>`,
+        }));
+      });
+    </script>
+  </body>
+</html>

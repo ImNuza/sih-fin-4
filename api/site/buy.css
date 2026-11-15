@@ -1,0 +1,86 @@
+/* Buy flow (/buy/). Tokens in /theme.css, shared parts in /ui.css. */
+.prototype {
+  margin: 0; padding: var(--s-2) var(--s-5); text-align: center; font-size: var(--t-sm); font-weight: 500;
+  background: var(--accent-soft); color: var(--ink); border-bottom: 1px solid var(--line);
+}
+.buy { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--s-6); align-items: start; max-width: 1060px; }
+.buy-title { font: 700 var(--t-2xl)/1.15 var(--sans); letter-spacing: -0.02em; margin: var(--s-4) 0 var(--s-4); }
+.buy-title span { display: block; font: 500 var(--t-lg)/1.3 var(--sans); color: var(--ink-2); letter-spacing: 0; margin-top: var(--s-1); }
+.progress { height: 6px; border-radius: var(--r-pill); background: var(--surface-2); overflow: hidden; }
+.progress .bar { height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width 0.3s ease; }
+@media (prefers-reduced-motion: reduce) { .progress .bar { transition: none; } }
+.stepper { list-style: none; display: flex; gap: var(--s-2); padding: 0; margin: var(--s-3) 0 var(--s-4); flex-wrap: wrap; }
+.stepper li { font-size: var(--t-sm); font-weight: 500; color: var(--muted); padding: 4px 12px; border-radius: var(--r-pill); border: 1px solid transparent; }
+.stepper li.on { color: var(--accent-ink); background: var(--accent); }
+.stepper li.done { color: var(--ink); border-color: var(--line); }
+.stepper li.done::before { content: "✓ "; }
+.stepper li.skip { text-decoration: line-through; opacity: 0.6; }
+.buy-card { padding: var(--s-6); }
+.buy-card h2 { font: 700 var(--t-xl)/1.2 var(--sans); margin-bottom: var(--s-4); }
+.step-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; }
+.buy-card textarea {
+  display: block; width: 100%; margin-top: var(--s-1); background: var(--bg); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; font: var(--t-base) var(--sans);
+}
+.buy-card label .fine { display: block; font-weight: 400; margin-top: var(--s-1); }
+.statement {
+  font-size: var(--t-sm); line-height: 1.5; color: var(--ink); background: var(--accent-soft);
+  border: 1px solid var(--accent); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4);
+}
+.choice { border: 0; padding: 0; margin: var(--s-4) 0; }
+.choice legend { font-size: var(--t-sm); font-weight: 600; color: var(--ink-2); margin-bottom: var(--s-2); }
+.choice label {
+  display: inline-flex; align-items: center; gap: var(--s-2); margin: 0 var(--s-2) var(--s-2) 0;
+  padding: 9px 18px 9px 12px; border: 1px solid var(--line); border-radius: var(--r-pill);
+  font-size: var(--t-base); color: var(--ink); cursor: pointer; background: var(--surface);
+}
+.choice label:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.choice input, .check input, .addon-head input { display: inline-block; width: auto; margin: 0; accent-color: var(--accent); }
+.package { border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s-4); margin-bottom: var(--s-3); background: var(--bg); }
+.package-head { font-weight: 700; margin-bottom: var(--s-1); }
+.package .tick { color: var(--good); margin-right: var(--s-1); }
+.addon { border: 2px dashed var(--accent); border-radius: var(--r-md); padding: var(--s-4); background: var(--surface); }
+.addon.on { border-style: solid; background: var(--accent-soft); }
+.addon-head { display: flex; gap: var(--s-3); align-items: flex-start; margin: 0; cursor: pointer; color: var(--ink); }
+.addon-head input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.addon-head b { display: block; font-size: var(--t-md); margin-bottom: 2px; }
+.addon-head .fine { display: block; font-weight: 400; }
+#addon-body { margin-top: var(--s-3); }
+.declare { margin-top: var(--s-5); border-top: 1px solid var(--line); padding-top: var(--s-4); }
+.check { display: flex !important; gap: var(--s-3); align-items: flex-start; font-weight: 400 !important; color: var(--ink) !important; cursor: pointer; }
+.check input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
+.optins { display: flex; gap: var(--s-5); }
+.optins .check { margin: var(--s-2) 0; }
+.due { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); padding: var(--s-4); border-radius: var(--r-md); background: var(--accent-soft); margin-bottom: var(--s-2); }
+.due b { font: 700 var(--t-2xl)/1 var(--sans); }
+#summary { margin-bottom: var(--s-3); }
+.buy-actions { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); margin-top: var(--s-5); }
+.buy-actions #buy-next { margin-left: auto; min-width: 160px; }
+[data-step="done"] h2 { color: var(--ink); }
+[data-step="done"] p { margin-bottom: var(--s-3); color: var(--ink-2); }
+[data-step="done"] .btn { margin-top: var(--s-4); }
+.buy-side { position: sticky; top: 76px; margin-top: 88px; }
+.buy-side h2 { font-size: var(--t-md); margin-top: var(--s-4); }
+.buy-side ul { padding-left: 18px; font-size: var(--t-sm); }
+.side-time { display: inline-block; font-size: var(--t-sm); font-weight: 700; padding: 4px 12px; border-radius: var(--r-pill); background: var(--accent-soft); }
+
+@media (max-width: 900px) {
+  .buy { grid-template-columns: 1fr; }
+  .buy-side { position: static; margin-top: 0; }
+}
+@media (max-width: 640px) { .buy-card { padding: var(--s-4); } }
+/* ---------- buy flow: business classes, term and the PayNow QR ---------- */
+.step-tools { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.paynow { display: flex; gap: var(--s-4); align-items: center; flex-wrap: wrap; margin: var(--s-4) 0; }
+.paynow img { width: 220px; height: 220px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s-2); }
+.paynow figcaption { display: flex; flex-direction: column; gap: var(--s-2); max-width: 280px; font-size: var(--t-sm); color: var(--ink-2); }
+
+.why-price { margin: 0 0 var(--s-3); }
+.why-price summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+.why-price p { margin: var(--s-2) 0; }
+.why-steps td { padding: var(--s-1) var(--s-2); }
+.why-steps .total td { font-weight: 700; border-top: 2px solid var(--line); }
+.what-pays { margin: 0 0 var(--s-3); padding: var(--s-3) var(--s-4); border: 1px solid var(--line); border-radius: var(--r-sm); }
+.what-pays h3 { margin: 0 0 var(--s-2); font-size: var(--t-base); }
+.what-pays ul { margin: 0; padding-left: var(--s-5); }
+.what-pays li { margin: var(--s-1) 0; }

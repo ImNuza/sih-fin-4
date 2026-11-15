@@ -1,33 +1,74 @@
-/* SafeDay shared theme: one palette, type scale and spacing scale for the landing, login,
-   buy flow, dashboards, risk map and tariff desk. Served at /theme.css; every page links it first.
-   SafeDay is pitched as an add-on inside Income Insurance's SmartBiz 360, so the values below come
-   from Income's own design tokens in https://www.income.com.sg/assets/css/main.css, the stylesheet
-   that both https://www.income.com.sg and
-   https://www.income.com.sg/commercial-insurance/smartbiz-360 load (read 15 Nov 2026):
-   - neutrals: --color-neutral-100 #f7f7f7 to -900 #262727 and -black #121212
-   - brand orange: --color-orange-500 #f57100, -700 #b35300, -100 #fff2e8, -900 #35210f
-   - status: --color-green-500/-700/-100/-900, --color-red-300/-600/-100/-900, --color-yellow-400
-   - type: Ubuntu, body 16px, small 14px, section 24px, title 36px, display 56px
-   - shape: --rounded-sm 8px, --page-corner-radius 16px, --rounded-lg 24px, pill buttons, and
-     --box-shadow-1 for raised cards
-   Income buttons are white on #f57100, which is 2.9:1. Light mode uses orange-700 so button text
-   and orange labels pass 4.5:1 on a projector. Income has no dark theme, so dark mode uses its
-   darkest neutrals with the full brand orange. Ubuntu is used only when installed: the hosted copy
-   loads no web fonts. Hazards keep their own colours, and heat is red so it never reads as an
-   action. No Income logo, wordmark or imagery is used. Amber warning and burnt-orange serious are
-   our own: Income's yellow and orange tokens fail 4.5:1 as text on white. */
-:root {
-  --sans: "Ubuntu", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+/* SafeDay shared theme: fonts, colour, type, spacing, shape and motion tokens for the landing,
+   login, buy flow, dashboards, risk map and tariff desk. Served at /theme.css; every page links it
+   first, then /ui.css for the shared components. The full rules are in DESIGN.md.
 
+   SafeDay is pitched as an add-on inside Income Insurance's SmartBiz 360, so the brand scales come
+   from Income's own design tokens in https://www.income.com.sg/assets/css/main.css (read 15 Nov
+   2026): --color-orange-100 to -900, --color-blue-100 to -900, green, red and yellow. Income's type
+   is Ubuntu; it ships here as self-hosted files in /vendor/fonts (Ubuntu Font Licence), so it shows
+   on every machine and the site loads nothing from another host.
+
+   Our own additions: neutrals are warmed slightly toward the orange, blue is the second colour for
+   information and data (never for actions), and amber warning and burnt-orange serious replace
+   Income's yellow and orange as text because those fail 4.5:1 on white. Income buttons are white
+   on orange-500 (2.9:1); light mode uses orange-700 so button text passes 4.5:1 on a projector.
+   Hazards keep their own colours, and heat is red so it never reads as an action. No Income logo,
+   wordmark or imagery is used. */
+
+@font-face { font-family: "Ubuntu"; font-style: normal; font-weight: 300; font-display: swap; src: url("/vendor/fonts/ubuntu-300.woff2") format("woff2"); }
+@font-face { font-family: "Ubuntu"; font-style: normal; font-weight: 400; font-display: swap; src: url("/vendor/fonts/ubuntu-400.woff2") format("woff2"); }
+@font-face { font-family: "Ubuntu"; font-style: normal; font-weight: 500; font-display: swap; src: url("/vendor/fonts/ubuntu-500.woff2") format("woff2"); }
+@font-face { font-family: "Ubuntu"; font-style: normal; font-weight: 700; font-display: swap; src: url("/vendor/fonts/ubuntu-700.woff2") format("woff2"); }
+@font-face { font-family: "Ubuntu Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/vendor/fonts/ubuntu-mono-400.woff2") format("woff2"); }
+
+:root {
+  /* ---------- primitives: Income's scales ---------- */
+  --orange-100: #fff2e8; --orange-200: #ffe3cb; --orange-300: #ffbf87; --orange-400: #ff9f4e;
+  --orange-500: #f57100; --orange-600: #e46a00; --orange-700: #b35300; --orange-800: #592900;
+  --orange-900: #35210f;
+  --blue-100: #e5f1fa; --blue-200: #d6edfe; --blue-300: #a2d8ff; --blue-400: #6bbbf5;
+  --blue-500: #0087e2; --blue-600: #0072c1; --blue-700: #005c9e; --blue-800: #00467a;
+  --blue-900: #003055;
+  --green-100: #effaf5; --green-500: #4bce97; --green-600: #26874b; --green-700: #0b5234; --green-900: #151e1a;
+  --red-100: #ffe9e7; --red-300: #e48780; --red-600: #ab2c23; --red-900: #241615;
+  --yellow-100: #fdf8e2; --yellow-400: #edc536;
+
+  /* warm neutrals: Income's greys nudged toward the orange (our own) */
+  --warm-0: #ffffff;
+  --warm-50: #faf9f7;
+  --warm-100: #f5f3ef;
+  --warm-200: #ebe8e3;
+  --warm-300: #ddd9d2;
+  --warm-400: #bfbab2;
+  --warm-500: #8c8780;
+  --warm-600: #5e5a54;
+  --warm-700: #474440;
+  --warm-800: #33302d;
+  --warm-850: #262422;
+  --warm-900: #1d1b19;
+  --warm-950: #141311;
+
+  /* ---------- type ---------- */
+  --sans: "Ubuntu", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Ubuntu Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --code: var(--mono);
+
+  --t-xs: 12px;
   --t-sm: 14px;
   --t-base: 16px;
   --t-md: 18px;
   --t-lg: 20px;
   --t-xl: 24px;
-  --t-2xl: 36px;
-  --t-display: clamp(36px, 4.6vw, 56px);
+  --t-2xl: 32px;
+  --t-3xl: 40px;
+  --t-display: clamp(40px, 5.2vw, 64px);
 
+  --w-light: 300;
+  --w-regular: 400;
+  --w-medium: 500;
+  --w-bold: 700;
+
+  /* ---------- space and shape ---------- */
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
@@ -35,89 +76,172 @@
   --s-5: 24px;
   --s-6: 32px;
   --s-7: 48px;
+  --s-8: 64px;
 
+  --r-xs: 6px;
   --r-sm: 8px;
-  --r-md: 16px;
-  --r-lg: 24px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
   --r-pill: 999px;
 
+  --page-max: 1200px;
+  --nav-h: 60px;
+
+  /* ---------- motion (Emil Kowalski's curves) ---------- */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 140ms;
+  --dur-fast: 160ms;
+  --dur-base: 220ms;
+  --dur-drawer: 300ms;
+
+  /* ---------- hazards (fixed in both themes) ---------- */
   --heat: #d23a3a;
   --rain: #3d8bef;
   --haze: #9a8cf0;
   --flood: #14a37a;
   --closure: #8d979e;
 
-  --bg: #f7f7f7;
-  --surface: #ffffff;
-  --surface-2: #e0e0e0;
-  --ink: #262727;
-  --ink-2: #494b4c;
-  --muted: #5b5d5e;
-  --line: #d4d4d4;
-  --accent: #b35300;
+  /* ---------- semantic: light ---------- */
+  --bg: var(--warm-100);
+  --surface: var(--warm-0);
+  --surface-2: var(--warm-50);
+  --sunken: var(--warm-200);
+  --ink: var(--warm-900);
+  --ink-2: var(--warm-700);
+  --muted: var(--warm-600);
+  --faint: var(--warm-500);
+  --line: var(--warm-300);
+  --line-strong: var(--warm-400);
+
+  --accent: var(--orange-700);
+  --accent-hover: #9a4700;
+  --accent-press: #853d00;
   --accent-ink: #ffffff;
-  --accent-soft: #fff2e8;
-  --good: #0b5234;
+  --accent-fill: var(--orange-500);
+  --accent-soft: var(--orange-100);
+  --accent-soft-2: var(--orange-200);
+  --accent-line: var(--orange-300);
+
+  --info: var(--blue-700);
+  --info-fill: var(--blue-600);
+  --info-soft: var(--blue-100);
+  --info-line: var(--blue-300);
+
+  --good: var(--green-700);
+  --good-fill: var(--green-600);
+  --good-soft: var(--green-100);
   --warning: #8a6100;
+  --warning-soft: var(--yellow-100);
   --serious: #b4481f;
-  --critical: #ab2c23;
-  --good-soft: #effaf5;
-  --critical-soft: #ffe9e7;
-  --shadow: 0 4px 40px 8px rgba(0, 0, 0, 0.1);
+  --critical: var(--red-600);
+  --critical-soft: var(--red-100);
+
+  --focus: var(--blue-600);
+  --scrim: rgba(20, 19, 17, 0.42);
+
+  --shadow-1: 0 1px 2px rgba(29, 27, 25, 0.06), 0 2px 6px rgba(29, 27, 25, 0.05);
+  --shadow-2: 0 2px 4px rgba(29, 27, 25, 0.05), 0 12px 32px -8px rgba(29, 27, 25, 0.18);
+  --shadow-3: 0 4px 8px rgba(29, 27, 25, 0.06), 0 24px 56px -12px rgba(29, 27, 25, 0.28);
+  --shadow: var(--shadow-2);
+
   color-scheme: light;
 }
+
 :root[data-theme="dark"] {
-  --bg: #121212;
-  --surface: #262727;
-  --surface-2: #373939;
-  --ink: #f7f7f7;
-  --ink-2: #e0e0e0;
-  --muted: #b8b8b8;
-  --line: #494b4c;
-  --accent: #f57100;
-  --accent-ink: #121212;
-  --accent-soft: #35210f;
-  --good: #4bce97;
-  --warning: #edc536;
+  --bg: var(--warm-950);
+  --surface: var(--warm-900);
+  --surface-2: var(--warm-850);
+  --sunken: #0e0d0c;
+  --ink: #f5f3ef;
+  --ink-2: #ddd9d2;
+  --muted: #aca69e;
+  --faint: #857f78;
+  --line: #36322f;
+  --line-strong: #4d4843;
+
+  --accent: var(--orange-500);
+  --accent-hover: var(--orange-400);
+  --accent-press: var(--orange-600);
+  --accent-ink: #141311;
+  --accent-fill: var(--orange-500);
+  --accent-soft: var(--orange-900);
+  --accent-soft-2: #4a2a0c;
+  --accent-line: #7a3d06;
+
+  --info: var(--blue-400);
+  --info-fill: var(--blue-500);
+  --info-soft: #0b2236;
+  --info-line: var(--blue-800);
+
+  --good: var(--green-500);
+  --good-fill: var(--green-500);
+  --good-soft: var(--green-900);
+  --warning: var(--yellow-400);
+  --warning-soft: #272211;
   --serious: #f08a5d;
-  --critical: #e48780;
-  --good-soft: #151e1a;
-  --critical-soft: #241615;
-  --shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.6);
+  --critical: var(--red-300);
+  --critical-soft: var(--red-900);
+
+  --focus: var(--blue-400);
+  --scrim: rgba(0, 0, 0, 0.6);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 12px 32px -8px rgba(0, 0, 0, 0.65);
+  --shadow-3: 0 24px 56px -12px rgba(0, 0, 0, 0.75);
+
   color-scheme: dark;
 }
 
-* { box-sizing: border-box; }
+/* ---------- base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: var(--t-base)/1.5 var(--sans);
+  font: var(--w-regular) var(--t-base)/1.5 var(--sans);
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  caret-color: var(--accent);
+  scrollbar-color: var(--line-strong) transparent;
 }
+h1, h2, h3, h4 { font-weight: var(--w-bold); line-height: 1.2; letter-spacing: -0.015em; text-wrap: balance; }
 input, select, textarea, button { font: inherit; color: inherit; }
-:is(a, button, input, select, textarea, summary):focus-visible {
-  outline: 2px solid var(--ink);
+a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+::selection { background: var(--accent-soft-2); color: var(--ink); }
+:is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color !important;
+  }
 }
 
 /* Day colour label from /day-colour.js: green, yellow and red days pay; grey means no loss. */
 .day-chip {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
   padding: 1px var(--s-2);
   border: 1px solid currentColor;
   border-radius: var(--r-pill);
-  font: 600 var(--t-sm)/1.4 var(--sans);
+  font: var(--w-medium) var(--t-sm)/1.4 var(--sans);
   white-space: nowrap;
   vertical-align: middle;
 }
 .day-chip::before {
   content: "";
-  display: inline-block;
   width: 8px;
   height: 8px;
-  margin-right: var(--s-1);
   border-radius: 50%;
   background: currentColor;
 }
