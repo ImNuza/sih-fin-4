@@ -1,0 +1,298 @@
+{
+ "data_to": "2026-11-07",
+ "models": [
+  {
+   "job": "heat_h0_regression",
+   "name": "Heat rebuild",
+   "target": "the reading",
+   "purpose": "Fills heat for 1980 to 2024, so heat payouts have 46 years of history instead of 2.",
+   "use": "In use: every replay and back-test before 2025.",
+   "model": "random_forest",
+   "score_name": "rmse",
+   "higher_is_better": false,
+   "score": 0.784,
+   "baseline": "climatology",
+   "baseline_score": 0.8645,
+   "confusion": {
+    "TP": 16,
+    "FN": 258,
+    "FP": 15,
+    "TN": 4594
+   },
+   "precision": 0.516,
+   "recall": 0.058
+  },
+  {
+   "job": "heat_h0_classification",
+   "name": "Heat rebuild",
+   "target": "a payout day or not",
+   "purpose": "Fills heat for 1980 to 2024, so heat payouts have 46 years of history instead of 2.",
+   "use": "In use: every replay and back-test before 2025.",
+   "model": "random_forest",
+   "score_name": "average_precision",
+   "higher_is_better": true,
+   "score": 0.1694,
+   "baseline": "climatology",
+   "baseline_score": 0.0577,
+   "confusion": {
+    "TP": 45,
+    "FN": 229,
+    "FP": 141,
+    "TN": 4468
+   },
+   "precision": 0.242,
+   "recall": 0.164
+  },
+  {
+   "job": "heat_h1_regression",
+   "name": "Heat tomorrow",
+   "target": "the reading",
+   "purpose": "Forecasts tomorrow's hot hours.",
+   "use": "Not live: it needs ERA5, which arrives about five days late.",
+   "model": "mlp",
+   "score_name": "rmse",
+   "higher_is_better": false,
+   "score": 0.6895,
+   "baseline": "persistence",
+   "baseline_score": 0.8569,
+   "confusion": {
+    "TP": 64,
+    "FN": 210,
+    "FP": 49,
+    "TN": 4560
+   },
+   "precision": 0.566,
+   "recall": 0.234
+  },
+  {
+   "job": "heat_h1_classification",
+   "name": "Heat tomorrow",
+   "target": "a payout day or not",
+   "purpose": "Forecasts tomorrow's hot hours.",
+   "use": "Not live: it needs ERA5, which arrives about five days late.",
+   "model": "random_forest",
+   "score_name": "average_precision",
+   "higher_is_better": true,
+   "score": 0.4058,
+   "baseline": "persistence",
+   "baseline_score": 0.1733,
+   "confusion": {
+    "TP": 0,
+    "FN": 274,
+    "FP": 0,
+    "TN": 4609
+   },
+   "precision": NaN,
+   "recall": 0.0
+  },
+  {
+   "job": "rain_h0_regression",
+   "name": "Rain rebuild",
+   "target": "the reading",
+   "purpose": "Fills the wettest rain hour for 1980 to 2013 from each gauge's daily total.",
+   "use": "In use: every replay and back-test before 2014.",
+   "model": "lightgbm",
+   "score_name": "rmse",
+   "higher_is_better": false,
+   "score": 2.748,
+   "baseline": "climatology",
+   "baseline_score": 10.0031,
+   "confusion": {
+    "TP": 4975,
+    "FN": 760,
+    "FP": 882,
+    "TN": 65622
+   },
+   "precision": 0.849,
+   "recall": 0.867
+  },
+  {
+   "job": "rain_h0_classification",
+   "name": "Rain rebuild",
+   "target": "a payout day or not",
+   "purpose": "Fills the wettest rain hour for 1980 to 2013 from each gauge's daily total.",
+   "use": "In use: every replay and back-test before 2014.",
+   "model": "xgboost",
+   "score_name": "average_precision",
+   "higher_is_better": true,
+   "score": 0.931,
+   "baseline": "climatology",
+   "baseline_score": 0.0992,
+   "confusion": {
+    "TP": 5602,
+    "FN": 133,
+    "FP": 1658,
+    "TN": 64846
+   },
+   "precision": 0.772,
+   "recall": 0.977
+  },
+  {
+   "job": "rain_h1_regression",
+   "name": "Rain tomorrow",
+   "target": "the reading",
+   "purpose": "Forecasts tomorrow's wettest hour at a gauge.",
+   "use": "Not live: it needs ERA5, and a gauge's rain is hard to call a day ahead.",
+   "model": "random_forest",
+   "score_name": "rmse",
+   "higher_is_better": false,
+   "score": 9.8141,
+   "baseline": "climatology",
+   "baseline_score": 10.0031,
+   "confusion": {
+    "TP": 0,
+    "FN": 5735,
+    "FP": 0,
+    "TN": 66504
+   },
+   "precision": NaN,
+   "recall": 0.0
+  },
+  {
+   "job": "rain_h1_classification",
+   "name": "Rain tomorrow",
+   "target": "a payout day or not",
+   "purpose": "Forecasts tomorrow's wettest hour at a gauge.",
+   "use": "Not live: it needs ERA5, and a gauge's rain is hard to call a day ahead.",
+   "model": "lightgbm",
+   "score_name": "average_precision",
+   "higher_is_better": true,
+   "score": 0.1281,
+   "baseline": "climatology",
+   "baseline_score": 0.0992,
+   "confusion": {
+    "TP": 0,
+    "FN": 5735,
+    "FP": 0,
+    "TN": 66504
+   },
+   "precision": NaN,
+   "recall": 0.0
+  },
+  {
+   "job": "haze_season_count",
+   "name": "Haze days next month",
+   "target": "payout days a month",
+   "purpose": "Forecasts payout days a month per region.",
+   "use": "Not used: the long-run monthly average does as well.",
+   "model": "xgboost",
+   "score_name": "poisson_deviance",
+   "higher_is_better": false,
+   "score": 2.2569,
+   "baseline": "climatology",
+   "baseline_score": 1.8719
+  },
+  {
+   "job": "rain_season_count",
+   "name": "Rain days next month",
+   "target": "payout days a month",
+   "purpose": "Forecasts payout days a month per region.",
+   "use": "Not used: the long-run monthly average does as well.",
+   "model": "random_forest",
+   "score_name": "poisson_deviance",
+   "higher_is_better": false,
+   "score": 0.7219,
+   "baseline": "climatology",
+   "baseline_score": 0.7229
+  },
+  {
+   "job": "haze_h1_regression",
+   "name": "Haze tomorrow",
+   "target": "the reading",
+   "purpose": "Forecasts tomorrow's PSI for warnings and cash planning.",
+   "use": "Not used: it does not beat 'same as today'.",
+   "model": "random_forest",
+   "score_name": "rmse",
+   "higher_is_better": false,
+   "score": 7.9886,
+   "baseline": "persistence",
+   "baseline_score": 8.0237,
+   "confusion": {
+    "TP": 118,
+    "FN": 26,
+    "FP": 35,
+    "TN": 6856
+   },
+   "precision": 0.771,
+   "recall": 0.819
+  },
+  {
+   "job": "haze_h1_classification",
+   "name": "Haze tomorrow",
+   "target": "a payout day or not",
+   "purpose": "Forecasts tomorrow's PSI for warnings and cash planning.",
+   "use": "Not used: it does not beat 'same as today'.",
+   "model": "random_forest",
+   "score_name": "average_precision",
+   "higher_is_better": true,
+   "score": 0.6505,
+   "baseline": "persistence",
+   "baseline_score": 0.6419,
+   "confusion": {
+    "TP": 138,
+    "FN": 6,
+    "FP": 122,
+    "TN": 6769
+   },
+   "precision": 0.531,
+   "recall": 0.958
+  },
+  {
+   "job": "haze_h7_regression",
+   "name": "Haze next week",
+   "target": "the reading",
+   "purpose": "Forecasts PSI a week ahead.",
+   "use": "Not used: it does not beat 'same as today'.",
+   "model": "mlp",
+   "score_name": "rmse",
+   "higher_is_better": false,
+   "score": 15.4885,
+   "baseline": "persistence",
+   "baseline_score": 13.8182,
+   "confusion": {
+    "TP": 0,
+    "FN": 144,
+    "FP": 0,
+    "TN": 6891
+   },
+   "precision": NaN,
+   "recall": 0.0
+  },
+  {
+   "job": "haze_h7_classification",
+   "name": "Haze next week",
+   "target": "a payout day or not",
+   "purpose": "Forecasts PSI a week ahead.",
+   "use": "Not used: it does not beat 'same as today'.",
+   "model": "linear",
+   "score_name": "average_precision",
+   "higher_is_better": true,
+   "score": 0.2428,
+   "baseline": "persistence",
+   "baseline_score": 0.3488,
+   "confusion": {
+    "TP": 0,
+    "FN": 144,
+    "FP": 0,
+    "TN": 6891
+   },
+   "precision": NaN,
+   "recall": 0.0
+  }
+ ],
+ "haze": {
+  "trigger_psi": 101.0,
+  "next_day_bad_share": 0.762,
+  "el_nino_years": [
+   2015,
+   2023,
+   2026
+  ],
+  "haze_days_el_nino": 23.3,
+  "haze_days_other": 1.1,
+  "latest_oni": 2.46,
+  "latest_oni_month": "2026-09",
+  "el_nino_now": true
+ },
+ "sources": "NEA via data.gov.sg, MSS daily records, ERA5 by Copernicus / ECMWF via Open-Meteo (CC BY 4.0), NOAA PSL climate indices."
+}
