@@ -3,172 +3,248 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SafeDay risk atlas</title>
+    <title>Risk atlas · SafeDay</title>
+    <link rel="preload" href="/vendor/fonts/ubuntu-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/theme.css?v=5" />
-    <link rel="stylesheet" href="map.css?v=21" />
+    <link rel="stylesheet" href="/ui.css?v=1" />
+    <link rel="stylesheet" href="map.css?v=22" />
     <script src="vendor/deck.min.js" defer></script>
+    <script src="/ui.js?v=1" defer></script>
     <script src="/day-colour.js?v=2" defer></script>
-    <script src="map.js?v=23" defer></script>
+    <script src="map.js?v=24" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
     <div id="float-layer" hidden></div>
 
-    <header class="topbar">
-      <p class="brand"><a href="/dashboard/" class="backlink" title="Back to your dashboard">‹</a> SafeDay <span>risk atlas</span></p>
-      <nav class="modes" aria-label="Data mode">
-        <button id="mode-history" type="button" class="on">History</button>
-        <button id="mode-sim" type="button">Simulate a day</button>
-        <button id="mode-live" type="button">Live now</button>
-      </nav>
-      <p class="live-state" id="live-state" hidden></p>
-      <div class="actions">
-        <button id="time-open" class="quiet" type="button">⌛ Time machine</button>
-        <button id="about-open" class="quiet" type="button">Method &amp; data</button>
+    <header class="topbar" id="topbar">
+      <a class="brand" href="/">
+        <span class="brand-mark"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg></span>
+        <span>SafeDay</span><span class="brand-sub">Risk atlas</span>
+      </a>
+      <div class="segmented modes" role="group" aria-label="Data mode">
+        <button id="mode-history" type="button" aria-pressed="true">History</button>
+        <button id="mode-sim" type="button" aria-pressed="false">Simulate a day</button>
+        <button id="mode-live" type="button" aria-pressed="false">Live now</button>
       </div>
+      <p class="live-state" id="live-state" role="status" hidden></p>
+      <nav class="actions" aria-label="Atlas tools">
+        <button id="time-open" class="btn small" type="button" aria-label="Time machine">
+          <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#clock"/></svg><span class="label-wide">Time machine</span></button>
+        <button id="about-open" class="btn small" type="button" aria-label="Method and data">
+          <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg><span class="label-wide">Method &amp; data</span></button>
+        <a id="dashboard-link" class="btn small" href="/dashboard/" aria-label="Dashboard" hidden>
+          <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#chevron-left"/></svg><span class="label-wide">Dashboard</span></a>
+      </nav>
     </header>
 
-    <p class="banner" id="flood-banner" role="status" hidden></p>
-
-    <aside class="panel layers" id="layers">
-      <h2><button class="fold" type="button" aria-label="Collapse">▾</button>Layers</h2>
-      <div class="fold-body">
-      <p class="group">Exposure</p>
-      <label><input type="checkbox" id="ly-sme" checked /><i class="sw" style="background:var(--ink)"></i>
-        <span id="sme-label">SMEs · hawker centres</span></label>
-      <p class="note" id="sme-note">Each dot is one hawker centre; a bigger dot has more food stalls. Colour is the pricing result: green covers cheaply, amber needs a co-payer, orange needs an underwriter. In Simulate and Live, the dot shows the day's loss instead: green under 30%, yellow 30% to under 70%, red 70% and above, grey for no payout. Every green, yellow or red day pays.</p>
-      <label class="sub"><input type="checkbox" id="sme-by-rent" /><i class="sw" style="background:linear-gradient(90deg,#606e80,#f4c44e)"></i>
-        <span>Colour by stall rent class</span></label>
-      <p class="note" id="rent-note" hidden>Slate to gold: lower to higher median winning NEA bid for a cooked-food stall (Jan 2019 to Jul 2026). Dark grey: no bid on record. Applies in History mode.</p>
-      <p class="group">Hazard</p>
-      <label><input type="checkbox" id="ly-heat" checked /><i class="sw" style="background:var(--heat)"></i>
-        <span>Heat · WBGT stations</span></label>
-      <p class="note" id="heat-note"></p>
-      <label><input type="checkbox" id="ly-rain" checked /><i class="sw" style="background:var(--rain)"></i>
-        <span>Rain · NEA gauges</span></label>
-      <p class="note" id="rain-note"></p>
-      <label><input type="checkbox" id="ly-haze" checked /><i class="sw" style="background:var(--haze)"></i>
-        <span>Haze · 5 PSI regions</span></label>
-      <p class="note" id="haze-note"></p>
-      <label><input type="checkbox" id="ly-flood" /><i class="sw ring" style="border-color:var(--flood)"></i>
-        <span>Flood · 19 PUB hotspots</span></label>
-      <p class="note">The 19 locations on PUB's flash-flood hotspot list of 2 Feb 2026.</p>
-      <p class="group">Base</p>
-      <label><input type="checkbox" id="ly-bld" checked /><i class="sw" style="background:#454a52"></i>
-        <span>HDB blocks (3D)</span></label>
-      <p class="note">Real block footprints near hawker centres (HDB via data.gov.sg). Heights nominal at the 12-storey HDB median. Appears from Region zoom.</p>
-      <label><input type="checkbox" id="ly-base" checked /><i class="sw" style="background:#243242"></i>
-        <span>Streets · OneMap basemap</span></label>
-      <p class="note">Tiles © OneMap, Singapore Land Authority. Needs internet; every other layer works offline.</p>
-      <label><input type="checkbox" id="ly-pa" checked /><i class="sw" style="background:#3a3e44"></i>
-        <span>Planning areas (URA MP2019)</span></label>
-      </div>
-    </aside>
-
-    <p class="panel zoomchip" id="zoomchip">
-      <button class="cam" id="cam-plan" type="button">Plan</button>
-      <button class="cam on" id="cam-bird" type="button">Bird</button>
-      <button class="cam" id="cam-city" type="button">City</button>
-      <button class="cam" id="cam-orbit" type="button" title="Circle the camera slowly">◌</button>
+    <p class="notice warning banner" id="flood-banner" role="status" hidden>
+      <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#waves"/></svg><span id="flood-text"></span>
     </p>
 
-    <div class="right-stack">
-    <aside class="panel detail" id="detail" hidden>
-      <button class="close" id="detail-close" type="button" aria-label="Close">✕</button>
-      <h2 id="detail-kind">Selection</h2>
-      <div class="body" id="detail-body"></div>
-    </aside>
-    <aside class="panel portfolio" id="portfolio" hidden>
-      <h2><button class="fold" type="button" aria-label="Collapse">▾</button>Portfolio <span class="hint">every food stall insured at</span></h2>
-      <div class="body fold-body">
-        <div class="row"><span>Tier</span><select id="p-tier" aria-label="Portfolio tier"></select></div>
-        <div class="row"><span>Policies (stalls)</span><output id="p-n">–</output></div>
-        <div class="row"><span>Annual premium pool</span><output id="p-prem">–</output></div>
-        <div class="row big"><span id="p-pay-label">Payout on this day</span><output id="p-pay">–</output></div>
-        <p class="note" id="p-note"></p>
-      </div>
-    </aside>
-    <aside class="panel sim" id="sim" hidden>
-      <h2><button class="fold" type="button" aria-label="Collapse">▾</button>Day simulator <span class="hint">what would this day pay?</span></h2>
-      <div class="body">
-        <div class="kyc" id="kyc">
-          <label class="kyc-title" for="kyc-text">Tell us about your shop</label>
-          <textarea id="kyc-text" rows="2" maxlength="500" placeholder="I have a fruit shop at Tiong Bahru market"></textarea>
-          <div class="kyc-row">
-            <input type="file" id="kyc-photo" accept="image/jpeg,image/png,image/webp" aria-label="Photo of the shop (optional)" />
-            <button class="btn-mini" id="kyc-clear" type="button">Clear</button>
-            <button class="btn-mini" id="kyc-submit" type="button">Place my shop</button>
+    <div class="dock">
+      <div class="dock-left">
+        <aside class="panel layers" id="layers" aria-labelledby="layers-title">
+          <h2 class="panel-head">
+            <button class="fold" type="button" aria-expanded="true" aria-controls="layers-body">
+              <span id="layers-title">Layers</span>
+              <svg class="i chev" aria-hidden="true"><use href="/vendor/icons.svg#chevron-down"/></svg>
+            </button>
+          </h2>
+          <div class="fold-body" id="layers-body">
+            <p class="group">Exposure</p>
+            <div class="layer">
+              <label><input type="checkbox" id="ly-sme" checked /><i class="sw sw-sme"></i><span id="sme-label">Hawker centres</span></label>
+              <button type="button" class="help" data-tip="Each dot is one hawker centre; a bigger dot has more food stalls. In History, colour is the pricing result: green covers cheaply, amber needs a co-payer, orange needs an underwriter. In Simulate and Live, colour is the day's loss: green under 30%, yellow 30% to under 70%, red 70% and above, grey for no payout. Every green, yellow or red day pays." aria-label="Each dot is one hawker centre; a bigger dot has more food stalls. In History, colour is the pricing result: green covers cheaply, amber needs a co-payer, orange needs an underwriter. In Simulate and Live, colour is the day's loss: green under 30%, yellow 30% to under 70%, red 70% and above, grey for no payout. Every green, yellow or red day pays."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button>
+            </div>
+            <p class="legend" id="sme-legend"></p>
+            <div class="layer sub">
+              <label><input type="checkbox" id="sme-by-rent" /><i class="sw sw-rent"></i><span>Colour by stall rent</span></label>
+              <button type="button" class="help" data-tip="Slate to gold: lower to higher median winning NEA bid for a cooked-food stall (Jan 2019 to Jul 2026). Dark grey: no bid on record. Applies in History mode." aria-label="Slate to gold: lower to higher median winning NEA bid for a cooked-food stall (Jan 2019 to Jul 2026). Dark grey: no bid on record. Applies in History mode."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button>
+            </div>
+            <p class="legend" id="rent-legend" hidden>
+              <span><i class="sw sw-rent"></i>Lower to higher rent</span><span><i class="sw sw-rent-none"></i>No bid</span>
+            </p>
+
+            <p class="group">Hazard</p>
+            <div class="layer">
+              <label><input type="checkbox" id="ly-heat" checked /><i class="sw sw-heat"></i><span>Heat · WBGT stations</span></label>
+              <button type="button" class="help" data-tip="History: column height is the share of days reaching WBGT 32 °C. Live: work hours at 32 °C or above today." aria-label="History: column height is the share of days reaching WBGT 32 °C. Live: work hours at 32 °C or above today."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button>
+            </div>
+            <div class="layer">
+              <label><input type="checkbox" id="ly-rain" checked /><i class="sw sw-rain"></i><span>Rain · NEA gauges</span></label>
+              <button type="button" class="help" data-tip="History: share of days with a 20 mm work-hour. Live: wettest work hour today." aria-label="History: share of days with a 20 mm work-hour. Live: wettest work hour today."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button>
+            </div>
+            <div class="layer">
+              <label><input type="checkbox" id="ly-haze" checked /><i class="sw sw-haze"></i><span>Haze · 5 PSI regions</span></label>
+              <button type="button" class="help" data-tip="History: expected haze loss-days by region. Simulate and Live: region lift is the 24-hour PSI." aria-label="History: expected haze loss-days by region. Simulate and Live: region lift is the 24-hour PSI."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button>
+            </div>
+            <div class="layer">
+              <label><input type="checkbox" id="ly-flood" /><i class="sw sw-flood"></i><span>Flood · 19 PUB hotspots</span></label>
+              <button type="button" class="help" data-tip="The 19 locations on PUB's flash-flood hotspot list of 2 Feb 2026." aria-label="The 19 locations on PUB's flash-flood hotspot list of 2 Feb 2026."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button>
+            </div>
+
+            <p class="group">Base</p>
+            <div class="layer">
+              <label><input type="checkbox" id="ly-bld" checked /><i class="sw sw-bld"></i><span>HDB blocks (3D)</span></label>
+              <button type="button" class="help" data-tip="Real block footprints near hawker centres (HDB via data.gov.sg). Heights nominal at the 12-storey HDB median. Appears from Region zoom." aria-label="Real block footprints near hawker centres (HDB via data.gov.sg). Heights nominal at the 12-storey HDB median. Appears from Region zoom."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button>
+            </div>
+            <div class="layer">
+              <label><input type="checkbox" id="ly-base" checked /><i class="sw sw-base"></i><span>Streets · OneMap</span></label>
+              <button type="button" class="help" data-tip="Tiles © OneMap, Singapore Land Authority. Needs internet; every other layer works offline." aria-label="Tiles © OneMap, Singapore Land Authority. Needs internet; every other layer works offline."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button>
+            </div>
+            <div class="layer">
+              <label><input type="checkbox" id="ly-pa" checked /><i class="sw sw-pa"></i><span>Planning areas (URA MP2019)</span></label>
+            </div>
+            <p class="attribution">Tiles © OneMap, Singapore Land Authority</p>
           </div>
-          <p class="note">The assistant only suggests what you sell and where; you confirm both, and the payout always comes from the tariff and the day's readings. Your words and photo are not stored.</p>
-          <p class="note" id="kyc-status" role="status" hidden></p>
-          <div class="kyc-confirm" id="kyc-confirm" hidden>
-            <div class="kyc-row"><label for="kyc-product">Sells</label><select id="kyc-product"></select></div>
-            <div class="kyc-row"><span>Place</span><output id="kyc-place"></output></div>
-            <button class="btn-mini" id="kyc-confirm-btn" type="button">Confirm and price</button>
-          </div>
-          <div class="kyc-strip" id="kyc-strip" hidden></div>
-        </div>
-        <div class="dayrow">
-          <label for="s-date">Replay a real day</label>
-          <input type="date" id="s-date" />
-        </div>
-        <p class="note" id="day-note" hidden></p>
-        <div class="slider"><i style="background:var(--haze)"></i>
-          <label for="s-psi" title="Pollutant Standards Index, NEA's 0-500 air quality scale">PSI (air)<span id="psi-band"></span></label>
-          <input type="range" id="s-psi" min="0" max="350" step="5" value="0" />
-          <output id="v-psi">0</output></div>
-        <div class="slider"><i style="background:var(--rain)"></i>
-          <label for="s-rain">Worst rain hour<span>mm in 60 min</span></label>
-          <input type="range" id="s-rain" min="0" max="100" step="1" value="0" />
-          <output id="v-rain">0 mm</output></div>
-        <div class="slider"><i style="background:var(--heat)"></i>
-          <label for="s-heat">WBGT ≥32</label>
-          <input type="range" id="s-heat" min="0" max="8" step="0.25" value="0" />
-          <output id="v-heat">0 h</output></div>
-        <label class="floodrow"><input type="checkbox" id="s-flood" /> A PUB flood alert is active here (counts as a full flood day)</label>
-        <div id="extra-hazards"></div>
-        <div class="circle-block">
-          <div class="circle-actions">
-            <button class="btn-mini" id="draw-circle" type="button">◯ Draw circles</button>
-            <button class="btn-mini" id="remove-circle" type="button" hidden>✕ Remove</button>
-            <button class="btn-mini" id="clear-all" type="button" hidden>Clear all</button>
-            <span class="circle-hint" id="circle-hint">Scope a day to one area. Draw several circles with their own readings to compare.</span>
-          </div>
-          <div class="slider" id="radius-row" hidden><i style="background:var(--accent)"></i>
-            <label for="s-radius">Radius</label>
-            <input type="range" id="s-radius" min="0.2" max="15" step="0.1" value="1" />
-            <output id="v-radius">1.0 km</output></div>
-          <div class="slider" id="extradays-row" hidden><i style="background:var(--accent)"></i>
-            <label for="s-extradays" title="Changes only the premium, not the payout">If more common<span>extra days/yr</span></label>
-            <input type="range" id="s-extradays" min="0" max="30" step="1" value="5" />
-            <output id="v-extradays">5 d</output></div>
-          <div id="scn-results" hidden></div>
+        </aside>
+
+        <div class="segmented cams" id="zoomchip" role="group" aria-label="Camera">
+          <button id="cam-plan" type="button" aria-pressed="false">Plan</button>
+          <button id="cam-bird" type="button" aria-pressed="true">Bird</button>
+          <button id="cam-city" type="button" aria-pressed="false">City</button>
+          <button id="cam-orbit" type="button" aria-pressed="false" data-tip="Circle the camera slowly" aria-label="Orbit: circle the camera slowly">Orbit</button>
         </div>
       </div>
-    </aside>
+
+      <div class="dock-right">
+        <aside class="panel detail" id="detail" aria-labelledby="detail-kind" hidden>
+          <div class="detail-head">
+            <h2 class="panel-head">
+              <button class="fold" type="button" aria-expanded="true" aria-controls="detail-body">
+                <span id="detail-kind">Selection</span>
+                <svg class="i chev" aria-hidden="true"><use href="/vendor/icons.svg#chevron-down"/></svg>
+              </button>
+            </h2>
+            <button class="icon-btn" id="detail-close" type="button" aria-label="Close the details">
+              <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#x"/></svg></button>
+          </div>
+          <div class="body fold-body" id="detail-body"></div>
+        </aside>
+
+        <aside class="panel portfolio" id="portfolio" aria-labelledby="portfolio-title" hidden>
+          <h2 class="panel-head">
+            <button class="fold" type="button" aria-expanded="true" aria-controls="portfolio-body">
+              <span id="portfolio-title">Portfolio</span>
+              <output class="head-value num" id="p-pay-head"></output>
+              <svg class="i chev" aria-hidden="true"><use href="/vendor/icons.svg#chevron-down"/></svg>
+            </button>
+          </h2>
+          <div class="body fold-body" id="portfolio-body">
+            <div class="kv"><label class="k" for="p-tier">Every food stall insured at</label><select id="p-tier"></select></div>
+            <div class="kv"><span class="k">Policies (stalls)</span><output class="v num" id="p-n">–</output></div>
+            <div class="kv"><span class="k">Annual premium pool</span><output class="v num" id="p-prem">–</output></div>
+            <div class="kv big"><span class="k" id="p-pay-label">Payout on this day</span><output class="v num" id="p-pay">–</output></div>
+            <p class="fine" id="p-note"></p>
+          </div>
+        </aside>
+
+        <aside class="panel sim" id="sim" aria-labelledby="sim-title" hidden>
+          <h2 class="panel-head">
+            <button class="fold" type="button" aria-expanded="true" aria-controls="sim-body">
+              <span id="sim-title">Day simulator</span>
+              <svg class="i chev" aria-hidden="true"><use href="/vendor/icons.svg#chevron-down"/></svg>
+            </button>
+          </h2>
+          <div class="body fold-body" id="sim-body">
+            <div class="kyc" id="kyc">
+              <div class="kyc-head">
+                <label class="kyc-title" for="kyc-text">Tell us about your shop</label>
+                <button type="button" class="help" data-tip="The assistant only suggests what you sell and where; you confirm both, and the payout always comes from the tariff and the day's readings. Your words and photo are not stored." aria-label="The assistant only suggests what you sell and where; you confirm both, and the payout always comes from the tariff and the day's readings. Your words and photo are not stored."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button>
+              </div>
+              <textarea id="kyc-text" rows="2" maxlength="500" placeholder="I have a fruit shop at Tiong Bahru market"></textarea>
+              <input type="file" id="kyc-photo" accept="image/jpeg,image/png,image/webp" aria-label="Photo of the shop (optional)" />
+              <div class="kyc-row">
+                <button class="btn small ghost" id="kyc-clear" type="button">Clear</button>
+                <button class="btn small primary" id="kyc-submit" type="button">
+                  <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#map-pin"/></svg>Place my shop</button>
+              </div>
+              <p class="notice" id="kyc-status" role="status" hidden>
+                <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg><span id="kyc-status-text"></span></p>
+              <div class="kyc-confirm" id="kyc-confirm" hidden>
+                <div class="kv"><label class="k" for="kyc-product">Sells</label><select id="kyc-product"></select></div>
+                <div class="kv"><span class="k">Place</span><output class="v" id="kyc-place"></output></div>
+                <button class="btn small primary" id="kyc-confirm-btn" type="button">Confirm and price</button>
+              </div>
+              <div class="kyc-strip" id="kyc-strip" hidden></div>
+            </div>
+            <div class="dayrow">
+              <label for="s-date">Replay a real day</label>
+              <input type="date" id="s-date" />
+            </div>
+            <p class="fine" id="day-note" hidden></p>
+            <div class="slider">
+              <svg class="i hz-haze" aria-hidden="true"><use href="/vendor/icons.svg#cloud-fog"/></svg>
+              <label for="s-psi">PSI (air)<span id="psi-band"></span></label>
+              <input type="range" id="s-psi" min="0" max="350" step="5" value="0" />
+              <output class="num" id="v-psi">0</output></div>
+            <div class="slider">
+              <svg class="i hz-rain" aria-hidden="true"><use href="/vendor/icons.svg#cloud-rain"/></svg>
+              <label for="s-rain">Worst rain hour<span>mm in 60 min</span></label>
+              <input type="range" id="s-rain" min="0" max="100" step="1" value="0" />
+              <output class="num" id="v-rain">0 mm</output></div>
+            <div class="slider">
+              <svg class="i hz-heat" aria-hidden="true"><use href="/vendor/icons.svg#thermometer-sun"/></svg>
+              <label for="s-heat">WBGT ≥32<span>hours</span></label>
+              <input type="range" id="s-heat" min="0" max="8" step="0.25" value="0" />
+              <output class="num" id="v-heat">0 h</output></div>
+            <label class="floodrow"><input type="checkbox" id="s-flood" /><span>A PUB flood alert is active here (counts as a full flood day)</span></label>
+            <div id="extra-hazards"></div>
+            <div class="circle-block">
+              <div class="circle-actions">
+                <button class="btn small" id="draw-circle" type="button" aria-pressed="false">
+                  <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#plus"/></svg>Draw circles</button>
+                <button class="btn small ghost" id="remove-circle" type="button" hidden>
+                  <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#x"/></svg>Remove</button>
+                <button class="btn small ghost" id="clear-all" type="button" hidden>Clear all</button>
+              </div>
+              <p class="fine" id="circle-hint">Scope a day to one area. Draw several circles with their own readings to compare.</p>
+              <div class="slider" id="radius-row" hidden>
+                <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#map-pin"/></svg>
+                <label for="s-radius">Radius</label>
+                <input type="range" id="s-radius" min="0.2" max="15" step="0.1" value="1" />
+                <output class="num" id="v-radius">1.0 km</output></div>
+              <div class="slider" id="extradays-row" hidden>
+                <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#calendar"/></svg>
+                <label for="s-extradays">If more common<span>extra days/yr
+                  <button type="button" class="help" data-tip="Asks what the cover would cost if days like this hit this many more times a year. It changes only the weekly premium, never the payout for the day." aria-label="Asks what the cover would cost if days like this hit this many more times a year. It changes only the weekly premium, never the payout for the day."><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg></button></span></label>
+                <input type="range" id="s-extradays" min="0" max="30" step="1" value="5" />
+                <output class="num" id="v-extradays">5 d</output></div>
+              <div id="scn-results" hidden></div>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
 
-    <dialog id="time-dialog" class="timebox" aria-labelledby="time-title">
-      <form method="dialog"><button class="close" aria-label="Close">✕</button></form>
-      <h3 id="time-title">The time machine</h3>
-      <p class="t-sub">Had this cover existed for the last ten years, at this business:</p>
-      <div class="t-controls">
-        <label>Hawker centre <select id="t-centre"></select></label>
-        <label>Tier <select id="t-tier"></select></label>
-        <label>Daily sales (S$) <input type="number" id="t-takings" value="500" min="50" max="20000" step="50" /></label>
+    <dialog id="time-dialog" class="drawer" aria-labelledby="time-title">
+      <header class="drawer-head">
+        <div><h2 id="time-title">Time machine</h2><p class="fine">Had this cover existed for the last ten years, at this business:</p></div>
+        <button class="icon-btn" type="button" data-close aria-label="Close"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#x"/></svg></button>
+      </header>
+      <div class="drawer-body">
+        <div class="t-controls">
+          <label class="t-centre">Hawker centre<select id="t-centre"></select></label>
+          <label>Tier<select id="t-tier"></select></label>
+          <label>Daily sales (S$)<input type="number" id="t-takings" value="500" min="50" max="20000" step="50" /></label>
+        </div>
+        <div id="t-body"><p class="loading">Computing…</p></div>
       </div>
-      <div id="t-body"><p class="t-wait">Computing…</p></div>
     </dialog>
 
-    <dialog id="about-dialog" class="about" aria-labelledby="about-title">
-      <form method="dialog"><button class="close" aria-label="Close">✕</button></form>
-      <div id="about-body"></div>
+    <dialog id="about-dialog" class="drawer" aria-labelledby="about-title">
+      <header class="drawer-head">
+        <h2 id="about-title">Method &amp; data</h2>
+        <button class="icon-btn" type="button" data-close aria-label="Close"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#x"/></svg></button>
+      </header>
+      <div class="drawer-body" id="about-body"></div>
     </dialog>
 
     <div id="boot">
-      <p class="brand">SafeDay <span>risk atlas</span></p>
-      <div class="pulse" role="presentation"></div>
-      <p class="msg" id="boot-msg">Loading Singapore: planning areas, hawker centres, NEA stations…</p>
+      <p class="brand"><span class="brand-mark"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg></span>SafeDay <span class="brand-sub">Risk atlas</span></p>
+      <p class="loading" id="boot-msg">Loading Singapore: planning areas, hawker centres, NEA stations…</p>
     </div>
   </body>
 </html>
