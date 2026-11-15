@@ -75,6 +75,9 @@ on Poisson deviance.
 - `backtest_yearly.csv`: per year since 1980, product and tier, the mean, 95th percentile and
   largest payout per customer, the share of customers who hit the yearly cap, the premium and the
   loss ratio. Years before 2014 have no haze.
+- `confusion.md`, `confusion_matrices.csv`: per daily model, the test-year confusion matrix
+  (trigger day called or not), accuracy, precision, recall and F1, and what each error means for
+  the product. `uv run --group ml python -m ml.confusion` rebuilds them alone.
 - `models/`, `predictions/`, `optuna.db`.
 
 ## Share the results (`ml/results/`, in git)

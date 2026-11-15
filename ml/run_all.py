@@ -16,6 +16,7 @@ Writes ml/output/:
     models/, predictions/  fitted models (joblib) and test-year predictions (Parquet)
     optuna.db              every trial
     backtest_yearly.csv    payouts per year, product and tier (see ml/backtest.py)
+    confusion.md           confusion matrix, accuracy, precision and recall per model
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ import traceback
 import optuna
 import pandas as pd
 
-from ml import backtest
+from ml import backtest, confusion
 from ml.config import (
     BUDGETS,
     DAILY_TASKS,
@@ -167,6 +168,7 @@ def main() -> None:
 
     write_report(board, device, args.budget)
     print(f"\nReport: {REPORT_PATH}")
+    confusion.main()
     done = set(board.loc[board["status"] == "ok", "job"]) if not board.empty else set()
     if args.skip_backtest:
         print("Back-test skipped (--skip-backtest).")
