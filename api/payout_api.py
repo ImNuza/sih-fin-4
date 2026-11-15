@@ -23,7 +23,7 @@ class PayoutAccountIn(BaseModel):
     sms_mobile: str | None = Field(
         default=None, description="Mobile for texts. Defaults to the PayNow mobile."
     )
-    sms_language: Literal["en", "zh", "ms", "ta"] = "en"
+    sms_language: sms.SmsLanguage = "en"
 
     @model_validator(mode="after")
     def proxy_and_mobile_are_valid(self) -> PayoutAccountIn:
@@ -78,7 +78,18 @@ def find_account(engine: Engine, user_id: int):
         ).first()
 
 
-def payout_view(row, events: list) -> dict:
+def text_view(row) -> dict:
+    return {
+        "kind": row.kind,
+        "body": row.body,
+        "to": paynow.mask("mobile", row.to_mobile),
+        "language": row.language,
+        "status": row.status,
+        "sent_at": row.sent_at,
+    }
+
+
+def payout_view(row, events: list, texts: list) -> dict:
     return {
         "id": row.id,
         "reference": payout_flow.reference(row.id),
@@ -103,6 +114,7 @@ def payout_view(row, events: list) -> dict:
             {"from_status": e.from_status, "to_status": e.to_status, "actor": e.actor, "at": e.at}
             for e in events
         ],
+        "texts": [text_view(text) for text in texts],
     }
 
 
@@ -124,10 +136,21 @@ def load_payouts(engine: Engine, user_id: int | None, payout_id: int | None = No
             .where(payout_events.c.payout_id.in_(ids))
             .order_by(payout_events.c.id)
         ).all()
-    by_payout: dict[int, list] = {}
+        texts = db.execute(
+            select(sms_messages)
+            .where(sms_messages.c.payout_id.in_(ids))
+            .order_by(sms_messages.c.id)
+        ).all()
+    events_by_payout: dict[int, list] = {}
     for event in events:
-        by_payout.setdefault(event.payout_id, []).append(event)
-    return [payout_view(row, by_payout.get(row.id, [])) for row in rows]
+        events_by_payout.setdefault(event.payout_id, []).append(event)
+    texts_by_payout: dict[int, list] = {}
+    for text in texts:
+        texts_by_payout.setdefault(text.payout_id, []).append(text)
+    return [
+        payout_view(row, events_by_payout.get(row.id, []), texts_by_payout.get(row.id, []))
+        for row in rows
+    ]
 
 
 @router.get("/payout-account")
@@ -179,6 +202,7 @@ def start_mobile_check(user: SmeDep, request: Request) -> dict:
 def finish_mobile_check(body: CodeIn, user: SmeDep, request: Request) -> dict:
     """Check the code, mark the mobile verified and pay anything that was waiting for it."""
     engine: Engine = request.app.state.db
+    tariff = store.latest(engine).tariff
     with engine.begin() as db:
         result = sms.check_code(db, user.id, body.code)
         if result == "ok":
@@ -187,6 +211,7 @@ def finish_mobile_check(body: CodeIn, user: SmeDep, request: Request) -> dict:
                 .where(payout_accounts.c.user_id == user.id)
                 .values(mobile_verified_at=datetime.now(UTC))
             )
+            payout_flow.send_welcome_if_due(db, user.id, tariff)
             payout_flow.release_held(db, user.id)
     if result == "locked":
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many tries. Ask for a new code")
@@ -212,17 +237,36 @@ def list_texts(user: SmeDep, request: Request) -> list[dict]:
             .order_by(sms_messages.c.id.desc())
         ).all()
     return [
-        {
-            "id": row.id,
-            "kind": row.kind,
-            "body": row.body or "SafeDay code: ****** (codes are not stored)",
-            "to": paynow.mask("mobile", row.to_mobile),
-            "language": row.language,
-            "status": row.status,
-            "sent_at": row.sent_at,
-        }
+        {**text_view(row), "id": row.id,
+         "body": row.body or "SafeDay code: ****** (codes are not stored)"}
         for row in rows
     ]
+
+
+@router.get("/cover-text")
+def cover_text(
+    request: Request,
+    tier: str = "tier_1",
+    language: sms.SmsLanguage = "en",
+) -> dict:
+    """The welcome SMS for a tier bought today: the same text the landing page, the risk atlas
+    and the dashboard show, so what is sold is what is texted. Public: it is the point of sale."""
+    tariff = store.latest(request.app.state.db).tariff
+    chosen = next((t for t in tariff.tiers if t.key == tier), None)
+    if chosen is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No tier {tier}")
+    first_day = payout_flow.first_day_if_bought_now()
+    body = payout_flow.cover_text(
+        tariff, language, chosen.daily_payout_sgd, chosen.max_paid_days_per_year, first_day
+    )
+    return {
+        "tier": chosen.key,
+        "language": language,
+        "body": body,
+        "characters": len(body),
+        "segments": sms.segments(body),
+        "first_day": first_day.isoformat(),
+    }
 
 
 @router.post("/insurer/payout-runs")

@@ -26,9 +26,9 @@ from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
-from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo
 
 import numpy as np
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
@@ -40,11 +40,14 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
-from api import accounts, burn, calculator, kyc, onboarding, payout_api, paynow_qr, postcodes, store, underwriting
+from api import (
+    accounts, burn, calculator, kyc, onboarding, payout_api, payout_flow, paynow_qr,
+    postcodes, store, underwriting,
+)
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
+from api.calculator import BidRecord, History, Readings, Site, Sites
 from api.day_history import day_readings
 from api.live import LiveFeed
-from api.calculator import BidRecord, History, Readings, Site, Sites
 from api.models import (
     Assessment,
     AssessRequest,
@@ -681,6 +684,7 @@ def buy_policy(
         policy_id = db.execute(
             sa_insert(accounts.policies).values(**values).returning(accounts.policies.c.id)
         ).scalar_one()
+        payout_flow.send_welcome_if_due(db, user.id, tariff)
     return {"id": policy_id, **{k: v for k, v in values.items() if k != "user_id"}}
 
 

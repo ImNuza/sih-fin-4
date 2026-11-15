@@ -6,8 +6,8 @@
     <title>SafeDay</title>
     <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
     <link rel="stylesheet" href="/theme.css?v=3" />
-    <link rel="stylesheet" href="/site.css?v=8" />
-    <script src="/site.js?v=11" defer></script>
+    <link rel="stylesheet" href="/site.css?v=9" />
+    <script src="/site.js?v=12" defer></script>
   </head>
   <body>
     <header class="topnav">
@@ -72,13 +72,14 @@
           </div>
         </div>
         <figure class="phone">
-          <figcaption>The whole policy fits in one SMS.</figcaption>
-          <p class="sms">
-            SafeDay: you are covered for haze, heavy rain, extreme heat and flash floods. We pay
-            when NEA shows PSI above 100, 20 mm of rain in a work hour, 2 hours at WBGT 32 °C or a
-            PUB flood alert near your stall. No claim form.
-          </p>
-          <p class="meta">Your own price and payout are on the risk atlas before you sign.</p>
+          <figcaption>The whole policy, in the text we send.</figcaption>
+          <div class="cover-sms" data-cover-tier="tier_1">
+            <p class="sms">
+              SafeDay: up to S$20/day if NEA WBGT 32C+ 2h+, rain 20mm/h+, PSI 101+ or flood
+              alert, 7am-7pm. Max 10 days/yr. Else no pay, even if you lose income.
+            </p>
+          </div>
+          <p class="meta">The text Tier 1 customers get, in their language. Your own price and payout are on the risk atlas before you sign.</p>
         </figure>
       </section>
 

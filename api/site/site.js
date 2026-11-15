@@ -263,7 +263,7 @@ async function renderSme(user) {
         ${waitingEnds ? kv("Payouts from", SG_DATE(waitingEnds)) : ""}
         ${application?.cover_ends ? kv("Cover ends", SG_DATE(application.cover_ends)) : ""}
         ${decision?.decision === "approve" && decision.note ? `<p class="fine">Underwriter's note: ${escapeHtml(decision.note)}</p>` : ""}
-        <p class="fine">Pays when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${user.centre || `you, in the ${user.region} region`}. Below those levels nothing is paid.</p>
+        <p class="fine">Pays only when NEA or PUB readings near ${user.centre || `you, in the ${user.region} region`} reach the trigger levels in your welcome SMS. Below them nothing is paid, even if you lose income.</p>
         <button class="btn small" id="cancel-policy" type="button">Cancel cover</button>`
         : `<div class="tiers-row">${quote.tiers.map((t) => `
           <button class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}" type="button">
@@ -276,6 +276,8 @@ async function renderSme(user) {
           ? `● marks the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
           : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). ● marks the biggest tier.`)
           + ` ${rentSource(rent, rentTable)}` : "● marks the recommended tier."} Click a tier to start cover.</p>
+        <p class="fine">The ● tier in one SMS, as we would text it to you:</p>
+        <div class="cover-sms" data-cover-tier="${rec}"></div>
         <p class="error" id="buy-error"></p>`}
       </div>
     </div>
@@ -289,8 +291,8 @@ async function renderSme(user) {
       </div>
       <div id="burn-body"><p class="fine">Computing…</p></div>
     </div>` : ""}
-    <div id="payouts-panel"></div>
-`;
+    <div id="payouts-panel"></div>`;
+  wireCoverSms();
   renderSmePayouts(el("payouts-panel"), Boolean(policy)).catch((error) => {
     el("payouts-panel").innerHTML = `<p class="error">Could not load payouts: ${error.message}</p>`;
   });
@@ -492,7 +494,48 @@ async function wireDashboard() {
   }
 }
 
+/* ---------- the policy in one SMS ---------- */
+const SMS_LANGUAGES = { en: "English", zh: "中文" };
+
+/** Draw the welcome SMS for a tier, exactly as /api/cover-text gives it, with a language switch.
+    The landing page, the buy flow and the dashboard all show this one text, so what is sold is
+    what is texted, with the no-pay sentence the brief asks for at the point of sale. */
+async function coverSms(slot, tier, language = "en") {
+  if (!slot) return;
+  try {
+    const params = new URLSearchParams({ tier, language });
+    const cover = await api(`/api/cover-text?${params}`);
+    const switcher = document.createElement("div");
+    switcher.className = "sms-langs";
+    switcher.setAttribute("role", "group");
+    switcher.setAttribute("aria-label", "SMS language");
+    for (const [key, label] of Object.entries(SMS_LANGUAGES)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.setAttribute("aria-pressed", String(key === language));
+      button.addEventListener("click", () => coverSms(slot, tier, key));
+      switcher.append(button);
+    }
+    const bubble = document.createElement("p");
+    bubble.className = "sms";
+    bubble.lang = language;
+    bubble.textContent = cover.body;
+    const size = document.createElement("p");
+    size.className = "fine";
+    size.textContent = `${cover.characters} characters · ${cover.segments === 1 ? "one SMS" : `${cover.segments} SMS parts`}`;
+    slot.replaceChildren(switcher, bubble, size);
+  } catch (error) {
+    slot.textContent = `Could not load the cover text: ${error.message}`;
+  }
+}
+
+function wireCoverSms() {
+  document.querySelectorAll("[data-cover-tier]").forEach((slot) => coverSms(slot, slot.dataset.coverTier));
+}
+
 wireTheme();
 updateNav();
 wireLogin();
 wireDashboard();
+wireCoverSms();

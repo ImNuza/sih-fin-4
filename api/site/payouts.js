@@ -7,7 +7,7 @@ const STATUS_TONE = {
   paid: "good", held: "warning", sending: "warning", approved: "warning", assessed: "warning",
   failed: "critical", rejected: "critical", capped: "muted",
 };
-const LANGUAGES = { en: "English", zh: "中文", ms: "Bahasa Melayu", ta: "தமிழ்" };
+const LANGUAGES = { en: "English", zh: "中文 (Mandarin)" };
 
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -41,7 +41,7 @@ function accountForm(account) {
 function accountSummary(account) {
   return `<div class="kv"><span class="k">Pays to</span><span class="v">PayNow ${esc(account.paynow_proxy_masked)}</span></div>
     <div class="kv"><span class="k">PayNow name</span><span class="v">${esc(account.paynow_name)}</span></div>
-    <div class="kv"><span class="k">Texts to</span><span class="v">${esc(account.sms_mobile_masked)} · ${LANGUAGES[account.sms_language]}</span></div>
+    <div class="kv"><span class="k">Texts to</span><span class="v">${esc(account.sms_mobile_masked)} · ${LANGUAGES[account.sms_language] || esc(account.sms_language)}</span></div>
     <div class="kv"><span class="k">Mobile</span><span class="v">${account.mobile_verified ? statusPill("paid").replace(">paid<", ">verified<") : statusPill("held").replace(">held<", ">not verified<")}</span></div>
     ${account.mobile_verified ? "" : `<div class="verify-row">
       <button class="btn small" id="send-code" type="button">Text me a code</button>
@@ -65,14 +65,28 @@ function payoutRows(payouts, forInsurer) {
       <td class="num">${p.reference}</td>
       ${forInsurer ? `<td>${p.status === "failed" ? `<button class="btn small" data-retry="${p.id}" type="button">Retry</button>` : ""}
         ${["assessed", "approved", "held", "failed"].includes(p.status) ? `<button class="btn-link" data-reject="${p.id}" type="button">Reject</button>` : ""}</td>` : ""}
-    </tr>`).join("")}
+    </tr>${forInsurer ? sentTextRow(p) : ""}`).join("")}
   </table>`;
+}
+
+const INSURER_COLUMNS = 9;
+
+function textBubble(t) {
+  return `<div class="sms ${esc(t.kind)}"><p>${esc(t.body)}</p>
+    <span>${esc(t.to)} · ${String(t.sent_at).slice(0, 16).replace("T", " ")} UTC · ${esc(t.status)}</span></div>`;
+}
+
+/** The text the stallholder got for this payout, shown under its row on the insurer desk. */
+function sentTextRow(p) {
+  const latest = p.texts[p.texts.length - 1];
+  if (!latest) return "";
+  return `<tr class="text-row"><td colspan="${INSURER_COLUMNS}">
+    <span class="fine">SMS to ${esc(p.business_name)}</span>${textBubble(latest)}</td></tr>`;
 }
 
 function phoneInbox(texts) {
   if (!texts.length) return `<p class="fine">Texts from SafeDay will show here.</p>`;
-  return `<div class="sms-inbox">${texts.map((t) => `<div class="sms ${esc(t.kind)}">
-    <p>${esc(t.body)}</p><span>${esc(t.to)} · ${String(t.sent_at).slice(0, 16).replace("T", " ")} UTC</span></div>`).join("")}</div>`;
+  return `<div class="sms-inbox">${texts.map(textBubble).join("")}</div>`;
 }
 
 async function renderSmePayouts(slot, hasPolicy) {

@@ -75,6 +75,7 @@ const api = {
   options: () => getJson("/api/options"),
   rent: () => getJson("/api/rent").catch(() => null),
   live: () => getJson("/api/map/live?product=cooked_food"),
+  coverText: (tier) => getJson(`/api/cover-text?${new URLSearchParams({ tier })}`),
   assess: (readings) => getJson("/api/assess", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -690,6 +691,18 @@ function rentSection(centre, quote) {
     <p class="note">${source} Rent sets the tier a stallholder is offered, not the premium.</p></div>`;
 }
 
+/** Fill the card's SMS with the real welcome text, so the atlas sells what is texted. */
+async function showCoverText(tier) {
+  try {
+    const cover = await api.coverText(tier);
+    const bubble = el("atlas-cover-sms");
+    if (bubble) bubble.textContent = `"${cover.body}"`;
+  } catch (error) {
+    const bubble = el("atlas-cover-sms");
+    if (bubble) bubble.textContent = `Could not load the SMS: ${error.message}`;
+  }
+}
+
 function renderDetail() {
   const panel = el("detail"), body = el("detail-body"), kind = el("detail-kind");
   if (!state.selected) { panel.hidden = true; return; }
@@ -715,7 +728,8 @@ function renderDetail() {
         <div><div class="t1">${v.word} · ${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week</div>
         <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. Paid on NEA readings, usually the same day. If readings stay below the trigger levels, nothing is paid.</div></div></div>
       <div class="sec"><p class="cap">The policy in one SMS</p>
-        <p class="sms">"SafeDay: we pay ${SGD0(rec.daily_payout_sgd)}/day (max ${SGD0(rec.max_payout_per_year_sgd)}/yr) when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${centre.name}. ${SGD(rec.weekly_premium_sgd)}/wk. No payout below these levels."</p></div>
+        <p class="sms" id="atlas-cover-sms">Loading the SMS…</p>
+        <p class="note">The welcome text a ${rec.label} customer gets, word for word. ${SGD(rec.weekly_premium_sgd)}/wk.</p></div>
       <div class="sec"><p class="cap">Expected loss · ${quote.expected_loss_days.toFixed(2)} full-loss days a year</p>
         ${stackBar(parts)}
         <p class="note">Day-weighted severity of every NEA reading in the ${centre.region} zone's history × 365.25 × peril weight × product factor (cooked food keeps nothing overnight).</p></div>
@@ -727,6 +741,7 @@ function renderDetail() {
       <div class="sec"><p class="cap">Premium build-up · ${rec.label}</p>${premiumBuildup(rec)}
         <p class="note">Insurable interest (Insurance Act 1966 s151): the payout is a pre-estimate of a stall's lost daily takings, so this is insurance, not a wager.</p></div>
       ${dayDetail(value, rec)}`;
+    showCoverText(rec.tier);
   } else if (type === "heat") {
     const s = value;
     const live = state.live?.heat?.find((x) => x.id === s.id);

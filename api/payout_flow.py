@@ -15,7 +15,7 @@ from sqlalchemy import Connection, func, insert, select, update
 from api import calculator, paynow, sms
 from api.accounts import policies
 from api.models import Tariff
-from api.payouts import payout_accounts, payout_events, payouts
+from api.payouts import payout_accounts, payout_events, payouts, sms_messages
 
 SINGAPORE = ZoneInfo("Asia/Singapore")
 CAP_WINDOW_DAYS = 365
@@ -74,10 +74,14 @@ def owed_in_cap_window(db: Connection, user_id: int, loss_date: date) -> int:
     return int(total)
 
 
+def as_utc(moment: datetime) -> datetime:
+    """SQLite drops the time zone. Every time is saved in UTC, so put it back."""
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
 def first_covered_day(started_at: datetime) -> date:
-    """Singapore date the cover first pays for. SQLite drops the zone; times are saved in UTC."""
-    started_utc = started_at if started_at.tzinfo else started_at.replace(tzinfo=UTC)
-    return started_utc.astimezone(SINGAPORE).date() + timedelta(days=WAITING_PERIOD_DAYS)
+    """Singapore date the cover first pays for."""
+    return as_utc(started_at).astimezone(SINGAPORE).date() + timedelta(days=WAITING_PERIOD_DAYS)
 
 
 def text(db: Connection, payout, account, kind: str) -> None:
@@ -85,13 +89,63 @@ def text(db: Connection, payout, account, kind: str) -> None:
         kind,
         account.sms_language,
         payout.main_hazard,
-        amount=f"{payout.amount_cents / 100:.2f}",
+        payout.readings[payout.main_hazard],
+        payout.loss_date,
+        amount=sms.money(payout.amount_cents / 100),
         proxy=paynow.mask(account.paynow_proxy_type, account.paynow_proxy),
         centre=payout.centre or payout.region,
-        day=f"{payout.loss_date.day} {payout.loss_date:%b}",
         ref=reference(payout.id),
     )
     sms.send(db, payout.user_id, kind, account.sms_mobile, account.sms_language, body, payout.id)
+
+
+def first_band(tariff: Tariff, hazard_key: str) -> float:
+    return calculator.find(tariff.hazards, hazard_key, "hazard").bands[0].at_least
+
+
+def send_welcome_if_due(db: Connection, user_id: int, tariff: Tariff) -> None:
+    """Text the cover in one SMS once the stallholder has a policy and a verified mobile.
+
+    Sent once per policy: a new tier starts a new policy and gets its own welcome.
+    """
+    policy = db.execute(select(policies).where(policies.c.user_id == user_id)).first()
+    account = db.execute(
+        select(payout_accounts).where(payout_accounts.c.user_id == user_id)
+    ).first()
+    if policy is None or account is None or account.mobile_verified_at is None:
+        return
+    welcomed = db.execute(
+        select(sms_messages.c.id).where(
+            sms_messages.c.user_id == user_id,
+            sms_messages.c.kind == "welcome",
+            sms_messages.c.created_at >= as_utc(policy.started_at),
+        )
+    ).first()
+    if welcomed:
+        return
+    body = cover_text(
+        tariff, account.sms_language, policy.daily_payout_sgd, policy.max_paid_days_per_year,
+        first_covered_day(policy.started_at),
+    )
+    sms.send(db, user_id, "welcome", account.sms_mobile, account.sms_language, body)
+
+
+def cover_text(tariff: Tariff, language: str, payout_sgd: float, max_days: int,
+               first_day: date) -> str:
+    """The cover in one SMS, with the tariff's first trigger levels. Also shown at the sale."""
+    return sms.welcome_text(
+        language,
+        payout_sgd=payout_sgd,
+        heat_hours=first_band(tariff, "heat"),
+        rain_mm=first_band(tariff, "rain"),
+        psi=first_band(tariff, "haze"),
+        max_days=max_days,
+        first_day=first_day,
+    )
+
+
+def first_day_if_bought_now() -> date:
+    return first_covered_day(datetime.now(UTC))
 
 
 def send(db: Connection, payout_id: int, actor: str = "system") -> str:

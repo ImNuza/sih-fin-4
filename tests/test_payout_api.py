@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 
+from api import sms
 from api.accounts import policies
 from api.main import app
 
@@ -73,6 +74,13 @@ def test_payout_account_is_returned_masked_with_the_paynow_name(client):
     assert account["mobile_verified"] is False
 
 
+@pytest.mark.parametrize("language", ["ms", "ta", "fr"])
+def test_payout_account_offers_english_and_mandarin_only(client, language):
+    register(client, "sme", "tan@example.com")
+    account = {"paynow_proxy_type": "mobile", "paynow_proxy": GOOD_MOBILE, "sms_language": language}
+    assert client.put("/api/payout-account", json=account).status_code == 422
+
+
 @pytest.mark.parametrize("mobile", ["91234567", "+6571234567", "+659123456", "+6591234567x"])
 def test_payout_account_rejects_non_singapore_mobiles(client, mobile):
     register(client, "sme", "tan@example.com")
@@ -112,7 +120,7 @@ def test_closure_day_pays_by_paynow_and_texts_the_stallholder(client):
     assert payout["reference"].startswith("SD-")
 
     [text] = [m for m in client.get("/api/sms").json() if m["kind"] == "payout_paid"]
-    assert f"S${payout['amount_sgd']:.2f}" in text["body"]
+    assert f"S${sms.money(payout['amount_sgd'])} " in text["body"]
     assert payout["reference"] in text["body"]
     assert "+65 ****4567" in text["body"]
 
@@ -255,3 +263,90 @@ def test_waiting_period_uses_the_singapore_date_of_purchase(client):
     stallholder_with_cover(client, started_at=late_evening_30_sep_utc)
     run = run_as_insurer(client, {**FLOOD_DAY, "loss_date": "2026-10-30"})
     assert run["counts"]["waiting_period"] == 1
+
+
+SMS_LIMIT = 160
+
+
+def texts_of_kind(client, kind: str) -> list[dict]:
+    return [text for text in client.get("/api/sms").json() if text["kind"] == kind]
+
+
+def test_paid_text_quotes_the_nea_reading_that_triggered_it(client):
+    stallholder_with_cover(client)
+    run_as_insurer(client, {**FLOOD_DAY, "readings": {"rain": 52.4}})
+    sign_in(client, "tan@example.com")
+    [text] = texts_of_kind(client, "payout_paid")
+    assert "NEA rain 52.4mm/h" in text["body"]
+    assert CENTRE in text["body"]
+    assert len(text["body"]) <= SMS_LIMIT
+
+
+def test_insurer_sees_the_text_sent_with_each_payout(client):
+    stallholder_with_cover(client)
+    run_as_insurer(client, FLOOD_DAY)
+    [payout] = client.get("/api/payouts").json()
+    [text] = payout["texts"]
+    assert text["kind"] == "payout_paid"
+    assert payout["reference"] in text["body"]
+
+
+def test_welcome_text_explains_the_cover_with_the_tariff_numbers(client):
+    stallholder_with_cover(client)
+    [welcome] = texts_of_kind(client, "welcome")
+    body = welcome["body"]
+    phrases = ("S$20/day", "WBGT 32C+ 2h+", "rain 20mm/h+", "PSI 101+", "flood alert",
+               "Max 10 days/yr")
+    for phrase in phrases:
+        assert phrase in body
+    assert "even if you lose income" in body
+    assert len(body) <= SMS_LIMIT
+
+
+def test_welcome_text_names_the_day_cover_starts_paying(client):
+    stallholder_with_cover(client, started_at=STARTED_1_OCT_SGT)
+    [welcome] = texts_of_kind(client, "welcome")
+    assert "from 31 Oct" in welcome["body"]
+
+
+def test_welcome_text_waits_for_a_verified_mobile(client):
+    stallholder_with_cover(client, verify=False)
+    assert texts_of_kind(client, "welcome") == []
+
+
+def test_buying_cover_with_a_verified_mobile_sends_the_welcome_text(client):
+    register(client, "sme", "tan@example.com")
+    account = {"paynow_proxy_type": "mobile", "paynow_proxy": GOOD_MOBILE, "sms_language": "en"}
+    client.put("/api/payout-account", json=account)
+    code = client.post("/api/payout-account/verify/start").json()["demo_code"]
+    client.post("/api/payout-account/verify", json={"code": code})
+    assert texts_of_kind(client, "welcome") == []
+
+    client.post("/api/policies", json={"tier": "tier_2"})
+    [welcome] = texts_of_kind(client, "welcome")
+    assert "S$40/day" in welcome["body"]
+    assert "Max 15 days/yr" in welcome["body"]
+
+
+def test_welcome_text_is_sent_once_per_cover(client):
+    stallholder_with_cover(client)
+    code = client.post("/api/payout-account/verify/start").json()["demo_code"]
+    client.post("/api/payout-account/verify", json={"code": code})
+    assert len(texts_of_kind(client, "welcome")) == 1
+
+
+@pytest.mark.parametrize("language", ["zh"])
+def test_welcome_and_paid_texts_go_out_in_the_chosen_language(client, language):
+    register(client, "sme", "tan@example.com")
+    client.post("/api/policies", json={"tier": "tier_1"})
+    start_cover_on(client, LONG_AGO)
+    account = {"paynow_proxy_type": "mobile", "paynow_proxy": GOOD_MOBILE, "sms_language": language}
+    client.put("/api/payout-account", json=account)
+    code = client.post("/api/payout-account/verify/start").json()["demo_code"]
+    client.post("/api/payout-account/verify", json={"code": code})
+    run_as_insurer(client, {**FLOOD_DAY, "readings": {"rain": 52.4}})
+    sign_in(client, "tan@example.com")
+    texts = client.get("/api/sms").json()
+    assert {t["language"] for t in texts} == {language}
+    [paid] = [t for t in texts if t["kind"] == "payout_paid"]
+    assert "52.4" in paid["body"]

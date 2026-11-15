@@ -327,8 +327,12 @@ async function renderSummary() {
     dates ? row("Payouts from", `${DATE(dates.payoutsFrom)} (after the ${buyState.options.waiting_period_days}-day waiting period)`) : "",
     dates ? row("Cover ends", DATE(dates.ends)) : "",
     row("Contact", `${field("name").value}${field("designation").value ? ` (${field("designation").value})` : ""} · ${field("phone").value} · ${field("email").value}`),
-  ].join("");
-  if (tier) showPaynow(tier.weekly_premium_sgd);
+  ].join("") + (tier ? `<p class="fine">What you are buying, in the SMS we will send you:</p>
+    <div class="cover-sms" id="buy-cover-sms"></div>` : "");
+  if (tier) {
+    showPaynow(tier.weekly_premium_sgd);
+    coverSms(el("buy-cover-sms"), tier.tier);
+  }
 }
 
 /* ---------- step 5: pay ---------- */
