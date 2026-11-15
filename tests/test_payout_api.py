@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 
-from api.accounts import policies
+from api import burn, postcodes, readings
+from api.accounts import application_profile, policies
 from api.main import app
+from tests.test_api import buy_body, platform_worker_body, shop_body
 
 LONG_AGO = datetime(2026, 1, 1, 4, 0, tzinfo=UTC)
 CENTRE = "Commonwealth Crescent Market"
@@ -256,3 +258,123 @@ def test_waiting_period_uses_the_singapore_date_of_purchase(client):
     stallholder_with_cover(client, started_at=late_evening_30_sep_utc)
     run = run_as_insurer(client, {**FLOOD_DAY, "loss_date": "2026-10-30"})
     assert run["counts"]["waiting_period"] == 1
+
+
+def change_tier_amount(client, tier_index: int, amount: float) -> None:
+    saved = client.get("/api/admin/tariff", auth=("admin", "secret")).json()
+    tariff = saved["tariff"]
+    tariff["tiers"][tier_index]["daily_payout_sgd"] = amount
+    body = {"based_on_version": saved["version"], "tariff": tariff}
+    assert client.put("/api/admin/tariff", json=body, auth=("admin", "secret")).status_code == 200
+
+
+def test_a_payout_uses_the_daily_amount_the_policy_was_sold_with(client):
+    stallholder_with_cover(client)
+    [policy] = client.get("/api/policies").json()
+    change_tier_amount(client, 0, policy["daily_payout_sgd"] + 5)
+    run_as_insurer(client, FLOOD_DAY)
+    [payout] = client.get("/api/payouts").json()
+    assert payout["amount_sgd"] == policy["daily_payout_sgd"]
+
+
+def buy_and_start(client, body: dict) -> None:
+    assert client.post("/api/buy", json=body).status_code == 200
+    start_cover_on(client, LONG_AGO)
+
+
+def test_cover_stops_on_the_day_the_term_ends(client):
+    buy_and_start(client, buy_body())
+    with client.app.state.db.begin() as db:
+        db.execute(update(application_profile).values(cover_ends=date(2026, 11, 14)))
+    register(client, "insurer", "desk@example.com")
+    last_day_body = {**FLOOD_DAY, "loss_date": "2026-11-13"}
+    last_day = client.post("/api/insurer/payout-runs", json=last_day_body).json()
+    ended = client.post("/api/insurer/payout-runs", json=FLOOD_DAY).json()
+    assert last_day["counts"]["cover_ended"] == 0
+    assert ended["counts"]["cover_ended"] == 1
+
+
+HAZE_DAY = {"loss_date": "2026-10-15", "source": "nea_history"}
+
+
+def paid_readings(client) -> dict:
+    [payout] = client.get("/api/payouts").json()
+    return payout["readings"]
+
+
+def expected_readings(client, region: str, lat: float, lng: float) -> dict:
+    where = readings.history_place(region, lat, lng, client.app.state.sites)
+    return readings.day_readings_at(burn.load_day_table()["2026-10-15"], where, 3)
+
+
+def test_a_shop_is_paid_on_the_readings_at_its_postcode_area(client):
+    buy_and_start(client, shop_body(postcode="561965"))
+    run_as_insurer(client, HAZE_DAY)
+    point = postcodes.area_point(
+        "561965", client.app.state.centres_by_sector, client.app.state.map_static["region_points"]
+    )
+    expected = expected_readings(client, point["region"], point["lat"], point["lng"])
+    assert paid_readings(client) == expected
+
+
+def test_a_platform_worker_is_paid_on_the_readings_at_their_region(client):
+    buy_and_start(client, platform_worker_body())
+    run_as_insurer(client, HAZE_DAY)
+    lat, lng = client.app.state.map_static["region_points"]["north"]
+    assert paid_readings(client) == expected_readings(client, "north", lat, lng)
+
+
+def test_a_hawker_is_paid_on_the_readings_at_its_centre(client):
+    stallholder_with_cover(client)
+    run_as_insurer(client, HAZE_DAY)
+    centre = next(c for c in client.app.state.map_static["hawker_centres"] if c["name"] == CENTRE)
+    expected = expected_readings(client, centre["region"], centre["lat"], centre["lng"])
+    assert paid_readings(client) == expected
+
+
+def centre_readings(client, loss_date: str, gauges_read: int) -> tuple[dict, dict, tuple]:
+    centre = client.app.state.centres_by_name[CENTRE]
+    where = readings.history_place(
+        centre["region"], centre["lat"], centre["lng"], client.app.state.sites
+    )
+    day = burn.load_day_table()[loss_date]
+    return readings.day_readings_at(day, where, gauges_read), day, where.gauges
+
+
+def test_a_payout_reads_as_many_rain_gauges_as_the_tariff_prices_from(client):
+    stallholder_with_cover(client)
+    saved = client.get("/api/admin/tariff", auth=("admin", "secret")).json()
+    rain = next(hazard for hazard in saved["tariff"]["hazards"] if hazard["key"] == "rain")
+    rain["sites_used"] = 1
+    body = {"based_on_version": saved["version"], "tariff": saved["tariff"]}
+    assert client.put("/api/admin/tariff", json=body, auth=("admin", "secret")).status_code == 200
+    run_as_insurer(client, {"loss_date": "2026-02-19", "source": "nea_history"})
+    one_gauge, day, gauges = centre_readings(client, "2026-02-19", 1)
+    three_gauges, _, _ = centre_readings(client, "2026-02-19", 3)
+    nearest_reporting = next(gauge for gauge in gauges if gauge not in day["rain_missing"])
+    paid = paid_readings(client)
+    assert paid == one_gauge
+    assert paid["rain"] == day["rain"].get(nearest_reporting, 0.0) != three_gauges["rain"]
+
+
+def region_point_readings(client, region: str) -> dict:
+    lat, lng = client.app.state.map_static["region_points"][region]
+    return expected_readings(client, region, lat, lng)
+
+
+def test_a_policy_at_a_centre_the_map_no_longer_has_is_paid_at_its_region_point(client):
+    stallholder_with_cover(client)
+    [policy] = client.get("/api/policies").json()
+    with client.app.state.db.begin() as db:
+        db.execute(update(policies).values(centre="Closed Market"))
+    run = run_as_insurer(client, HAZE_DAY)
+    assert sum(run["counts"].values()) == 1
+    assert paid_readings(client) == region_point_readings(client, policy["region"])
+
+
+def test_a_shop_whose_postcode_has_no_sector_is_paid_at_its_region_point(client):
+    buy_and_start(client, shop_body(postcode="561965"))
+    with client.app.state.db.begin() as db:
+        db.execute(update(application_profile).values(postcode="990123"))
+    run_as_insurer(client, HAZE_DAY)
+    assert paid_readings(client) == region_point_readings(client, "central")

@@ -5,9 +5,10 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import insert
+from sqlalchemy import insert, update
 
-from api import burn, postcodes, store
+from api import burn, calculator, postcodes, readings, store
+from api.accounts import application_profile
 from api.main import DEFAULT_TARIFF_PATH, MAP_STATIC_PATH, SINGAPORE, add_months, app
 from api.paynow_qr import crc16_ccitt, paynow_payload
 
@@ -217,11 +218,98 @@ def test_a_place_is_priced_from_its_nearest_stations(client):
 
 @pytest.mark.parametrize(
     "where",
-    [{}, {"region": "east", "latitude": 1.3, "longitude": 103.9}, {"latitude": 1.3}],
+    [
+        {},
+        {"region": "east", "latitude": 1.3, "longitude": 103.9},
+        {"latitude": 1.3},
+        {"region": "south", "centre": "Maxwell Food Centre (Kim Hua Market)"},
+        {"centre": "Maxwell Food Centre (Kim Hua Market)", "postcode": "560123"},
+    ],
 )
-def test_a_quote_needs_a_region_or_a_place(client, where):
+def test_a_quote_needs_exactly_one_place(client, where):
     response = client.post("/api/quote", json={"product": "cooked_food", **where})
     assert response.status_code == 422
+
+
+MAXWELL = "Maxwell Food Centre (Kim Hua Market)"
+
+
+def weekly(quote: dict, tier: str = "tier_2") -> float:
+    return next(t for t in quote["tiers"] if t["tier"] == tier)["weekly_premium_sgd"]
+
+
+def centre_point(client, name: str) -> dict:
+    centres = client.get("/api/map/static").json()["hawker_centres"]
+    centre = next(c for c in centres if c["name"] == name)
+    return {"latitude": centre["lat"], "longitude": centre["lng"]}
+
+
+def test_a_centre_is_priced_at_its_nearest_stations_not_its_region(client):
+    by_centre = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
+    point = centre_point(client, MAXWELL)
+    at_point = client.post("/api/quote", json={"product": "cooked_food", **point}).json()
+    by_region = client.post("/api/quote", json={"product": "cooked_food", "region": "south"}).json()
+    assert by_centre == at_point
+    assert weekly(by_centre) != weekly(by_region)
+
+
+def test_an_unknown_centre_is_404_and_an_unknown_sector_is_422(client):
+    unknown = client.post("/api/quote", json={"product": "cooked_food", "centre": "Nowhere Market"})
+    assert unknown.status_code == 404
+    bad_sector = client.post("/api/quote", json={"product": "cooked_food", "postcode": "990123"})
+    assert bad_sector.status_code == 422
+
+
+def test_a_hawker_is_charged_the_price_shown_for_its_centre(client):
+    shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
+    policy = client.post("/api/buy", json=buy_body()).json()["policy"]
+    assert policy["weekly_premium_sgd"] == weekly(shown)
+
+
+SHOP_QUOTE = {"product": "packaged_food", "postcode": "560123"}
+
+
+def test_a_shop_is_charged_the_price_shown_for_its_postcode(client):
+    shown = client.post("/api/quote", json=SHOP_QUOTE).json()
+    by_region = client.post("/api/quote", json={"product": "packaged_food", "region": "north"})
+    policy = client.post("/api/buy", json=shop_body()).json()["policy"]
+    assert policy["weekly_premium_sgd"] == weekly(shown) != weekly(by_region.json())
+    again = client.post("/api/policies", json={"tier": "tier_2"}).json()
+    assert again["weekly_premium_sgd"] == weekly(shown)
+
+
+def test_a_platform_worker_is_charged_the_region_price(client):
+    region = client.post("/api/buy", json=platform_worker_body()).json()["application"]
+    shown = client.post("/api/quote", json={"product": "platform_work", "region": "north"}).json()
+    policy = client.get("/api/policies").json()[0]
+    assert policy["region"] == "north" and region["postcode"] == "730123"
+    assert policy["weekly_premium_sgd"] == weekly(shown)
+
+
+def test_buying_again_from_the_dashboard_keeps_the_centre_price(client):
+    first = client.post("/api/buy", json=buy_body()).json()["policy"]
+    again = client.post("/api/policies", json={"tier": "tier_2"}).json()
+    assert again["weekly_premium_sgd"] == first["weekly_premium_sgd"]
+
+
+def test_the_map_prices_every_centre_as_its_stalls_are_charged(client):
+    quotes = client.get("/api/map/quotes").json()
+    centres = client.get("/api/map/static").json()["hawker_centres"]
+    assert set(quotes["centres"]) == {c["name"] for c in centres}
+    shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
+    assert quotes["centres"][MAXWELL] == shown
+    parts = quotes["centre_loss_day_parts"][MAXWELL]
+    assert abs(sum(parts.values()) - shown["expected_loss_days"]) < 0.02
+
+
+def test_the_what_if_circle_prices_each_centre_from_its_own_stations(client):
+    point = centre_point(client, MAXWELL)
+    body = {"lat": point["latitude"], "lng": point["longitude"], "radius_km": 0.3,
+            "readings": {"haze": 230}, "product": "cooked_food", "tier": "tier_2"}
+    scenario = client.post("/api/map/scenario", json=body).json()
+    shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
+    assert scenario["centres"][MAXWELL]["weekly_baseline_sgd"] == weekly(shown)
+    assert scenario["centres"][MAXWELL]["weekly_stressed_sgd"] > weekly(shown)
 
 
 def test_a_tariff_saved_in_the_old_shape_is_replaced_by_the_default(tmp_path, monkeypatch):
@@ -491,11 +579,37 @@ def test_a_district_without_a_centre_falls_back_to_its_region_point():
     assert [point["lat"], point["lng"]] == MAP_STATIC["region_points"]["north"]
 
 
-def test_a_point_at_a_centre_gets_the_centres_gauges_and_stations():
-    site_map, active = burn.load_site_map(), burn.load_active_stations()
-    for centre in MAP_STATIC["hawker_centres"]:
-        site = burn.point_site(centre["lat"], centre["lng"], centre["region"], MAP_STATIC, active)
-        assert site == site_map[centre["name"]], centre["name"]
+def test_only_priced_stations_are_marked_missing_and_value_rows_skip_dry_and_cool_days(client):
+    table = burn.load_day_table()
+    for hazard in ("rain", "heat"):
+        priced = {site.key for site in client.app.state.sites[hazard]}
+        marked = {station for day in table.values() for station in day.get(f"{hazard}_missing", {})}
+        assert marked and marked <= priced
+    rain = [mm for day in table.values() for mm in day.get("rain", {}).values()]
+    heat = [hours for day in table.values() for hours in day.get("heat", {}).values()]
+    assert min(rain) >= 1.0 and min(heat) > 0
+
+
+def test_burn_at_a_centre_reads_each_day_as_a_payout_would(client):
+    replay = client.get("/api/map/burn", params={"centre": MAXWELL}).json()
+    centre = next(c for c in MAP_STATIC["hawker_centres"] if c["name"] == MAXWELL)
+    sites = client.app.state.sites
+    where = readings.history_place(centre["region"], centre["lat"], centre["lng"], sites)
+    tariff = store.latest(client.app.state.db).tariff
+    shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
+    yearly = next(t["yearly_premium_sgd"] for t in shown["tiers"] if t["tier"] == "tier_2")
+    expected = burn.site_burn(
+        burn.load_day_table(), where, tariff, "cooked_food", "tier_2", 500.0, yearly
+    )
+    assert replay["years"] == expected["years"]
+
+
+def test_burn_loss_ratio_is_over_the_premium_before_gst(client):
+    replay = client.get("/api/map/burn", params={"centre": MAXWELL}).json()
+    gst = 1 + store.latest(client.app.state.db).tariff.pricing.gst_rate
+    for year in replay["years"]:
+        before_gst = year["premium_sgd"] / gst
+        assert year["loss_ratio"] == pytest.approx(year["paid_sgd"] / before_gst, abs=0.001)
 
 
 def test_burn_replays_ten_years_at_a_point(client):
@@ -536,8 +650,9 @@ LIVE_SNAPSHOT = {
     "status": "ok",
     "fetched_at": "2026-11-15T12:00:00+08:00",
     "haze": {"central": {"max_today": 150.0}},
-    "rain": [{"lat": 1.37, "lng": 103.85, "wettest_work_hour_today": 25.0}],
-    "heat": [{"lat": 1.37, "lng": 103.85, "hours_ge_32_today": 0.0}],
+    "rain": [{"id": "S1", "lat": 1.37, "lng": 103.85, "wettest_work_hour_today": 25.0,
+              "reporting": True}],
+    "heat": [{"id": "H1", "lat": 1.37, "lng": 103.85, "hours_ge_32_today": 0.0}],
     "flood_alerts": [],
 }
 
@@ -554,6 +669,48 @@ def test_live_at_a_point_scores_it_as_the_live_feed_scores_a_centre(client):
     assert today["fetched_at"] == LIVE_SNAPSHOT["fetched_at"]
     every_centre = client.get("/api/map/live").json()["hawker_losses"]
     assert {k: today[k] for k in ("loss_percent", "readings")} == every_centre[index]
+
+
+def test_live_rain_is_the_middle_of_the_3_nearest_gauges_that_reported(client):
+    def gauge(gauge_id: str, lat: float, mm: float, reporting: bool = True) -> dict:
+        return {
+            "id": gauge_id, "lat": lat, "lng": 103.85, "wettest_work_hour_today": mm,
+            "reporting": reporting,
+        }
+
+    gauges = [
+        gauge("dead", 1.3500, 0.0, reporting=False),
+        gauge("a", 1.3501, 40.0),
+        gauge("b", 1.3502, 10.0),
+        gauge("c", 1.3503, 30.0),
+        gauge("d", 1.3600, 90.0),
+    ]
+    client.app.state.live = StubFeed({**LIVE_SNAPSHOT, "rain": gauges})
+    query = {"lat": 1.35, "lng": 103.85, "region": "central"}
+    assert client.get("/api/map/live/at", params=query).json()["readings"]["rain"] == 30.0
+
+
+def test_live_scores_the_customers_own_product(client):
+    client.app.state.live = StubFeed(LIVE_SNAPSHOT)
+    cooked = client.get("/api/map/live", params={"product": "cooked_food"}).json()["hawker_losses"]
+    goods = client.get("/api/map/live", params={"product": "general_goods"}).json()["hawker_losses"]
+    assert goods[0]["loss_percent"] < cooked[0]["loss_percent"]
+
+
+def test_a_replayed_day_scores_every_centre_on_its_own_readings(client):
+    day = client.get("/api/map/day", params={"date": "2026-10-15"}).json()
+    assert len(day["hawker_losses"]) == len(MAP_STATIC["hawker_centres"])
+    table = burn.load_day_table()["2026-10-15"]
+    tariff = store.latest(client.app.state.db).tariff
+    sites = client.app.state.sites
+    for place, loss in zip(MAP_STATIC["hawker_centres"], day["hawker_losses"]):
+        where = readings.history_place(place["region"], place["lat"], place["lng"], sites)
+        assert loss["readings"] == readings.day_readings_at(table, where, 3)
+        assert loss["loss_percent"] == calculator.assess(
+            tariff, "cooked_food", "tier_1", loss["readings"]
+        ).loss_percent
+    rains = {loss["readings"]["rain"] for loss in day["hawker_losses"]}
+    assert len(rains) > 1 and max(rains) <= day["rain"]["value"]
 
 
 def test_live_at_a_point_waits_for_the_feed(client):
@@ -586,3 +743,81 @@ def test_options_give_each_hazards_first_trigger_level(client):
     hazards = {h["key"]: h for h in client.get("/api/options").json()["hazards"]}
     assert (hazards["haze"]["first_band"], hazards["rain"]["first_band"]) == (101, 20)
     assert hazards["heat"]["first_band"] == 2
+
+
+def test_a_shop_is_priced_on_the_haze_of_the_region_it_is_paid_on(client):
+    postcode = "380123"
+    shown = client.post("/api/quote", json={"product": "packaged_food", "postcode": postcode})
+    shown = shown.json()
+    region = postcodes.region_of(postcode)
+    haze = next(risk for risk in shown["local_risks"] if risk["hazard"] == "haze")
+    tariff = store.latest(client.app.state.db).tariff
+    product = calculator.find(tariff.products, "packaged_food", "product")
+    region_haze = calculator.loss_day_parts(tariff, product, client.app.state.history[region])
+    assert (shown["region"], haze["stations"]) == (region, [region]) == ("east", ["east"])
+    assert haze["loss_days"] == round(region_haze["haze"], 2)
+    policy = client.post("/api/buy", json=shop_body(postcode=postcode)).json()["policy"]
+    assert (policy["region"], policy["weekly_premium_sgd"]) == (region, weekly(shown))
+
+
+def test_a_hawker_centre_keeps_its_price(client):
+    shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
+    assert weekly(shown) == 9.27
+    for risk in shown["local_risks"]:
+        assert shown["loss_day_parts"][risk["hazard"]] == risk["loss_days"]
+
+
+def end_term_on(client, cover_ends: date) -> None:
+    with client.app.state.db.begin() as db:
+        db.execute(update(application_profile).values(cover_ends=cover_ends))
+
+
+def test_buying_again_after_the_term_ended_is_refused(client):
+    client.post("/api/buy", json=buy_body())
+    today = datetime.now(SINGAPORE).date()
+    end_term_on(client, today)
+    response = client.post("/api/policies", json={"tier": "tier_2"})
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        f"Your 12-month term ended on {today:%d %b %Y}; apply again to renew"
+    )
+    end_term_on(client, today + timedelta(days=1))
+    assert client.post("/api/policies", json={"tier": "tier_2"}).status_code == 200
+
+
+def test_a_new_tariff_version_reprices_the_map(client):
+    before = client.get("/api/map/quotes").json()["centres"][MAXWELL]
+    saved = client.get("/api/admin/tariff", auth=ADMIN).json()
+    haze = next(hazard for hazard in saved["tariff"]["hazards"] if hazard["key"] == "haze")
+    haze["weight"] = haze["weight"] / 2
+    change = {"based_on_version": saved["version"], "tariff": saved["tariff"]}
+    assert client.put("/api/admin/tariff", json=change, auth=ADMIN).status_code == 200
+    after = client.get("/api/map/quotes").json()["centres"][MAXWELL]
+    shown = client.post("/api/quote", json={"product": "cooked_food", "centre": MAXWELL}).json()
+    assert weekly(after) < weekly(before)
+    assert after == shown
+
+
+def test_burn_replays_ten_years_for_a_platform_worker_by_region(client):
+    query = {"region": "north", "product": "platform_work", "tier": "tier_2"}
+    replay = client.get("/api/map/burn", params=query).json()
+    lat, lng = MAP_STATIC["region_points"]["north"]
+    assert (replay["centre"], replay["region"], replay["lat"], replay["lng"]) == (
+        None, "north", lat, lng
+    )
+    charged = client.post("/api/quote", json={"region": "north", "product": "platform_work"})
+    tier_2 = next(t for t in charged.json()["tiers"] if t["tier"] == "tier_2")
+    assert replay["weekly_premium_sgd"] == tier_2["weekly_premium_sgd"]
+    where = readings.history_place("north", lat, lng, client.app.state.sites)
+    tariff = store.latest(client.app.state.db).tariff
+    expected = burn.site_burn(
+        burn.load_day_table(), where, tariff, "platform_work", "tier_2", 500.0,
+        tier_2["yearly_premium_sgd"],
+    )
+    assert replay["years"] == expected["years"]
+
+
+def test_burn_by_region_needs_a_known_region_and_no_half_point(client):
+    assert client.get("/api/map/burn", params={"region": "middle"}).status_code == 404
+    query = {"region": "north", "lat": 1.35}
+    assert client.get("/api/map/burn", params=query).status_code == 422

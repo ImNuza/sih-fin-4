@@ -13,10 +13,10 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import Connection, func, insert, select, update
 
 from api import calculator, paynow, sms
-from api.accounts import policies
-from api.day_history import SiteReadings
+from api.accounts import application_profile, applications, policies
 from api.models import Tariff
 from api.payouts import payout_accounts, payout_events, payouts
+from api.readings import SiteReadings
 
 SINGAPORE = ZoneInfo("Asia/Singapore")
 CAP_WINDOW_DAYS = 365
@@ -27,7 +27,7 @@ COUNTED_TOWARDS_CAP = ("assessed", "approved", "held", "sending", "paid", "faile
 REJECTABLE = ("assessed", "approved", "held", "failed")
 RUN_OUTCOMES = (
     "paid", "held", "failed", "capped", "no_loss", "already_assessed", "waiting_period",
-    "awaiting_data",
+    "cover_ended", "awaiting_data",
 )
 
 
@@ -74,6 +74,17 @@ def owed_in_cap_window(db: Connection, user_id: int, loss_date: date) -> int:
         )
     ).scalar_one()
     return int(total)
+
+
+def cover_ends(db: Connection, user_id: int) -> date | None:
+    """The day the term of the owner's latest application ends; cover stops from that day.
+    None for an account with no buy-flow application, which has no term on record."""
+    return db.execute(
+        select(application_profile.c.cover_ends)
+        .join(applications, applications.c.id == application_profile.c.application_id)
+        .where(applications.c.user_id == user_id)
+        .order_by(applications.c.id.desc())
+    ).scalar()
 
 
 def first_covered_day(started_at: datetime) -> date:
@@ -139,10 +150,16 @@ def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, l
         return "already_assessed"
     if loss_date < first_covered_day(policy.started_at):
         return "waiting_period"
+    ends = cover_ends(db, policy.user_id)
+    if ends is not None and loss_date >= ends:
+        return "cover_ended"
     if site.waiting_for:
         return "awaiting_data"
     readings = site.readings
-    assessment = calculator.assess(tariff, policy.product, policy.tier, readings)
+    # The loss comes from today's tariff; the money from the daily amount the policy was sold with.
+    assessment = calculator.assess(
+        tariff, policy.product, policy.tier, readings, policy.daily_payout_sgd
+    )
     if assessment.payout_sgd <= 0:
         return "no_loss"
     daily_cents = to_cents(policy.daily_payout_sgd)

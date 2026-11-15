@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from api.day_history import site_readings
+from api import readings
 from tests.test_api import shop_body
 from tests.test_payout_api import (  # noqa: F401  (client is a fixture)
     FLOOD_DAY,
@@ -16,28 +16,31 @@ from tests.test_payout_api import (  # noqa: F401  (client is a fixture)
 )
 
 # A, B and C sit about 1.1 km apart on one line; D is about 11 km away.
-STATIONS = [
-    {"id": "A", "lat": 1.30, "lng": 103.80},
-    {"id": "B", "lat": 1.31, "lng": 103.80},
-    {"id": "C", "lat": 1.32, "lng": 103.80},
-    {"id": "D", "lat": 1.40, "lng": 103.80},
-]
-MAP = {"rain_stations": STATIONS, "wbgt_stations": STATIONS}
+STATIONS = [("A", 1.30, 103.80), ("B", 1.31, 103.80), ("C", 1.32, 103.80), ("D", 1.40, 103.80)]
+PLACE = readings.place("central", 1.30, 103.80, STATIONS, STATIONS)
 REGIONS = {"central": 60, "east": 60, "north": 60, "south": 60, "west": 60}
+THREE_GAUGES, ONE_HEAT_STATION = 3, 1
 
 
-def read(day: dict):
-    return site_readings({"haze": REGIONS, **day}, 1.30, 103.80, "central", MAP)
+def site_readings(day: dict) -> readings.SiteReadings:
+    return readings.site_readings(day, PLACE, THREE_GAUGES, ONE_HEAT_STATION)
 
 
-def test_nearest_station_reading_is_used():
-    site = read({"rain": {"A": 30.0, "B": 90.0}})
+def read(day: dict) -> readings.SiteReadings:
+    return site_readings({"haze": REGIONS, **day})
+
+
+def test_rain_is_the_median_of_the_three_nearest_gauges_and_heat_the_nearest_station():
+    site = read({"rain": {"A": 30.0, "B": 90.0, "C": 10.0}, "heat": {"A": 2.0, "B": 5.0}})
     assert site.readings["rain"] == 30.0
-    assert site.basis["rain"] == "A (nearest)"
+    assert site.basis["rain"] == "median of A, B, C"
+    assert site.readings["heat"] == 2.0
+    assert site.basis["heat"] == "A (nearest)"
 
 
 def test_a_station_that_reported_no_rain_reads_zero():
     assert read({"rain": {"B": 90.0}}).readings["rain"] == 0.0
+    assert read({"heat": {"B": 5.0}}).readings["heat"] == 0.0
 
 
 def test_a_silent_station_takes_the_median_of_its_reporting_neighbours():
@@ -46,18 +49,25 @@ def test_a_silent_station_takes_the_median_of_its_reporting_neighbours():
     assert site.basis["rain"] == "median of B, C (A did not report)"
 
 
+def test_a_silent_heat_station_takes_the_next_one_that_reported():
+    site = read({"heat": {"B": 5.0}, "heat_missing": {"A": 1}})
+    assert site.readings["heat"] == 5.0
+    assert site.basis["heat"] == "B (A did not report)"
+
+
 def test_far_stations_are_not_neighbours_so_the_mss_record_is_used():
     missing = {"A": 1, "B": 1, "C": 1}
     site = read({"rain": {"D": 80.0}, "rain_missing": missing, "rain_mss": {"A": 25.0}})
     assert site.readings["rain"] == 25.0
-    assert site.basis["rain"] == "MSS daily record for A (A did not report)"
+    assert site.basis["rain"] == "MSS daily record for A (no gauge within 5 km reported)"
     assert site.waiting_for == []
 
 
 def test_with_no_reading_at_all_the_hazard_waits_for_data():
-    site = read({"rain_missing": {"A": 1, "B": 1, "C": 1}})
+    site = read({"rain": {"D": 80.0}, "rain_missing": {"A": 1, "B": 1, "C": 1}})
     assert "rain" not in site.readings
     assert site.waiting_for == ["rain"]
+    assert site.basis["rain"] == "A and every gauge within 5 km did not report"
 
 
 def test_heat_has_no_mss_record_to_fall_back_on():
@@ -66,15 +76,17 @@ def test_heat_has_no_mss_record_to_fall_back_on():
 
 
 def test_a_silent_haze_region_takes_the_median_of_the_others():
-    day = {"haze": {"north": 100, "south": 200, "east": 300}}
-    site = site_readings(day, 1.30, 103.80, "central", MAP)
+    site = site_readings({"haze": {"north": 100, "south": 200, "east": 300}})
     assert site.readings["haze"] == 200
     assert site.basis["haze"] == "median of east, north, south (central did not report)"
 
 
+def priced_gauges(app) -> list[str]:
+    return [site.key for site in app.state.sites["rain"]]
+
+
 def all_gauges_silent(app) -> dict:
-    gauges = {station["id"]: 1 for station in app.state.map_static["rain_stations"]}
-    return {"haze": REGIONS, "rain_missing": gauges}
+    return {"haze": REGIONS, "rain_missing": dict.fromkeys(priced_gauges(app), 1)}
 
 
 @pytest.fixture
@@ -105,13 +117,13 @@ def test_a_day_with_no_readings_is_paid_late_not_never(client, use_day):
 
 def test_each_payout_keeps_the_basis_of_its_readings(client, use_day):
     stallholder_with_cover(client)
-    gauges = {station["id"]: 80.0 for station in client.app.state.map_static["rain_stations"]}
-    use_day({"haze": REGIONS, "rain": gauges})
+    use_day({"haze": REGIONS, "rain": dict.fromkeys(priced_gauges(client.app), 80.0)})
     run_as_insurer(client, {"loss_date": "2026-11-09", "source": "nea_history"})
     sign_in(client, "tan@example.com")
     [payout] = client.get("/api/payouts").json()
     assert payout["readings"]["rain"] == 80.0
-    assert payout["basis"]["rain"].endswith("(nearest)")
+    assert payout["basis"]["rain"].startswith("median of ")
+    assert payout["basis"]["heat"].endswith("(nearest)")
     assert set(payout["basis"]) == {"haze", "rain", "heat"}
 
 

@@ -5,24 +5,26 @@ Usage:
 
 Reads  data/processed/psi_daily.parquet, data/processed/wbgt_station_days.parquet
        data/rainfall/rain_hourly_*.parquet, data/mss_daily/mss_daily.parquet
-       data/processed/map_static.json (the gauges and stations a payout can read)
+       data/processed/site_hazard_readings.csv (the gauges and WBGT stations the price reads)
 Writes data/processed/day_readings.csv.gz   one row per day, kind and site:
        haze          the day's highest 24-hour PSI per region
        rain          the wettest work hour per gauge, mm (rows under RAIN_KEEP_MM are left out)
        heat          work hours at WBGT 32°C or more per station (zero rows left out)
-       rain_missing  a map gauge that reported under half the work hours that day (value 1)
-       heat_missing  a map WBGT station that reported under half the work-hour readings (value 1)
+       rain_missing  a priced gauge that reported under half the work hours that day (value 1)
+       heat_missing  a priced WBGT station that reported under half the work-hour readings
+                     (value 1)
        rain_mss      for a missing gauge, MSS's published highest 60-minute rain that day, mm
 Missing rows exist only from the first day of each feed in data/, so a day before the WBGT
-network data starts reads heat as 0, as before. api/day_history.py uses the missing rows to
-fall back to neighbouring stations, then MSS, then to wait for data.
+network data starts reads heat as 0. A station is reporting on a day unless it has a missing
+row, and a reporting station with no value row read 0. api/readings.py reads a place from these
+rows, the same network the price reads, with its fallbacks: other stations within 5 km, MSS, or
+waiting for data.
 """
 
 from __future__ import annotations
 
 import csv
 import gzip
-import json
 
 import pandas as pd
 
@@ -38,20 +40,23 @@ WBGT_READINGS_PER_HOUR = 4
 MIN_REPORTED_SHARE = 0.5   # a station that sent under half its work-hour data did not report
 
 
-def map_station_ids(kind: str) -> set[str]:
-    map_static = json.loads((PROC_DIR / "map_static.json").read_text())
-    return {station["id"] for station in map_static[kind]}
+def priced_station_ids(hazard: str) -> set[str]:
+    """The stations the price reads for a hazard, so pricing and payouts read one network."""
+    history = pd.read_csv(PROC_DIR / "site_hazard_readings.csv", usecols=["hazard", "site"])
+    return set(history.loc[history["hazard"] == hazard, "site"])
 
 
 def missing_rows(
     reported: pd.DataFrame, kind: str, stations: set[str]
 ) -> list[tuple[str, str, str, float]]:
-    """Map stations with no full report on each day the feed covers. reported: day, station_id."""
-    by_day = reported.groupby("day")["station_id"].agg(set)
+    """Priced stations with no full report on each day the feed covers, a day the whole feed was
+    down included. reported: day, station_id."""
+    present_by_day = reported.groupby("day")["station_id"].agg(set)
+    feed_days = pd.date_range(present_by_day.index.min(), present_by_day.index.max())
     return [
         (day.date().isoformat(), kind, station_id, 1)
-        for day, present in by_day.items()
-        for station_id in sorted(stations - present)
+        for day in feed_days
+        for station_id in sorted(stations - present_by_day.get(day, set()))
     ]
 
 
@@ -72,7 +77,7 @@ def rain_rows() -> list[tuple[str, str, str, float]]:
     work = rain[rain["work_hour"]]
     hours = work.groupby(["day", "station_id"]).size().reset_index(name="hours")
     reported = hours[hours["hours"] >= WORK_HOURS * MIN_REPORTED_SHARE]
-    missing = missing_rows(reported, "rain_missing", map_station_ids("rain_stations"))
+    missing = missing_rows(reported, "rain_missing", priced_station_ids("rain"))
     wettest = work.groupby(["day", "station_id"])["rain_mm"].max().reset_index()
     wettest = wettest[wettest["rain_mm"] >= RAIN_KEEP_MM]
     values = [
@@ -106,7 +111,7 @@ def heat_rows() -> list[tuple[str, str, str, float]]:
         (record.day.date().isoformat(), "heat", record.station_id, float(record.hours_ge_32))
         for record in hot.itertuples()
     ]
-    return values + missing_rows(reported, "heat_missing", map_station_ids("wbgt_stations"))
+    return values + missing_rows(reported, "heat_missing", priced_station_ids("heat"))
 
 
 def main() -> None:

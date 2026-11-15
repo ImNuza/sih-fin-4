@@ -121,6 +121,8 @@ def fetch_rain(client: DgsClient, day: str) -> list[dict]:
                 "id": station_id,
                 **location,
                 "wettest_work_hour_today": round(max(hours), 1) if hours else 0.0,
+                # A listed gauge with no reading today is out of service: skip it, not read 0.
+                "reporting": station_id in latest,
                 "latest_5min": latest.get(station_id, {}).get("mm", 0.0),
                 "latest_at": latest.get(station_id, {}).get("at"),
             }
