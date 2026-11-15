@@ -12,7 +12,10 @@
 
 /* ---------- hero ---------- */
 .hero { position: relative; overflow: hidden; background: var(--surface); border-bottom: 1px solid var(--line); }
-.hero-grid { position: relative; z-index: 1; display: grid; gap: var(--s-6); padding-top: var(--s-6); padding-bottom: 150px; }
+.hero-grid {
+  position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-6); padding-top: var(--s-6); padding-bottom: 150px;
+}
 .hero h1 {
   font: var(--w-bold) var(--t-display)/1.04 var(--sans); letter-spacing: -0.03em;
   max-width: 14ch; overflow-wrap: break-word;
@@ -117,13 +120,21 @@
 .sitefoot .inner { padding-inline: var(--s-4); }
 
 @media (max-width: 479px) {
-  .hero-actions .btn { width: 100%; }
-  .closer .btn { width: 100%; }
+  /* Full-width buttons; a long label wraps instead of pushing the page wider than the phone. */
+  :is(.hero-actions, .closer) .btn {
+    width: 100%; white-space: normal; text-align: center; line-height: 1.25; padding-block: 10px;
+  }
 }
 
 @media (min-width: 640px) {
   .wrap, .sitefoot .inner { padding-inline: var(--s-5); }
   .triggers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Tablet portrait: copy and the SMS side by side, so the hero does not leave half the screen empty. */
+@media (min-width: 720px) and (max-width: 899px) {
+  .hero-grid { grid-template-columns: minmax(0, 1fr) minmax(280px, 320px); align-items: center; }
+  .phone { justify-self: end; }
 }
 
 @media (min-width: 900px) {

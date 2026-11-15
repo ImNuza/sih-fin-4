@@ -200,6 +200,11 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
 @media (min-width: 820px) {
   .sme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* Tablet: the insurer's five figures as 3 + 2 rather than five squeezed cells. */
+@media (min-width: 641px) and (max-width: 1100px) {
+  #ins-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #ins-kpis .kpi { border-top: 1px solid var(--line); margin-top: -1px; }
+}
 @media (max-width: 760px) {
   .quicklinks { grid-template-columns: 1fr; }
   .quicklinks a + a { border-left: 0; border-top: 1px solid var(--line); }
@@ -215,6 +220,8 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
   .burn-chart { gap: var(--s-1); }
   .table-tools .input-icon { flex-basis: 100%; max-width: none; }
   .table-tools select { flex: 1 1 140px; }
+  .tool-select { flex-wrap: wrap; max-width: 100%; }
+  .tool-select :is(select, input[type="range"]) { flex: 1 1 120px; min-width: 0; }
   .table-tools .count { margin-left: 0; flex-basis: 100%; }
   .referral { padding: var(--s-4); }
 }

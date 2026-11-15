@@ -74,3 +74,23 @@
 @media (max-width: 520px) {
   .sd-panel { position: fixed; left: 8px; right: 8px; bottom: 76px; width: auto; height: 70vh; }
 }
+
+/* Phones and small tablets: a smaller button that never sits on top of a page's own controls. */
+@media (max-width: 720px) {
+  .sd-widget { right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .sd-launch { padding: 10px 14px; font-size: 13px; }
+  /* Room to scroll the last lines of a page out from under the button. */
+  body:has(> .sd-widget:not(.sd-map)) { padding-bottom: 64px; }
+
+  /* Tariff desk: above the fixed Discard / Review bar. */
+  .sd-widget.sd-admin { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .sd-widget.sd-admin .sd-panel { bottom: calc(136px + env(safe-area-inset-bottom, 0px)); height: min(70vh, calc(100dvh - 150px)); }
+
+  /* Risk atlas: the panels fill the bottom, so the button sits top-right under the top bar and the
+     chat opens down from there. */
+  .sd-widget.sd-map { left: auto; right: 8px; top: calc(var(--topbar-h, 64px) + 8px); bottom: auto; }
+  .sd-widget.sd-map .sd-panel {
+    position: fixed; left: 8px; right: 8px; top: calc(var(--topbar-h, 64px) + 56px); bottom: 8px;
+    width: auto; height: auto;
+  }
+}
