@@ -37,10 +37,11 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import func
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
-from api import accounts, burn, calculator, kyc, onboarding, payout_api, paynow_qr, postcodes, store, underwriting
+from api import accounts, burn, calculator, kyc, onboarding, payout_api, payout_flow, paynow_qr, postcodes, store, underwriting
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.day_history import day_readings
 from api.live import LiveFeed
@@ -1081,6 +1082,90 @@ def insurer_portfolio(user: InsurerDep, request: Request) -> dict:
         "daily_payout_exposure_sgd": round(sum(r["daily_payout_sgd"] for r in rows), 2),
         "by_region": {k: {**v, "weekly_premium_sgd": round(v["weekly_premium_sgd"], 2)} for k, v in by_region.items()},
     }
+
+
+# Accounts that scripts/seed_demo_policies.py makes for the pitch use this email domain.
+DEMO_EMAIL_DOMAIN = "demo-seed.safeday.test"
+
+
+def latest_application_ids():
+    """Each user's latest buy-flow application id."""
+    applications = accounts.applications
+    return (
+        sa_select(applications.c.user_id, func.max(applications.c.id).label("application_id"))
+        .group_by(applications.c.user_id)
+        .subquery()
+    )
+
+
+def payouts_by_policy():
+    """Per policy: payouts paid, cents paid, and cents assessed but not paid yet (held, failed)."""
+    rows = payout_api.payouts
+    paid = rows.c.status == "paid"
+    unpaid = rows.c.status.in_([s for s in payout_flow.COUNTED_TOWARDS_CAP if s != "paid"])
+    return (
+        sa_select(
+            rows.c.policy_id,
+            func.count().filter(paid).label("payouts_paid"),
+            func.sum(rows.c.amount_cents).filter(paid).label("paid_cents"),
+            func.sum(rows.c.amount_cents).filter(unpaid).label("owed_cents"),
+        )
+        .group_by(rows.c.policy_id)
+        .subquery()
+    )
+
+
+def insurer_policy_view(row) -> dict:
+    started_at = row["started_at"]
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=UTC)
+    hidden = ("user_id", "email", "paid_cents", "owed_cents")
+    return {
+        **{k: v for k, v in row.items() if k not in hidden},
+        "started_at": started_at,
+        "waiting_ends": payout_flow.first_covered_day(started_at),
+        "payouts_paid": row["payouts_paid"] or 0,
+        "paid_sgd": (row["paid_cents"] or 0) / 100,
+        "owed_sgd": (row["owed_cents"] or 0) / 100,
+        "demo": row["email"].endswith("@" + DEMO_EMAIL_DOMAIN),
+    }
+
+
+@app.get("/api/insurer/policies")
+def insurer_policies(_: InsurerDep, request: Request) -> list[dict]:
+    """Every policy with its business, cover dates, underwriting note and payouts so far.
+
+    demo is true for the made-up book that scripts/seed_demo_policies.py adds for the pitch.
+    """
+    policies, users, profile = accounts.policies, accounts.users, accounts.application_profile
+    decisions = underwriting.underwriting_decisions
+    latest, paid = latest_application_ids(), payouts_by_policy()
+    query = (
+        sa_select(
+            policies,
+            users.c.business_name,
+            users.c.name,
+            users.c.email,
+            profile.c.business_class,
+            profile.c.postcode,
+            profile.c.term_months,
+            profile.c.cover_ends,
+            decisions.c.decision.label("underwriting_decision"),
+            decisions.c.note.label("underwriting_note"),
+            paid.c.payouts_paid,
+            paid.c.paid_cents,
+            paid.c.owed_cents,
+        )
+        .join(users, users.c.id == policies.c.user_id)
+        .outerjoin(latest, latest.c.user_id == policies.c.user_id)
+        .outerjoin(profile, profile.c.application_id == latest.c.application_id)
+        .outerjoin(decisions, decisions.c.application_id == latest.c.application_id)
+        .outerjoin(paid, paid.c.policy_id == policies.c.id)
+        .order_by(policies.c.started_at.desc(), policies.c.id.desc())
+    )
+    with request.app.state.db.connect() as db:
+        rows = db.execute(query).mappings().all()
+    return [insurer_policy_view(row) for row in rows]
 
 
 @app.get("/api/admin/tariff")
