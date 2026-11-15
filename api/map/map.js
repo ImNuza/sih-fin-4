@@ -848,6 +848,33 @@ function setSim(partial) {
 }
 
 /* ---------- tell us about your shop ---------- */
+const EXAMPLE_HAWKER_GOODS = ["chicken rice", "duck rice", "wanton noodles", "prawn noodles", "fresh fish", "vegetables"];
+const EXAMPLE_SHOPS = ["provision shop selling drinks and snacks", "phone accessories shop", "clothing shop"];
+const EXAMPLE_SHOP_STREETS = ["Ang Mo Kio Ave 3", "Bedok North Street 3", "Yishun Ring Road", "Hougang Ave 8", "Jurong West Street 42"];
+const EXAMPLE_DELIVERY = ["foodpanda", "GrabFood"];
+const EXAMPLE_DELIVERY_AREAS = ["Tampines", "Woodlands", "Punggol", "Sengkang", "Bukit Batok"];
+const examplePick = (list) => list[Math.floor(Math.random() * list.length)];
+
+/* The everyday name of a centre: "Smith Street Blk 335 (Chinatown Complex Market)" is Chinatown Complex Market. */
+function everydayCentreName(name) {
+  const [address, bracket = ""] = name.split(" (");
+  return [address, ...bracket.replace(/\)$/, "").split("/")].find((part) => /(Market|Food Centre)$/.test(part)) || null;
+}
+function exampleShopText() {
+  const centres = STATIC.hawker_centres.map((c) => everydayCentreName(c.name)).filter(Boolean);
+  const block = 100 + Math.floor(Math.random() * 800);
+  return examplePick([
+    () => `I sell ${examplePick(EXAMPLE_HAWKER_GOODS)} at ${examplePick(centres)}`,
+    () => `I run a ${examplePick(EXAMPLE_SHOPS)} at Blk ${block} ${examplePick(EXAMPLE_SHOP_STREETS)}`,
+    () => `I deliver cooked food for ${examplePick(EXAMPLE_DELIVERY)} around ${examplePick(EXAMPLE_DELIVERY_AREAS)}`,
+  ])();
+}
+function clearShopText() {
+  el("kyc-text").value = "";
+  el("kyc-photo").value = "";
+  shopStatus("");
+}
+
 let stripSeq = 0;
 function shopCircle() { return state.circles.find((c) => c.id === state.shopId) || null; }
 function shopStatus(text) {
@@ -1230,6 +1257,8 @@ function wireUi() {
     + OPTIONS.products.map((p) => `<option value="${p.key}">${p.label}</option>`).join("");
   productSelect.addEventListener("change", () => setShopProduct(productSelect.value));
   el("kyc-submit").addEventListener("click", readShop);
+  el("kyc-clear").addEventListener("click", clearShopText);
+  el("kyc-text").value = exampleShopText();
   el("kyc-confirm-btn").addEventListener("click", placeShop);
   el("kyc-strip").addEventListener("click", (event) => {
     const day = event.target.closest("[data-day]");

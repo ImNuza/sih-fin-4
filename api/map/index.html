@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/theme.css?v=2" />
     <link rel="stylesheet" href="map.css?v=20" />
     <script src="vendor/deck.min.js" defer></script>
-    <script src="map.js?v=20" defer></script>
+    <script src="map.js?v=21" defer></script>
   </head>
   <body>
     <div id="map" aria-label="3D map of Singapore"></div>
@@ -95,6 +95,7 @@
           <textarea id="kyc-text" rows="2" maxlength="500" placeholder="I have a fruit shop at Tiong Bahru market"></textarea>
           <div class="kyc-row">
             <input type="file" id="kyc-photo" accept="image/jpeg,image/png,image/webp" aria-label="Photo of the shop (optional)" />
+            <button class="btn-mini" id="kyc-clear" type="button">Clear</button>
             <button class="btn-mini" id="kyc-submit" type="button">Place my shop</button>
           </div>
           <p class="note">The assistant only suggests what you sell and where; you confirm both, and the payout always comes from the tariff and the day's readings. Your words and photo are not stored.</p>
