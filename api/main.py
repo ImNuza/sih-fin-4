@@ -974,6 +974,8 @@ class BuyRequest(BaseModel):
 
     @model_validator(mode="after")
     def complete(self) -> BuyRequest:
+        if self.business_class not in onboarding.OPEN_CLASSES:
+            raise ValueError(onboarding.NEXT_PHASE)
         {
             "hawker": self.hawker_complete,
             "shop": self.shop_complete,
@@ -1073,6 +1075,7 @@ def buy_options() -> dict:
     """The choices the buy flow offers each business class, and the postal sector regions."""
     return {
         "business_classes": onboarding.BUSINESS_CLASSES,
+        "open_classes": onboarding.OPEN_CLASSES,
         "sold_by": onboarding.SOLD_BY,
         "associations": onboarding.ASSOCIATIONS,
         "centre_associations": onboarding.CENTRE_ASSOCIATIONS,

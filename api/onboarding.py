@@ -19,6 +19,10 @@ from typing import Literal, get_args
 
 BusinessClass = Literal["hawker", "shop", "platform_worker"]
 BUSINESS_CLASSES = get_args(BusinessClass)
+# The pilot sells to hawker stalls and neighbourhood shops only. Platform workers join in the next
+# phase (team decision, 15 Nov 2026); their path stays built and the buy flow shows it as coming.
+OPEN_CLASSES = ("hawker", "shop")
+NEXT_PHASE = "Platform workers join in the next phase. The pilot covers hawker stalls and shops"
 PLATFORM_PRODUCT = "platform_work"
 
 # SFA food stall licence or NEA stall tenancy number. Formats differ by issuer, so only the

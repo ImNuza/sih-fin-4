@@ -324,7 +324,7 @@ def test_a_shop_is_paid_on_the_readings_at_its_postcode_area(client):
     assert paid_readings(client) == expected
 
 
-def test_a_platform_worker_is_paid_on_the_readings_at_their_region(client):
+def test_a_platform_worker_is_paid_on_the_readings_at_their_region(client, riders_open):
     buy_and_start(client, platform_worker_body())
     run_as_insurer(client, HAZE_DAY)
     lat, lng = client.app.state.map_static["region_points"]["north"]

@@ -312,7 +312,7 @@ def test_a_shop_is_charged_the_price_shown_for_its_postcode(client):
     assert again["weekly_premium_sgd"] == weekly(shown)
 
 
-def test_a_platform_worker_is_charged_the_region_price(client):
+def test_a_platform_worker_is_charged_the_region_price(client, riders_open):
     region = client.post("/api/buy", json=platform_worker_body()).json()["application"]
     shown = client.post("/api/quote", json={"product": "platform_work", "region": "north"}).json()
     policy = client.get("/api/policies").json()[0]
@@ -463,7 +463,7 @@ def test_a_shop_is_placed_by_its_postcode_and_has_no_centre(client):
     assert client.get("/api/applications/mine").json()["postcode"] == "560123"
 
 
-def test_a_platform_worker_is_an_individual_covered_for_platform_work(client):
+def test_a_platform_worker_is_an_individual_covered_for_platform_work(client, riders_open):
     result = client.post("/api/buy", json=platform_worker_body()).json()
     application = result["application"]
     assert (application["platform"], application["platform_worker_id"]) == (
@@ -487,8 +487,16 @@ def test_a_platform_worker_is_an_individual_covered_for_platform_work(client):
         shop_body(postcode="12345"),
     ],
 )
-def test_each_class_must_give_its_own_details(client, body):
+def test_each_class_must_give_its_own_details(client, riders_open, body):
     assert client.post("/api/buy", json=body).status_code == 422
+
+
+def test_the_pilot_refuses_platform_workers_and_says_they_come_next(client):
+    response = client.post("/api/buy", json=platform_worker_body())
+    assert response.status_code == 422
+    assert "next phase" in response.text
+    options = client.get("/api/buy/options").json()
+    assert options["open_classes"] == ["hawker", "shop"]
 
 
 def test_an_unknown_postal_sector_is_refused(client):

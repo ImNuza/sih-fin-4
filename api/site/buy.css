@@ -71,6 +71,7 @@
   margin: 0; min-height: 64px; padding: var(--s-3); border-radius: var(--r-md);
 }
 .kind-grid > label > input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.kind-grid > label:has(input:disabled) { opacity: 0.55; cursor: not-allowed; }
 .kind-icon {
   display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-sm);
   background: var(--sunken); color: var(--ink-2);

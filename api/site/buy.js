@@ -5,6 +5,7 @@
    Steps: business, cover, details, confirm, pay. Pay is skipped when SafeDay is not added or a
    past decline sends the application to an underwriter. Three business classes, one path each:
    hawker stall, neighbourhood shop, platform worker (the choices come from /api/buy/options).
+   The pilot sells only the open_classes; the platform worker card shows as coming next.
    Prices and rent come from the API; nothing is saved until POST /api/buy at the last step.
    Needs site.js (el, api, post, SGD).
    For the demo every field starts filled with made-up details (fillRandom), so the whole flow is
@@ -229,8 +230,8 @@ function setRadio(name, value) {
   if (input) input.checked = true;
 }
 function businessClassAtRandom() {
-  const draw = Math.random();
-  return draw < 0.6 ? "hawker" : draw < 0.85 ? "shop" : "platform_worker";
+  const kind = Math.random() < 0.7 ? "hawker" : "shop";
+  return buyState.options.open_classes.includes(kind) ? kind : buyState.options.open_classes[0];
 }
 function townPostcode() {
   const sectors = TOWN_SECTORS.filter((s) => s in buyState.options.postal_sector_regions);
@@ -820,6 +821,17 @@ function onBack() {
   showStep(steps[Math.max(0, steps.indexOf(buyState.step) - 1)]);
 }
 
+/* Classes the pilot does not sell yet stay on the page, greyed out and marked as coming. */
+function closeUnsoldClasses() {
+  for (const input of buyForm().querySelectorAll('[name="business_class"]')) {
+    const open = buyState.options.open_classes.includes(input.value);
+    input.disabled = !open;
+    const label = input.closest("label");
+    label.querySelector(".kind-soon")?.toggleAttribute("hidden", open);
+    label.querySelector(".kind-today")?.toggleAttribute("hidden", !open);
+  }
+}
+
 function fillChoices(options) {
   const choice = (value, label) => `<option value="${value}">${label}</option>`;
   el("buy-centre").innerHTML = choice("", "Pick your centre…") +
@@ -902,6 +914,7 @@ async function wireBuy() {
     productLabels: Object.fromEntries(options.products.map((p) => [p.key, p.label])),
   };
   fillChoices(options);
+  closeUnsoldClasses();
 
   buyForm().addEventListener("submit", onNext);
   buyForm().addEventListener("change", onChange);
