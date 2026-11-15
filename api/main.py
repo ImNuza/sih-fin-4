@@ -1100,16 +1100,13 @@ def chosen_tier(priced: Quote, tier_key: str) -> TierQuote:
     return tier
 
 
-def referral_reason(tier: TierQuote, tariff: Tariff) -> str | None:
-    """Why a tier must go to an underwriter before it starts, or None when it is sold directly."""
-    if tier.sold_directly:
-        return None
-    share = tariff.pricing.refer_above_limit_share
-    return (
-        f"{tier.label} costs S${tier.yearly_premium_sgd:,.2f} a year here, more than {share:.0%} "
-        f"of the S${tier.max_payout_per_year_sgd:,.2f} it can pay in a year, so an underwriter "
-        "must approve it"
-    )
+def offered_tier(priced: Quote, tier_key: str) -> TierQuote:
+    """One tier of a quote that can be bought here. Raises 404 on an unknown tier and 409 on a
+    tier not offered at this place, with the reason."""
+    tier = chosen_tier(priced, tier_key)
+    if not tier.offered:
+        raise HTTPException(status.HTTP_409_CONFLICT, tier.not_offered_reason)
+    return tier
 
     @model_validator(mode="after")
     def seller_complete(self) -> PolicyRequest:
@@ -1137,16 +1134,13 @@ def policy_values(
 
 
 @app.post("/api/policies")
-def buy_policy(
-    body: PolicyRequest, user: SmeDep, tariff: TariffDep, request: Request, response: Response
-) -> dict:
+def buy_policy(body: PolicyRequest, user: SmeDep, tariff: TariffDep, request: Request) -> dict:
     """Start a cover for the signed-in business, priced server-side at its hawker centre or its
     shop's postcode (business_quote), else its region.
 
     Refused while an underwriter is reviewing the business's application, and once the term of
     that application has ended: payouts stop then (payout_flow.cover_ends), so a renewal is a new
-    application. A tier the quote does not sell directly starts nothing: a copy of the latest
-    application for that tier goes to the underwriter queue (202), and approval starts it.
+    application. A tier not offered at the business's place is refused (409) with the reason.
 
     A higher daily amount starts a new waiting period for the whole cover, so nobody moves up a
     tier when a bad day is forecast. The same or a lower amount keeps the cover's start. A cover
@@ -1167,27 +1161,16 @@ def buy_policy(
         raise HTTPException(
             status.HTTP_409_CONFLICT, "An underwriter is reviewing your application. Cover starts after they reply"
         )
-    # A declined change of tier leaves the business free to buy a tier sold directly.
+    # A declined change of tier, referred for its price before tiers were hidden instead, leaves
+    # the business free to buy a tier offered here.
     if application and application["status"] == "declined" and not application["referral_reason"]:
         raise HTTPException(status.HTTP_409_CONFLICT, "An underwriter declined this application")
     product = body.product or user.product or "cooked_food"
     priced = business_quote(
         request, tariff, product, user.region, user.centre, shop_postcode(application)
     )
-    tier = chosen_tier(priced, body.tier)
+    tier = offered_tier(priced, body.tier)
     offer = haze_bonus_offer(tier, tariff) if body.add_haze_bonus else None
-    if reason := referral_reason(chosen_tier(priced, body.tier), tariff):
-        if application is None:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                f"{reason}. Apply through the buy flow, so the underwriter has your details",
-            )
-        response.status_code = status.HTTP_202_ACCEPTED
-        referral = {"reason": reason, "product": product,
-                    "weekly_premium_sgd": chosen_tier(priced, body.tier).weekly_premium_sgd}
-        return refer_for_tier(
-            request.app.state.db, application["id"], body.tier, referral, offer is not None
-        )
     values = policy_values(priced, user.id, user.region, user.centre, product, body.tier)
     engine = request.app.state.db
     with engine.begin() as db:
@@ -1218,43 +1201,6 @@ def buy_policy(
             bonus = add_haze_bonus(db, policy_id, offer, starts_on)
     return {"id": policy_id, **{k: v for k, v in values.items() if k != "user_id"},
             "haze_bonus": bonus}
-
-
-def refer_for_tier(
-    engine, application_id: int, tier_key: str, referral: dict, haze_bonus: bool
-) -> dict:
-    """A copy of an application, its details and profile, for a tier that needs an underwriter.
-
-    The copy waits in the underwriter queue with the referral (reason, product and the weekly
-    premium quoted); the cover in force, if any, stays until the new tier starts.
-    """
-    tables = (accounts.application_details, accounts.application_profile)
-    applications = accounts.applications
-    with engine.begin() as db:
-        old = db.execute(
-            sa_select(applications).where(applications.c.id == application_id)
-        ).mappings().one()
-        copy = {key: value for key, value in old.items() if key != "id"}
-        copy.update(
-            add_safeday=True, tier=tier_key, status="referred", payment_method=None,
-            payment_ref=None, created_at=datetime.now(UTC),
-        )
-        new_id = db.execute(
-            sa_insert(applications).values(**copy).returning(applications.c.id)
-        ).scalar_one()
-        for table in tables:
-            row = db.execute(
-                sa_select(table).where(table.c.application_id == application_id)
-            ).mappings().first()
-            if row is not None:
-                db.execute(sa_insert(table).values(**{**row, "application_id": new_id}))
-        db.execute(
-            sa_insert(accounts.application_referrals).values(application_id=new_id, **referral)
-        )
-        if haze_bonus:
-            db.execute(sa_insert(accounts.application_haze_bonus).values(application_id=new_id))
-    return {"application_id": new_id, "status": "referred", "tier": tier_key,
-            "referral_reason": referral["reason"]}
 
 
 def drop_policies(db, which) -> int:
@@ -1503,9 +1449,9 @@ def buy(
 ) -> dict:
     """Create the account, the application and, when Payung is added, its policy, then sign in.
 
-    A past decline, or a tier the quote does not sell directly, sends the application to an
-    underwriter: no policy starts and nothing is charged. Payment is simulated, and no money
-    moves. PayNow needs a payment paid on the demo bank screen (api/premium.py), whose
+    A tier not offered at the business's place is refused (409) with the reason, before
+    anything is saved. A past decline sends the application to an underwriter: no policy starts
+    and nothing is charged. Payment is simulated, and no money moves. PayNow needs a payment paid on the demo bank screen (api/premium.py), whose
     reference is kept; GIRO keeps the made-up DEMO- reference.
     """
     engine = request.app.state.db
@@ -1518,17 +1464,17 @@ def buy(
     )
     region = None if hawker else postcodes.region_of(body.postcode)
     user = accounts.user_values(account, request, region)
-    priced = reason = None
+    priced = None
     if body.add_safeday:
         postcode = body.postcode if body.business_class == "shop" else None
         priced = business_quote(
             request, tariff, body.product, user["region"], user["centre"], postcode
         )
-        reason = referral_reason(chosen_tier(priced, body.tier), tariff)
+        offered_tier(priced, body.tier)
     offer = None
     if body.add_haze_bonus:
         offer = haze_bonus_offer(chosen_tier(priced, body.tier), tariff)
-    referred = body.declined_before or reason is not None
+    referred = body.declined_before
     pays = body.add_safeday and not referred
     if pays and body.payment_method is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick how to pay")
@@ -1592,11 +1538,6 @@ def buy(
         db.execute(
             sa_insert(accounts.application_details).values(application_id=application["id"], **details)
         )
-        if reason is not None:
-            db.execute(sa_insert(accounts.application_referrals).values(
-                application_id=application["id"], reason=reason, product=body.product,
-                weekly_premium_sgd=chosen_tier(priced, body.tier).weekly_premium_sgd,
-            ))
         if offer is not None and referred:
             db.execute(sa_insert(accounts.application_haze_bonus).values(
                 application_id=application["id"]
@@ -1623,7 +1564,7 @@ def buy(
         )
         sms.set_preferred_language(db, user_id, body.sms_language)
         payout_flow.send_welcome_if_due(db, user_id, tariff)
-        application.update(details, **profile, **channel, referral_reason=reason)
+        application.update(details, **profile, **channel, referral_reason=None)
     accounts.start_session(engine, user_id, response)
     return {
         "application": {k: v for k, v in application.items() if k != "user_id"},

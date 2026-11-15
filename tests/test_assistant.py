@@ -97,6 +97,7 @@ def assert_rows_are_the_quote(rows: list[dict], priced: dict) -> None:
         assert row["pays_for_a_day_with_no_sales_sgd"] == tier["daily_payout_sgd"]
         assert row["paid_days_a_year_up_to"] == YEARLY_LIMIT_DAYS
         assert row["best_value"] == tier["best_value"]
+        assert row["offered_here"] == tier["offered"]
         add_on = row["severe_haze_payout_add_on"]
         assert add_on["pays_once_sgd"] == tier["haze_bonus"]["lump_sum_sgd"]
         assert add_on["yearly_sgd"] == tier["haze_bonus"]["yearly_sgd"]
@@ -279,6 +280,34 @@ def test_chat_answers_without_a_model(client):
 ])
 def test_keyword_answers_come_from_the_tariff_and_the_quotes(client, question, words):
     assert words in chat(client, question)["reply"]
+
+
+def hide_tier_1_at_maxwell(client) -> dict:
+    """Set the share between Tier 1's and Tier 2's at Maxwell, so only Tier 1 is hidden there."""
+    priced = quote(client, centre=MAXWELL)
+    share = [t["yearly_premium_sgd"] / t["max_payout_per_year_sgd"] for t in priced["tiers"][:2]]
+    saved = client.get("/api/admin/tariff", auth=("admin", "secret")).json()
+    saved["tariff"]["pricing"]["refer_above_limit_share"] = round(sum(share) / 2, 4)
+    change = {"based_on_version": saved["version"], "tariff": saved["tariff"]}
+    assert client.put("/api/admin/tariff", json=change, auth=("admin", "secret")).status_code == 200
+    priced = quote(client, centre=MAXWELL)
+    assert [t["offered"] for t in priced["tiers"]] == [False, True, True, True]
+    return priced
+
+
+def test_a_tier_not_offered_is_never_suggested_and_the_reason_is_the_weather(client):
+    hidden = tier_of(hide_tier_1_at_maxwell(client), "tier_1")
+    result = assistant.tool_describe_business(context(), f"I sell chicken rice at {MAXWELL}")
+    row = next(r for r in result["tiers"] if r["tier"] == "tier_1")
+    assert row["offered_here"] is False
+    assert row["not_offered_because"] == hidden["not_offered_reason"]
+    assert result["recommended_tier"] != "tier_1"
+    reply = chat(client, f"I sell chicken rice at {MAXWELL}")["reply"]
+    monthly = round(hidden["yearly_premium_sgd"] / 12, 2)
+    assert f"S${monthly:,.2f}/month" not in reply
+    assert "Tier 1 is not offered here." in reply and "weather history" in reply
+    price = assistant.tool_explain_price(context(), centre=MAXWELL, tier="tier_1")
+    assert price["not_offered_because"] == hidden["not_offered_reason"]
 
 
 def test_chat_in_another_language_still_answers(client):

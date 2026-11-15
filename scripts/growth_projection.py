@@ -327,7 +327,7 @@ def place_economics(
         out[tier.key] = {
             "premium": tier_quote.yearly_premium_sgd,
             "parts": {step.key: step.amount_sgd for step in tier_quote.build_up},
-            "sold_directly": float(tier_quote.sold_directly),
+            "sold_directly": float(tier_quote.offered),
             "payouts": payouts,
             "risk_cost": risk_cost,
         }

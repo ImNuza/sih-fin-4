@@ -329,7 +329,8 @@ def tier_row(tier: TierQuote, who: str) -> dict:
         "price_per_day_sgd": tier.price_per_day_sgd,
         "pays_up_to_times_its_price": tier.cover_multiple,
         "best_value": tier.best_value,
-        "sold_directly": tier.sold_directly,
+        "offered_here": tier.offered,
+        **({"not_offered_because": tier.not_offered_reason} if not tier.offered else {}),
         "proof": proof_lines(tier, who),
         "severe_haze_payout_add_on": haze_bonus_row(tier.haze_bonus),
     }
@@ -519,14 +520,16 @@ def tool_describe_business(ctx: Context, description: str, postcode: str | None 
     ctx.actions.append(Action(type="start_signup", label="Start sign-up with these details",
                               url="/buy/?via=adviser", fields=fields))
     facts = product_facts(ctx.tariff)
+    offered = [t.tier for t in quote.tiers if t.offered]
+    wanted = rent.recommended_tier if rent and rent.recommended_tier in offered else None
     return {
         "product": product.label, "place": where.name, "region": where.region,
         "expected_full_loss_days_a_year": quote.expected_loss_days,
         "tiers": tier_rows(quote, where.who),
-        "recommended_tier": rent.recommended_tier if rent else quote.tiers[0].tier,
+        "recommended_tier": wanted or next(iter(offered), None),
         "why_recommended": (
             f"the smallest tier that pays a day's rent at this centre (about "
-            f"S${rent.rent_per_day_sgd:.0f} a day)" if rent else "the lowest-cost tier"
+            f"S${rent.rent_per_day_sgd:.0f} a day)" if wanted else "the lowest-cost tier offered here"
         ),
         "triggers": trigger_levels(ctx.tariff),
         "cover_rules": [facts[k] for k in ("daily_amounts", "partial_days", "yearly_limit",
@@ -579,6 +582,7 @@ def tool_explain_price(ctx: Context, centre: str | None = None, product: str | N
             "year's full-loss days within the yearly limit, every day read as a payout reads it."
         ),
         "proof": proof_lines(chosen, where.who),
+        **({"not_offered_because": chosen.not_offered_reason} if not chosen.offered else {}),
         "note": "No personal data goes into the price: only the place's NEA history and the product.",
     }
 
@@ -944,6 +948,9 @@ def system_prompt(ctx: Context) -> str:
         "- When someone describes their business, call describe_business and lay out the tiers "
         "as choices with the monthly price and what each pays for a day with no sales. Use a "
         "tier's proof lines as worded; never call a past year's payout a promise.\n"
+        "- A tier with offered_here false cannot be bought at that place. Never offer it; say it "
+        "is not offered here and give its not_offered_because, which is the place's weather "
+        "history, never anything about the person.\n"
         "- Never say a model predicts or forecasts bad days.\n"
         "- On the buy page, when the person tells you their details, call fill_buy_form with "
         "only what they said, then ask them to check the form.\n"
@@ -1061,11 +1068,16 @@ def facts_reply(ctx: Context, low: str) -> str | None:
 
 
 def cover_reply(ctx: Context, r: dict, low: str) -> str:
-    """The tiers of describe_business as short choices, with the yearly limit and the add-on."""
+    """The tiers of describe_business offered at the place as short choices, with the yearly
+    limit and the add-on, then why any other tier is not offered there."""
+    offered = [t for t in r["tiers"] if t["offered_here"]]
+    hidden = " ".join(f"{t['not_offered_because']}." for t in r["tiers"] if not t["offered_here"])
+    if not offered:
+        return f"{r['product']} at {r['place']}: {hidden}"
     lines = "; ".join(f"{t['label']} {money(t['monthly_premium_sgd'])}/month, pays "
                       f"{amount(t['pays_for_a_day_with_no_sales_sgd'])} for a day with no sales"
-                      for t in r["tiers"])
-    suggested = next(t for t in r["tiers"] if t["tier"] == r["recommended_tier"])
+                      for t in offered)
+    suggested = next(t for t in offered if t["tier"] == r["recommended_tier"])
     facts = product_facts(ctx.tariff)
     reply = (f"{r['product']} at {r['place']}: {lines}. {facts['partial_days']} "
              f"{facts['yearly_limit']} I'd suggest {suggested['label']}, {r['why_recommended']}.")
@@ -1075,11 +1087,11 @@ def cover_reply(ctx: Context, r: dict, low: str) -> str:
         if not bonus["can_be_added_now"]:
             reply += " It cannot be added this month."
     if re.search(r"most|max|highest|best", low):
-        top = r["tiers"][-1]
+        top = offered[-1]
         reply += (f" The most cover is {top['label']}: "
                   f"{amount(top['pays_for_a_day_with_no_sales_sgd'])} for a day with no sales and up to {amount(top['most_paid_in_a_year_sgd'])} a "
                   f"year, for {money(top['monthly_premium_sgd'])} a month. {facts['higher_tiers']}")
-    return reply
+    return f"{reply} {hidden}" if hidden else reply
 
 
 def rules_reply(ctx: Context, text: str) -> str:
@@ -1146,7 +1158,8 @@ def rules_reply(ctx: Context, text: str) -> str:
                 f"{money(b['expected_payouts'])} a year are "
                 f"{r['expected_payouts_share_of_premium_before_gst']} of the premium before GST; "
                 "reinsurance, running costs, profit and GST make the rest. No personal data goes "
-                "into the price.")
+                "into the price."
+                + (f" {r['not_offered_because']}." if "not_offered_because" in r else ""))
     if any(w in low for w in ("10 year", "ten year", "would have", "history", "past years")):
         r = tool_ten_year_record(ctx, centre, postcode=postcode)
         if "error" in r:

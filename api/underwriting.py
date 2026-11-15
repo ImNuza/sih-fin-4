@@ -1,6 +1,7 @@
-"""The underwriter queue: applications referred by a past decline or by a tier the quote does
-not sell directly (its premium is more than the tariff's share of its yearly limit), and the
-decision on each.
+"""The underwriter queue: applications referred by a past decline, and the decision on each.
+
+Applications referred for a tier's price, saved before a tier priced too high for its place was
+hidden instead (calculator.not_offered_reason), stay in the queue and are decided the same way.
 
 An insurer approves or declines a referred application. Approval accepts it and, when the owner
 added Payung, starts the policy for the tier and product applied for at the weekly premium

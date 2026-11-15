@@ -103,7 +103,7 @@ class Tier(BaseModel):
     premium_shares: PremiumShares | None = Field(
         default=None,
         description="This tier's split of the premium before GST. Empty: the Pricing loads, "
-        "and the tier is sold directly, as every tier was before the shares.",
+        "and the tier is held back only where its premium reaches its yearly limit.",
     )
 
 
@@ -117,10 +117,11 @@ class Pricing(BaseModel):
     distribution_expense_ratio: Share = Field(
         default=0.15, description="The selling and distribution part of expense_ratio."
     )
+    # The name is kept so saved tariffs load; the rule now hides the tier instead of referring.
     refer_above_limit_share: Share = Field(
         default=0.5,
-        description="A tier whose yearly premium is more than this share of its yearly limit is "
-        "not sold directly: an underwriter must approve it.",
+        description="A tier with premium shares whose yearly premium is more than this share of "
+        "its yearly limit is not offered at that place.",
     )
 
     @model_validator(mode="before")
@@ -343,14 +344,20 @@ class TierQuote(BaseModel):
     cover_multiple: float | None = Field(
         description="max_payout_per_year_sgd over yearly_premium_sgd. Empty for a free tier."
     )
-    sold_directly: bool = Field(
-        description="False when the tier has premium shares and its yearly premium is more than "
-        "refer_above_limit_share of the yearly limit: it is then referred to an underwriter."
+    offered: bool = Field(
+        description="False when the yearly premium here is at or above the yearly limit, or, for "
+        "a tier with premium shares, more than refer_above_limit_share of it. A tier that is not "
+        "offered cannot be bought at this place."
+    )
+    not_offered_reason: str | None = Field(
+        default=None,
+        description="Why the tier is not offered here, in plain words: the place's weather "
+        "history. Empty when it is offered.",
     )
     proof: TierProof | None = Field(description="Empty only when no replay year is complete.")
     best_value: bool = Field(
         default=False,
-        description="True for the tier sold directly with the highest cover_multiple here.",
+        description="True for the tier offered here with the highest cover_multiple.",
     )
     cost_per_sgd_of_daily_cover: float = Field(
         description="yearly_premium_sgd over daily_payout_sgd."

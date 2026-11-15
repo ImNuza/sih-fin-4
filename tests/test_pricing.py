@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 
 from api import accounts, burn, calculator, place_days, readings, store
 from api.main import SINGAPORE, app
@@ -37,13 +37,14 @@ def tier(quote: dict, key: str = "tier_2") -> dict:
 
 
 @pytest.mark.parametrize("product", PRODUCTS)
-def test_a_tier_sold_directly_never_costs_more_than_half_its_limit(client, product):
+def test_a_tier_offered_never_costs_more_than_half_its_limit(client, product):
     quotes = client.get("/api/map/quotes", params={"product": product}).json()
     for quote in [*quotes["centres"].values(), *quotes["quotes"].values()]:
         for t in quote["tiers"]:
-            assert t["sold_directly"] == (
+            assert t["offered"] == (
                 t["yearly_premium_sgd"] <= 0.5 * t["max_payout_per_year_sgd"]
             )
+            assert (t["not_offered_reason"] is None) == t["offered"]
             assert t["expected_paid_days"] <= t["max_payout_per_year_sgd"] / t["daily_payout_sgd"]
 
 
@@ -292,46 +293,77 @@ def test_a_tariff_with_another_station_rule_is_read_on_demand(client):
     assert client.app.state.place_days.read_on_demand
 
 
-def refer_everything(client) -> None:
+def hide_every_tier(client) -> None:
+    """Set the share so low that no tier is offered anywhere."""
     saved = client.get("/api/admin/tariff", auth=ADMIN).json()
     saved["tariff"]["pricing"]["refer_above_limit_share"] = 0.01
     change = {"based_on_version": saved["version"], "tariff": saved["tariff"]}
     assert client.put("/api/admin/tariff", json=change, auth=ADMIN).status_code == 200
 
 
-def test_a_tier_not_sold_directly_goes_to_an_underwriter_from_the_buy_flow(client):
-    refer_everything(client)
-    assert tier(centre_quote(client))["sold_directly"] is False
-    result = client.post("/api/buy", json=buy_body(payment_method=None)).json()
-    application = result["application"]
-    assert (application["status"], result["policy"]) == ("referred", None)
-    assert application["payment_ref"] is None
-    assert "an underwriter must approve it" in application["referral_reason"]
-    assert client.get("/api/applications/mine").json()["referral_reason"] == (
-        application["referral_reason"]
-    )
-    assert client.get("/api/policies").json() == []
-    client.post("/api/auth/logout")
-    sign_in_as_insurer(client)
-    [waiting] = client.get("/api/insurer/applications").json()["waiting"]
-    assert waiting["referral_reason"] == application["referral_reason"]
-    approved = decide(client, application["id"], "approve").json()
-    assert approved["policy"]["tier"] == "tier_2"
+def past_price_referral(client, tier_key: str, product: str = "cooked_food") -> int:
+    """A change of tier referred to an underwriter for its price, as the dashboard saved one
+    before a tier priced too high for its place was hidden instead. Returns its application id."""
+    shown = tier(centre_quote(client, product=product), tier_key)
+    applications = accounts.applications
+    with client.app.state.db.begin() as db:
+        old = db.execute(
+            select(applications).order_by(applications.c.id.desc())
+        ).mappings().first()
+        copy = {key: value for key, value in old.items() if key != "id"}
+        copy.update(tier=tier_key, status="referred", payment_method=None, payment_ref=None)
+        new_id = db.execute(
+            insert(applications).values(**copy).returning(applications.c.id)
+        ).scalar_one()
+        for table in (accounts.application_details, accounts.application_profile):
+            row = db.execute(
+                select(table).where(table.c.application_id == old["id"])
+            ).mappings().one()
+            db.execute(insert(table).values(**{**row, "application_id": new_id}))
+        db.execute(insert(accounts.application_referrals).values(
+            application_id=new_id, reason=f"{shown['label']} costs a lot here, so an underwriter "
+            "must approve it", product=product, weekly_premium_sgd=shown["weekly_premium_sgd"],
+        ))
+    return new_id
 
 
-def test_a_tier_not_sold_directly_is_referred_from_the_dashboard_too(client):
+def test_a_tier_not_offered_is_refused_by_the_buy_flow_before_anything_is_saved(client):
+    hide_every_tier(client)
+    shown = tier(centre_quote(client))
+    assert shown["offered"] is False
+    assert "Tier 2 is not offered here" in shown["not_offered_reason"]
+    response = client.post("/api/buy", json=buy_body())
+    assert response.status_code == 409
+    assert response.json()["detail"] == shown["not_offered_reason"]
+    login = {"email": buy_body()["email"], "password": buy_body()["password"]}
+    assert client.post("/api/auth/login", json=login).status_code == 401
+    without_cover = buy_body(add_safeday=False, tier=None, payment_method=None)
+    assert client.post("/api/buy", json=without_cover).status_code == 200
+
+
+def test_a_tier_not_offered_is_refused_from_the_dashboard_and_the_cover_stays(client):
     assert client.post("/api/buy", json=buy_body()).status_code == 200
-    refer_everything(client)
+    hide_every_tier(client)
     response = client.post("/api/policies", json={"tier": "tier_4"})
-    assert response.status_code == 202
-    referral = response.json()
-    assert referral["status"] == "referred" and referral["tier"] == "tier_4"
+    assert response.status_code == 409
+    assert response.json()["detail"].startswith("Tier 4 is not offered here.")
+    assert "weather history" in response.json()["detail"]
     [policy] = client.get("/api/policies").json()
     assert policy["tier"] == "tier_2"
+    client.post("/api/auth/logout")
+    sign_in_as_insurer(client)
+    assert client.get("/api/insurer/applications").json()["waiting"] == []
+
+
+def test_a_past_price_referral_still_waits_for_and_follows_the_underwriter(client):
+    assert client.post("/api/buy", json=buy_body()).status_code == 200
+    referral_id = past_price_referral(client, "tier_4")
     assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 409
     client.post("/api/auth/logout")
     sign_in_as_insurer(client)
-    approved = decide(client, referral["application_id"], "approve").json()
+    [waiting] = client.get("/api/insurer/applications").json()["waiting"]
+    assert waiting["id"] == referral_id and "underwriter" in waiting["referral_reason"]
+    approved = decide(client, referral_id, "approve").json()
     assert approved["policy"]["tier"] == "tier_4"
     [policy] = client.get("/api/policies").json()
     assert policy["tier"] == "tier_2" and policy["tier_change"]["tier"] == "tier_4"
@@ -383,7 +415,9 @@ def test_an_old_tariff_with_running_costs_under_15_percent_keeps_the_desks_edits
     assert saved["tariff"]["pricing"]["distribution_expense_ratio"] == 0.12
 
 
-def test_an_old_tariff_migrates_tier_by_tier_and_refers_no_old_tier(tmp_path, monkeypatch):
+def test_an_old_tariff_migrates_tier_by_tier_and_hides_an_old_tier_only_at_its_limit(
+    tmp_path, monkeypatch
+):
     old = old_main_tariff()
     old["tiers"][0]["max_paid_days_per_year"] = 12
     start_with(tmp_path, monkeypatch, old)
@@ -393,36 +427,33 @@ def test_an_old_tariff_migrates_tier_by_tier_and_refers_no_old_tier(tmp_path, mo
     assert [t["max_paid_days_per_year"] for t in tiers] == [12, 45, 45, 45]
     assert [t["daily_payout_sgd"] for t in tiers] == [20, *SHIPPED_DAILY_AMOUNTS[1:]]
     assert tiers[0]["premium_shares"] is None and tiers[1]["premium_shares"] is not None
-    assert all(tier(quote, "tier_1")["sold_directly"] for quote in centres.values())
+    # Without premium shares only the floor applies: hidden where the premium reaches the limit.
+    old_tier_1 = [tier(quote, "tier_1") for quote in centres.values()]
+    assert any(t["yearly_premium_sgd"] > 0.5 * t["max_payout_per_year_sgd"] for t in old_tier_1)
+    for t in old_tier_1:
+        assert t["offered"] == (t["yearly_premium_sgd"] < t["max_payout_per_year_sgd"])
 
 
 def test_an_approved_referral_starts_the_product_applied_for(client):
     assert client.post("/api/buy", json=buy_body()).status_code == 200
-    refer_everything(client)
     shown = tier(centre_quote(client, product="flowers"), "tier_4")
-    referral = client.post("/api/policies", json={"tier": "tier_4", "product": "flowers"})
-    assert referral.status_code == 202, referral.text
+    referral_id = past_price_referral(client, "tier_4", product="flowers")
     client.post("/api/auth/logout")
     sign_in_as_insurer(client)
-    policy = decide(client, referral.json()["application_id"], "approve").json()["policy"]
+    policy = decide(client, referral_id, "approve").json()["policy"]
     assert policy["product"] == "flowers"
     assert policy["weekly_premium_sgd"] == shown["weekly_premium_sgd"]
 
 
 def test_a_declined_change_of_tier_leaves_the_cover_and_buying_open(client):
     assert client.post("/api/buy", json=buy_body()).status_code == 200
-    refer_everything(client)
-    application_id = client.post("/api/policies", json={"tier": "tier_4"}).json()["application_id"]
+    application_id = past_price_referral(client, "tier_4")
     client.post("/api/auth/logout")
     sign_in_as_insurer(client)
     decide(client, application_id, "decline")
     client.post("/api/auth/logout")
     client.post("/api/auth/login", json={"email": "tan@example.test", "password": "test-pass-123"})
     assert [p["tier"] for p in client.get("/api/policies").json()] == ["tier_2"]
-    saved = client.get("/api/admin/tariff", auth=ADMIN).json()
-    saved["tariff"]["pricing"]["refer_above_limit_share"] = 0.5
-    change = {"based_on_version": saved["version"], "tariff": saved["tariff"]}
-    assert client.put("/api/admin/tariff", json=change, auth=ADMIN).status_code == 200
     assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 200
 
 
@@ -432,8 +463,7 @@ def test_a_change_of_tier_keeps_the_cover_in_force_until_its_waiting_period_ends
     with client.app.state.db.begin() as db:
         db.execute(accounts.policies.update().values(started_at=months_ago))
     before = client.get("/api/policies").json()[0]
-    refer_everything(client)
-    application_id = client.post("/api/policies", json={"tier": "tier_4"}).json()["application_id"]
+    application_id = past_price_referral(client, "tier_4")
     client.post("/api/auth/logout")
     sign_in_as_insurer(client)
     policy = decide(client, application_id, "approve").json()["policy"]
@@ -458,8 +488,7 @@ def test_a_day_before_the_switch_paid_after_it_is_paid_on_the_old_terms(client):
     assert client.post("/api/buy", json=buy_body()).status_code == 200
     with client.app.state.db.begin() as db:
         db.execute(accounts.policies.update().values(started_at=datetime(2026, 6, 1, tzinfo=UTC)))
-    refer_everything(client)
-    application_id = client.post("/api/policies", json={"tier": "tier_4"}).json()["application_id"]
+    application_id = past_price_referral(client, "tier_4")
     client.post("/api/auth/logout")
     sign_in_as_insurer(client)
     decide(client, application_id, "approve")

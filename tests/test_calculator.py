@@ -324,33 +324,46 @@ def test_price_per_day_and_how_many_times_the_premium_the_limit_is():
     tier_1 = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5))).tiers[0]
     assert tier_1.price_per_day_sgd == round(tier_1.yearly_premium_sgd / 365, 2)
     assert tier_1.cover_multiple == round(300 / tier_1.yearly_premium_sgd, 1)
-    assert tier_1.sold_directly
+    assert tier_1.offered and tier_1.not_offered_reason is None
 
 
 TIER_SHARES = {"expected_payouts": 0.6, "reinsurance": 0.06, "management": 0.1,
                "distribution": 0.15, "profit": 0.09}
 
 
-def test_a_tier_costing_more_than_half_its_limit_is_not_sold_directly():
+def test_a_tier_costing_more_than_half_its_limit_is_not_offered_and_says_why():
     tariff = make_tariff(pricing=INCOME_PRICING)
     for tier in tariff.tiers:
         tier.max_paid_days_per_year = 10
         tier.premium_shares = PremiumShares(**TIER_SHARES)
-    tier_1 = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5))).tiers[0]
+    quote = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5)))
+    tier_1 = quote.tiers[0]
+    assert tier_1.max_payout_per_year_sgd > tier_1.yearly_premium_sgd
     assert tier_1.yearly_premium_sgd > 0.5 * tier_1.max_payout_per_year_sgd
-    assert not tier_1.sold_directly
-    tariff.pricing.refer_above_limit_share = 1.0
+    assert not tier_1.offered and not tier_1.best_value
+    assert tier_1.not_offered_reason.startswith("Tier 1 is not offered here.")
+    limit = f"S${tier_1.max_payout_per_year_sgd:,.2f}"
+    assert f"more than 50% of the {limit} it can pay in a year" in tier_1.not_offered_reason
+    assert "weather history, never from the business" in tier_1.not_offered_reason
+    tariff.pricing.refer_above_limit_share = 0.99
     tier_1 = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5))).tiers[0]
-    assert tier_1.sold_directly
+    assert tier_1.offered and tier_1.not_offered_reason is None
 
 
-def test_a_tier_without_shares_is_sold_directly_as_before_the_guardrail():
+def test_a_tier_costing_its_whole_limit_is_never_offered_even_without_shares():
     tariff = make_tariff(pricing=INCOME_PRICING)
     for tier in tariff.tiers:
         tier.max_paid_days_per_year = 10
     tier_1 = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5))).tiers[0]
-    assert tier_1.yearly_premium_sgd > 0.5 * tier_1.max_payout_per_year_sgd
-    assert tier_1.sold_directly
+    assert 0.5 * tier_1.max_payout_per_year_sgd < tier_1.yearly_premium_sgd
+    assert tier_1.offered, "a tier without shares keeps only the floor rule"
+    for tier in tariff.tiers:
+        tier.max_paid_days_per_year = 1
+    quote = calculator.quote(tariff, "cooked_food", "east", replay((2017, 365, 5)))
+    for tier in quote.tiers:
+        assert tier.yearly_premium_sgd >= tier.max_payout_per_year_sgd
+        assert not tier.offered and not tier.best_value
+        assert "as much as or more than the" in tier.not_offered_reason
 
 
 def test_a_tariff_saved_before_the_split_keeps_its_running_costs():

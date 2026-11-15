@@ -313,16 +313,30 @@ def tier_proof(
     )
 
 
-def sold_directly(tariff: Tariff, tier: Tier, yearly_premium_sgd: float) -> bool:
-    """False for a tier whose premium is more than refer_above_limit_share of its yearly limit.
+def not_offered_reason(tariff: Tariff, tier: Tier, yearly_premium_sgd: float) -> str | None:
+    """Why a tier is not offered at a place, or None when it is.
 
-    A tier without premium shares, as every tier of a tariff saved before them, is sold
-    directly as it always was: the guardrail came with the shares and refers nothing more.
+    A tier is never offered where its yearly premium is at or above the most it can pay in a
+    year. A tier with premium shares is also not offered where its premium is more than
+    refer_above_limit_share of that limit; a tier without them, as every tier of a tariff saved
+    before the shares, keeps only the first rule. The premium comes from the place's weather
+    history alone, so the reason names it and nothing about the customer.
     """
-    if tier.premium_shares is None:
-        return True
     limit_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
-    return yearly_premium_sgd <= tariff.pricing.refer_above_limit_share * limit_sgd
+    share = tariff.pricing.refer_above_limit_share
+    if yearly_premium_sgd >= limit_sgd:
+        cap = "as much as or more than"
+    elif tier.premium_shares is not None and yearly_premium_sgd > share * limit_sgd:
+        cap = f"more than {share:.0%} of"
+    else:
+        return None
+    return (
+        f"{tier.label} is not offered here. The weather recorded here (NEA haze, rain and heat "
+        f"readings) prices it at S${yearly_premium_sgd:,.2f} a year, {cap} the "
+        f"S${limit_sgd:,.2f} it can pay in a year. At that price it gives too little back for what "
+        "it costs. The price comes from the place's weather history, never from the business or "
+        "its owner"
+    )
 
 
 def on_sale(bonus: HazeBonus, today: date) -> bool:
@@ -393,6 +407,7 @@ def tier_quote(
     premium = yearly_premium(risk_cost, tariff.pricing, tier.premium_shares)
     yearly = round(premium, 2)
     limit_sgd = tier.daily_payout_sgd * tier.max_paid_days_per_year
+    reason = not_offered_reason(tariff, tier, yearly)
     return TierQuote(
         tier=tier.key,
         label=tier.label,
@@ -404,7 +419,8 @@ def tier_quote(
         build_up=premium_build_up(risk_cost, tariff.pricing, tier.premium_shares),
         price_per_day_sgd=round(premium / PRICE_DAYS_PER_YEAR, 2),
         cover_multiple=round(limit_sgd / premium, 1) if premium > 0 else None,
-        sold_directly=sold_directly(tariff, tier, yearly),
+        offered=reason is None,
+        not_offered_reason=reason,
         proof=tier_proof(tier, losses, risk_cost, premium),
         cost_per_sgd_of_daily_cover=round(yearly / tier.daily_payout_sgd, 2),
         haze_bonus=haze_bonus_quote(tariff, tier, replay, today),
@@ -412,11 +428,11 @@ def tier_quote(
 
 
 def mark_best_value(tiers: list[TierQuote]) -> list[TierQuote]:
-    """Mark the tier sold directly that pays the most a year per S$1 of premium. The first of
-    equals is marked; with none sold directly, none is."""
-    direct = [t for t in tiers if t.sold_directly and t.yearly_premium_sgd > 0]
-    if direct:
-        best = max(direct, key=lambda t: t.max_payout_per_year_sgd / t.yearly_premium_sgd)
+    """Mark the tier offered here that pays the most a year per S$1 of premium. The first of
+    equals is marked; with none offered, none is."""
+    offered = [t for t in tiers if t.offered and t.yearly_premium_sgd > 0]
+    if offered:
+        best = max(offered, key=lambda t: t.max_payout_per_year_sgd / t.yearly_premium_sgd)
         best.best_value = True
     return tiers
 
