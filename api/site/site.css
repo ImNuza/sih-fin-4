@@ -332,3 +332,9 @@ table.list td.num { color: var(--ink); }
 .paynow { display: flex; gap: var(--s-4); align-items: center; flex-wrap: wrap; margin: var(--s-4) 0; }
 .paynow img { width: 220px; height: 220px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s-2); }
 .paynow figcaption { display: flex; flex-direction: column; gap: var(--s-2); max-width: 280px; font-size: var(--t-sm); color: var(--ink-2); }
+
+.why-price { margin: 0 0 var(--s-3); }
+.why-price summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+.why-price p { margin: var(--s-2) 0; }
+.why-steps td { padding: var(--s-1) var(--s-2); }
+.why-steps .total td { font-weight: 700; border-top: 2px solid var(--line); }

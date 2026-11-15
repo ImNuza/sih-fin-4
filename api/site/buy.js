@@ -283,6 +283,26 @@ async function renderTiers() {
       : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Suggested: the biggest tier.`)
       + " The price comes from your region's NEA weather history."
     : "The price comes from your region's NEA weather history.";
+  el("why-price").innerHTML = whyPrice(quote, buyState.tier);
+}
+
+const HAZARD_WORDS = { haze: "haze", rain: "heavy rain", heat: "extreme heat", flood: "flash floods", closure: "closure orders" };
+const DAYS = (days) => days.toFixed(1);
+
+// The quote's own build-up, in words: no number here is worked out in the browser.
+function whyPrice(quote, tierKey) {
+  const tier = quote.tiers.find((t) => t.tier === tierKey) || quote.tiers[0];
+  const product = buyState.options.productLabels[quote.product] || quote.product;
+  const parts = Object.entries(quote.loss_day_parts).filter(([, days]) => days > 0)
+    .map(([hazard, days]) => `${HAZARD_WORDS[hazard] || hazard} ${DAYS(days)}`).join(", ");
+  const steps = tier.build_up.map((step, at) => `<tr><td>${at ? "+ " : ""}${step.label}</td><td class="num">${SGD(step.amount_sgd)}</td></tr>`).join("");
+  return `
+    <p>1. In an average year, NEA's records for the ${quote.region} region show ${DAYS(quote.expected_loss_days)} days of full loss for ${product.toLowerCase()} (${parts}). The count already allows for what you sell: on a full bad day it loses about ${Math.round(quote.product_factor * 100)}% of its normal sales for good.</p>
+    <p>2. ${tier.label} pays ${SGD(tier.daily_payout_sgd)} a day, for up to ${SGD(tier.max_payout_per_year_sgd)} a year. In an average year that is ${DAYS(tier.expected_paid_days)} paid days.</p>
+    <table class="list why-steps">${steps}
+      <tr class="total"><td>Yearly premium</td><td class="num">${SGD(tier.yearly_premium_sgd)}</td></tr>
+      <tr><td>Weekly premium</td><td class="num">${SGD(tier.weekly_premium_sgd)}</td></tr></table>
+    <p class="fine">No personal data goes into this price: only the region, what you sell and the tier you pick. The same inputs give the same price for everyone.</p>`;
 }
 
 /* ---------- step 4: confirm ---------- */

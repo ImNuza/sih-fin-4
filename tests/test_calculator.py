@@ -320,3 +320,27 @@ def test_a_place_reads_as_many_stations_as_its_trigger():
     history = {"east": {"haze": pooled(stations)}}
     quote = calculator.quote_at(tariff, history, {"haze": stations}, 1.30, 103.9, "cooked_food")
     assert quote.local_risks[0].stations == ["a", "b"]
+
+
+def test_a_quote_says_how_many_loss_days_each_hazard_brings():
+    history = {"east": {"haze": readings(50.0, 250.0)}}
+    quote = calculator.quote(make_tariff(), history, "east", "cooked_food")
+    assert set(quote.loss_day_parts) == {"haze", "closure"}
+    assert sum(quote.loss_day_parts.values()) == pytest.approx(quote.expected_loss_days, abs=0.02)
+    assert quote.product_factor == pytest.approx(
+        calculator.product_factor(make_tariff().products[0]), abs=0.001
+    )
+
+
+def test_each_tier_shows_the_steps_that_build_its_premium():
+    pricing = {"uncertainty_load": 0.15, "catastrophe_load": 0.1, "expense_ratio": 0.25,
+               "gst_rate": 0.09}
+    history = {"east": {"haze": readings(50.0, 250.0)}}
+    quote = calculator.quote(make_tariff(pricing=pricing), history, "east", "cooked_food")
+    for tier in quote.tiers:
+        steps = {step.key: step.amount_sgd for step in tier.build_up}
+        assert list(steps) == ["expected_payouts", "uncertainty", "catastrophe", "expenses", "gst"]
+        assert steps["expected_payouts"] == pytest.approx(
+            tier.expected_paid_days * tier.daily_payout_sgd, rel=1e-4)
+        assert steps["uncertainty"] == pytest.approx(0.15 * steps["expected_payouts"], abs=0.01)
+        assert round(sum(steps.values()), 2) == tier.yearly_premium_sgd

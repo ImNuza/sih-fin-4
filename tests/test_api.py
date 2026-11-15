@@ -570,3 +570,13 @@ def test_a_shops_application_carries_its_area_point(client):
     point = area("561965")
     assert (mine["area_lat"], mine["area_lng"]) == (point["lat"], point["lng"])
     assert mine["area_basis"] == "postal sector 56"
+
+
+def test_a_place_quote_explains_its_loss_days_and_premium(client):
+    body = {"product": "cooked_food", "latitude": 1.28033, "longitude": 103.84475}
+    quote = client.post("/api/quote", json=body).json()
+    assert sum(quote["loss_day_parts"].values()) == pytest.approx(
+        quote["expected_loss_days"], abs=0.05)
+    tier = quote["tiers"][0]
+    total = sum(step["amount_sgd"] for step in tier["build_up"])
+    assert round(total, 2) == tier["yearly_premium_sgd"]

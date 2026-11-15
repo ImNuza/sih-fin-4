@@ -187,6 +187,12 @@ class QuoteRequest(BaseModel):
         return self
 
 
+class PremiumStep(BaseModel):
+    key: str
+    label: str
+    amount_sgd: float
+
+
 class TierQuote(BaseModel):
     tier: str
     label: str
@@ -195,6 +201,10 @@ class TierQuote(BaseModel):
     expected_paid_days: float
     yearly_premium_sgd: float
     weekly_premium_sgd: float
+    build_up: list[PremiumStep] = Field(
+        description="Why this premium: the steps from expected payouts to the yearly premium. "
+        "They add up to yearly_premium_sgd."
+    )
 
 
 class LocalRisk(BaseModel):
@@ -211,6 +221,13 @@ class Quote(BaseModel):
     region: str
     product: str
     expected_loss_days: float
+    loss_day_parts: dict[str, float] = Field(
+        description="Days of full loss in an average year, per hazard. They add up to "
+        "expected_loss_days, give or take rounding."
+    )
+    product_factor: float = Field(
+        description="Share of a bad day's normal sales the product loses for good, per S$1."
+    )
     tiers: list[TierQuote]
     local_risks: list[LocalRisk] = Field(
         default=[], description="How each hazard was priced for a place. Empty for a region."

@@ -19,6 +19,7 @@ from api.models import (
     Hazard,
     HazardLoss,
     LocalRisk,
+    PremiumStep,
     Pricing,
     Product,
     Quote,
@@ -153,15 +154,33 @@ def loss_day_parts(
     return parts
 
 
-def expected_loss_days(
-    tariff: Tariff, product: Product, region_history: dict[str, Readings]
-) -> float:
-    return sum(loss_day_parts(tariff, product, region_history).values())
-
-
 def yearly_premium(risk_cost: float, pricing: Pricing) -> float:
     loaded = risk_cost * (1 + pricing.uncertainty_load + pricing.catastrophe_load)
     return loaded / (1 - pricing.expense_ratio) * (1 + pricing.gst_rate)
+
+
+def premium_build_up(risk_cost: float, pricing: Pricing) -> list[PremiumStep]:
+    """The steps of yearly_premium, each as money, so a customer can see why they pay it.
+
+    Each step is rounded to the cent, and GST takes the rounding left over, so the steps add up
+    to the rounded yearly premium exactly.
+    """
+    loaded = risk_cost * (1 + pricing.uncertainty_load + pricing.catastrophe_load)
+    before_gst = loaded / (1 - pricing.expense_ratio)
+    steps = [
+        ("expected_payouts", "Expected payouts in an average year", risk_cost),
+        ("uncertainty", f"Uncertainty load, {pricing.uncertainty_load:.0%}",
+         risk_cost * pricing.uncertainty_load),
+        ("catastrophe", f"Bad-year (catastrophe) load, {pricing.catastrophe_load:.0%}",
+         risk_cost * pricing.catastrophe_load),
+        ("expenses", f"Insurer's expenses, {pricing.expense_ratio:.0%} of the premium before GST",
+         before_gst - loaded),
+        ("gst", f"GST, {pricing.gst_rate:.0%}", before_gst * pricing.gst_rate),
+    ]
+    rounded = [round(amount, 2) for _, _, amount in steps[:-1]]
+    rounded.append(round(round(yearly_premium(risk_cost, pricing), 2) - sum(rounded), 2))
+    return [PremiumStep(key=key, label=label, amount_sgd=amount)
+            for (key, label, _), amount in zip(steps, rounded, strict=True)]
 
 
 def tier_quotes(tariff: Tariff, loss_days: float) -> list[TierQuote]:
@@ -170,7 +189,8 @@ def tier_quotes(tariff: Tariff, loss_days: float) -> list[TierQuote]:
         # The cap applies to the average year. Bad years reach it sooner; the catastrophe load
         # pays for that.
         paid_days = min(loss_days, tier.max_paid_days_per_year)
-        premium = yearly_premium(paid_days * tier.daily_payout_sgd, tariff.pricing)
+        risk_cost = paid_days * tier.daily_payout_sgd
+        premium = yearly_premium(risk_cost, tariff.pricing)
         tiers.append(
             TierQuote(
                 tier=tier.key,
@@ -180,6 +200,7 @@ def tier_quotes(tariff: Tariff, loss_days: float) -> list[TierQuote]:
                 expected_paid_days=round(paid_days, 2),
                 yearly_premium_sgd=round(premium, 2),
                 weekly_premium_sgd=round(premium / WEEKS_PER_YEAR, 2),
+                build_up=premium_build_up(risk_cost, tariff.pricing),
             )
         )
     return tiers
@@ -189,11 +210,14 @@ def quote(tariff: Tariff, history: History, region: str, product_key: str) -> Qu
     if region not in history:
         raise UnknownKey(f"Unknown region: {region}")
     product = find(tariff.products, product_key, "product")
-    loss_days = expected_loss_days(tariff, product, history[region])
+    parts = loss_day_parts(tariff, product, history[region])
+    loss_days = sum(parts.values())
     return Quote(
         region=region,
         product=product.key,
         expected_loss_days=round(loss_days, 2),
+        loss_day_parts={key: round(days, 2) for key, days in parts.items()},
+        product_factor=round(product_factor(product), 3),
         tiers=tier_quotes(tariff, loss_days),
     )
 
@@ -305,15 +329,15 @@ def quote_at(
         for hazard in tariff.hazards
         if hazard.assumed_days_per_year is None and hazard.key in sites
     ]
-    priced = {risk.hazard for risk in risks}
     region_parts = loss_day_parts(tariff, product, history[region])
-    loss_days = sum(risk.loss_days for risk in risks) + sum(
-        days for key, days in region_parts.items() if key not in priced
-    )
+    parts = region_parts | {risk.hazard: risk.loss_days for risk in risks}
+    loss_days = sum(parts.values())
     return Quote(
         region=region,
         product=product.key,
         expected_loss_days=round(loss_days, 2),
+        loss_day_parts={key: round(days, 2) for key, days in parts.items()},
+        product_factor=round(product_factor(product), 3),
         tiers=tier_quotes(tariff, loss_days),
         local_risks=risks,
     )
