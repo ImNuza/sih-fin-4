@@ -51,7 +51,7 @@ FIG_DIR = REPO_ROOT / "docs" / "figures"
 
 HERO = "Tiong Bahru Market"
 PRODUCT = "cooked_food"
-TIER = "tier_2"
+TIER = "tier_1"  # the hawker plan, the tier a stall is suggested
 # Mid-point of the triangulated S$400-800/day gross takings of a viable cooked-food stall
 # (no official figure exists; see the MSE replies cited in the report).
 DAILY_TAKINGS_SGD = 500.0
@@ -178,7 +178,7 @@ def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
         values = [r[key] for r in full]
         ax.bar([y + 0.21 for y in years], values, 0.38, bottom=bottom, color=color, label=label)
         bottom = [b + v for b, v in zip(bottom, values)]
-    ax.set_title("One Tiong Bahru stall, Tier 2: lost vs would-have-been-paid, by year")
+    ax.set_title("One Tiong Bahru stall, Tier 1: lost vs would-have-been-paid, by year")
     ax.set_ylabel("S$ per stall per year")
     ax.legend(frameon=False, fontsize=8)
     ax.spines[["top", "right"]].set_visible(False)
@@ -192,7 +192,7 @@ def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
     days = [date.fromisoformat(d["day"]) for d in episode]
     colors = [HAZE_COLOR if d["haze"] >= 101 else RAIN_COLOR for d in episode]
     ax.bar(days, [d["payout_sgd"] for d in episode], color=colors, width=1.0)
-    ax.set_title("The 2026 haze season, day by day: payout per stall (Tier 2)")
+    ax.set_title("The 2026 haze season, day by day: payout per stall (Tier 1)")
     ax.set_ylabel("S$ per day")
     ax.spines[["top", "right"]].set_visible(False)
     fig.text(0.01, 0.01, "Violet: haze trigger (24-h PSI > 100) at S$9.60-14.20 a day. Blue: rain trigger. "
@@ -208,7 +208,7 @@ def figures(hero_rows: list[dict], hero_days: list[dict]) -> None:
     ax.text(years[0] - 0.4, mean + 3, f"10-year average {mean:.0f}%", fontsize=8)
     ax.axhline(100, color="#b4512c", linewidth=1)
     ax.text(years[-1] - 1.6, 103, "100% = payouts eat the whole premium", fontsize=7, color="#b4512c")
-    ax.set_title("Loss ratio by year: payouts as a share of the premium before GST (one stall, Tier 2)")
+    ax.set_title("Loss ratio by year: payouts as a share of the premium before GST (one stall, Tier 1)")
     ax.set_ylabel("%")
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
