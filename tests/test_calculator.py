@@ -194,3 +194,61 @@ def test_keys_must_be_unique():
     tariff["products"][1]["key"] = "cooked_food"
     with pytest.raises(ValidationError, match="Duplicate product keys: cooked_food"):
         Tariff.model_validate(tariff)
+
+
+RENT = {
+    "trading_days_per_month": 25,
+    "classes": [
+        {"key": "lower", "label": "Lower", "at_least_monthly_sgd": 0},
+        {"key": "high", "label": "High", "at_least_monthly_sgd": 400},
+    ],
+    "source": "test",
+}
+
+
+def bid_record(median: float | None) -> calculator.BidRecord:
+    bids = 0 if median is None else 3
+    return calculator.BidRecord("Test Centre", median, bids, "test", None, None)
+
+
+def test_rent_class_is_the_highest_limit_reached():
+    tariff = make_tariff(rent=RENT)
+    assert calculator.rent_class(tariff.rent, 399.99).key == "lower"
+    assert calculator.rent_class(tariff.rent, 400).key == "high"
+
+
+def test_recommended_tier_is_the_smallest_that_covers_a_days_rent():
+    tariff = make_tariff(rent=RENT)
+    # 250 a month over 25 days is 10 a day: Tier 1 pays exactly that.
+    assert calculator.centre_rent(tariff, bid_record(250), 0).recommended_tier == "tier_1"
+    # 300 a month is 12 a day: only Tier 2 (20) covers it.
+    assert calculator.centre_rent(tariff, bid_record(300), 0).recommended_tier == "tier_2"
+
+
+def test_rent_above_every_tier_picks_the_biggest_and_says_so():
+    rent = calculator.centre_rent(make_tariff(rent=RENT), bid_record(1000), 0)
+    assert (rent.recommended_tier, rent.covers_rent, rent.rent_per_day_sgd) == ("tier_2", False, 40)
+
+
+def test_centre_with_no_bid_borrows_the_fallback_and_is_marked_estimated():
+    rent = calculator.centre_rent(make_tariff(rent=RENT), bid_record(None), 500)
+    assert (rent.estimated, rent.median_bid_sgd, rent.rent_class) == (True, 500, "high")
+
+
+def test_tariff_without_rent_loads_the_default_classes():
+    assert [c.key for c in make_tariff().rent.classes] == ["lower", "mid", "high"]
+
+
+@pytest.mark.parametrize(
+    "classes",
+    [
+        [{"key": "a", "label": "A", "at_least_monthly_sgd": 100}],
+        [
+            {"key": "a", "label": "A", "at_least_monthly_sgd": 0},
+            {"key": "b", "label": "B", "at_least_monthly_sgd": 0},
+        ],
+    ],
+)
+def test_rent_classes_must_start_at_zero_and_rise(classes):
+    with pytest.raises(ValidationError):
+        make_tariff(rent={**RENT, "classes": classes})

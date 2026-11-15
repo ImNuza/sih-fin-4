@@ -1,0 +1,104 @@
+centre,region,median_bid_sgd,bids,basis,first_month,last_month
+Commonwealth Crescent Market,south,761.5,22,since 2023-08,2023-09,2026-07
+Tiong Bahru Market,south,1750.0,2,since 2023-08,2024-10,2026-05
+Golden Mile Food Centre,south,2863.5,38,since 2023-08,2023-08,2026-07
+Dunman Food Centre,east,1350.0,12,since 2023-08,2024-08,2026-05
+Beo Crescent Market,south,2808.0,9,since 2023-08,2023-11,2026-07
+Newton Food Centre,south,3093.5,30,since 2023-08,2023-08,2026-07
+Adam Road Food Centre,south,,0,none,,
+Kallang Estate Fresh Market and Food Centre,south,1990.0,2,since 2023-08,2023-11,2023-11
+New Market Road Blk 32 (People's Park Food Centre),south,425.5,12,since 2023-08,2023-11,2026-05
+North Bridge Road Market,south,810.0,2,since 2023-08,2025-03,2025-12
+Holland Village Market and Food Centre,south,2800.0,7,since 2023-08,2023-11,2026-06
+Chomp Chomp Food Centre,central,1600.0,23,since 2023-08,2023-10,2026-07
+Jurong East Street 24 Blk 254 (Yuhua Village Market and Food Centre),west,1662.5,4,2019 on,2019-02,2023-04
+Jurong West Street 52 Blk 505,west,,0,none,,
+Marine Terrace Blk 50A (50A Marine Terrace),east,4688.99,3,since 2023-08,2024-07,2026-06
+Marine Parade Central Blk 84 (84 Marine Parade Central Market and Food Centre),east,7911.0,3,since 2023-08,2023-09,2026-05
+Marsiling Lane Blk 20/21,north,4225.0,6,since 2023-08,2024-05,2026-04
+Mei Chin Road Blk 159 (Mei Chin Road Market),south,356.0,9,since 2023-08,2023-11,2025-10
+New Upper Changi Road Blk 208B,east,,0,none,,
+New Upper Changi Road Blk 58,east,501.0,1,since 2023-08,2024-11,2024-11
+Old Airport Road Blk 51 (51 Old Airport Road Food Centre and Shopping Mall),south,,0,none,,
+Queen Street Blk 270 (Albert Centre),south,1659.0,1,2019 on,2021-06,2021-06
+Redhill Lane Blk 79 (Redhill Market),south,,0,none,,
+Redhill Lane Blk 85 (Redhill Food Centre),south,3944.0,14,since 2023-08,2023-08,2026-07
+Sims Place Blk 49 (Sims Vista Market and Food Centre),south,1027.5,4,since 2023-08,2023-11,2025-09
+Smith Street Blk 335 (Chinatown Complex Market),south,1165.0,102,since 2023-08,2023-08,2026-06
+Taman Jurong Market and Food Centre,west,2500.0,21,since 2023-08,2023-10,2026-04
+Tampines Street 11 Blk 137 (Tampines Round Market and Food Centre),east,3631.0,2,since 2023-08,2025-08,2026-07
+Teban Gardens Road Blk 37A (Teban Gardens Market and Food Centre),west,1666.0,1,2019 on,2020-03,2020-03
+Telok Blangah Drive Blk 79 (Telok Blangah Food Centre),south,2565.0,2,since 2023-08,2023-08,2023-10
+Telok Blangah Drive Blk 82 (Telok Blangah Market),south,,0,none,,
+Telok Blangah Rise Blk 36 (Telok Blangah Rise Market),south,680.0,3,since 2023-08,2023-08,2026-07
+Toa Payoh Lorong 4 Blk 74 (Toa Payoh Vista Market),central,,0,none,,
+Toa Payoh Lorong 1 Blk 127 (Toa Payoh West Market and Food Court),central,3344.0,5,since 2023-08,2024-08,2026-05
+Telok Blangah Crescent Blk 11 (11 Telok Blangah Crescent Market and Food Centre),south,4244.0,2,since 2023-08,2024-01,2025-04
+Tanjong Pagar Plaza Blk 6 (Blk 6 Tanjong Pagar Plaza Market and Food Centre),south,1094.5,10,since 2023-08,2023-08,2025-11
+Toa Payoh Lorong 4 Blk 93,central,2310.0,13,since 2023-08,2023-10,2026-01
+Toa Payoh Lorong 7 Blk 22 (Kim Keat Palm Market and Food Centre),central,1350.0,4,since 2023-08,2023-09,2025-12
+Toa Payoh Lorong 5 Blk 75,central,,0,none,,
+Shunfu Road Blk 320 (Shunfu Mart),central,1060.0,5,since 2023-08,2024-04,2026-01
+Ang Mo Kio Ave 1 Blk 226D (Kebun Baru Market and Food Centre),central,1200.0,1,2019 on,2023-01,2023-01
+Ang Mo Kio Ave 10 Blk 409 (Teck Ghee Square),central,,0,none,,
+Ang Mo Kio Ave 10 Blk 453A (Chong Boon Market and Food Centre),central,1701.0,1,2019 on,2019-01,2019-01
+Ang Mo Kio Ave 10 Blk 527 (Cheng San Market and Cooked Food Centre),central,,0,none,,
+Ang Mo Kio Ave 4 Blk 160/162 (Mayflower Market),central,1500.0,1,since 2023-08,2025-10,2025-10
+Ang Mo Kio Ave 4 Blk 628 (Ang Mo Kio 628 Market),central,3328.5,2,since 2023-08,2024-11,2026-07
+Ang Mo Kio Ave 6 Blk 724 (Blk 724 Ang Mo Kio Market),central,,0,none,,
+Ang Mo Kio Street 22 Blk 226H (Kebun Baru Food Centre),central,,0,none,,
+Bedok North Street 1 Blk 216,east,3430.0,5,since 2023-08,2024-02,2026-06
+Bedok North Street 3 Blk 511 (Kaki Bukit 511 Market and Food Centre),east,3201.0,5,since 2023-08,2024-02,2026-05
+Bedok North Street 3 Blk 538,east,1730.0,3,since 2023-08,2023-09,2026-05
+Bedok North Street 4 Blk 85 (85 Fengshan Centre),east,2696.0,1,since 2023-08,2026-07,2026-07
+Bedok Reservoir Road Blk 630,east,1209.99,5,since 2023-08,2023-08,2026-01
+Bedok South Road Blk 16,east,4462.0,5,since 2023-08,2023-10,2025-07
+Bendemeer Road Blk 29 (Bendemeer Market and Food Centre),south,3824.0,6,since 2023-08,2024-06,2026-06
+Buffalo Road Blk 665 (Tekka Centre/Zhu Jiao Market),south,2200.0,35,since 2023-08,2023-10,2026-06
+Boon Lay Place Blk 221A/B (Boon Lay Place Market and Food Village),west,,0,none,,
+Aljunied Ave 2 Blk 117 (Blk 117 Aljunied Market and Food Centre),east,1329.5,20,since 2023-08,2023-08,2026-06
+Bukit Merah Central Blk 163 (Bukit Merah Central Food Centre),south,1569.5,6,since 2023-08,2024-03,2025-09
+Bukit Merah View Blk 115 (Blk 115 Bukit Merah View Market and Food Centre),south,3201.66,14,since 2023-08,2023-11,2026-05
+Bukit Merah Lane 1 Blk 120 (Alexandra Village Food Centre),south,3250.0,12,since 2023-08,2023-08,2026-07
+Cambridge Road Blk 41A (Pek Kio Market and Food Centre),south,1283.0,4,since 2023-08,2024-03,2025-09
+Changi Village Blk 2 and 3,east,781.8,11,since 2023-08,2023-09,2026-04
+Circuit Road Blk 80 (80 Circuit Road Market and Food Centre),east,1684.0,4,since 2023-08,2023-10,2025-04
+Circuit Road Blk 79/79A,east,1905.0,38,since 2023-08,2023-08,2026-07
+Circuit Road Blk 89,east,2120.0,6,since 2023-08,2023-08,2025-09
+Clementi Ave 2 Blk 353 (Clementi Ave 2 Market/Cooked Food Centre),south,,0,none,,
+Clementi Ave 3 Blk 448,south,,0,none,,
+Clementi West Street 2 Blk 726,south,,0,none,,
+Empress Road Blk 7 (Empress Road Market and Food Centre),south,2926.5,12,since 2023-08,2023-12,2026-02
+Eunos Crescent Blk 4A,east,3555.0,5,2019 on,2019-01,2023-06
+Geylang Bahru Blk 69 (Blk 69 Geylang Bahru Market and Food Centre),south,2702.5,4,since 2023-08,2024-05,2025-09
+Geylang Serai Market,east,,0,none,,
+Ghim Moh Road Blk 20,south,300.0,1,2019 on,2022-11,2022-11
+Haig Road Blk 13/14 (Haig Road Market and Cooked Food Centre),east,4528.5,2,since 2023-08,2024-09,2025-06
+Havelock Road Blk 22A/B (Havelock Road Cooked Food Centre),south,799.99,7,since 2023-08,2024-02,2026-07
+Holland Drive Blk 44 (Holland Drive Market and Food Centre),south,1301.08,6,since 2023-08,2023-11,2025-10
+Hougang Street 21 Blk 209 (Kovan Hougang Market and Food Centre),east,,0,none,,
+Jalan Batu Blk 4A (Blk 4A Jalan Batu Hawker Centre/Market),south,2088.0,13,since 2023-08,2023-08,2026-05
+Hougang Ave 1 Blk 105 (Hougang 105 Hainanese Village Centre),east,1300.0,2,since 2023-08,2024-04,2026-05
+Jalan Bukit Merah Blk 112 (Blk 112 Jalan Bukit Merah Market and Food Centre),south,108.0,1,since 2023-08,2025-01,2025-01
+Jalan Bukit Merah Blk 6 (ABC Brickworks Market/Food Centre),south,2800.0,9,since 2023-08,2023-08,2026-06
+Jalan Kukoh Blk 1 (Kukoh 21 Food Centre),south,505.0,5,since 2023-08,2024-04,2026-07
+Jurong East Ave 1 Blk 347 (Yuhua Market and Hawker Centre),west,1509.0,3,since 2023-08,2023-09,2026-02
+Toa Payoh Lorong 8 Blk 210,central,4359.0,2,since 2023-08,2024-10,2024-12
+Upper Boon Keng Road Blk 17 (Blk 17 Upper Boon Keng Market and Food Centre),south,2808.0,15,since 2023-08,2023-08,2026-07
+West Coast Drive Blk 502 (Ayer Rajah Market),south,,0,none,,
+West Coast Drive Blk 503 (Ayer Rajah Food Centre),south,2500.0,15,since 2023-08,2023-08,2026-07
+Upper Cross Street Blk 531A (Hong Lim Food Centre and Market),south,1860.5,20,since 2023-08,2023-08,2026-04
+Whampoa Drive Blk 90 (Whampoa Drive Makan Place/Whampoa Food Centre),south,,0,none,,
+Whampoa Drive Blk 91/92 (Whampoa Drive Makan Place/Whampoa Market),south,,0,none,,
+Yishun Ring Road Blk 104/105 (Chong Pang Market and Food Centre),north,,0,none,,
+Amoy Street Food Centre (Telok Ayer Food Centre),south,4061.5,36,since 2023-08,2023-09,2026-06
+Pasir Panjang Food Centre,south,2560.0,3,since 2023-08,2023-09,2026-05
+Bedok Food Centre,east,5050.0,3,since 2023-08,2024-07,2026-07
+Zion Riverside Food Centre,south,1275.5,2,since 2023-08,2024-12,2025-12
+Maxwell Food Centre (Kim Hua Market),south,5138.5,18,since 2023-08,2023-09,2026-06
+Ang Mo Kio Ave 1 Blk 341 (Teck Ghee Court),central,3505.0,2,since 2023-08,2024-05,2025-08
+East Coast Lagoon Food Village,east,2394.0,20,since 2023-08,2023-09,2026-04
+Serangoon Garden Market,central,2149.94,6,since 2023-08,2023-08,2026-05
+Sembawang Hills Food Centre (Jalan Leban Food Centre),central,1969.0,9,since 2023-08,2024-03,2026-06
+Tanglin Halt Market,south,888.0,1,2019 on,2020-02,2020-02
+Berseh Food Centre,south,750.0,29,since 2023-08,2023-10,2026-07

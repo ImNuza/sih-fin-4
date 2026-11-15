@@ -15,6 +15,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     Engine,
@@ -70,6 +71,29 @@ policies = Table(
     Column("daily_payout_sgd", Float, nullable=False),
     Column("max_paid_days_per_year", Integer, nullable=False),
     Column("started_at", DateTime(timezone=True), nullable=False),
+)
+# One row per buy-flow application: what the owner declared and agreed to, and when.
+# A table of its own, so existing databases need no new columns on users.
+applications = Table(
+    "applications",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", Integer, nullable=False),
+    Column("applicant_type", String, nullable=False),
+    Column("uen", String),
+    Column("phone", String, nullable=False),
+    Column("add_safeday", Boolean, nullable=False),
+    Column("tier", String),
+    Column("declined_before", Boolean, nullable=False),
+    Column("declined_details", String),
+    Column("status", String, nullable=False),
+    Column("declaration_accepted_at", DateTime(timezone=True), nullable=False),
+    Column("pdpa_accepted_at", DateTime(timezone=True), nullable=False),
+    Column("marketing_email", Boolean, nullable=False),
+    Column("marketing_sms", Boolean, nullable=False),
+    Column("payment_method", String),
+    Column("payment_ref", String),
+    Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
 
@@ -179,9 +203,8 @@ InsurerDep = Annotated[Account, Depends(require_role("insurer"))]
 router = APIRouter(prefix="/api/auth")
 
 
-@router.post("/register")
-def register(body: Registration, request: Request, response: Response) -> Account:
-    """Create an account and sign it in. Insurer accounts need the access code."""
+def user_values(body: Registration, request: Request) -> dict:
+    """The users row for a new account, checked. Raises if the email or centre is wrong."""
     engine: Engine = request.app.state.db
     if find_by_email(engine, body.email) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email exists. Sign in")
@@ -204,6 +227,14 @@ def register(body: Registration, request: Request, response: Response) -> Accoun
         values["centre"] = body.centre
         values["region"] = centres[body.centre]["region"]
         values["product"] = body.product
+    return values
+
+
+@router.post("/register")
+def register(body: Registration, request: Request, response: Response) -> Account:
+    """Create an account and sign it in."""
+    engine: Engine = request.app.state.db
+    values = user_values(body, request)
     with engine.begin() as db:
         user_id = db.execute(insert(users).values(**values).returning(users.c.id)).scalar_one()
     start_session(engine, user_id, response)

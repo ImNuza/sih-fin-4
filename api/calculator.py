@@ -15,11 +15,14 @@ import numpy as np
 
 from api.models import (
     Assessment,
+    CentreRent,
     Hazard,
     HazardLoss,
     Pricing,
     Product,
     Quote,
+    Rent,
+    RentClass,
     Tariff,
     Tier,
     TierQuote,
@@ -172,3 +175,54 @@ def check_prices(tariff: Tariff, history: History) -> None:
     for region in history:
         for product in tariff.products:
             quote(tariff, history, region, product.key)
+
+
+@dataclass(frozen=True)
+class BidRecord:
+    """A centre's NEA cooked-food bids, as data/processed/hawker_rent.csv holds them."""
+
+    centre: str
+    median_bid_sgd: float | None
+    bids: int
+    basis: str
+    first_month: str | None
+    last_month: str | None
+
+
+def rent_class(rent: Rent, monthly_sgd: float) -> RentClass:
+    """The highest class whose lower limit the monthly rent reaches."""
+    return [c for c in rent.classes if monthly_sgd >= c.at_least_monthly_sgd][-1]
+
+
+def rent_tier(tiers: list[Tier], rent_per_day_sgd: float) -> tuple[Tier, bool]:
+    """The smallest tier whose full-day payout covers a day's rent, else the biggest tier."""
+    for tier in tiers:
+        if tier.daily_payout_sgd >= rent_per_day_sgd:
+            return tier, True
+    return tiers[-1], False
+
+
+def centre_rent(tariff: Tariff, record: BidRecord, fallback_sgd: float) -> CentreRent:
+    """Rent class, rent per trading day and the tier that covers it, for one centre.
+
+    A centre with no bid on record borrows the median of all centres and says so.
+    """
+    estimated = record.median_bid_sgd is None
+    monthly = fallback_sgd if estimated else record.median_bid_sgd
+    per_day = monthly / tariff.rent.trading_days_per_month
+    chosen = rent_class(tariff.rent, monthly)
+    tier, covers = rent_tier(tariff.tiers, per_day)
+    return CentreRent(
+        centre=record.centre,
+        median_bid_sgd=round(monthly, 2),
+        bids=record.bids,
+        basis=record.basis,
+        first_month=record.first_month,
+        last_month=record.last_month,
+        estimated=estimated,
+        rent_class=chosen.key,
+        rent_class_label=chosen.label,
+        rent_per_day_sgd=round(per_day, 2),
+        recommended_tier=tier.key,
+        covers_rent=covers,
+    )

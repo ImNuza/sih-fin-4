@@ -5,6 +5,15 @@
 const el = (id) => document.getElementById(id);
 const SGD = (v) => "S$" + (v >= 1000 ? Math.round(v).toLocaleString("en-SG") : Number(v).toFixed(2));
 const PRODUCT_LABELS = {};
+const MONTH = (ym) => ym ? new Date(ym + "-01").toLocaleDateString("en-SG", { month: "short", year: "numeric" }) : "";
+
+/* One sentence on where a centre's rent figure comes from. */
+function rentSource(rent, table) {
+  if (rent.estimated)
+    return `No NEA bid on record for this centre, so we use the median of all centres, ${SGD(table.all_centre_median_sgd)} a month.`;
+  const span = rent.first_month === rent.last_month ? MONTH(rent.first_month) : `${MONTH(rent.first_month)} to ${MONTH(rent.last_month)}`;
+  return `Median winning NEA bid for a cooked-food stall: ${SGD(rent.median_bid_sgd)} a month (${rent.bids} bid${rent.bids === 1 ? "" : "s"}, ${span}).`;
+}
 
 async function api(url, options) {
   const response = await fetch(url, options);
@@ -63,18 +72,6 @@ function wireLogin() {
         step.hidden = step.dataset.step !== link.dataset.goto;
     }));
 
-  api("/api/map/static").then((data) => {
-    const centres = [...data.hawker_centres].sort((a, b) => a.name.localeCompare(b.name));
-    el("centre-select").innerHTML =
-      '<option value="">Pick your centre…</option>' +
-      centres.map((c) => `<option value="${c.name}">${c.name} (${c.region})</option>`).join("");
-  });
-  api("/api/options").then((options) => {
-    el("product-select").innerHTML = options.products
-      .map((p) => `<option value="${p.key}">${p.label}</option>`)
-      .join("");
-  });
-
   const submit = (formId, errorId, build) => {
     el(formId).addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -90,7 +87,6 @@ function wireLogin() {
   };
   submit("sme-login", "sme-login-error", null);
   submit("ins-login", "ins-login-error", null);
-  submit("sme-register", "sme-register-error", (d) => ({ ...d, role: "sme" }));
   submit("ins-register", "ins-register-error", (d) => ({ ...d, role: "insurer" }));
 }
 
@@ -111,18 +107,23 @@ function liveStatus(live) {
 }
 
 async function renderSme(user) {
-  const [quote, policies, staticData, live] = await Promise.all([
+  const [quote, policies, staticData, live, rentTable] = await Promise.all([
     post("/api/quote", { region: user.region, product: user.product || "cooked_food" }),
     api("/api/policies"),
     api("/api/map/static"),
     api("/api/map/live").catch(() => null),
+    api("/api/rent"),
   ]);
+  const application = await api("/api/applications/mine").catch(() => null);
+  const underReview = application?.status === "referred";
+  const rent = rentTable.centres[user.centre];
   const policy = policies[0] || null;
   const index = staticData.hawker_centres.findIndex((c) => c.name === user.centre);
   const todays = live?.available && index >= 0 ? live.hawker_losses[index] : null;
   const status = liveStatus(live);
-  const affordable = quote.tiers.filter((t) => t.weekly_premium_sgd <= 3);
-  const rec = (affordable[affordable.length - 1] || quote.tiers[0]).tier;
+  // Recommend the smallest tier that pays a full day's rent at this centre.
+  const rec = rent ? rent.recommended_tier : quote.tiers[0].tier;
+  const rentShare = (payout) => rent ? Math.round((100 * payout) / rent.rent_per_day_sgd) : null;
   const payoutToday = todays && policy ? (todays.loss_percent / 100) * policy.daily_payout_sgd : null;
 
   el("dash").innerHTML = `
@@ -130,9 +131,10 @@ async function renderSme(user) {
     <p class="sub">${user.centre} · ${user.region} region · priced from your region's own NEA history</p>
     <div class="kpis">
       ${kpi("Today's loss score", todays ? `${todays.loss_percent.toFixed(0)}%` : "–", status.text)}
-      ${kpi("Payout due today", policy ? (payoutToday != null ? SGD(payoutToday) : "–") : "no cover yet", policy ? `at ${policy.tier_label}` : "pick a tier below")}
+      ${kpi("Payout due today", policy ? (payoutToday != null ? SGD(payoutToday) : "–") : "no cover yet", policy ? `at ${policy.tier_label}` : underReview ? "after the underwriter replies" : "pick a tier below")}
       ${kpi("Your weekly premium", policy ? SGD(policy.weekly_premium_sgd) : SGD(quote.tiers.find((t) => t.tier === rec).weekly_premium_sgd), policy ? policy.tier_label : "recommended tier")}
       ${kpi("Expected trigger days", quote.expected_loss_days.toFixed(1) + " / yr", "full-loss-day equivalents")}
+      ${rent ? kpi("Your rent per trading day", SGD(rent.rent_per_day_sgd), `${rent.rent_class_label} centre${rent.estimated ? " · estimated" : ""}`) : ""}
     </div>
     <div class="grid">
       <div class="card"><h2>Today at your stall</h2>
@@ -143,10 +145,14 @@ async function renderSme(user) {
         <p class="fine">Readings refresh every 5 minutes from NEA. A payout needs no claim. It follows these numbers.</p>`
         : `<p class="fine">${status.text}</p><button class="btn small" id="retry-live" type="button">Refresh</button>`}
       </div>
-      <div class="card"><h2>${policy ? "Your cover" : "Choose your cover"}</h2>
-        ${policy ? `
+      <div class="card"><h2>${policy ? "Your cover" : underReview ? "Your application" : "Choose your cover"}</h2>
+        ${underReview && !policy ? `
+        <p><span class="pill warning">With an underwriter</span></p>
+        <p class="fine" style="margin-top:10px">Application ${application.id}, sent ${String(application.created_at).slice(0, 10)}. Because an insurer declined cover for this business before, an underwriter reviews it first. Cover starts, and you pay, only after they reply. We will contact you on ${application.phone}.</p>`
+        : policy ? `
         <div class="kv"><span class="k">Tier</span><span class="v">${policy.tier_label}</span></div>
         <div class="kv"><span class="k">Pays per bad day</span><span class="v">${SGD(policy.daily_payout_sgd)}</span></div>
+        ${rent ? `<div class="kv"><span class="k">Share of a day's rent</span><span class="v">${rentShare(policy.daily_payout_sgd)}%</span></div>` : ""}
         <div class="kv"><span class="k">Cap</span><span class="v">${policy.max_paid_days_per_year} days / yr</span></div>
         <div class="kv"><span class="k">Weekly premium</span><span class="v">${SGD(policy.weekly_premium_sgd)}</span></div>
         <div class="kv"><span class="k">Started</span><span class="v">${String(policy.started_at).slice(0, 10)}</span></div>
@@ -157,8 +163,12 @@ async function renderSme(user) {
             <span class="t">${t.label}${t.tier === rec ? " ●" : ""}</span>
             <span class="p">${SGD(t.weekly_premium_sgd)}<small>/wk</small></span>
             <span class="d">${SGD(t.daily_payout_sgd)}/bad day · max ${SGD(t.max_payout_per_year_sgd)}/yr</span>
+            ${rent ? `<span class="d">${rentShare(t.daily_payout_sgd)}% of a day's rent</span>` : ""}
           </button>`).join("")}</div>
-        <p class="fine">One price, four sizes. ● marks the biggest tier that still costs only a few dollars a week. Click a tier to start cover.</p>
+        <p class="fine">${rent ? (rent.covers_rent
+          ? `● marks the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
+          : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). ● marks the biggest tier.`)
+          + ` ${rentSource(rent, rentTable)}` : "● marks the recommended tier."} Click a tier to start cover.</p>
         <p class="error" id="buy-error"></p>`}
       </div>
     </div>
@@ -179,13 +189,15 @@ async function renderSme(user) {
 }
 
 async function renderInsurer(user) {
-  const [portfolio, policies, quotesData, staticData, live] = await Promise.all([
+  const [portfolio, policies, quotesData, staticData, live, rentTable] = await Promise.all([
     api("/api/insurer/portfolio"),
     api("/api/policies"),
     api("/api/map/quotes"),
     api("/api/map/static"),
     api("/api/map/live").catch(() => null),
+    api("/api/rent"),
   ]);
+  const rentOf = (centre) => rentTable.centres[centre];
   const status = liveStatus(live);
   const stalls = staticData.hawker_centres.reduce((a, c) => a + c.food_stalls, 0);
   let marketPool = 0;
@@ -214,11 +226,12 @@ async function renderInsurer(user) {
     <div class="card">
       <h2>Policies in force</h2>
       ${policies.length ? `<table class="list">
-        <tr><th>Business</th><th>Centre</th><th>Region</th><th>Tier</th><th>Weekly</th><th>Payout/day</th><th>Started</th></tr>
+        <tr><th>Business</th><th>Centre</th><th>Region</th><th>Rent class</th><th>Tier</th><th>Weekly</th><th>Payout/day</th><th>Rent/day</th><th>Started</th></tr>
         ${policies.map((p) => `<tr>
           <td>${p.business_name || p.name}</td><td>${p.centre || "–"}</td><td>${p.region}</td>
+          <td>${rentOf(p.centre)?.rent_class_label || "–"}</td>
           <td>${p.tier_label}</td><td class="num">${SGD(p.weekly_premium_sgd)}</td>
-          <td class="num">${SGD(p.daily_payout_sgd)}</td><td class="num">${String(p.started_at).slice(0, 10)}</td></tr>`).join("")}
+          <td class="num">${SGD(p.daily_payout_sgd)}</td><td class="num">${rentOf(p.centre) ? SGD(rentOf(p.centre).rent_per_day_sgd) : "–"}</td><td class="num">${String(p.started_at).slice(0, 10)}</td></tr>`).join("")}
       </table>` : `<p class="fine">No policies sold yet. When a business owner signs up and picks a tier, it lands here with its region and accumulation.</p>`}
       ${Object.keys(portfolio.by_region).length ? `<p class="fine" style="margin-top:10px">By region: ${Object.entries(portfolio.by_region)
         .map(([region, r]) => `${region} ${r.policies} (${SGD(r.weekly_premium_sgd)}/wk)`).join(" · ")}</p>` : ""}

@@ -1,9 +1,12 @@
 /* SafeDay shared theme: one palette, type scale and spacing scale for the landing, login,
-   dashboards, risk map and tariff desk. Served at /theme.css; every page links it first.
-   The interface itself is ink on paper. Colour is kept for the four hazards and for
-   money status, so a coloured mark always means a reading or a verdict. */
+   buy flow, dashboards, risk map and tariff desk. Served at /theme.css; every page links it first.
+   The prototype is designed to sit inside Income's SmartBiz 360, so it takes the same colour
+   family: neutral greys, Ubuntu type, and orange kept for actions (buttons, the selected step).
+   Hazards keep their own colours, and heat is red so it never reads as an action. No Income
+   logo, wordmark or imagery is used. */
+@import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap");
 :root {
-  --sans: "Avenir Next", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --sans: "Ubuntu", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --t-sm: 13px;
@@ -25,41 +28,44 @@
   --r-sm: 6px;
   --r-md: 10px;
   --r-lg: 14px;
+  --r-pill: 999px;
 
-  --heat: #e0562b;
+  --heat: #d23a3a;
   --rain: #3d8bef;
   --haze: #9a8cf0;
   --flood: #14a37a;
   --closure: #8d979e;
 
-  --bg: #eef1f0;
+  --bg: #f7f7f7;
   --surface: #ffffff;
-  --surface-2: #e4e9e8;
-  --ink: #0f2233;
-  --ink-2: #3a4a58;
-  --muted: #5a6873;
-  --line: #cfd7d6;
-  --accent: #0f2233;
+  --surface-2: #efefef;
+  --ink: #262727;
+  --ink-2: #4a4a4a;
+  --muted: #666869;
+  --line: #d4d4d4;
+  --accent: #f57100;
   --accent-ink: #ffffff;
+  --accent-soft: #fff2e8;
   --good: #17803d;
   --warning: #8a6100;
   --serious: #b4481f;
   --critical: #b3261e;
   --good-soft: #dcefe2;
   --critical-soft: #f7e1df;
-  --shadow: 0 1px 2px rgba(15, 34, 51, 0.08), 0 12px 32px rgba(15, 34, 51, 0.1);
+  --shadow: 0 1px 2px rgba(38, 39, 39, 0.08), 0 12px 32px rgba(38, 39, 39, 0.1);
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #0b161e;
-  --surface: #13222d;
-  --surface-2: #1c303d;
-  --ink: #f1f5f4;
-  --ink-2: #c5cfd4;
-  --muted: #94a3ad;
-  --line: #2c4252;
-  --accent: #f1f5f4;
-  --accent-ink: #0b161e;
+  --bg: #141515;
+  --surface: #1e1f20;
+  --surface-2: #2a2c2d;
+  --ink: #f4f4f4;
+  --ink-2: #d0d0d0;
+  --muted: #a0a2a3;
+  --line: #3a3c3e;
+  --accent: #ff8a2a;
+  --accent-ink: #1a1a1a;
+  --accent-soft: #3a2614;
   --good: #35b866;
   --warning: #f0b429;
   --serious: #f08a5d;
