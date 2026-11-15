@@ -76,6 +76,21 @@ on Poisson deviance.
   loss ratio. Years before 2014 have no haze.
 - `models/`, `predictions/`, `optuna.db`.
 
+## Share the results (`ml/results/`, in git)
+
+`ml/output/` holds every fitted model and stays out of git. After a run, copy what the product
+needs into `ml/results/` and push it:
+
+```bash
+uv run --group ml python -m ml.publish
+git add ml/results && git commit -m "Add training results" && git push
+```
+
+`ml/results/` gets the leaderboard, the report, the back-test, the best model of each job moved
+to the CPU (so the API and a laptop without a GPU can load it, up to 50 MB each), and
+`confusion_matrices.md` and `.csv`: for every daily job, days per actual and predicted outcome
+on the test years, both as trigger or no trigger and as the tariff's payout band.
+
 ## Limits
 
 - No claims or sales data exists, so no model learns what a seller actually lost. The tariff's
