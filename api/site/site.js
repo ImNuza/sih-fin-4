@@ -657,8 +657,7 @@ function tenDaysText(h, todays) {
       ? notice("warning", "clock", `<b>Today the 24-hour PSI in your region is ${psiNow}.</b> After a day above 100, the next day is above 100 too ${PCT(haze.next_day_bad_share)} of the time, so a haze payout tomorrow is likely.`)
       : psiNow != null ? `<p class="fine">Today the 24-hour PSI in your region is ${psiNow}, below the payout level.</p>` : ""}
     ${haze.el_nino_now ? notice("accent", "info", "An El Niño is under way. El Niño years bring far more haze days than other years.") : ""}
-    <p class="fine card-foot">This is what these dates did in past years, not a weather forecast. Our next-day models were tested and
-      do not beat "same as yesterday", so we show the record instead.</p>`;
+    <p class="fine card-foot">This is what these dates did in past years, not a weather forecast.</p>`;
 }
 
 function tenYearsText(h) {
@@ -747,14 +746,6 @@ async function renderModelHistory(target, place, tier, todays) {
   wireBars();
 }
 
-function modelRow(m) {
-  const score = (value) => (value == null ? "–" : Number(value).toFixed(value >= 10 ? 1 : 3));
-  const caught = m.confusion ? `${m.confusion.TP} of ${m.confusion.TP + m.confusion.FN}` : "–";
-  return `<tr><td>${m.name}</td><td>${m.target}</td><td>${m.model.replace("_", " ")}</td>
-    <td class="num">${score(m.score)}</td><td class="num">${score(m.baseline_score)}</td>
-    <td class="num">${caught}</td><td class="num">${m.confusion ? m.confusion.FP : "–"}</td><td class="note-cell">${m.use}</td></tr>`;
-}
-
 /* The market figures at a premium of `m` times the tariff's. Payouts do not move; the premium does. */
 function bookFigures(book, m) {
   const premium = book.premium_sgd * m;
@@ -834,24 +825,8 @@ async function renderModelBook(target, live, staticData, tier = "tier_2") {
       ${notice("warning", "clock", `<b>Pause rule:</b> stop new sales in a region while its 24-hour PSI is above 100. The next day
         pays again ${PCT(haze.next_day_bad_share)} of the time, so a buyer then is buying a known loss.
         ${haze.el_nino_now ? "With an El Niño under way, hold extra reserve for the haze season (August to October)." : ""}`)}
-      <p class="fine card-foot"><b>Forecasts, tested and held back:</b> our next-day haze model does not beat "same as today",
-        next-day heat and rain need ERA5 weather that arrives about five days late, and the monthly models do no
-        better than the long-run monthly average. The outlook above is the record of these dates, which is what
-        a premium is priced on. The table below shows each model.</p>
-    </section>
-    <section class="card dash-section">
-      <div class="card-head"><div><h2>How good are the models</h2>
-        <p class="fine">Each model was tuned on older years and scored on years it never saw (2023 on; heat from
-          May 2026) against a simple guess: the same month's average, or the last reading. A payout day is a day
-          whose reading reaches the first payout band. Data to ${SG_DATE(insights.data_to)}.</p></div></div>
-      <div class="table-wrap"><table class="data">
-        <thead><tr><th>Model</th><th>Predicts</th><th>Algorithm</th><th class="num">Score</th><th class="num">Simple guess</th><th class="num">Payout days caught</th><th class="num">False alarms</th><th>Status</th></tr></thead>
-        <tbody>${insights.models.map(modelRow).join("")}</tbody>
-      </table></div>
-      <p class="fine table-foot">Score: average error for a reading (lower is better), average precision for payout days
-        (1 is perfect, higher is better), Poisson deviance for monthly counts (lower is better). Payout days
-        caught: real payout days the model flagged, out of all of them, on the test years. Payouts always follow
-        the measured NEA readings, never a model.</p>
+      <p class="fine card-foot">The outlook above is the record of these dates since 1980, which is what a premium is
+        priced on, not a weather forecast.</p>
     </section>`;
   el("book-tier").addEventListener("change", (event) => renderModelBook(target, live, staticData, event.target.value));
   el("book-premium").addEventListener("input", (event) => {
@@ -985,7 +960,7 @@ function insurerShell(user) {
     <section class="dash-section" id="payouts-panel">${tableSkeleton(4)}</section>
     <section class="dash-section" aria-labelledby="model-title">
       <div class="section-head"><div><h2 id="model-title">Every year since 1980, and what comes next</h2>
-        <p class="page-sub">The whole market back-tested with today's tariff, the premium you could charge, and what the trained models are good for.</p></div></div>
+        <p class="page-sub">The whole market back-tested with today's tariff, the premium you could charge, and the season ahead.</p></div></div>
       <div id="model-book">${tableSkeleton(6)}</div>
     </section>
     <section class="dash-section" aria-labelledby="map-title">
