@@ -78,19 +78,35 @@
 /* Phones and small tablets: a smaller button that never sits on top of a page's own controls. */
 @media (max-width: 720px) {
   .sd-widget { right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
-  .sd-launch { padding: 10px 14px; font-size: 13px; }
-  /* Room to scroll the last lines of a page out from under the button. */
-  body:has(> .sd-widget:not(.sd-map)) { padding-bottom: 64px; }
+  .sd-launch { min-height: 40px; padding: 0 14px; }
+  .sd-icon { width: 40px; height: 40px; }
+  /* The taller icons leave less room: the title gives way so the chosen language stays readable. */
+  .sd-widget .sd-lang { flex: none; min-width: 84px; height: 40px; }
+  .sd-panel header b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .sd-chip, .sd-action, .sd-send, .sd-say { min-height: 40px; }
+  .sd-widget .sd-lang, .sd-chip, .sd-action, .sd-send, .sd-say, .sd-fine { font-size: 14px; }
+
+  /* On a page the button is docked in its own bar under the content, so it never sits on text or
+     beside a page's own buttons. The tariff desk and the atlas place it themselves, below. */
+  .sd-widget:not(.sd-map, .sd-admin) {
+    left: 0; right: 0; bottom: 0; display: flex; justify-content: flex-end;
+    padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface); border-top: 1px solid var(--line);
+  }
+  .sd-widget:not(.sd-map, .sd-admin) .sd-panel { right: 12px; }
+  body:has(> .sd-widget:not(.sd-map, .sd-admin)) { padding-bottom: calc(53px + env(safe-area-inset-bottom, 0px)); }
+  /* A button scrolled or tabbed into view stops above the bar, not under it. */
+  html:has(body > .sd-widget:not(.sd-map, .sd-admin)) { scroll-padding-bottom: 53px; }
 
   /* Tariff desk: above the fixed Discard / Review bar. */
   .sd-widget.sd-admin { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
   .sd-widget.sd-admin .sd-panel { bottom: calc(136px + env(safe-area-inset-bottom, 0px)); height: min(70vh, calc(100dvh - 150px)); }
 
-  /* Risk atlas: the panels fill the bottom, so the button sits top-right under the top bar and the
-     chat opens down from there. */
-  .sd-widget.sd-map { left: auto; right: 8px; top: calc(var(--topbar-h, 64px) + 8px); bottom: auto; }
+  /* Risk atlas: the panels fill the bottom and the brand is hidden, so the button takes the
+     brand's place in the top bar, off the map, and the chat opens down from under the bar. */
+  .sd-widget.sd-map { left: var(--s-3); right: auto; top: var(--s-2); bottom: auto; }
   .sd-widget.sd-map .sd-panel {
-    position: fixed; left: 8px; right: 8px; top: calc(var(--topbar-h, 64px) + 56px); bottom: 8px;
+    position: fixed; left: 8px; right: 8px; top: calc(var(--topbar-h, 64px) + 8px); bottom: 8px;
     width: auto; height: auto;
   }
 }
