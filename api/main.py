@@ -942,6 +942,10 @@ def buy_policy(
     Refused while an underwriter is reviewing the business's application, and once the term of
     that application has ended: payouts stop then (payout_flow.cover_ends), so a renewal is a new
     application.
+
+    A higher daily amount starts a new waiting period for the whole cover, so nobody moves up a
+    tier when a bad day is forecast. The same or a lower amount keeps the cover's start. A cover
+    bought after a cancelled one is new and waits again. Payouts already made are never taken back.
     """
     application = latest_application(request.app.state.db, user.id)
     cover_ends = application["cover_ends"] if application else None
@@ -964,6 +968,11 @@ def buy_policy(
     values = policy_values(priced, user.id, user.region, user.centre, product, body.tier)
     engine = request.app.state.db
     with engine.begin() as db:
+        current = db.execute(
+            sa_select(accounts.policies).where(accounts.policies.c.user_id == user.id)
+        ).first()
+        if current and values["daily_payout_sgd"] <= current.daily_payout_sgd:
+            values["started_at"] = current.started_at
         db.execute(sa_delete(accounts.policies).where(accounts.policies.c.user_id == user.id))
         policy_id = db.execute(
             sa_insert(accounts.policies).values(**values).returning(accounts.policies.c.id)
@@ -1211,6 +1220,7 @@ def buy_options() -> dict:
         "not_an_sme": onboarding.NOT_AN_SME,
         "terms_months": accounts.TERMS_MONTHS,
         "waiting_period_days": accounts.WAITING_PERIOD_DAYS,
+        "cap_window_days": payout_flow.CAP_WINDOW_DAYS,
         "postal_sector_regions": postcodes.SECTOR_REGION,
     }
 

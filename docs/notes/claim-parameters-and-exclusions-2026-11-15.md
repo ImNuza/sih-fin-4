@@ -23,7 +23,42 @@ How to read the sources in this note:
   desk. It includes the sentence the brief asks for: "You can lose sales and receive nothing if
   the readings stay below these levels." It leaves out the challenge line (no route exists, D16)
   and closure orders (not a climate trigger, D7).
-- Still open from section 5: D6, D10 to D17, D20.
+- Still open from section 5: D6, D10 to D16, D20. D17 is closed by the renewal rules below.
+
+## Renewal and lapse rules (closes D17), 15 Nov 2026 evening
+
+Why: Sky asked for a guard against "buy a high tier, collect, then not renew" (WhatsApp, 15 Nov
+18:24; Notion row 419ecd5c15be811ab7d2cf640abc350a). The team ruled out a price change, surge
+pricing and deposits. The guard uses the 30-day waiting period and the yearly limit only.
+
+| Rule | What the product does | Where | Code or text |
+|---|---|---|---|
+| (a) Tier upgrade | A higher daily amount starts a new 30-day wait for the whole cover. The same or a lower amount keeps the cover's start date. | `api/main.py:854` (`buy_policy`) | Code |
+| (b) Re-buy after a lapse | A cancelled cover is deleted. A cover bought after it is new and waits 30 days again. The yearly limit counts every payout to the customer in the last 365 days, from any earlier cover. | `api/main.py:1308` (`cancel_policy`), `api/payout_flow.py:66` (`owed_in_cap_window`) | Code (already true before this change; now tested) |
+| (c) Premium not paid | Cover stops if the weekly premium is not paid. | Buy page text only | Text only. No premium-paid-until field exists. `api/premium.py` records the first week's PayNow payment and nothing after it. The code stops cover only when the 12 or 24-month term ends (`payout_flow.cover_ends`). |
+| (d) No clawback | Payouts already made stay paid after a tier change or a lapse. No code path reverses a paid payout. | `api/payouts.py` rows are kept when a policy is deleted | Code (already true; now tested) |
+
+Choice for (a): the whole cover waits, not only the added amount. Reason: the code keeps one policy
+row per customer and pays its `daily_payout_sgd`. A wait for the added amount only needs the old
+amount stored next to the new one, and `create_all` never adds a column to an existing table
+(`api/payouts.py:5`), so the hosted database needs a new table. The cost to the customer: no cover
+for 30 days after an upgrade. Before this change, a move to a lower tier also restarted the wait.
+That is fixed: a lower tier cannot be gamed, so it keeps the start date.
+
+Known side effect: a move to a lower tier keeps the old start, so the welcome text is not sent
+again (`payout_flow.send_welcome_if_due` sends once per start). The customer sees the new amount
+on the dashboard only.
+
+Values: the 30 days are `accounts.WAITING_PERIOD_DAYS` and `payout_flow.WAITING_PERIOD_DAYS`
+(both 30, D20), the 365 days are `payout_flow.CAP_WINDOW_DAYS`. The waiting period is a code
+constant, not a tariff field. The buy page reads both values from `/api/buy/options`.
+
+Buy page (Cover step, "What it pays, and what it does not"), three new lines:
+- A move to a higher tier starts a new 30-day wait for the whole cover. A move to a lower tier keeps your start date.
+- Cover stops if the weekly premium is not paid. If you buy again later, the new cover waits 30 days, and the yearly limit still counts what was paid in the last 365 days.
+- Payouts already made are yours to keep.
+
+Tests: `tests/test_renewal_rules.py`, one or more per rule.
 
 ## 1. Summary
 
