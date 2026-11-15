@@ -223,6 +223,10 @@ const SHOP_KINDS = {
 const TOWN_SECTORS = ["31", "38", "46", "52", "54", "56", "60", "64", "67", "73", "76", "82"];
 const ROLES = ["Owner", "Owner", "Director", "Partner", "Manager"];
 const COMPANY_SHARE = { hawker: 0.25, shop: 0.5, platform_worker: 0 };
+/* The form opens on this applicant, so the demo shows the same price in every run. */
+const DEMO_APPLICANT = {
+  business_class: "hawker", centre: "Maxwell Food Centre (Kim Hua Market)", product: "cooked_food", tier: "tier_2",
+};
 const ADVISER_SHARE = 0.7;
 
 function setRadio(name, value) {
@@ -240,10 +244,11 @@ function townPostcode() {
 // UEN formats: 9 digits + letter for a company (year first), 8 digits + letter for a business.
 function demoUen() { return `20${pick(["15", "18", "19", "21", "23"])}${digits(5)}${pick(LETTERS)}`; }
 
-function fillHawker(short) {
+function fillHawker(short, fixedProduct) {
   const products = [...el("buy-product").options].map((o) => o.value).filter(Boolean);
   // Most stalls at a hawker centre sell cooked food; keep it the usual answer.
-  const product = Math.random() < 0.7 && products.includes("cooked_food") ? "cooked_food" : pick(products);
+  const product = fixedProduct
+    ?? (Math.random() < 0.7 && products.includes("cooked_food") ? "cooked_food" : pick(products));
   field("product").value = product;
   field("business_name").value = `${short} ${pick(DISHES[product] || ["Stall"])}`;
   field("staff_band").value = pick(["1-4", "1-4", "1-4", "5-9"]);
@@ -271,12 +276,13 @@ function fillAssociation() {
   field("association").value = buyState.options.centre_associations[centre] || buyState.options.associations[0];
 }
 
-function fillRandom() {
+/* Made-up details in every field. `applicant` fixes the class, centre, product or tier. */
+function fillRandom(applicant = {}) {
   const [name, short] = pick(OWNERS);
   fillChannel();
-  const kind = businessClassAtRandom();
+  const kind = applicant.business_class ?? businessClassAtRandom();
   setRadio("business_class", kind);
-  field("centre").value = pick(buyState.centres).name;
+  field("centre").value = applicant.centre ?? pick(buyState.centres).name;
   field("stall_unit").value = `01-${String(Math.floor(Math.random() * 180) + 1).padStart(2, "0")}`;
   field("licence_no").value = `DEMO${digits(5)}${pick(LETTERS)}`;
   field("ssic_other").value = "";
@@ -286,7 +292,7 @@ function fillRandom() {
   // Fill both business paths, the chosen one last, so switching class still shows made-up details.
   const [other, own] = kind === "shop" ? [fillHawker, fillShop] : [fillShop, fillHawker];
   other(short);
-  own(short);
+  own(short, applicant.product);
   const company = Math.random() < COMPANY_SHARE[kind];
   setRadio("applicant_type", company ? "company" : "individual");
   field("uen").value = company ? demoUen() : "";
@@ -309,6 +315,7 @@ function fillRandom() {
   setRadio("payment_method", "paynow");
   fillAssociation();
   afterRefill();
+  if (applicant.tier) { buyState.tier = applicant.tier; renderTiers(); }
 }
 
 function clearAll() {
@@ -935,9 +942,9 @@ async function wireBuy() {
     buyState.tier = card.dataset.tier;
     renderTiers();
   });
-  el("refill").addEventListener("click", fillRandom);
+  el("refill").addEventListener("click", () => fillRandom());
   el("clear").addEventListener("click", clearAll);
-  fillRandom();
+  fillRandom(DEMO_APPLICANT);
   showStep("business");
 }
 
