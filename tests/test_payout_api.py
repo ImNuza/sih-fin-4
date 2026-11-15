@@ -418,10 +418,12 @@ def test_welcome_text_explains_the_cover_with_the_customers_numbers(client):
     body = welcome["body"]
     yearly = round(policy["daily_payout_sgd"] * policy["max_paid_days_per_year"])
     phrases = ("Payung Tier 1:", f"S${policy['weekly_premium_sgd']:.2f}/wk", "cover from day 30",
-               "Haze", "heat near your stall", f"up to S${policy['daily_payout_sgd']:g}/day", f"S${yearly:,}/yr",
+               "Haze", "heat near your stall", f"up to S${policy['daily_payout_sgd']:g}/day",
                "No alert, no pay even if sales drop")
     for phrase in phrases:
         assert phrase in body
+    # The yearly amount drops its thousands comma when that is what fits one SMS.
+    assert f"S${yearly:,}/yr" in body or f"S${yearly}/yr" in body
     assert len(body) <= SMS_LIMIT
 
 
@@ -443,7 +445,8 @@ def test_buying_cover_with_a_verified_mobile_sends_the_welcome_text(client):
     assert "Payung Tier 2:" in welcome["body"]
     [policy] = client.get("/api/policies").json()
     yearly = round(policy["daily_payout_sgd"] * policy["max_paid_days_per_year"])
-    assert f"up to S${policy['daily_payout_sgd']:g}/day, S${yearly:,}/yr" in welcome["body"]
+    assert f"up to S${policy['daily_payout_sgd']:g}/day" in welcome["body"]
+    assert f"S${yearly:,}/yr" in welcome["body"] or f"S${yearly}/yr" in welcome["body"]
 
 
 def test_welcome_text_is_sent_once_per_cover(client):

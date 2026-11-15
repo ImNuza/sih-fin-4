@@ -19,6 +19,7 @@ from tests.test_api import (  # noqa: F401  (client is a fixture)
     ADMIN,
     MAP_STATIC,
     MAXWELL,
+    SELLER,
     buy_body,
     client,
     default_tariff,
@@ -344,7 +345,7 @@ def test_a_tier_not_offered_is_refused_by_the_buy_flow_before_anything_is_saved(
 def test_a_tier_not_offered_is_refused_from_the_dashboard_and_the_cover_stays(client):
     assert client.post("/api/buy", json=buy_body()).status_code == 200
     hide_every_tier(client)
-    response = client.post("/api/policies", json={"tier": "tier_4"})
+    response = client.post("/api/policies", json={"tier": "tier_4", **SELLER})
     assert response.status_code == 409
     assert response.json()["detail"].startswith("Tier 4 is not offered here.")
     assert "weather history" in response.json()["detail"]
@@ -358,7 +359,7 @@ def test_a_tier_not_offered_is_refused_from_the_dashboard_and_the_cover_stays(cl
 def test_a_past_price_referral_still_waits_for_and_follows_the_underwriter(client):
     assert client.post("/api/buy", json=buy_body()).status_code == 200
     referral_id = past_price_referral(client, "tier_4")
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 409
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 409
     client.post("/api/auth/logout")
     sign_in_as_insurer(client)
     [waiting] = client.get("/api/insurer/applications").json()["waiting"]
@@ -454,7 +455,7 @@ def test_a_declined_change_of_tier_leaves_the_cover_and_buying_open(client):
     client.post("/api/auth/logout")
     client.post("/api/auth/login", json={"email": "tan@example.test", "password": "test-pass-123"})
     assert [p["tier"] for p in client.get("/api/policies").json()] == ["tier_2"]
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 200
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 200
 
 
 def test_a_change_of_tier_keeps_the_cover_in_force_until_its_waiting_period_ends(client):

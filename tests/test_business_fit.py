@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_api import MAXWELL, buy_body, client, shop_body  # noqa: F401
+from tests.test_api import MAXWELL, SELLER, buy_body, client, shop_body  # noqa: F401
 from tests.test_underwriting import sign_in_as_insurer
 
 COOKED_FOOD_AT_MAXWELL = {"product": "cooked_food", "centre": MAXWELL}
@@ -98,10 +98,10 @@ def test_hawkers_and_shops_must_declare_their_daily_sales(client):
 
 def test_the_dashboard_refuses_a_tier_above_the_declared_sales(client):
     assert client.post("/api/buy", json=buy_body(daily_sales_sgd=500)).status_code == 200
-    response = client.post("/api/policies", json={"tier": "tier_4"})
+    response = client.post("/api/policies", json={"tier": "tier_4", **SELLER})
     assert response.status_code == 409
     assert "more than this business loses" in response.json()["detail"]
-    assert client.post("/api/policies", json={"tier": "tier_1"}).status_code == 200
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 200
 
 
 def test_the_declared_sales_show_to_the_owner_and_the_insurer(client):
