@@ -146,6 +146,10 @@ def cross_validate(
     scores = []
     X, y = train[job.features], job.labels(train)
     for step, (fit_rows, valid_rows) in enumerate(splits):
+        if job.kind == "classification" and len(np.unique(y[fit_rows])) < 2:
+            # The earliest fold can hold no trigger day yet (heat starts in Jan 2025);
+            # a classifier cannot be fitted on one class, so that fold is skipped.
+            continue
         model = spec.build(params, context).fit(X.iloc[fit_rows], y[fit_rows])
         score = tuning_score(job.kind, y[valid_rows], predict(model, X.iloc[valid_rows], job.kind))
         if not np.isnan(score):
