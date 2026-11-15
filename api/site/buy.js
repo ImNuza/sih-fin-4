@@ -7,15 +7,15 @@
    hawker stall, neighbourhood shop, platform worker (the choices come from /api/buy/options).
    The pilot sells only the open_classes; the platform worker card shows as coming next.
    Prices and rent come from the API; nothing is saved until POST /api/buy at the last step.
-   Needs site.js (el, api, post, SGD).
+   Needs site.js (el, api, post, SGD) and tier-proof.js (proofLines, proofMoney, directTier).
    For the demo every field starts filled with made-up details (fillRandom), so the whole flow is
    Next, Next, Next. "New random details" draws a new set; "Clear" empties every field. */
 "use strict";
 
 const STEPS = ["business", "cover", "details", "confirm", "pay", "done"];
 const buyState = {
-  step: "business", centres: [], rent: null, options: null, quotes: {}, tier: null, paymentRef: null,
-  demoPhone: null,
+  step: "business", centres: [], rent: null, options: null, quotes: {}, tier: null, tierQuote: null,
+  hazeBonus: false, paymentRef: null, demoPhone: null,
 };
 const STAFF_LABELS = {
   "1-4": "1 to 4", "5-9": "5 to 9", "10-49": "10 to 49", "50-200": "50 to 200", "over-200": "More than 200",
@@ -32,7 +32,19 @@ function isPlatformWorker() { return businessClass() === "platform_worker"; }
 function addsSafeDay() { return el("add-safeday").checked; }
 function soldBy() { return chosen("sold_by"); }
 function referred() { return chosen("declined_before") === "yes"; }
-function pays() { return addsSafeDay() && !referred(); }
+// A tier the quote does not sell directly goes to an underwriter first, like a past decline.
+function tierReferred() { return addsSafeDay() && buyState.tierQuote?.sold_directly === false; }
+// The severe haze payout add-on: offered with a tier that has one, and only in its sale months.
+function hazeBonusOffer() {
+  const bonus = buyState.tierQuote?.haze_bonus;
+  return addsSafeDay() && bonus?.on_sale_now ? bonus : null;
+}
+function addsHazeBonus() { return Boolean(hazeBonusOffer()) && buyState.hazeBonus; }
+// What the customer pays a week: the tier, plus the add-on when it is added.
+function weeklyDue(tier) {
+  return Math.round((tier.weekly_premium_sgd + (addsHazeBonus() ? tier.haze_bonus.weekly_sgd : 0)) * 100) / 100;
+}
+function pays() { return addsSafeDay() && !referred() && !tierReferred(); }
 function shownSteps() { return STEPS.filter((s) => s !== "done" && (s !== "pay" || pays())); }
 function overSmeStaff() { return !isPlatformWorker() && field("staff_band").value === "over-200"; }
 
@@ -323,6 +335,8 @@ function clearAll() {
 
 function afterRefill() {
   buyState.tier = null;
+  buyState.tierQuote = null;
+  buyState.hazeBonus = false;
   buyState.paymentRef = null;
   showBuyError("");
   for (const input of buyForm().querySelectorAll("[aria-invalid]")) clearInvalid(input);
@@ -391,16 +405,19 @@ function showWaitingNote() {
 }
 
 async function renderTiers() {
+  const run = (renderTiers.latest = (renderTiers.latest ?? 0) + 1);
   const body = el("addon-body");
   el("addon").classList.toggle("on", addsSafeDay());
   body.hidden = !addsSafeDay();
-  if (!addsSafeDay()) return;
+  if (!addsSafeDay()) { buyState.tierQuote = null; return; }
   let quote;
   try {
     quote = await quoteFor(businessPlace(), businessProduct());
+    if (run !== renderTiers.latest) return; // a newer change is drawing the tiers
   } catch (error) {
+    buyState.tierQuote = null;
     el("buy-tiers").innerHTML = "";
-    el("what-pays").innerHTML = "";
+    showCoverBoxes("", "", "");
     el("why-price").innerHTML = "";
     el("tier-note").innerHTML = `<span class="tier-problem">${SafeUI.icon("circle-alert")}<span>Could not load the prices. ${escapeHtml(problemText(error))}</span>
       <button class="btn small" id="tier-retry" type="button">Try again</button></span>`;
@@ -409,31 +426,84 @@ async function renderTiers() {
   }
   const rent = currentRent();
   if (!quote) {
+    buyState.tierQuote = null;
     el("buy-tiers").innerHTML = "";
-    el("what-pays").innerHTML = "";
+    showCoverBoxes("", "", "");
     el("why-price").innerHTML = "";
     el("tier-note").textContent = "Tell us where the business is and what it does to see the prices.";
     return;
   }
-  buyState.tier ??= rent?.recommended_tier || quote.tiers[0].tier;
+  const suggested = directTier(quote, rent?.recommended_tier).tier;
+  buyState.tier ??= suggested;
+  const marked = rent ? suggested : null; // only rent suggests a tier
+  buyState.tierQuote = quote.tiers.find((t) => t.tier === buyState.tier) || null;
   const share = (t) => rent ? `${Math.round((100 * t.daily_payout_sgd) / rent.rent_per_day_sgd)}% of a day's rent` : "";
   el("buy-tiers").innerHTML = quote.tiers.map((t) => `
-    <button class="tier-card ${t.tier === rent?.recommended_tier ? "rec" : ""}" type="button" role="radio"
+    <button class="tier-card ${t.tier === marked ? "rec" : ""}" type="button" role="radio"
       aria-checked="${t.tier === buyState.tier}" data-tier="${t.tier}">
       <span class="tier-check">${SafeUI.icon("check")}</span>
-      <span class="t">${t.label}${t.tier === rent?.recommended_tier ? ' <span class="chip accent">Suggested</span>' : ""}</span>
+      <span class="t">${t.label}${t.tier === marked ? ' <span class="chip accent">Suggested</span>' : ""}${t.best_value ? ' <span class="chip good">Best value</span>' : ""}${t.sold_directly === false ? ' <span class="chip warning">Refer to underwriter</span>' : ""}</span>
       <span class="p">${SGD(t.weekly_premium_sgd)}<small>/wk</small></span>
-      <span class="d">${SGD(t.daily_payout_sgd)} a bad day · up to ${SGD(t.max_payout_per_year_sgd)} a year</span>
+      <span class="d">${[dayPrice(t), `${SGD(t.daily_payout_sgd)} a bad day`].filter(Boolean).join(" · ")}</span>
+      <span class="d">${coverLine(t)}</span>
+      ${centsBack(t) ? `<span class="d">${centsBack(t)}</span>` : ""}
       ${rent ? `<span class="d">${share(t)}</span>` : ""}
     </button>`).join("");
-  el("tier-note").textContent = rent
+  const suggestion = rent
     ? (rent.covers_rent
       ? `Suggested: the smallest tier that pays your whole day's rent (about ${SGD(rent.rent_per_day_sgd)}) on a full bad day.`
       : `No tier pays a whole day's rent here (about ${SGD(rent.rent_per_day_sgd)}). Suggested: the biggest tier.`)
-      + ` ${priceBasis()}`
-    : priceBasis();
-  el("what-pays").innerHTML = whatPays(quote, buyState.tier);
+    : "";
+  const labelOf = (key) => quote.tiers.find((t) => t.tier === key)?.label;
+  const moved = rent && suggested !== rent.recommended_tier
+    ? `${labelOf(rent.recommended_tier)} is not sold directly here, so we suggest ${labelOf(suggested)}.` : "";
+  el("tier-note").textContent = [suggestion, moved, bestValueLine(quote, suggested), priceBasis(),
+    tierReferred() ? referNote(buyState.tierQuote) : ""].filter(Boolean).join(" ");
+  const tier = buyState.tierQuote || quote.tiers[0];
+  showCoverBoxes(proofBox(tier), hazeBonusBox(tier), whatPays(quote, buyState.tier));
   el("why-price").innerHTML = whyPrice(quote, buyState.tier);
+}
+
+/* The proof, the severe haze payout and "what it pays" each sit in their own what-pays box, in
+   that order. The first two boxes are made here, before #what-pays; an empty box is hidden. */
+function showCoverBoxes(proofHtml, hazeHtml, paysHtml) {
+  const box = (id) => {
+    if (!el(id)) {
+      const made = document.createElement("div");
+      made.className = "what-pays";
+      made.id = id;
+      el("what-pays").before(made);
+    }
+    return el(id);
+  };
+  box("tier-proof").innerHTML = proofHtml;
+  box("haze-bonus-box").innerHTML = hazeHtml;
+  el("what-pays").innerHTML = paysHtml;
+}
+
+function proofBox(tier) {
+  const proof = proofLines(tier, businessClass());
+  return proof.length ? `<h3>What ${tier.label} would have paid here</h3>
+    <ul>${proof.map((line) => `<li>${line}</li>`).join("")}</ul>` : "";
+}
+
+function referNote(tier) {
+  return `${tier.label} is not sold directly here: its price is high compared with what it can pay in a year. If you choose it, your application goes to an Income underwriter before cover starts, and nothing is charged until they reply.`;
+}
+
+/* The severe haze payout add-on, as a tick box in the add-on pattern, with the weekly total. */
+function hazeBonusBox(tier) {
+  const bonus = tier.haze_bonus;
+  if (!bonus) return "";
+  const onSale = bonus.on_sale_now;
+  const ticked = onSale && buyState.hazeBonus;
+  const total = onSale
+    ? `<p class="fine">Weekly total: ${SGD(tier.weekly_premium_sgd)} without the add-on, ${SGD(tier.weekly_premium_sgd + bonus.weekly_sgd)} with it.</p>`
+    : "";
+  return `<label class="addon-head"><input type="checkbox" name="add_haze_bonus" id="add-haze-bonus" ${ticked ? "checked" : ""} ${onSale ? "" : "disabled"} />
+      <span><b>Add severe haze payout</b>
+      <span class="fine">${hazeBonusPitch(tier)}${onSale ? "" : " You can add this from November to April."}</span></span></label>
+    ${total}`;
 }
 
 const HAZARD_WORDS = { haze: "haze", rain: "heavy rain", heat: "extreme heat", flood: "flash floods", closure: "closure orders" };
@@ -518,7 +588,9 @@ async function renderSummary() {
     ...placeRows(row),
     isPlatformWorker() ? "" : row("People in the business", STAFF_LABELS[field("staff_band").value]),
     row("SmartBiz 360", "Priced by Income"),
-    row("SafeDay", tier ? `${tier.label} · ${SGD(tier.weekly_premium_sgd)} a week · ${SGD(tier.daily_payout_sgd)} a bad day` : "Not added"),
+    row("SafeDay", tier ? `${tier.label} · ${SGD(tier.weekly_premium_sgd)} a week · ${SGD(tier.daily_payout_sgd)} a bad day${tier.sold_directly === false ? " · goes to an underwriter first" : ""}` : "Not added"),
+    tier && addsHazeBonus() ? row("Severe haze payout", `${SGD(tier.haze_bonus.weekly_sgd)} a week · ${proofMoney(tier.haze_bonus.lump_sum_sgd)} at once in a year with ${tier.haze_bonus.trigger_days} or more unhealthy-haze days`) : "",
+    tier && addsHazeBonus() ? row("Weekly total", SGD(weeklyDue(tier))) : "",
     row("Cover starts", dates ? DATE(dates.start) : "Today"),
     row("Term", `${chosen("term_months")} months`),
     dates ? row("Payouts from", `${DATE(dates.payoutsFrom)} (after the ${buyState.options.waiting_period_days}-day waiting period)`) : "",
@@ -528,7 +600,7 @@ async function renderSummary() {
   ].join("") + (tier ? `<p class="fine">What you are buying, in the SMS we will send you:</p>
     <div class="cover-sms" id="buy-cover-sms"></div>` : "");
   if (tier) {
-    showDue(tier.weekly_premium_sgd);
+    showDue(weeklyDue(tier));
     coverSms(el("buy-cover-sms"), tier.tier, chosen("sms_language") || "en");
   }
 }
@@ -621,6 +693,7 @@ function requestBody() {
     term_months: Number(data.term_months),
     applicant_type: applicantType, uen: applicantType === "company" ? data.uen : null,
     phone: data.phone, add_safeday: addsSafeDay(), tier: addsSafeDay() ? buyState.tier : null,
+    add_haze_bonus: addsHazeBonus(),
     declined_before: referred(), declined_details: referred() ? data.declined_details : null,
     accept_declaration: Boolean(data.accept_declaration), accept_pdpa: Boolean(data.accept_pdpa),
     marketing_email: Boolean(data.marketing_email), marketing_sms: Boolean(data.marketing_sms),
@@ -656,7 +729,7 @@ function doneHtml({ application, policy }) {
   if (application.status === "referred")
     return `<span class="done-mark wait">${SafeUI.icon("clock", "i-lg")}</span>
       <h2>Sent to an underwriter</h2>
-      <p>Thank you. Because an insurer has declined cover for this business before, an underwriter will review your application first. No cover has started and nothing was charged.</p>
+      <p>Thank you. ${referralWhy(application)} No cover has started and nothing was charged.</p>
       <p class="fine">Application ${application.id} · we will contact you on ${application.phone}.</p>
       <a class="btn primary" href="/dashboard/">Go to your dashboard</a>`;
   if (!policy)
@@ -669,6 +742,7 @@ function doneHtml({ application, policy }) {
     <h2>Your SafeDay cover starts ${starts}</h2>
     <p>The first ${buyState.options.waiting_period_days} days are a waiting period: SafeDay pays for bad days from ${DATE(localDate(application.waiting_ends))}. Your ${application.term_months}-month cover ends on ${DATE(localDate(application.cover_ends))}.</p>
     <p>SafeDay ${policy.tier_label} pays up to ${SGD(policy.daily_payout_sgd)} on a bad day ${coverPlace(application, policy)}, for ${SGD(policy.weekly_premium_sgd)} a week. There is nothing to claim: we pay when NEA readings cross the trigger levels.</p>
+    ${policy.haze_bonus ? `<p>Severe haze payout added: ${proofMoney(policy.haze_bonus.lump_sum_sgd)} at once${buyState.tierQuote?.haze_bonus ? ` in a year with ${buyState.tierQuote.haze_bonus.trigger_days} or more unhealthy-haze days` : ""}, for ${SGD(policy.haze_bonus.weekly_sgd)} a week more (${SGD(policy.weekly_premium_sgd + policy.haze_bonus.weekly_sgd)} a week in total). Haze days are counted from ${DATE(localDate(String(policy.haze_bonus.starts_on).slice(0, 10)))}.</p>` : ""}
     <div class="done-facts">
       <div class="kv"><span class="k">Payment reference (prototype)</span><span class="v num">${application.payment_ref}</span></div>
       <div class="kv"><span class="k">Paid by</span><span class="v">${application.payment_method === "giro" ? "GIRO, every week" : "PayNow"}</span></div>
@@ -860,6 +934,7 @@ function onChange(event) {
   if (["business_class", "applicant_type", "ssic_choice", "staff_band", "centre", "postcode"].includes(name)) showClassFields();
   if (["business_class", "centre", "postcode", "product"].includes(name)) { buyState.tier = null; renderTiers(); }
   if (name === "add_safeday") renderTiers();
+  if (name === "add_haze_bonus") { buyState.hazeBonus = event.target.checked; renderTiers(); }
   if (name === "cover_start" || name === "term_months") showWaitingNote();
   if (name === "declined_before") {
     el("declined-box").hidden = !referred();
@@ -925,11 +1000,12 @@ async function wireBuy() {
   buyForm().querySelectorAll('[name="payment_method"]').forEach((radio) =>
     radio.addEventListener("change", () => { resetPayNow(); showStep("pay", false); }));
   el("buy-back").addEventListener("click", onBack);
-  el("buy-tiers").addEventListener("click", (event) => {
+  el("buy-tiers").addEventListener("click", async (event) => {
     const card = event.target.closest("[data-tier]");
     if (!card) return;
     buyState.tier = card.dataset.tier;
-    renderTiers();
+    await renderTiers();
+    showStep(buyState.step, false); // a tier not sold directly skips the Pay step
   });
   el("refill").addEventListener("click", fillRandom);
   el("clear").addEventListener("click", clearAll);

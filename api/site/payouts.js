@@ -25,6 +25,12 @@ function statusPill(status) {
 function dayLabel(isoDate) {
   return new Date(isoDate + "T00:00:00").toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
 }
+/* A severe haze payout's lump sum (kind haze_bonus) pays once a policy year, not on a day's loss. */
+const isLumpSum = (p) => p.kind === "haze_bonus";
+function causeLine(p) {
+  if (isLumpSum(p)) return `Severe haze payout · ${escapeHtml(p.basis.haze)}`;
+  return `${escapeHtml(p.main_hazard)} · ${p.loss_percent.toFixed(0)}% ${dayChip(p.loss_percent)}`;
+}
 function paidCell(p) {
   const capped = p.amount_sgd < p.assessed_sgd ? ` <span class="fine" data-tip="Cut to what is left of the yearly cap" aria-label="Cut to what is left of the yearly cap">of ${SGD(p.assessed_sgd)}</span>` : "";
   return `${SGD(p.amount_sgd)}${capped}`;
@@ -69,7 +75,7 @@ function smePayoutList(payouts) {
   if (!payouts.length) return `<div class="card flush"><div class="empty">${SafeUI.icon("banknote")}
     <h3>No payouts yet</h3><p>When NEA readings cross your trigger, the money comes here without a claim.</p></div></div>`;
   return `<ul class="payout-list card flush">${payouts.map((p) => `<li>
-    <div><b>${dayLabel(p.loss_date)}</b><span class="fine">${escapeHtml(p.main_hazard)} · ${p.loss_percent.toFixed(0)}% ${dayChip(p.loss_percent)}</span>
+    <div><b>${dayLabel(p.loss_date)}</b><span class="fine">${causeLine(p)}</span>
       ${p.failure_reason ? `<span class="fine">${escapeHtml(p.failure_reason)}</span>` : ""}</div>
     <div class="payout-amount"><span class="num">${paidCell(p)}</span>${statusPill(p.status)}<span class="fine num">${escapeHtml(p.reference)}</span></div>
   </li>`).join("")}</ul>`;
@@ -195,8 +201,9 @@ function insurerPayoutTable(payouts, hazardLabels) {
     <tbody>${payouts.map((p) => `<tr>
       <td>${escapeHtml(p.business_name)}</td><td>${escapeHtml(p.centre || titleCase(p.region))}</td>
       <td class="num" data-value="${p.loss_date}">${dayLabel(p.loss_date)}</td>
-      <td>${escapeHtml(hazardLabels[p.main_hazard] || p.main_hazard)}</td>
-      <td class="num" data-value="${p.loss_percent}">${p.loss_percent.toFixed(0)}% ${dayChip(p.loss_percent)}</td>
+      <td>${isLumpSum(p) ? "Severe haze payout" : escapeHtml(hazardLabels[p.main_hazard] || p.main_hazard)}</td>
+      <td class="num" data-value="${p.loss_percent}">${isLumpSum(p)
+        ? `<span data-tip="${escapeHtml(p.basis.haze)}">Lump sum</span>` : `${p.loss_percent.toFixed(0)}% ${dayChip(p.loss_percent)}`}</td>
       <td class="num" data-value="${p.amount_sgd}">${paidCell(p)}</td>
       <td data-value="${escapeHtml(p.status)}">${statusPill(p.status)}${p.failure_reason ? `<div class="fine">${escapeHtml(p.failure_reason)}</div>` : ""}</td>
       <td class="num ref">${escapeHtml(p.reference)}</td>
@@ -329,7 +336,7 @@ function askRejectReason(slot, button) {
       return;
     }
     busy(event.submitter, "reject-error", async () => {
-      await post(`/api/insurer/payouts/${button.dataset.reject}/reject`, { reason });
+      await post(`/api/insurer/payouts/${encodeURIComponent(button.dataset.reject)}/reject`, { reason });
       dialog.close();
       await renderInsurerPayouts(slot);
     });
@@ -372,7 +379,7 @@ function wireInsurerPayouts(slot) {
   });
   slot.querySelectorAll("[data-retry]").forEach((button) => button.addEventListener("click", () =>
     busy(button, "run-error", async () => {
-      await post(`/api/insurer/payouts/${button.dataset.retry}/retry`, {});
+      await post(`/api/insurer/payouts/${encodeURIComponent(button.dataset.retry)}/retry`, {});
       await renderInsurerPayouts(slot);
     })));
   slot.querySelectorAll("[data-reject]").forEach((button) =>
