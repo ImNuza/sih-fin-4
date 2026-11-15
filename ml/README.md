@@ -100,6 +100,30 @@ and predicted outcome on the test years, both as trigger or no trigger and as th
 band. The best model is the one with the best validation score, so the test years play no part
 in choosing it. Loading a model needs the `ml` group, and `ml.models` for the neural network.
 
+## Use them in the product (`data/processed/`, in git)
+
+The API image has numpy but no ML libraries, so the models run once, offline:
+
+```bash
+uv run --group ml python -m ml.serving
+```
+
+It writes `data/processed/model_history.npz`: every hawker centre, every day since 1980, with
+haze, rain and heat and where each came from (measured, or rebuilt by the heat or rain model).
+Measured readings always win. The heat rebuild alone predicts near-average hours every day, so
+its values are quantile-mapped to the measured 2025-2026 hours; on that overlap it gives 9.0
+hot days for 2025 against 9.0 measured. It also writes `model_insights.json`: each model's test
+score against the simple guess, its confusion counts, and the haze and El Niño facts.
+
+`api/model_history.py` turns those readings into money with the live tariff, so a tariff change
+reprices every year without rerunning anything. The dashboards read it through
+`/api/model/history` (one stall since 1980, and its typical, bad and worst year),
+`/api/model/book` (the insurer's whole market back-tested) and `/api/model/insights`. Rerun
+`ml.serving` after new results are published or the data is refreshed.
+
+On macOS, XGBoost and LightGBM need `brew install libomp`. PyTorch and XGBoost crash when loaded
+in one process there, so `ml.serving` loads neither neural network.
+
 ## Limits
 
 - No claims or sales data exists, so no model learns what a seller actually lost. The tariff's
