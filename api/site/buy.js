@@ -11,6 +11,7 @@
 const STEPS = ["business", "cover", "details", "confirm", "pay", "done"];
 const buyState = {
   step: "business", centres: [], rent: null, options: null, quotes: {}, tier: null, paymentRef: null,
+  demoPhone: null,
 };
 const STAFF_LABELS = {
   "1-4": "1 to 4", "5-9": "5 to 9", "10-49": "10 to 49", "50-200": "50 to 200", "over-200": "More than 200",
@@ -273,7 +274,7 @@ function fillRandom() {
   field("cover_start").min = todayIso();
   field("name").value = name;
   field("designation").value = kind === "platform_worker" ? pick(["Driver", "Rider"]) : pick(ROLES);
-  field("phone").value = `${pick(["8", "9"])}${digits(3)} ${digits(4)}`;
+  field("phone").value = buyState.demoPhone || `${pick(["8", "9"])}${digits(3)} ${digits(4)}`;
   const slug = short.toLowerCase().replace(/[^a-z]+/g, "");
   field("email").value = `${slug}.${digits(5)}@example.test`;
   field("password").value = `demo-${digits(6)}`;
@@ -486,18 +487,21 @@ async function renderSummary() {
     dates ? row("Payouts from", `${DATE(dates.payoutsFrom)} (after the ${buyState.options.waiting_period_days}-day waiting period)`) : "",
     dates ? row("Cover ends", DATE(dates.ends)) : "",
     row("Contact", `${field("name").value}${field("designation").value ? ` (${field("designation").value})` : ""} · ${field("phone").value} · ${field("email").value}`),
-  ].join("");
-  if (tier) showPaynow(tier.weekly_premium_sgd);
+  ].join("") + (tier ? `<p class="fine">What you are buying, in the SMS we will send you:</p>
+    <div class="cover-sms" id="buy-cover-sms"></div>` : "");
+  if (tier) {
+    showDue(tier.weekly_premium_sgd);
+    coverSms(el("buy-cover-sms"), tier.tier);
+  }
 }
 
 /* ---------- step 5: pay ---------- */
-function showPaynow(amountSgd) {
+/** The first week's premium due today. GIRO keeps a made-up DEMO- reference; PayNow takes its
+    reference from the simulated payment (startPayNow). */
+function showDue(amountSgd) {
   buyState.paymentRef ??= `DEMO-${hex(3)}`;
+  buyState.dueSgd = amountSgd;
   el("due-amount").textContent = SGD(amountSgd);
-  const query = new URLSearchParams({ amount_sgd: amountSgd.toFixed(2), reference: buyState.paymentRef });
-  el("paynow-qr").src = `/api/paynow/qr?${query}`;
-  el("paynow-ref").textContent = `Reference ${buyState.paymentRef} · ${SGD(amountSgd)}`;
-  el("paynow-box").hidden = chosen("payment_method") !== "paynow";
 }
 
 /* ---------- navigation ---------- */
@@ -521,6 +525,8 @@ function showStep(step, scroll = true) {
     ? `Pay ${el("due-amount").textContent}`
     : last ? "Submit application" : step === "confirm" ? "Continue to payment" : "Next";
   showBuyError("");
+  el("buy-next").removeAttribute("aria-busy");
+  if (step !== "pay") resetPayNow();
   if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -578,6 +584,7 @@ function requestBody() {
     marketing_email: Boolean(data.marketing_email), marketing_sms: Boolean(data.marketing_sms),
     payment_method: pays() ? data.payment_method : null,
     payment_ref: pays() ? buyState.paymentRef : null,
+    payment_token: pays() && data.payment_method === "paynow" ? paynowState.payment?.token ?? null : null,
   };
 }
 
@@ -633,20 +640,138 @@ async function onNext(event) {
   if (el("buy-next").hasAttribute("aria-busy") || !stepIsValid(step)) return;
   const steps = shownSteps();
   const last = step === "pay" || (step === "confirm" && !pays());
-  el("buy-next").setAttribute("aria-busy", "true");
-  try {
-    if (!last) {
+  if (!last) {
+    el("buy-next").setAttribute("aria-busy", "true");
+    try {
       const next = steps[steps.indexOf(step) + 1];
       if (next === "confirm" || next === "pay") await renderSummary();
       showStep(next);
-      return;
+    } catch (error) {
+      showBuyError(problemText(error));
+    } finally {
+      el("buy-next").removeAttribute("aria-busy");
     }
+    return;
+  }
+  if (step === "pay" && chosen("payment_method") === "paynow") {
+    await startPayNow();
+    return;
+  }
+  await submitBuy();
+}
+
+async function submitBuy() {
+  el("buy-next").setAttribute("aria-busy", "true");
+  try {
     const result = await submitApplication(requestBody());
     el("done").innerHTML = doneHtml(result);
     showStep("done");
   } catch (error) {
     showBuyError(problemText(error));
   } finally {
+    el("buy-next").removeAttribute("aria-busy");
+  }
+}
+
+/* ---------- step 5: pay by PayNow (simulated) ----------
+   POST /api/premium-payments starts a payment of the amount due and returns a QR. The QR opens
+   a "payment successful" page (/paynow-demo/), and opening it pays. For the demo the payment
+   also pays itself after AUTO_PAY_MS, so the flow goes on even when the phone cannot reach this
+   server. This page checks every POLL_MS and finishes the purchase once it is paid. No real
+   PayNow code is made and no money moves. */
+const POLL_MS = 1000;
+const AUTO_PAY_MS = 5000;
+const paynowState = { payment: null, timer: null, autoPay: null, autoPayAt: 0, finishing: false };
+
+function paynowHtml(p) {
+  return `<img class="paynow-qr" src="${p.qr_url}" width="180" height="180"
+      alt="QR code that opens the simulated bank screen" />
+    <div class="paynow-info">
+      <p class="paynow-brand">PayNow · simulated</p>
+      <div class="kv"><span class="k">Pay to</span><span class="v">${p.payee}</span></div>
+      <div class="kv"><span class="k">Amount</span><span class="v">${SGD(p.amount_sgd)}</span></div>
+      <div class="kv"><span class="k">Reference</span><span class="v">${p.reference}</span></div>
+      <p class="fine"><b>Scan with your phone's camera app</b> to see the payment go through (a
+        banking app will not recognise this demo QR), or
+        <a href="${p.bank_url}" target="_blank" rel="noopener">open it here</a>. Demo: the
+        payment also goes through by itself after ${AUTO_PAY_MS / 1000} seconds.</p>
+      <p class="paynow-status" id="paynow-status" role="status">Waiting for payment…</p>
+    </div>`;
+}
+
+function stopPolling() {
+  clearInterval(paynowState.timer);
+  clearTimeout(paynowState.autoPay);
+  paynowState.timer = null;
+  paynowState.autoPay = null;
+}
+
+/** The demo's stand-in for the customer paying in their bank app. */
+async function autoPay() {
+  const payment = paynowState.payment;
+  if (!payment) return;
+  // 409 means the phone already paid, or the payment ended; checkPayment reads which.
+  await post(`/api/premium-payments/${encodeURIComponent(payment.token)}/pay`, {}).catch(() => {});
+  await checkPayment();
+}
+
+function secondsToAutoPay() {
+  return Math.max(0, Math.ceil((paynowState.autoPayAt - Date.now()) / 1000));
+}
+
+/** Leave the PayNow panel: stop checking and cancel a payment that was never made. */
+function resetPayNow() {
+  stopPolling();
+  const pending = paynowState.finishing ? null : paynowState.payment;
+  paynowState.payment = null;
+  paynowState.finishing = false;
+  if (el("paynow-box")) el("paynow-box").hidden = true;
+  if (pending) post(`/api/premium-payments/${encodeURIComponent(pending.token)}/cancel`, {}).catch(() => {});
+}
+
+async function startPayNow() {
+  el("buy-next").setAttribute("aria-busy", "true");
+  paynowState.finishing = false;
+  try {
+    const payment = await post("/api/premium-payments", {
+      tier: buyState.tier, amount_sgd: buyState.dueSgd,
+    });
+    paynowState.payment = payment;
+    el("paynow-box").innerHTML = paynowHtml(payment);
+    el("paynow-box").hidden = false;
+    el("buy-next").textContent = "Waiting for PayNow…";
+    paynowState.autoPayAt = Date.now() + AUTO_PAY_MS;
+    paynowState.autoPay = setTimeout(autoPay, AUTO_PAY_MS);
+    paynowState.timer = setInterval(checkPayment, POLL_MS);
+  } catch (error) {
+    showBuyError(problemText(error));
+    el("buy-next").removeAttribute("aria-busy");
+  }
+}
+
+async function checkPayment() {
+  const payment = paynowState.payment;
+  if (!payment) return;
+  try {
+    const now = await api(`/api/premium-payments/${encodeURIComponent(payment.token)}`);
+    if (now.status === "paid") {
+      if (paynowState.finishing) return;  // the other check already started the purchase
+      paynowState.finishing = true;
+      stopPolling();
+      el("paynow-status").textContent = `Paid ${SGD(now.amount_sgd)}. Setting up your cover…`;
+      await submitBuy();
+    } else if (now.status === "pending") {
+      el("paynow-status").textContent = `Waiting for payment… paying by itself in ${secondsToAutoPay()} s`;
+    } else {
+      stopPolling();
+      paynowState.payment = null;
+      el("paynow-status").textContent = `Payment ${now.status}. Press Pay to get a new QR.`;
+      el("buy-next").textContent = `Pay ${el("due-amount").textContent}`;
+      el("buy-next").removeAttribute("aria-busy");
+    }
+  } catch (error) {
+    stopPolling();
+    showBuyError(problemText(error));
     el("buy-next").removeAttribute("aria-busy");
   }
 }
@@ -678,7 +803,6 @@ function onChange(event) {
   if (["business_class", "centre", "postcode", "product"].includes(name)) { buyState.tier = null; renderTiers(); }
   if (name === "add_safeday") renderTiers();
   if (name === "cover_start" || name === "term_months") showWaitingNote();
-  if (name === "payment_method") el("paynow-box").hidden = chosen("payment_method") !== "paynow";
   if (name === "declined_before") {
     el("declined-box").hidden = !referred();
     showStep("confirm", false);
@@ -702,6 +826,13 @@ async function noteInsurer() {
   el("insurer-note").hidden = user?.role !== "insurer";
 }
 
+/** "+6592471234" as the form shows it, "9247 1234". */
+function localMobile(mobile) {
+  if (!mobile) return null;
+  const local = mobile.replace(/^\+65/, "");
+  return `${local.slice(0, 4)} ${local.slice(4)}`;
+}
+
 async function wireBuy() {
   if (!el("buy")) return;
   noteInsurer();
@@ -710,6 +841,7 @@ async function wireBuy() {
   try {
     loaded = await Promise.all([
       api("/api/map/static"), api("/api/options"), api("/api/rent").catch(() => null), api("/api/buy/options"),
+      api("/api/demo-phone"),
     ]);
   } catch (error) {
     el("buy-next").removeAttribute("aria-busy");
@@ -717,7 +849,8 @@ async function wireBuy() {
     return;
   }
   el("buy-next").removeAttribute("aria-busy");
-  const [map, options, rent, buyOptions] = loaded;
+  const [map, options, rent, buyOptions, demo] = loaded;
+  buyState.demoPhone = localMobile(demo.mobile);
   buyState.centres = [...map.hawker_centres].sort((a, b) => a.name.localeCompare(b.name));
   buyState.rent = rent;
   buyState.options = {
@@ -730,6 +863,8 @@ async function wireBuy() {
   buyForm().addEventListener("change", onChange);
   field("postcode").addEventListener("input", checkPostcode);
   buyForm().addEventListener("input", (event) => clearInvalid(event.target));
+  buyForm().querySelectorAll('[name="payment_method"]').forEach((radio) =>
+    radio.addEventListener("change", () => { resetPayNow(); showStep("pay", false); }));
   el("buy-back").addEventListener("click", onBack);
   el("buy-tiers").addEventListener("click", (event) => {
     const card = event.target.closest("[data-tier]");

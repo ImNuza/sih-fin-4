@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, status
-from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import Engine, delete, insert, select, update
+from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy import Connection, Engine, delete, insert, select, update
 
-from api import paynow, payout_flow, postcodes, readings, sms, store
+from api import paynow, payout_flow, postcodes, readings, sms, sms_gateway, store
 from api.accounts import (
-    InsurerDep, SmeDep, UserDep, application_profile, applications, users,
+    InsurerDep, SmeDep, UserDep, application_profile, applications, policies, users,
 )
 from api.day_history import day_readings
+from api.kyc import api_key
 from api.payouts import payout_accounts, payout_events, payouts, sms_messages
 
 router = APIRouter(prefix="/api")
+# The demo phone: the demo card fills it in, and a demo payout goes to it when the insurer types
+# no mobile and the customer has no verified one. A real person's number: .env only, never code.
+FALLBACK_MOBILE_SETTING = "DEMO_PAYOUT_MOBILE"
 
 
 class PayoutAccountIn(BaseModel):
@@ -25,7 +30,7 @@ class PayoutAccountIn(BaseModel):
     sms_mobile: str | None = Field(
         default=None, description="Mobile for texts. Defaults to the PayNow mobile."
     )
-    sms_language: Literal["en", "zh", "ms", "ta"] = "en"
+    sms_language: sms.SmsLanguage = "en"
 
     @model_validator(mode="after")
     def proxy_and_mobile_are_valid(self) -> PayoutAccountIn:
@@ -58,6 +63,29 @@ class RunIn(BaseModel):
         return self
 
 
+class DemoPayoutIn(BaseModel):
+    user_id: int
+    readings: dict[str, float] = Field(
+        min_length=1, description="Hazard key to reading, for example {'rain': 50}."
+    )
+    mobile: str | None = Field(
+        default=None,
+        description="Singapore mobile to pay by PayNow and text, taken as verified. Leave out "
+        "to use the customer's verified mobile, or else the DEMO_PAYOUT_MOBILE fallback.",
+    )
+    sms_language: sms.SmsLanguage = "en"
+
+    @field_validator("mobile")
+    @classmethod
+    def mobile_is_singapore(cls, mobile: str | None) -> str | None:
+        if mobile is None:
+            return None
+        cleaned = re.sub(r"[\s-]", "", mobile)
+        if not paynow.is_valid_mobile(cleaned):
+            raise ValueError("Mobile must be +65 then 8 digits starting 8 or 9")
+        return cleaned
+
+
 class RejectIn(BaseModel):
     reason: str = Field(min_length=2, max_length=300)
 
@@ -80,7 +108,19 @@ def find_account(engine: Engine, user_id: int):
         ).first()
 
 
-def payout_view(row, events: list) -> dict:
+def text_view(row) -> dict:
+    return {
+        "kind": row.kind,
+        "body": row.body,
+        "to": paynow.mask("mobile", row.to_mobile),
+        "language": row.language,
+        "status": row.status,
+        "error": row.error,
+        "sent_at": row.sent_at,
+    }
+
+
+def payout_view(row, events: list, texts: list) -> dict:
     return {
         "id": row.id,
         "reference": payout_flow.reference(row.id),
@@ -106,6 +146,7 @@ def payout_view(row, events: list) -> dict:
             {"from_status": e.from_status, "to_status": e.to_status, "actor": e.actor, "at": e.at}
             for e in events
         ],
+        "texts": [text_view(text) for text in texts],
     }
 
 
@@ -127,10 +168,21 @@ def load_payouts(engine: Engine, user_id: int | None, payout_id: int | None = No
             .where(payout_events.c.payout_id.in_(ids))
             .order_by(payout_events.c.id)
         ).all()
-    by_payout: dict[int, list] = {}
+        texts = db.execute(
+            select(sms_messages)
+            .where(sms_messages.c.payout_id.in_(ids))
+            .order_by(sms_messages.c.id)
+        ).all()
+    events_by_payout: dict[int, list] = {}
     for event in events:
-        by_payout.setdefault(event.payout_id, []).append(event)
-    return [payout_view(row, by_payout.get(row.id, [])) for row in rows]
+        events_by_payout.setdefault(event.payout_id, []).append(event)
+    texts_by_payout: dict[int, list] = {}
+    for text in texts:
+        texts_by_payout.setdefault(text.payout_id, []).append(text)
+    return [
+        payout_view(row, events_by_payout.get(row.id, []), texts_by_payout.get(row.id, []))
+        for row in rows
+    ]
 
 
 @router.get("/payout-account")
@@ -168,20 +220,24 @@ def put_payout_account(body: PayoutAccountIn, user: SmeDep, request: Request) ->
 
 @router.post("/payout-account/verify/start")
 def start_mobile_check(user: SmeDep, request: Request) -> dict:
-    """Text a one-time code. The SMS gateway is simulated, so the code is also returned."""
+    """Text a one-time code. While texts are simulated the code is also returned, for the demo."""
     engine: Engine = request.app.state.db
     account = find_account(engine, user.id)
     if account is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Save a PayNow account first")
     with engine.begin() as db:
         code = sms.start_verification(db, user.id, account.sms_mobile, account.sms_language)
-    return {"sent_to": paynow.mask("mobile", account.sms_mobile), "demo_code": code}
+    sent = {"sent_to": paynow.mask("mobile", account.sms_mobile), "texts_are_real": False}
+    if sms_gateway.is_live():
+        return {**sent, "texts_are_real": True}
+    return {**sent, "demo_code": code}
 
 
 @router.post("/payout-account/verify")
 def finish_mobile_check(body: CodeIn, user: SmeDep, request: Request) -> dict:
     """Check the code, mark the mobile verified and pay anything that was waiting for it."""
     engine: Engine = request.app.state.db
+    tariff = store.latest(engine).tariff
     with engine.begin() as db:
         result = sms.check_code(db, user.id, body.code)
         if result == "ok":
@@ -190,6 +246,7 @@ def finish_mobile_check(body: CodeIn, user: SmeDep, request: Request) -> dict:
                 .where(payout_accounts.c.user_id == user.id)
                 .values(mobile_verified_at=datetime.now(UTC))
             )
+            payout_flow.send_welcome_if_due(db, user.id, tariff)
             payout_flow.release_held(db, user.id)
     if result == "locked":
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many tries. Ask for a new code")
@@ -202,28 +259,25 @@ def finish_mobile_check(body: CodeIn, user: SmeDep, request: Request) -> dict:
 @router.get("/payouts")
 def list_payouts(user: UserDep, request: Request) -> list[dict]:
     """The stallholder's own payouts, or every payout for an insurer, newest day first."""
-    return load_payouts(request.app.state.db, None if user.role == "insurer" else user.id)
+    user_id = None if user.role == "insurer" else user.id
+    with request.app.state.db.begin() as db:
+        sms.refresh_statuses(db, user_id)
+    return load_payouts(request.app.state.db, user_id)
 
 
 @router.get("/sms")
 def list_texts(user: SmeDep, request: Request) -> list[dict]:
-    """Texts sent to the stallholder, newest first: the simulated phone's inbox."""
-    with request.app.state.db.connect() as db:
+    """Texts sent to the stallholder, newest first, with what the phone reported for each."""
+    with request.app.state.db.begin() as db:
+        sms.refresh_statuses(db, user.id)
         rows = db.execute(
             select(sms_messages)
             .where(sms_messages.c.user_id == user.id)
             .order_by(sms_messages.c.id.desc())
         ).all()
     return [
-        {
-            "id": row.id,
-            "kind": row.kind,
-            "body": row.body or "SafeDay code: ****** (codes are not stored)",
-            "to": paynow.mask("mobile", row.to_mobile),
-            "language": row.language,
-            "status": row.status,
-            "sent_at": row.sent_at,
-        }
+        {**text_view(row), "id": row.id,
+         "body": row.body or "SafeDay code: ****** (codes are not stored)"}
         for row in rows
     ]
 
@@ -265,6 +319,32 @@ def policy_place(policy, shops: dict[int, str], request: Request) -> readings.Pl
     return readings.history_place(policy.region, lat, lng, request.app.state.sites)
 
 
+@router.get("/cover-text")
+def cover_text(
+    request: Request,
+    tier: str = "tier_1",
+    language: sms.SmsLanguage = "en",
+) -> dict:
+    """The welcome SMS for a tier bought today: the same text the landing page, the risk atlas
+    and the dashboard show, so what is sold is what is texted. Public: it is the point of sale."""
+    tariff = store.latest(request.app.state.db).tariff
+    chosen = next((t for t in tariff.tiers if t.key == tier), None)
+    if chosen is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No tier {tier}")
+    first_day = payout_flow.first_day_if_bought_now()
+    body = payout_flow.cover_text(
+        tariff, language, chosen.daily_payout_sgd, chosen.max_paid_days_per_year, first_day
+    )
+    return {
+        "tier": chosen.key,
+        "language": language,
+        "body": body,
+        "characters": len(body),
+        "segments": sms.segments(body),
+        "first_day": first_day.isoformat(),
+    }
+
+
 @router.post("/insurer/payout-runs")
 def run_payouts(body: RunIn, user: InsurerDep, request: Request) -> dict:
     """Assess every policy for one Singapore date and pay what the readings give."""
@@ -304,6 +384,114 @@ def run_payouts(body: RunIn, user: InsurerDep, request: Request) -> dict:
         "tariff_version": saved.version,
         "counts": counts,
     }
+
+
+@router.get("/insurer/policyholders")
+def list_policyholders(user: InsurerDep, request: Request) -> dict:
+    """Every stallholder with cover, where their texts go, whether texts reach real phones, and
+    the demo payouts' fallback phone."""
+    query = (
+        select(policies, users.c.business_name, payout_accounts.c.sms_mobile,
+               payout_accounts.c.sms_language, payout_accounts.c.mobile_verified_at)
+        .join(users, users.c.id == policies.c.user_id)
+        .outerjoin(payout_accounts, payout_accounts.c.user_id == policies.c.user_id)
+        .order_by(users.c.business_name)
+    )
+    with request.app.state.db.connect() as db:
+        rows = db.execute(query).all()
+    return {
+        "texts_are_real": sms_gateway.is_live(),
+        "fallback_mobile": fallback_mobile(),
+        "policyholders": [
+            {
+                "user_id": row.user_id,
+                "business_name": row.business_name,
+                "centre": row.centre or row.region,
+                "tier_label": row.tier_label,
+                "daily_payout_sgd": row.daily_payout_sgd,
+                "texts_to": paynow.mask("mobile", row.sms_mobile) if row.sms_mobile else None,
+                "sms_language": row.sms_language,
+                "mobile_verified": row.mobile_verified_at is not None,
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.get("/demo-phone")
+def demo_phone() -> dict:
+    """The demo phone the sign-up and PayNow forms start with. Unset on the hosted copy."""
+    return {"mobile": fallback_mobile()}
+
+
+@router.post("/insurer/demo-payouts")
+def send_demo_payout(body: DemoPayoutIn, user: InsurerDep, request: Request) -> dict:
+    """Pay one stallholder now on the readings given, by PayNow with an SMS: the demo button."""
+    engine: Engine = request.app.state.db
+    saved = store.latest(engine)
+    known = {hazard.key for hazard in saved.tariff.hazards}
+    if not set(body.readings) <= known:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            f"Readings must be for {', '.join(sorted(known))}")
+    with engine.begin() as db:
+        policy = db.execute(select(policies).where(policies.c.user_id == body.user_id)).first()
+        if policy is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "That customer has no cover")
+        mobile = body.mobile
+        if mobile is None and not has_verified_mobile(db, body.user_id):
+            mobile = fallback_mobile()
+        if mobile:
+            point_account_at(db, body.user_id, mobile, body.sms_language)
+        outcome, loss_date = payout_flow.pay_demo(
+            db, policy, saved.tariff, saved.version, body.readings
+        )
+    if outcome == "no_loss":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "Those readings are below every trigger, so nothing is paid")
+    paid = next(
+        p for p in load_payouts(engine, body.user_id) if p["loss_date"] == loss_date.isoformat()
+    )
+    return {"outcome": outcome, "payout": paid}
+
+
+def fallback_mobile() -> str | None:
+    mobile = api_key(FALLBACK_MOBILE_SETTING)
+    if mobile is not None and not paynow.is_valid_mobile(mobile):
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            f"{FALLBACK_MOBILE_SETTING} in .env must be +65 then 8 digits starting 8 or 9",
+        )
+    return mobile
+
+
+def has_verified_mobile(db: Connection, user_id: int) -> bool:
+    verified_at = db.execute(
+        select(payout_accounts.c.mobile_verified_at).where(payout_accounts.c.user_id == user_id)
+    ).scalar_one_or_none()
+    return verified_at is not None
+
+
+def point_account_at(db: Connection, user_id: int, mobile: str, language: str) -> None:
+    """Pay and text this mobile, taken as verified: the insurer typed it in for the demo."""
+    before = db.execute(
+        select(payout_accounts).where(payout_accounts.c.user_id == user_id)
+    ).first()
+    holder = db.execute(select(users.c.name).where(users.c.id == user_id)).scalar_one()
+    now = datetime.now(UTC)
+    db.execute(delete(payout_accounts).where(payout_accounts.c.user_id == user_id))
+    db.execute(
+        insert(payout_accounts).values(
+            user_id=user_id,
+            paynow_proxy_type="mobile",
+            paynow_proxy=mobile,
+            paynow_name=paynow.lookup_name(holder),
+            sms_mobile=mobile,
+            sms_language=language,
+            mobile_verified_at=now,
+            created_at=before.created_at if before else now,
+            updated_at=now,
+        )
+    )
 
 
 def change_payout(request: Request, payout_id: int, action) -> dict:

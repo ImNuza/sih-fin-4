@@ -1,0 +1,192 @@
+"""Simulated PayNow payment of the first week's premium in the buy flow.
+
+The customer scans a QR that opens a simulated bank screen, confirms, and the buy flow finishes
+with that payment's reference. No real PayNow code is made: the QR holds a link to the demo
+bank screen, so scanning it cannot send real money.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import update
+
+from api import premium
+from api.main import app
+from tests import test_api
+
+CENTRE = test_api.buy_body()["centre"]
+ORDER = {"tier": "tier_2", "amount_sgd": 0.0}  # amount_sgd: filled in by weekly_premium()
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("ADMIN_USERNAME", "admin")
+    monkeypatch.setenv("ADMIN_PASSWORD", "secret")
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'tariff.db'}")
+    with TestClient(app) as client:
+        yield client
+
+
+def buy_body(**changes) -> dict:
+    """The buy flow's request (tests/test_api.py), paying by PayNow."""
+    return test_api.buy_body(**({"payment_method": "paynow"} | changes))
+
+
+def weekly_premium(client, tier: str = "tier_2") -> float:
+    """What the buy flow shows as due, and charges: the tier's weekly premium priced at CENTRE."""
+    quote = client.post("/api/quote", json={"centre": CENTRE, "product": "cooked_food"})
+    return next(t for t in quote.json()["tiers"] if t["tier"] == tier)["weekly_premium_sgd"]
+
+
+def start(client, **changes) -> dict:
+    order = ORDER | {"amount_sgd": weekly_premium(client, changes.get("tier", "tier_2"))} | changes
+    response = client.post("/api/premium-payments", json=order)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def paid(client, **changes) -> dict:
+    payment = start(client, **changes)
+    assert client.post(f"/api/premium-payments/{payment['token']}/pay").status_code == 200
+    return payment
+
+
+def test_payment_starts_pending_for_the_first_weeks_premium(client):
+    payment = start(client)
+    assert payment["status"] == "pending"
+    assert payment["amount_sgd"] > 0
+    assert payment["reference"].startswith("SDP-")
+    assert len(payment["token"]) >= 20
+    assert "/paynow-demo/" in payment["bank_url"] and payment["token"] in payment["bank_url"]
+
+
+def test_amount_is_the_weekly_premium_of_the_policy_it_buys(client):
+    payment = paid(client)
+    result = client.post("/api/buy", json=buy_body(payment_token=payment["token"])).json()
+    assert result["policy"]["weekly_premium_sgd"] == payment["amount_sgd"]
+
+
+def test_buying_with_a_paid_payment_keeps_its_reference(client):
+    payment = paid(client)
+    response = client.post("/api/buy", json=buy_body(payment_token=payment["token"]))
+    assert response.status_code == 200, response.text
+    application = response.json()["application"]
+    assert application["payment_method"] == "paynow"
+    assert application["payment_ref"] == payment["reference"]
+    assert client.get(f"/api/premium-payments/{payment['token']}").json()["status"] == "used"
+
+
+def test_qr_is_an_svg_image(client):
+    payment = start(client)
+    response = client.get(f"/api/premium-payments/{payment['token']}/qr.svg")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert "<svg" in response.text
+
+
+def test_paying_twice_or_after_cancelling_is_refused(client):
+    payment = paid(client)
+    assert client.post(f"/api/premium-payments/{payment['token']}/pay").status_code == 409
+    cancelled = start(client)
+    assert client.post(f"/api/premium-payments/{cancelled['token']}/cancel").status_code == 200
+    assert client.get(f"/api/premium-payments/{cancelled['token']}").json()["status"] == "cancelled"
+    assert client.post(f"/api/premium-payments/{cancelled['token']}/pay").status_code == 409
+
+
+def test_an_expired_payment_cannot_be_paid(client):
+    payment = start(client)
+    with client.app.state.db.begin() as db:
+        db.execute(
+            update(premium.premium_payments).values(expires_at=datetime.now(UTC) - timedelta(1))
+        )
+    assert client.get(f"/api/premium-payments/{payment['token']}").json()["status"] == "expired"
+    assert client.post(f"/api/premium-payments/{payment['token']}/pay").status_code == 409
+
+
+def test_unknown_payment_is_404(client):
+    assert client.get("/api/premium-payments/not-a-token").status_code == 404
+    assert client.post("/api/premium-payments/not-a-token/pay").status_code == 404
+
+
+@pytest.mark.parametrize("changes", [{"amount_sgd": 0}, {"amount_sgd": 501}, {"tier": ""}])
+def test_payment_needs_a_tier_and_a_sensible_amount(client, changes):
+    assert client.post("/api/premium-payments", json=ORDER | changes).status_code == 422
+
+
+def test_paynow_buy_refuses_a_payment_for_another_amount(client):
+    payment = start(client, amount_sgd=1.0)
+    client.post(f"/api/premium-payments/{payment['token']}/pay")
+    response = client.post("/api/buy", json=buy_body(payment_token=payment["token"]))
+    assert response.status_code == 409
+
+
+def test_paynow_buy_needs_a_payment(client):
+    assert client.post("/api/buy", json=buy_body()).status_code == 422
+
+
+def test_paynow_buy_refuses_an_unpaid_payment(client):
+    payment = start(client)
+    response = client.post("/api/buy", json=buy_body(payment_token=payment["token"]))
+    assert response.status_code == 409
+
+
+def test_paynow_buy_refuses_a_payment_for_another_tier(client):
+    payment = paid(client, tier="tier_1")
+    response = client.post("/api/buy", json=buy_body(payment_token=payment["token"]))
+    assert response.status_code == 409
+
+
+def test_a_payment_buys_once(client):
+    payment = paid(client)
+    first = client.post("/api/buy", json=buy_body(payment_token=payment["token"]))
+    assert first.status_code == 200
+    again = buy_body(email="other@example.test", payment_token=payment["token"])
+    assert client.post("/api/buy", json=again).status_code == 409
+
+
+def test_giro_buy_needs_no_paynow_payment(client):
+    response = client.post("/api/buy", json=buy_body(payment_method="giro"))
+    assert response.status_code == 200
+    assert response.json()["application"]["payment_ref"].startswith("DEMO-")
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1:8000", "localhost:8000"])
+def test_on_localhost_the_qr_link_uses_the_laptops_network_address(client, monkeypatch, host):
+    monkeypatch.setattr(premium, "lan_address", lambda: "192.168.1.20")
+    order = ORDER | {"amount_sgd": weekly_premium(client)}
+    payment = client.post("/api/premium-payments", json=order, headers={"host": host}).json()
+    assert payment["bank_url"].startswith("http://192.168.1.20:8000/paynow-demo/?t=")
+
+
+def test_on_localhost_without_a_network_the_qr_link_stays_local(client, monkeypatch):
+    monkeypatch.setattr(premium, "lan_address", lambda: None)
+    order = ORDER | {"amount_sgd": weekly_premium(client)}
+    headers = {"host": "127.0.0.1:8000"}
+    payment = client.post("/api/premium-payments", json=order, headers=headers).json()
+    assert payment["bank_url"].startswith("http://127.0.0.1:8000/paynow-demo/")
+
+
+def test_a_hosted_site_keeps_its_own_address_in_the_qr_link(client, monkeypatch):
+    monkeypatch.setattr(premium, "lan_address", lambda: "192.168.1.20")
+    order = ORDER | {"amount_sgd": weekly_premium(client)}
+    headers = {"host": "safeday.example.test", "x-forwarded-proto": "https"}
+    payment = client.post("/api/premium-payments", json=order, headers=headers).json()
+    assert payment["bank_url"].startswith("https://safeday.example.test/paynow-demo/")
+
+
+def test_the_deployed_site_links_the_qr_to_its_public_address(client, monkeypatch):
+    monkeypatch.setenv("PUBLIC_SITE_URL", "https://safeday.example.test/")
+    order = ORDER | {"amount_sgd": weekly_premium(client)}
+    headers = {"host": "api:8000"}  # what the server may see behind the tunnel
+    payment = client.post("/api/premium-payments", json=order, headers=headers).json()
+    assert payment["bank_url"].startswith("https://safeday.example.test/paynow-demo/?t=")
+
+
+def test_a_public_address_without_http_is_ignored(client, monkeypatch):
+    monkeypatch.setenv("PUBLIC_SITE_URL", "safeday.example.test")
+    order = ORDER | {"amount_sgd": weekly_premium(client)}
+    payment = client.post("/api/premium-payments", json=order, headers={"host": "api:8000"}).json()
+    assert payment["bank_url"].startswith("http://api:8000/paynow-demo/")

@@ -142,7 +142,7 @@ def buy_body(**changes) -> dict:
         "declined_before": False,
         "accept_declaration": True,
         "accept_pdpa": True,
-        "payment_method": "paynow",
+        "payment_method": "giro",
         "stall_unit": "01-23",
         "designation": "Owner",
     }

@@ -99,6 +99,7 @@ dialog.drawer { overscroll-behavior: contain; }
 .run-form label > :is(input, select) { margin-top: var(--s-2); }
 .run-form .run-note, .run-form .run-result, .run-form .error { flex-basis: 100%; margin: 0; }
 .run-form .run-result:empty, .run-form .error:empty { display: none; }
+.run-form > h3 { flex-basis: 100%; margin: 0; }
 td.ref { font-size: var(--t-sm); color: var(--muted); }
 
 /* ---------- insurer: the map ---------- */
@@ -194,3 +195,5 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
   .table-tools .count { margin-left: 0; flex-basis: 100%; }
   .referral { padding: var(--s-4); }
 }
+
+.sms.welcome { background: var(--bg); border: 1px solid var(--line); }

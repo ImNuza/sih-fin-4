@@ -15,7 +15,7 @@ from sqlalchemy import Connection, func, insert, select, update
 from api import calculator, paynow, sms
 from api.accounts import application_profile, applications, policies
 from api.models import Tariff
-from api.payouts import payout_accounts, payout_events, payouts
+from api.payouts import payout_accounts, payout_events, payouts, sms_messages
 from api.readings import SiteReadings
 
 SINGAPORE = ZoneInfo("Asia/Singapore")
@@ -87,10 +87,14 @@ def cover_ends(db: Connection, user_id: int) -> date | None:
     ).scalar()
 
 
+def as_utc(moment: datetime) -> datetime:
+    """SQLite drops the time zone. Every time is saved in UTC, so put it back."""
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
 def first_covered_day(started_at: datetime) -> date:
-    """Singapore date the cover first pays for. SQLite drops the zone; times are saved in UTC."""
-    started_utc = started_at if started_at.tzinfo else started_at.replace(tzinfo=UTC)
-    return started_utc.astimezone(SINGAPORE).date() + timedelta(days=WAITING_PERIOD_DAYS)
+    """Singapore date the cover first pays for."""
+    return as_utc(started_at).astimezone(SINGAPORE).date() + timedelta(days=WAITING_PERIOD_DAYS)
 
 
 def text(db: Connection, payout, account, kind: str) -> None:
@@ -107,6 +111,55 @@ def text(db: Connection, payout, account, kind: str) -> None:
         ref=reference(payout.id),
     )
     sms.send(db, payout.user_id, kind, account.sms_mobile, account.sms_language, body, payout.id)
+
+
+def first_band(tariff: Tariff, hazard_key: str) -> float:
+    return calculator.find(tariff.hazards, hazard_key, "hazard").bands[0].at_least
+
+
+def send_welcome_if_due(db: Connection, user_id: int, tariff: Tariff) -> None:
+    """Text the cover in one SMS once the stallholder has a policy and a verified mobile.
+
+    Sent once per policy: a new tier starts a new policy and gets its own welcome.
+    """
+    policy = db.execute(select(policies).where(policies.c.user_id == user_id)).first()
+    account = db.execute(
+        select(payout_accounts).where(payout_accounts.c.user_id == user_id)
+    ).first()
+    if policy is None or account is None or account.mobile_verified_at is None:
+        return
+    welcomed = db.execute(
+        select(sms_messages.c.id).where(
+            sms_messages.c.user_id == user_id,
+            sms_messages.c.kind == "welcome",
+            sms_messages.c.created_at >= as_utc(policy.started_at),
+        )
+    ).first()
+    if welcomed:
+        return
+    body = cover_text(
+        tariff, account.sms_language, policy.daily_payout_sgd, policy.max_paid_days_per_year,
+        first_covered_day(policy.started_at),
+    )
+    sms.send(db, user_id, "welcome", account.sms_mobile, account.sms_language, body)
+
+
+def cover_text(tariff: Tariff, language: str, payout_sgd: float, max_days: int,
+               first_day: date) -> str:
+    """The cover in one SMS, with the tariff's first trigger levels. Also shown at the sale."""
+    return sms.welcome_text(
+        language,
+        payout_sgd=payout_sgd,
+        heat_hours=first_band(tariff, "heat"),
+        rain_mm=first_band(tariff, "rain"),
+        psi=first_band(tariff, "haze"),
+        max_days=max_days,
+        first_day=first_day,
+    )
+
+
+def first_day_if_bought_now() -> date:
+    return first_covered_day(datetime.now(UTC))
 
 
 def send(db: Connection, payout_id: int, actor: str = "system") -> str:
@@ -138,7 +191,7 @@ def send(db: Connection, payout_id: int, actor: str = "system") -> str:
 
 
 def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, loss_date: date,
-                  site: SiteReadings, source: str) -> str:
+                  site: SiteReadings, source: str, apply_waiting_period: bool = True) -> str:
     """Assess one policy for one day. A hazard with no reading yet makes no payout row, so a
     later run of the same day can still pay it ('awaiting_data')."""
     already = db.execute(
@@ -148,7 +201,7 @@ def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, l
     ).first()
     if already:
         return "already_assessed"
-    if loss_date < first_covered_day(policy.started_at):
+    if apply_waiting_period and loss_date < first_covered_day(policy.started_at):
         return "waiting_period"
     ends = cover_ends(db, policy.user_id)
     if ends is not None and loss_date >= ends:
@@ -203,6 +256,33 @@ def run_day(db: Connection, tariff: Tariff, tariff_version: int, loss_date: date
                                 readings_for(policy), source)
         counts[outcome] += 1
     return counts
+
+
+def demo_day(db: Connection, user_id: int) -> date:
+    """Today in Singapore, or the latest earlier day not yet assessed, so a demo can be rerun."""
+    assessed = set(
+        db.execute(select(payouts.c.loss_date).where(payouts.c.user_id == user_id)).scalars()
+    )
+    day = datetime.now(SINGAPORE).date()
+    while day in assessed:
+        day -= timedelta(days=1)
+    return day
+
+
+def pay_demo(db: Connection, policy, tariff: Tariff, tariff_version: int,
+             readings: dict[str, float]) -> tuple[str, date]:
+    """Pay one stallholder now on readings the insurer enters, to show a payout and its SMS.
+
+    The waiting period is skipped, since a demo customer bought cover minutes ago. The cap,
+    the tariff and the one-payout-a-day rule still apply, and the payout is saved as a demo.
+    """
+    loss_date = demo_day(db, policy.user_id)
+    site = SiteReadings(
+        readings=readings, basis=dict.fromkeys(readings, "entered by the insurer for a demo")
+    )
+    outcome = assess_policy(db, policy, tariff, tariff_version, loss_date, site, "demo",
+                            apply_waiting_period=False)
+    return outcome, loss_date
 
 
 def release_held(db: Connection, user_id: int) -> None:

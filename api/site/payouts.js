@@ -9,6 +9,15 @@ const STATUS_TONE = {
 };
 const LANGUAGES = { en: "English", zh: "中文", ms: "Bahasa Melayu", ta: "தமிழ்" };
 const REJECTABLE = ["assessed", "approved", "held", "failed"];
+const INBOX_REFRESH_MS = 5000;
+const DEMO_READING = { hazard: "rain", reading: 50 };
+const TEXT_STATUS = {
+  queued: "waiting for the sending phone", sent: "sent by the phone", delivered: "delivered",
+  failed: "failed", unknown: "the phone did not report back",
+};
+// After a demo payout, look again at its SMS this many ms apart until the phone reports.
+const DEMO_TEXT_CHECKS_MS = [2000, 3000, 5000, 10000, 20000];
+let inboxTimer = null;
 
 function statusPill(status) {
   return `<span class="status-pill ${STATUS_TONE[status] || ""}">${escapeHtml(status)}</span>`;
@@ -65,18 +74,26 @@ function smePayoutList(payouts) {
   </li>`).join("")}</ul>`;
 }
 
+/** One text as the phone shows it, with what the sending phone reported for it. */
+function textBubble(t) {
+  const when = t.sent_at ? `${String(t.sent_at).slice(0, 16).replace("T", " ")} UTC · ` : "";
+  const status = TEXT_STATUS[t.status] || t.status;
+  return `<div class="sms ${escapeHtml(t.kind)}"><p>${escapeHtml(t.body)}</p>
+    <span>${escapeHtml(t.to)} · ${when}${escapeHtml(status)}${t.error ? ` · ${escapeHtml(t.error)}` : ""}</span></div>`;
+}
+
 function phoneInbox(texts) {
   if (!texts.length) return `<p class="fine">Texts from SafeDay will show here.</p>`;
-  return `<div class="sms-inbox">${texts.map((t) => `<div class="sms ${escapeHtml(t.kind)}">
-    <p>${escapeHtml(t.body)}</p><span>${escapeHtml(t.to)} · ${String(t.sent_at).slice(0, 16).replace("T", " ")} UTC</span></div>`).join("")}</div>`;
+  return `<div class="sms-inbox">${texts.map(textBubble).join("")}</div>`;
 }
 
 async function renderSmePayouts(slot, hasPolicy) {
-  const [account, payouts, texts, application] = await Promise.all([
+  const [account, payouts, texts, application, demo] = await Promise.all([
     api("/api/payout-account").catch(() => null),
     api("/api/payouts"),
     api("/api/sms"),
     api("/api/applications/mine").catch(() => null),
+    api("/api/demo-phone"),
   ]);
   const editing = !account || slot.dataset.editing === "1";
   slot.innerHTML = `<div class="section-head"><div><h2>Payouts</h2>
@@ -86,18 +103,37 @@ async function renderSmePayouts(slot, hasPolicy) {
         ${editing ? accountForm(account) : accountSummary(account)}
         ${hasPolicy ? "" : notice("", "info", "Pick a cover above too, or there is nothing to pay.")}
       </div>
-      <div class="card"><h2>Texts on your phone</h2>${phoneInbox(texts)}</div>
+      <div class="card"><h2>Texts on your phone</h2><div id="sme-inbox">${phoneInbox(texts)}</div></div>
     </div>
     <h3 class="subhead">Your payouts</h3>
-    ${smePayoutList(payouts)}`;
-  if (!account) prefillPaynowMobile(application?.phone);
+    <div id="sme-payout-list">${smePayoutList(payouts)}</div>`;
+  if (!account) prefillPaynowMobile(application?.phone, demo.mobile);
   wireSmePayouts(slot, hasPolicy);
+  keepInboxFresh();
 }
 
-/* For the demo: start the PayNow form with the mobile the owner gave in the buy flow. */
-function prefillPaynowMobile(phone) {
+/** Redraw the texts and payouts every few seconds, so one the insurer sends shows up live. */
+function keepInboxFresh() {
+  clearInterval(inboxTimer);
+  inboxTimer = setInterval(async () => {
+    if (document.hidden || !el("sme-inbox")) return;
+    try {
+      const [payouts, texts] = await Promise.all([api("/api/payouts"), api("/api/sms")]);
+      el("sme-inbox").innerHTML = phoneInbox(texts);
+      el("sme-payout-list").innerHTML = smePayoutList(payouts);
+    } catch (error) {
+      el("verify-error").textContent = `Could not refresh your texts: ${error.message}`;
+    }
+  }, INBOX_REFRESH_MS);
+}
+
+/* For the demo: start the PayNow form with the mobile the owner gave in the buy flow, or else
+   the demo phone. */
+function prefillPaynowMobile(phone, demoMobile) {
   const proxy = el("paynow-form")?.elements.paynow_proxy;
-  if (proxy && /^[89]\d{7}$/.test(phone || "")) proxy.value = `+65${phone}`;
+  if (!proxy) return;
+  if (/^[89]\d{7}$/.test(phone || "")) proxy.value = `+65${phone}`;
+  else if (demoMobile) proxy.value = demoMobile;
 }
 
 /* Run an action from a button: busy while it runs, its error shown in errorId. */
@@ -133,8 +169,10 @@ function wireSmePayouts(slot, hasPolicy) {
   el("change-account")?.addEventListener("click", () => { slot.dataset.editing = "1"; rerender(); });
   el("send-code")?.addEventListener("click", (event) => busy(event.currentTarget, "verify-error", async () => {
     const sent = await post("/api/payout-account/verify/start", {});
-    el("code-note").textContent = `Code sent to ${sent.sent_to}. Demo only, the SMS is simulated: your code is ${sent.demo_code}.`;
-    el("code-input").value = sent.demo_code;
+    el("code-note").textContent = sent.texts_are_real
+      ? `Code sent to ${sent.sent_to}. Check your phone.`
+      : `Code sent to ${sent.sent_to}. Demo only, the SMS is simulated: your code is ${sent.demo_code}.`;
+    if (sent.demo_code) el("code-input").value = sent.demo_code;
   }));
   el("check-code")?.addEventListener("click", (event) => busy(event.currentTarget, "verify-error", async () => {
     await post("/api/payout-account/verify", { code: el("code-input").value.trim() });
@@ -167,10 +205,11 @@ function insurerPayoutTable(payouts, hazardLabels) {
 }
 
 async function renderInsurerPayouts(slot) {
-  const [payouts, options, history] = await Promise.all([
+  const [payouts, options, history, holders] = await Promise.all([
     api("/api/payouts"),
     api("/api/options"),
     api("/api/map/day?date=0000-00-00"),
+    api("/api/insurer/policyholders"),
   ]);
   const latest = history.available.max;
   const paid = payouts.filter((p) => p.status === "paid");
@@ -179,6 +218,7 @@ async function renderInsurerPayouts(slot) {
   slot.innerHTML = `<div class="section-head"><div><h2>Payouts</h2>
       <p class="page-sub">Assesses every policy for that Singapore day and pays what the tariff gives, by PayNow, with an SMS. A day already run is never paid twice.</p></div>
       <p class="fine"><span class="num">${paid.length.toLocaleString("en-SG")}</span> paid · <span class="num">${SGD(paid.reduce((sum, p) => sum + p.amount_sgd, 0))}</span> sent in total</p></div>
+    ${demoPayoutCard(holders, options.hazards)}
     <form id="run-form" class="card run-form">
       <label>Day <input type="date" name="loss_date" value="${latest}" required /></label>
       <label>Readings
@@ -195,6 +235,63 @@ async function renderInsurerPayouts(slot) {
     ${insurerPayoutTable(payouts, hazardLabels)}`;
   if (el("payouts-table")) SafeUI.sortable(el("payouts-table"));
   wireInsurerPayouts(slot);
+}
+
+function holderOption(h) {
+  const phone = !h.texts_to ? "no mobile yet" : `${h.texts_to}${h.mobile_verified ? "" : ", not verified"}`;
+  return `<option value="${h.user_id}">${escapeHtml(h.business_name)} · ${escapeHtml(h.centre)} · ${escapeHtml(h.tier_label)} (${escapeHtml(phone)})</option>`;
+}
+
+/* For a demo: pay one customer now, by PayNow, with the payment SMS to a +65 mobile. */
+function demoPayoutCard(holders, hazards) {
+  const customers = holders.policyholders;
+  if (!customers.length) return `<div class="card"><h3>Demo: pay a customer now</h3><p class="fine">No customer has cover yet.</p></div>`;
+  const hazardOptions = hazards.map((h) => `<option value="${h.key}" ${h.key === DEMO_READING.hazard ? "selected" : ""}>${escapeHtml(h.label)} (${escapeHtml(h.reading)})</option>`).join("");
+  const languageOptions = Object.entries(LANGUAGES).map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
+  const fallback = holders.fallback_mobile;
+  const how = holders.texts_are_real
+    ? "The SMS goes to the customer's real phone through textbee: keep the sending phone online with the textbee app open."
+    : "Texts are simulated: set TEXTBEE_API_KEY to reach real phones. The customer still sees the text on their dashboard.";
+  return `<form id="demo-form" class="card run-form">
+    <h3>Demo: pay a customer now</h3>
+    <label>Customer <select name="user_id">${customers.map(holderOption).join("")}</select></label>
+    <label>Hazard <select name="hazard">${hazardOptions}</select></label>
+    <label>Reading <input name="reading" type="number" step="any" value="${DEMO_READING.reading}" required /></label>
+    <label>Pay and text mobile <input name="mobile" type="tel" placeholder="+6591234567" value="${escapeHtml(fallback || "")}" autocomplete="off" /></label>
+    <label>SMS in <select name="sms_language">${languageOptions}</select></label>
+    <button class="btn primary" type="submit">Send payout and SMS</button>
+    <p class="fine run-note">Pays today, skipping the 30-day waiting period, by PayNow, and texts the payment notice. A mobile entered here becomes the customer's PayNow and texting mobile, with no code to verify. Left blank: the customer's own verified mobile${fallback ? `, or ${escapeHtml(fallback)} if they have none` : ""}. ${how}</p>
+    <p class="run-result" id="demo-result" aria-live="polite"></p><p class="error" id="demo-error" role="alert"></p>
+  </form>`;
+}
+
+function latestText(payout) {
+  return payout.texts[payout.texts.length - 1];
+}
+
+function demoSummary(outcome, p) {
+  const text = latestText(p);
+  const sms = !text ? "no SMS"
+    : text.status === "failed" ? `SMS to ${text.to} failed: ${text.error}`
+    : `SMS to ${text.to}: ${TEXT_STATUS[text.status] || text.status}`;
+  return `${p.reference} · ${p.business_name} · ${SGD(p.amount_sgd)} ${outcome.replaceAll("_", " ")} · ${sms}`;
+}
+
+function showDemoResult(outcome, payout) {
+  el("demo-result").innerHTML = notice("", "check", escapeHtml(demoSummary(outcome, payout)));
+}
+
+/** Keep looking at a demo payout's SMS until the sending phone says what happened to it. */
+async function followDemoText(slot, outcome, reference) {
+  for (const wait of DEMO_TEXT_CHECKS_MS) {
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    const payout = (await api("/api/payouts")).find((p) => p.reference === reference);
+    if (!payout || !el("demo-result")) return;
+    if (latestText(payout)?.status === "queued") continue;
+    await renderInsurerPayouts(slot);
+    showDemoResult(outcome, payout);
+    return;
+  }
 }
 
 function runSummary(run) {
@@ -236,6 +333,25 @@ function askRejectReason(slot, button) {
 }
 
 function wireInsurerPayouts(slot) {
+  el("demo-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = formData(event.target);
+    const body = {
+      user_id: Number(data.user_id),
+      readings: { [data.hazard]: Number(data.reading) },
+      sms_language: data.sms_language,
+    };
+    if (data.mobile.trim()) body.mobile = data.mobile.trim();
+    busy(event.submitter, "demo-error", async () => {
+      const sent = await post("/api/insurer/demo-payouts", body);
+      await renderInsurerPayouts(slot);
+      showDemoResult(sent.outcome, sent.payout);
+      if (latestText(sent.payout)?.status === "queued") {
+        followDemoText(slot, sent.outcome, sent.payout.reference)
+          .catch((error) => { el("demo-error").textContent = `Could not check the SMS: ${error.message}`; });
+      }
+    });
+  });
   el("run-source").addEventListener("change", (event) => {
     slot.querySelectorAll(".manual").forEach((label) => { label.hidden = event.target.value !== "manual"; });
   });

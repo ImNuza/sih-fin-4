@@ -40,9 +40,13 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:?Set ADMIN_USERNAME in the env file}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in the env file}
       DATABASE_URL: postgresql+psycopg://safeday:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the env file}@db:5432/safeday
+      # The address the PayNow demo QR links to: a phone scanning it must reach the public site.
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-https://safeday.nuza.dev}
       # Optional: without them the map's live mode is off and the shop box matches keywords.
       DATA_GOV_SG_API_KEY: ${DATA_GOV_SG_API_KEY_DEV:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
+      # Optional: texts reach real phones through textbee.dev only when this is set.
+      TEXTBEE_API_KEY: ${TEXTBEE_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

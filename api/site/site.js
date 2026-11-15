@@ -18,7 +18,8 @@ function rentSource(rent, table) {
 /* FastAPI sends a string, or a list of field errors for a bad request body. */
 function errorText(detail) {
   if (!Array.isArray(detail)) return detail;
-  return detail.map((error) => `${error.loc?.at(-1) ?? "field"}: ${error.msg}`).join("; ");
+  // A rule checked in code arrives as "Value error, <message>": keep only the message.
+  return detail.map((error) => `${error.loc?.at(-1) ?? "field"}: ${String(error.msg).replace(/^Value error, /, "")}`).join("; ");
 }
 
 async function api(url, options) {
@@ -373,6 +374,7 @@ async function renderSme(user) {
     ${site ? burnCard(view) : ""}
     <div id="payouts-panel" class="dash-section"></div>
   </div>`;
+  wireCoverSms();
   renderSmePayouts(el("payouts-panel"), Boolean(policy)).catch((error) => {
     el("payouts-panel").innerHTML = loadError("your payouts", error);
   });
@@ -483,6 +485,8 @@ function chooseCover({ quote, rent, rentTable, rec }) {
   return `<h2>Choose your cover</h2>
     <div class="tiers-row">${cards}</div>
     <p class="fine">${why} Pick a tier to start cover.</p>
+    <p class="fine">The recommended tier in one SMS, as we would text it to you:</p>
+    <div class="cover-sms" data-cover-tier="${rec}"></div>
     <p class="error" id="buy-error" role="alert"></p>`;
 }
 
@@ -1088,7 +1092,48 @@ function showDashboardError(error) {
   el("dash").innerHTML = `<div class="dash-head"><h1 class="page-title">Dashboard</h1></div>${loadError("your dashboard", error)}`;
 }
 
+/* ---------- the policy in one SMS ---------- */
+const SMS_LANGUAGES = { en: "English", zh: "中文", ms: "Melayu", ta: "தமிழ்" };
+
+/** Draw the welcome SMS for a tier, exactly as /api/cover-text gives it, with a language switch.
+    The landing page, the buy flow and the dashboard all show this one text, so what is sold is
+    what is texted, with the no-pay sentence the brief asks for at the point of sale. */
+async function coverSms(slot, tier, language = "en") {
+  if (!slot) return;
+  try {
+    const params = new URLSearchParams({ tier, language });
+    const cover = await api(`/api/cover-text?${params}`);
+    const switcher = document.createElement("div");
+    switcher.className = "sms-langs";
+    switcher.setAttribute("role", "group");
+    switcher.setAttribute("aria-label", "SMS language");
+    for (const [key, label] of Object.entries(SMS_LANGUAGES)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.setAttribute("aria-pressed", String(key === language));
+      button.addEventListener("click", () => coverSms(slot, tier, key));
+      switcher.append(button);
+    }
+    const bubble = document.createElement("p");
+    bubble.className = "sms";
+    bubble.lang = language;
+    bubble.textContent = cover.body;
+    const size = document.createElement("p");
+    size.className = "fine";
+    size.textContent = `${cover.characters} characters · ${cover.segments === 1 ? "one SMS" : `${cover.segments} SMS parts`}`;
+    slot.replaceChildren(switcher, bubble, size);
+  } catch (error) {
+    slot.textContent = `Could not load the cover text: ${error.message}`;
+  }
+}
+
+function wireCoverSms() {
+  document.querySelectorAll("[data-cover-tier]").forEach((slot) => coverSms(slot, slot.dataset.coverTier));
+}
+
 wireTheme();
 updateNav();
 wireLogin();
 wireDashboard();
+wireCoverSms();

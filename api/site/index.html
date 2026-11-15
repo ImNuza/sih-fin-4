@@ -9,10 +9,10 @@
     <link rel="preload" href="/vendor/fonts/ubuntu-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/theme.css?v=6" />
-    <link rel="stylesheet" href="/ui.css?v=3" />
+    <link rel="stylesheet" href="/ui.css?v=4" />
     <link rel="stylesheet" href="/landing.css?v=2" />
     <script src="/ui.js?v=2" defer></script>
-    <script src="/site.js?v=14" defer></script>
+    <script src="/site.js?v=15" defer></script>
   </head>
   <body>
     <header class="topnav">
@@ -45,11 +45,13 @@
                 <span class="brand-mark"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg></span>
                 <span><b>SafeDay</b><span class="sms-kind">SMS</span></span>
               </div>
-              <p class="sms">
-                SafeDay: you are covered for haze, heavy rain, extreme heat and flash floods. We pay
-                when NEA shows PSI above 100, 20 mm of rain in a work hour, 2 hours at WBGT 32 °C or a
-                PUB flood alert near your stall. No claim form.
-              </p>
+              <div class="cover-sms" data-cover-tier="tier_1">
+                <p class="sms">
+                  SafeDay: you are covered for haze, heavy rain, extreme heat and flash floods. We pay
+                  when NEA shows PSI above 100, 20 mm of rain in a work hour, 2 hours at WBGT 32 °C or a
+                  PUB flood alert near your stall. No claim form.
+                </p>
+              </div>
             </div>
             <figcaption>
               <b>The whole policy fits in one SMS.</b>

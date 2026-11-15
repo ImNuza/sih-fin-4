@@ -1,24 +1,34 @@
-"""Simulated SMS gateway, the texts SafeDay sends, and one-time codes for verifying a mobile.
+"""The texts SafeDay sends, and one-time codes for verifying a mobile.
 
 Every text is a row in sms_messages; the dashboard shows them as the stallholder's phone.
+api/sms_gateway.py delivers each one, to the real phone when textbee is set up.
 The brief asks for one SMS in the customer's language, so each text has an English, Chinese,
-Malay and Tamil version. The translations need a native speaker's check before launch.
+Malay and Tamil version. The welcome text puts the trigger, payout and exclusions in one SMS:
+English and Malay fit one 160-character SMS at every tier, Mandarin one 70-character Unicode
+SMS, and Tamil takes three parts. The translations need a native speaker's check before launch.
 """
 
 from __future__ import annotations
 
+import math
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from typing import Literal
 
 from sqlalchemy import Connection, delete, insert, select, update
 
+from api import sms_gateway
 from api.accounts import hash_password, verify_password
 from api.payouts import sms_codes, sms_messages
 
 CODE_DIGITS = 6
+# Texts the phone may still report on. After an hour a text keeps its last status.
+STILL_MOVING = ("queued", "sent", "unknown")
+STATUS_CHECK_WINDOW = timedelta(hours=1)
 CODE_LIFETIME = timedelta(minutes=10)
 MAX_CODE_ATTEMPTS = 5
 LANGUAGES = ("en", "zh", "ms", "ta")
+SmsLanguage = Literal["en", "zh", "ms", "ta"]
 # The day colour bands set by the team on 15 Nov 2026, the same as api/site/day-colour.js.
 DAY_COLOUR_FROM_PERCENT = (("red", 70), ("yellow", 30), ("green", 0))
 
@@ -39,7 +49,40 @@ HAZARD_NAMES = {
            "closure": "மூடல் உத்தரவு"},
 }
 
+# The heat readings count work hours at WBGT 32°C or more (scripts/heat_stats.py): MOM's
+# threshold for mandatory rest breaks in heavy outdoor work. Readings cover 07:00 to 19:00 SGT.
+HEAT_WBGT_C = 32
+WORK_HOURS = {"en": "7am-7pm", "ms": "7pg-7mlm", "zh": "7-19时", "ta": "காலை 7-மாலை 7"}
+MONTHS_ZH = "{month}月{day}日"
+MONTHS_MS = ("Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogo", "Sep", "Okt", "Nov", "Dis")
+
+# SMS parts: GSM-7 text fits 160 characters in one SMS (153 a part when split); anything
+# outside GSM-7, such as Chinese or Tamil, goes as UCS-2 at 70 (67 a part).
+GSM_BASIC = frozenset(
+    "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+)
+GSM_EXTENDED = frozenset("^{}\\[~]|€")
+GSM_SINGLE, GSM_PART = 160, 153
+UCS2_SINGLE, UCS2_PART = 70, 67
+
+
 TEMPLATES = {
+    "welcome": {
+        "en": "SafeDay: up to S${payout}/day if NEA WBGT {wbgt}C+ {heat_hours}h+, "
+        "rain {rain}mm/h+, PSI {psi}+ or flood alert, {hours}. Max {days} days/yr from {start}. "
+        "Else no pay, even if you lose income.",
+        # Mandarin leaves out the "SafeDay：" prefix to fit one 70-character SMS: the phone
+        # shows SafeDay as the registered sender ID (Singapore SMS Sender ID Registry).
+        "zh": "{hours}WBGT≥{wbgt}°C达{heat_hours}小时、雨≥{rain}mm/时、PSI≥{psi}或水灾，"
+        "日赔≤S${payout}，年限{days}天，{start}起。否则亏损也不赔",
+        "ms": "SafeDay: hingga S${payout}/hari jika WBGT {wbgt}C+ {heat_hours}j+, "
+        "hujan {rain}mm/j+, PSI {psi}+ atau banjir, {hours}. Had {days} hari/thn dari {start}. "
+        "Jika tidak, tiada bayaran walau rugi.",
+        "ta": "SafeDay: {hours} NEA WBGT {wbgt}C+ {heat_hours} மணி+, மழை {rain}mm/மணி+, "
+        "PSI {psi}+ அல்லது வெள்ளம்: நாளுக்கு S${payout} வரை. ஆண்டுக்கு {days} நாள், "
+        "{start} முதல். இல்லையெனில் இழப்பிலும் பணம் இல்லை.",
+    },
     "payout_paid": {
         "en": "SafeDay: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
         "{hazard} at {centre} on {day}. Ref {ref}. No claim needed.",
@@ -78,6 +121,29 @@ TEMPLATES = {
 }
 
 
+def segments(body: str) -> int:
+    """How many SMS parts the text goes out as."""
+    if all(c in GSM_BASIC or c in GSM_EXTENDED for c in body):
+        units = len(body) + sum(c in GSM_EXTENDED for c in body)
+        single, part = GSM_SINGLE, GSM_PART
+    else:
+        units = len(body.encode("utf-16-le")) // 2
+        single, part = UCS2_SINGLE, UCS2_PART
+    return 1 if units <= single else math.ceil(units / part)
+
+
+def number(value: float) -> str:
+    return f"{value:g}"
+
+
+def day_text(language: str, day: date) -> str:
+    if language == "zh":
+        return MONTHS_ZH.format(month=day.month, day=day.day)
+    if language == "ms":
+        return f"{day.day} {MONTHS_MS[day.month - 1]}"
+    return f"{day.day} {day:%b}"
+
+
 def day_colour(loss_percent: float) -> str:
     """'none' for a day with no loss, else 'green', 'yellow' or 'red'. A green day still pays."""
     if loss_percent <= 0:
@@ -94,6 +160,16 @@ def payout_text(kind: str, language: str, hazard: str, **fields: str) -> str:
     return TEMPLATES[kind][language].format(hazard=hazard_name, **fields)
 
 
+def welcome_text(language: str, payout_sgd: float, heat_hours: float, rain_mm: float,
+                 psi: float, max_days: int, first_day: date) -> str:
+    """The cover in one SMS: what pays, how much, the cap, and that nothing else pays."""
+    return TEMPLATES["welcome"][language].format(
+        payout=number(payout_sgd), wbgt=HEAT_WBGT_C, heat_hours=number(heat_hours),
+        rain=number(rain_mm), psi=number(psi), hours=WORK_HOURS[language], days=max_days,
+        start=day_text(language, first_day),
+    )
+
+
 def send(
     db: Connection,
     user_id: int,
@@ -104,7 +180,7 @@ def send(
     payout_id: int | None = None,
     keep_body: bool = True,
 ) -> None:
-    """Send one text through the simulated gateway, which delivers at once.
+    """Send one text and keep a row of it, with the gateway's status.
 
     A payout gets at most one text of each kind, so a repeated event sends nothing.
     """
@@ -116,6 +192,7 @@ def send(
         ).first()
         if sent_before:
             return
+    delivery = sms_gateway.deliver(to_mobile, body)
     now = datetime.now(UTC)
     db.execute(
         insert(sms_messages).values(
@@ -125,13 +202,38 @@ def send(
             to_mobile=to_mobile,
             language=language,
             body=body if keep_body else None,
-            provider_message_id=f"SM{secrets.token_hex(8).upper()}",
-            status="delivered",
+            provider_message_id=delivery.provider_message_id,
+            status=delivery.status,
+            error=delivery.error,
             created_at=now,
-            sent_at=now,
-            delivered_at=now,
+            sent_at=None if delivery.status == "failed" else now,
+            delivered_at=now if delivery.status == "delivered" else None,
         )
     )
+
+
+def refresh_statuses(db: Connection, user_id: int | None) -> None:
+    """Ask the gateway what happened to recent texts that have not reached a final status."""
+    query = select(sms_messages.c.id, sms_messages.c.provider_message_id).where(
+        sms_messages.c.status.in_(STILL_MOVING),
+        sms_messages.c.provider_message_id.is_not(None),
+        sms_messages.c.created_at >= datetime.now(UTC) - STATUS_CHECK_WINDOW,
+    )
+    if user_id is not None:
+        query = query.where(sms_messages.c.user_id == user_id)
+    for text_id, provider_message_id in db.execute(query).all():
+        delivery = sms_gateway.check(provider_message_id)
+        if delivery is None:
+            continue
+        db.execute(
+            update(sms_messages)
+            .where(sms_messages.c.id == text_id)
+            .values(
+                status=delivery.status,
+                error=delivery.error,
+                delivered_at=datetime.now(UTC) if delivery.status == "delivered" else None,
+            )
+        )
 
 
 def start_verification(db: Connection, user_id: int, mobile: str, language: str) -> str:

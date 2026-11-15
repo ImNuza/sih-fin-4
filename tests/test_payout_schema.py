@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import inspect, insert
+from sqlalchemy import insert, inspect
 from sqlalchemy.exc import IntegrityError
 
 from api import payouts

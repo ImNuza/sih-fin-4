@@ -25,9 +25,9 @@ from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
-from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo
 
 import numpy as np
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
@@ -41,13 +41,13 @@ from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
 from api import (
-    accounts, burn, calculator, kyc, onboarding, payout_api, payout_flow, paynow_qr, postcodes, readings,
-    store, underwriting,
+    accounts, burn, calculator, kyc, onboarding, payout_api, payout_flow, paynow_qr,
+    postcodes, premium, readings, store, underwriting,
 )
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
+from api.calculator import BidRecord, History, Readings, Site, Sites
 from api.day_history import day_readings
 from api.live import LiveFeed
-from api.calculator import BidRecord, History, Readings, Site, Sites
 from api.models import (
     Assessment,
     AssessRequest,
@@ -848,6 +848,7 @@ def buy_policy(
         policy_id = db.execute(
             sa_insert(accounts.policies).values(**values).returning(accounts.policies.c.id)
         ).scalar_one()
+        payout_flow.send_welcome_if_due(db, user.id, tariff)
     return {"id": policy_id, **{k: v for k, v in values.items() if k != "user_id"}}
 
 
@@ -903,6 +904,10 @@ class BuyRequest(BaseModel):
     marketing_sms: bool = False
     payment_method: Literal["paynow", "giro"] | None = None
     payment_ref: str | None = Field(default=None, pattern=PAYMENT_REF.pattern)
+    payment_token: str | None = Field(
+        default=None, max_length=100,
+        description="PayNow only: a paid payment from POST /api/premium-payments.",
+    )
 
     @field_validator("phone")
     @classmethod
@@ -1067,7 +1072,8 @@ def buy(
     """Create the account, the application and, when SafeDay is added, its policy, then sign in.
 
     A past decline sends the application to an underwriter: no policy starts and nothing is
-    charged. Payment is a prototype step: no money moves, the reference is made up.
+    charged. Payment is simulated, and no money moves. PayNow needs a payment paid on the demo bank
+    screen (api/premium.py), whose reference is kept; GIRO keeps the made-up DEMO- reference.
     """
     engine = request.app.state.db
     calculator.find(tariff.products, body.product, "product")
@@ -1083,6 +1089,9 @@ def buy(
     pays = body.add_safeday and not referred
     if pays and body.payment_method is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick how to pay")
+    paynow = pays and body.payment_method == "paynow"
+    if paynow and not body.payment_token:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pay with PayNow first")
     now = datetime.now(UTC)
     cover_start = body.cover_start or now.astimezone(SINGAPORE).date()
     starts_at = max(now, datetime.combine(cover_start, datetime.min.time(), SINGAPORE))
@@ -1091,6 +1100,7 @@ def buy(
             sa_insert(accounts.users).values(**user).returning(accounts.users.c.id)
         ).scalar_one()
         policy = None
+        payment_ref = None
         if pays:
             postcode = body.postcode if body.business_class == "shop" else None
             priced = business_quote(
@@ -1100,6 +1110,13 @@ def buy(
                 priced, user_id, user["region"], user["centre"], body.product, body.tier
             )
             policy["started_at"] = starts_at
+            payment_ref = (
+                premium.take_payment(
+                    db, body.payment_token, body.tier, round(policy["weekly_premium_sgd"] * 100)
+                )
+                if paynow
+                else body.payment_ref or demo_payment_ref()
+            )
             policy["id"] = db.execute(
                 sa_insert(accounts.policies).values(**policy).returning(accounts.policies.c.id)
             ).scalar_one()
@@ -1118,7 +1135,7 @@ def buy(
             "marketing_email": body.marketing_email,
             "marketing_sms": body.marketing_sms,
             "payment_method": body.payment_method if pays else None,
-            "payment_ref": (body.payment_ref or demo_payment_ref()) if pays else None,
+            "payment_ref": payment_ref if pays else None,
             "created_at": now,
         }
         application["id"] = db.execute(
@@ -1389,6 +1406,7 @@ def preview(request: PreviewRequest, _: AdminDep, history: HistoryDep) -> Previe
 app.include_router(accounts.router)
 app.include_router(payout_api.router)
 app.include_router(underwriting.router)
+app.include_router(premium.router)
 app.mount("/admin", StaticFiles(directory=API_DIR / "admin", html=True), name="admin")
 app.mount("/map", StaticFiles(directory=API_DIR / "map", html=True), name="map")
 app.mount("/", StaticFiles(directory=API_DIR / "site", html=True), name="site")
