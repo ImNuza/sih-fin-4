@@ -22,6 +22,7 @@ const AFFORDABLE_WEEKLY_SGD = 3;   // the brief's "a few dollars a week"
 const COPAY_WEEKLY_SGD = 6;        // above this even a co-payer is a stretch
 const LIVE_POLL_MS = 60_000;       // the server refreshes its NEA snapshot every 5 minutes
 const DEFAULT_PRODUCT = "cooked_food";  // what a hand-drawn circle sells until a shop says otherwise
+const WAITING_PERIOD_DAYS = 30;     // api/payout_flow.py: no payout in the first 30 days of cover
 const SHOP_RADIUS_KM = 0.5;
 const SHOP_ZOOM = 14;
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -762,7 +763,7 @@ function renderDetail() {
       </div>
       <div class="verdict"><span class="chip ${v.cls}">${v.word}</span>
         <div class="t1">${rec.label} at ${SGD(rec.weekly_premium_sgd)} a week</div>
-        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. Paid on NEA readings, usually the same day. If readings stay below the trigger levels, nothing is paid.</div></div>
+        <div class="t2">Pays up to ${SGD0(rec.daily_payout_sgd)} a day when haze, heavy rain, extreme heat or a flood alert hits this area. Paid on NEA readings, usually the same day, up to ${SGD0(rec.max_payout_per_year_sgd)} a year. <b>If readings stay below the trigger levels, nothing is paid, even if sales were down.</b> No payout in the first ${WAITING_PERIOD_DAYS} days of cover. Injury, medical costs and damaged goods are not covered.</div></div>
       <div class="sec"><p class="cap">The policy in one SMS</p>
         <p class="sms" id="atlas-cover-sms">Loading the SMS…</p>
         <p class="note">The welcome text a ${rec.label} customer gets, word for word. ${SGD(rec.weekly_premium_sgd)}/wk.</p></div>
