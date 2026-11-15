@@ -38,7 +38,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import insert as sa_insert
 from sqlalchemy import select as sa_select
 
-from api import accounts, burn, calculator, kyc, payout_api, store
+from api import accounts, burn, calculator, kyc, payout_api, store, underwriting
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.day_history import day_readings
 from api.live import LiveFeed
@@ -838,6 +838,7 @@ def preview(request: PreviewRequest, _: AdminDep, history: HistoryDep) -> Previe
 
 app.include_router(accounts.router)
 app.include_router(payout_api.router)
+app.include_router(underwriting.router)
 app.mount("/admin", StaticFiles(directory=API_DIR / "admin", html=True), name="admin")
 app.mount("/map", StaticFiles(directory=API_DIR / "map", html=True), name="map")
 app.mount("/", StaticFiles(directory=API_DIR / "site", html=True), name="site")

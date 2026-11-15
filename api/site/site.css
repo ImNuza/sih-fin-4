@@ -316,3 +316,14 @@ table.list td.num { color: var(--ink); }
 .sms p { margin: 0 0 4px; font-size: 14px; line-height: 1.4; color: var(--ink); }
 .sms span { font-size: 11px; color: var(--muted); }
 .card table.list { width: 100%; overflow-x: auto; display: block; }
+/* ---------- underwriter queue and application status ---------- */
+.pill.critical { border-color: var(--critical); color: var(--critical); }
+.sub.proof { margin-bottom: var(--s-1); color: var(--ink-2); font-weight: 600; }
+.referral { border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s-4); margin-top: var(--s-3); }
+.referral-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; margin-bottom: var(--s-2); }
+.declined-why { margin: var(--s-3) 0; padding: var(--s-3); border-radius: var(--r-md); background: var(--critical-soft); color: var(--ink); font-size: var(--t-sm); }
+.declined-why .k { display: block; font-weight: 700; margin-bottom: var(--s-1); }
+.referral-note { display: block; font-size: var(--t-sm); font-weight: 600; color: var(--ink-2); }
+.referral-note textarea { display: block; width: 100%; margin-top: var(--s-1); font: inherit; font-weight: 400; }
+.referral-actions { display: flex; gap: var(--s-2); margin-top: var(--s-3); }
+#underwriting h3 { margin: var(--s-5) 0 var(--s-2); font-size: var(--t-md); }

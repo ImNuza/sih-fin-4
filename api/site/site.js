@@ -156,6 +156,22 @@ function mapFrame(params, caption) {
     <a class="btn small" href="${src}" target="_blank" rel="noopener">Open full screen</a></div>
     <iframe src="${src}" title="${caption}" loading="lazy"></iframe></section>`;
 }
+const WAITING_PERIOD_DAYS = 30;
+const BUSINESS_CLASSES = { hawker: "Hawker stall", shop: "Neighbourhood shop", platform_worker: "Platform worker" };
+const esc = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/* "Hawker stall · licence SFA-123": the business class and the proof the owner gave, or "". */
+function businessProof(application) {
+  if (!application) return "";
+  const platform = application.platform
+    ? `${application.platform}${application.platform_worker_id ? ` ID ${application.platform_worker_id}` : ""}` : null;
+  return [
+    BUSINESS_CLASSES[application.business_class],
+    application.licence_no && `licence ${application.licence_no}`,
+    application.ssic_code && `SSIC ${application.ssic_code}`,
+    platform,
+  ].filter(Boolean).join(" · ");
+}
 function liveStatus(live) {
   if (!live || !live.available) return { ok: false, text: live?.status || "live feed warming up, refresh in a minute" };
   return { ok: true, text: `NEA readings as of ${String(live.fetched_at).slice(11, 16)} SGT` };
@@ -170,7 +186,11 @@ async function renderSme(user) {
     api("/api/rent"),
   ]);
   const application = await api("/api/applications/mine").catch(() => null);
+  const decision = application?.declined_before
+    ? await api("/api/applications/mine/decision").catch(() => null) : null;
   const underReview = application?.status === "referred";
+  const declined = application?.status === "declined";
+  const proof = businessProof(application);
   const rent = rentTable.centres[user.centre];
   const policy = policies[0] || null;
   const index = staticData.hawker_centres.findIndex((c) => c.name === user.centre);
@@ -180,14 +200,20 @@ async function renderSme(user) {
   const rec = rent ? rent.recommended_tier : quote.tiers[0].tier;
   const rentShare = (payout) => rent ? Math.round((100 * payout) / rent.rent_per_day_sgd) : null;
   const payoutToday = todays && policy ? (todays.loss_percent / 100) * policy.daily_payout_sgd : null;
+  const waitingEnds = application?.waiting_ends;
+  const inWaitingPeriod = Boolean(policy && waitingEnds && SG_DATE(Date.now()) < waitingEnds);
+  const kv = (key, value) => `<div class="kv"><span class="k">${key}</span><span class="v">${value}</span></div>`;
 
   el("dash").innerHTML = `
     <h1>${user.business_name || user.name}</h1>
-    <p class="sub">${user.centre} · ${user.region} region · priced from your region's own NEA history</p>
+    ${proof ? `<p class="sub proof">${esc(proof)}</p>` : ""}
+    <p class="sub">${[user.centre, `${user.region} region`, "priced from your region's own NEA history"].filter(Boolean).join(" · ")}</p>
     ${mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")}
     <div class="kpis">
       ${kpi("Today's loss score", todays ? `${todays.loss_percent.toFixed(0)}%` : "–", status.text)}
-      ${kpi("Payout due today", policy ? (payoutToday != null ? SGD(payoutToday) : "–") : "no cover yet", policy ? `at ${policy.tier_label}` : underReview ? "after the underwriter replies" : "pick a tier below")}
+      ${inWaitingPeriod
+        ? kpi("Payout due today", "None yet", `In the ${WAITING_PERIOD_DAYS}-day waiting period until ${SG_DATE(waitingEnds)}`)
+        : kpi("Payout due today", policy ? (payoutToday != null ? SGD(payoutToday) : "–") : "no cover yet", policy ? `at ${policy.tier_label}` : underReview ? "after the underwriter replies" : declined ? "the underwriter declined cover" : "pick a tier below")}
       ${kpi("Your weekly premium", policy ? SGD(policy.weekly_premium_sgd) : SGD(quote.tiers.find((t) => t.tier === rec).weekly_premium_sgd), policy ? policy.tier_label : "recommended tier")}
       ${kpi("Expected trigger days", quote.expected_loss_days.toFixed(1) + " / yr", "full-loss-day equivalents")}
       ${rent ? kpi("Your rent per trading day", SGD(rent.rent_per_day_sgd), `${rent.rent_class_label} centre${rent.estimated ? " · estimated" : ""}`) : ""}
@@ -201,10 +227,14 @@ async function renderSme(user) {
         <p class="fine">Readings refresh every 5 minutes from NEA. A payout needs no claim. It follows these numbers.</p>`
         : `<p class="fine">${status.text}</p><button class="btn small" id="retry-live" type="button">Refresh</button>`}
       </div>
-      <div class="card"><h2>${policy ? "Your cover" : underReview ? "Your application" : "Choose your cover"}</h2>
+      <div class="card"><h2>${policy ? "Your cover" : underReview || declined ? "Your application" : "Choose your cover"}</h2>
         ${underReview && !policy ? `
         <p><span class="pill warning">With an underwriter</span></p>
         <p class="fine" style="margin-top:10px">Application ${application.id}, sent ${String(application.created_at).slice(0, 10)}. Because an insurer declined cover for this business before, an underwriter reviews it first. Cover starts, and you pay, only after they reply. We will contact you on ${application.phone}.</p>`
+        : declined && !policy ? `
+        <p><span class="pill critical">Declined</span></p>
+        <p class="fine" style="margin-top:10px">Application ${application.id}: the underwriter declined cover for this business. No cover started and you were not charged.</p>
+        ${decision?.note ? `<p class="fine">Their note: ${esc(decision.note)}</p>` : ""}`
         : policy ? `
         <div class="kv"><span class="k">Tier</span><span class="v">${policy.tier_label}</span></div>
         <div class="kv"><span class="k">Pays per bad day</span><span class="v">${SGD(policy.daily_payout_sgd)}</span></div>
@@ -212,6 +242,10 @@ async function renderSme(user) {
         <div class="kv"><span class="k">Cap</span><span class="v">${policy.max_paid_days_per_year} days / yr</span></div>
         <div class="kv"><span class="k">Weekly premium</span><span class="v">${SGD(policy.weekly_premium_sgd)}</span></div>
         <div class="kv"><span class="k">Started</span><span class="v">${SG_DATE(policy.started_at)}</span></div>
+        ${application?.term_months ? kv("Term", `${application.term_months} months`) : ""}
+        ${waitingEnds ? kv("Payouts from", SG_DATE(waitingEnds)) : ""}
+        ${application?.cover_ends ? kv("Cover ends", SG_DATE(application.cover_ends)) : ""}
+        ${decision?.decision === "approve" && decision.note ? `<p class="fine">Underwriter's note: ${esc(decision.note)}</p>` : ""}
         <p class="fine">Pays when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${user.centre}. Below those levels nothing is paid.</p>
         <button class="btn small" id="cancel-policy" type="button">Cancel cover</button>`
         : `<div class="tiers-row">${quote.tiers.map((t) => `
@@ -294,14 +328,80 @@ function renderBurn(burn, policy) {
       ${SGD(hz.heat)} from heat (heat readings exist from 2025).</p>`;
 }
 
+/* One referred application, with what an underwriter needs to approve or decline it. */
+function referralCard(application, quotes) {
+  const tier = quotes[application.region]?.tiers.find((t) => t.tier === application.tier);
+  const cover = application.add_safeday
+    ? [tier ? tier.label : application.tier,
+       application.term_months && `${application.term_months} months`,
+       application.cover_start && `from ${SG_DATE(application.cover_start)}`].filter(Boolean).join(" · ")
+    : "Business account only, no SafeDay";
+  const place = [application.centre, application.stall_unit && `unit ${application.stall_unit}`,
+    `${application.region} region`, application.postcode && `postcode ${application.postcode}`].filter(Boolean).join(" · ");
+  const applicant = application.applicant_type === "company" ? `Company, UEN ${application.uen}` : "Individual";
+  const row = (key, value) => value ? `<div class="kv"><span class="k">${key}</span><span class="v">${esc(value)}</span></div>` : "";
+  return `<article class="referral" data-application="${application.id}">
+    <div class="referral-head"><b>${esc(application.business_name || application.name)}</b>
+      <span class="fine">Application ${application.id} · sent ${String(application.created_at).slice(0, 10)}</span></div>
+    ${row("Owner", `${application.name}${application.designation ? `, ${application.designation}` : ""} · ${application.phone}`)}
+    ${row("Business", businessProof(application))}
+    ${row("Where", place)}
+    ${row("Applicant", applicant)}
+    ${row("Staff", application.staff_band)}
+    ${row("Cover asked for", cover)}
+    <p class="declined-why"><span class="k">Why an insurer declined before</span>${esc(application.declined_details)}</p>
+    <label class="referral-note">Note for the owner (optional)
+      <textarea maxlength="500" rows="2"></textarea></label>
+    <div class="referral-actions">
+      <button class="btn small primary" type="button" data-decision="approve">Approve</button>
+      <button class="btn small" type="button" data-decision="decline">Decline</button>
+    </div>
+    <p class="error"></p>
+  </article>`;
+}
+
+function underwriterQueue(queue, quotes) {
+  const decided = queue.recent_decisions;
+  return `<div class="card" id="underwriting">
+    <h2>Waiting for an underwriter</h2>
+    ${queue.waiting.length ? queue.waiting.map((a) => referralCard(a, quotes)).join("")
+      : `<p class="fine">No applications are waiting.</p>`}
+    ${decided.length ? `<h3>Recent decisions</h3><table class="list">
+      <tr><th>Business</th><th>Decision</th><th>Note</th><th>By</th><th>Date</th></tr>
+      ${decided.map((d) => `<tr><td>${esc(d.business_name || d.name)}</td>
+        <td>${d.decision === "approve" ? "Approved" : "Declined"}</td><td>${esc(d.note || "–")}</td>
+        <td>${esc(d.decided_by_name)}</td><td class="num">${SG_DATE(d.decided_at)}</td></tr>`).join("")}
+    </table>` : ""}
+  </div>`;
+}
+
+function wireReferrals(user) {
+  document.querySelectorAll(".referral [data-decision]").forEach((button) =>
+    button.addEventListener("click", async () => {
+      const card = button.closest(".referral");
+      const buttons = card.querySelectorAll("button");
+      buttons.forEach((b) => { b.disabled = true; });
+      try {
+        const note = card.querySelector("textarea").value.trim();
+        await post(`/api/insurer/applications/${card.dataset.application}/decision`,
+          { decision: button.dataset.decision, note: note || null });
+        await renderInsurer(user);
+      } catch (error) {
+        card.querySelector(".error").textContent = error.message;
+        buttons.forEach((b) => { b.disabled = false; });
+      }
+    }));
+}
+
 async function renderInsurer(user) {
-  const [portfolio, policies, quotesData, staticData, live, rentTable] = await Promise.all([
+  const [portfolio, policies, quotesData, staticData, live, rentTable, queue] = await Promise.all([
     api("/api/insurer/portfolio"),
     api("/api/policies"),
     api("/api/map/quotes"),
     api("/api/map/static"),
     api("/api/map/live").catch(() => null),
     api("/api/rent"),
+    api("/api/insurer/applications"),
   ]);
   const rentOf = (centre) => rentTable.centres[centre];
   const status = liveStatus(live);
@@ -329,6 +429,7 @@ async function renderInsurer(user) {
       <a class="tool" href="http://localhost:8501" target="_blank" rel="noopener"><b>Data dashboard</b><span>The team's Streamlit explorer: heat, rain and haze history, trigger &amp; price experiments, live readings.</span></a>
       <a class="tool" href="/docs" target="_blank" rel="noopener"><b>API docs</b><span>Quote, assess, map and portfolio endpoints. One engine behind every screen.</span></a>
     </div>
+    ${underwriterQueue(queue, quotesData.quotes)}
     <div class="card">
       <h2>Policies in force</h2>
       ${policies.length ? `<table class="list">
@@ -347,6 +448,7 @@ async function renderInsurer(user) {
   renderInsurerPayouts(el("payouts-panel")).catch((error) => {
     el("payouts-panel").innerHTML = `<p class="error">Could not load payouts: ${error.message}</p>`;
   });
+  wireReferrals(user);
 }
 
 async function wireDashboard() {
