@@ -346,3 +346,23 @@ table.list td.num { color: var(--ink); }
   border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer;
 }
 .sms-langs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* Buy flow: pay by PayNow (simulated). The QR opens the demo bank screen below. */
+.paynow-box { display: flex; flex-wrap: wrap; gap: var(--s-4); align-items: flex-start; padding: var(--s-4);
+  border: 1px solid var(--line); border-radius: var(--r-md); margin: var(--s-3) 0; }
+.paynow-box[hidden] { display: none; }
+.paynow-qr { width: 180px; height: 180px; background: #fff; border-radius: 8px; padding: 6px; flex: none; }
+.paynow-info { flex: 1 1 220px; min-width: 0; }
+.paynow-brand { font-weight: 700; color: #7b1fa2; margin: 0 0 var(--s-2); }
+.paynow-status { font-weight: 600; margin-top: var(--s-2); }
+
+/* The simulated bank screen (/paynow-demo/). */
+.bank-demo { background: var(--bg); min-height: 100vh; display: flex; justify-content: center; padding: 16px; }
+.bank-phone { width: 100%; max-width: 380px; }
+.bank-phone h1 { font: 700 var(--t-xl)/1.2 var(--sans); margin: var(--s-3) 0; }
+.bank-banner { background: var(--accent-soft); color: var(--ink); border-radius: var(--r-md);
+  padding: 8px 12px; font-size: var(--t-sm); margin: 0; }
+.bank-amount { font: 700 2.4rem/1.1 var(--sans); margin: var(--s-3) 0; }
+.bank-actions { display: flex; gap: var(--s-2); margin-top: var(--s-4); }
+.bank-actions .btn { flex: 1; }
+.bank-done { font-weight: 600; margin-top: var(--s-4); }

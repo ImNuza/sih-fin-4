@@ -1,6 +1,7 @@
-"""Simulated SMS gateway, the texts SafeDay sends, and one-time codes for verifying a mobile.
+"""The texts SafeDay sends, and one-time codes for verifying a mobile.
 
 Every text is a row in sms_messages; the dashboard shows them as the stallholder's phone.
+api/sms_gateway.py delivers each one, to the real phone when Twilio is set up.
 The brief asks for the trigger, payout and exclusions in one SMS in the customer's language,
 so each text has an English, Chinese, Malay and Tamil version; the demo offers English
 and Mandarin. English and Malay fit one
@@ -19,6 +20,7 @@ from typing import Literal
 
 from sqlalchemy import Connection, delete, insert, select, update
 
+from api import sms_gateway
 from api.accounts import hash_password, verify_password
 from api.payouts import sms_codes, sms_messages
 
@@ -192,7 +194,7 @@ def send(
     payout_id: int | None = None,
     keep_body: bool = True,
 ) -> None:
-    """Send one text through the simulated gateway, which delivers at once.
+    """Send one text and keep a row of it, with the gateway's status.
 
     A payout gets at most one text of each kind, so a repeated event sends nothing.
     """
@@ -204,6 +206,7 @@ def send(
         ).first()
         if sent_before:
             return
+    delivery = sms_gateway.deliver(to_mobile, body)
     now = datetime.now(UTC)
     db.execute(
         insert(sms_messages).values(
@@ -213,11 +216,12 @@ def send(
             to_mobile=to_mobile,
             language=language,
             body=body if keep_body else None,
-            provider_message_id=f"SM{secrets.token_hex(8).upper()}",
-            status="delivered",
+            provider_message_id=delivery.provider_message_id,
+            status=delivery.status,
+            error=delivery.error,
             created_at=now,
-            sent_at=now,
-            delivered_at=now,
+            sent_at=None if delivery.status == "failed" else now,
+            delivered_at=now if delivery.status == "delivered" else None,
         )
     )
 

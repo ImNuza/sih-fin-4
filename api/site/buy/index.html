@@ -6,9 +6,9 @@
     <title>Get covered · SafeDay</title>
     <script>document.documentElement.dataset.theme = localStorage.getItem("safeday-theme") || "light";</script>
     <link rel="stylesheet" href="/theme.css?v=3" />
-    <link rel="stylesheet" href="/site.css?v=9" />
+    <link rel="stylesheet" href="/site.css?v=10" />
     <script src="/site.js?v=12" defer></script>
-    <script src="/buy.js?v=5" defer></script>
+    <script src="/buy.js?v=6" defer></script>
   </head>
   <body>
     <header class="topnav">
@@ -170,12 +170,8 @@
               <label><input type="radio" name="payment_method" value="paynow" required checked /> PayNow</label>
               <label><input type="radio" name="payment_method" value="giro" /> GIRO, every week</label>
             </fieldset>
-            <figure class="paynow" id="paynow-box">
-              <img id="paynow-qr" width="220" height="220" alt="PayNow QR for the first week's premium" />
-              <figcaption><span id="paynow-ref"></span>
-                <b>Prototype: this QR pays nobody. Do not scan it with a banking app.</b></figcaption>
-            </figure>
-            <p class="fine">Prototype: nothing is charged. You get a made-up reference.</p>
+            <div class="paynow-box" id="paynow-box" hidden></div>
+            <p class="fine">Demo: no real money moves. PayNow shows a QR that opens a simulated bank screen; GIRO gets a made-up reference.</p>
           </section>
 
           <section data-step="done" hidden>

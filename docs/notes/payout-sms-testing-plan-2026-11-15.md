@@ -13,6 +13,7 @@ welcome SMS and the same text at every point of sale. Design: `payout-flow-desig
 | Texts: welcome, paid, held, failed, code; English and Mandarin; SMS parts | `api/sms.py` |
 | Cover text at the point of sale (`GET /api/cover-text`) | `api/payout_api.py`, `site.js`, `buy.js`, `map.js`, landing page |
 | Screens: stallholder payouts and inbox, insurer run and payout list | `api/site/payouts.js` |
+| First week's premium by PayNow at sign-up (simulated QR and bank screen) | `api/premium.py`, `api/site/buy.js`, `/paynow-demo/` |
 
 PayNow and the SMS gateway are simulated (design decision 1). A PayNow proxy ending `0000` fails.
 
@@ -38,12 +39,13 @@ the phone shows SafeDay as the registered sender ID. The one-time code text keep
 
 ## 3. Automated tests
 
-Run `uv run pytest -q` (151 tests, all passing on 15 Nov) and `uvx ruff check api tests`.
+Run `uv run pytest -q` (187 tests, all passing on 15 Nov) and `uvx ruff check api tests`.
 
 | File | Tests | Covers |
 | --- | --- | --- |
 | `tests/test_payout_schema.py` | 8 | Tables, unique day per user, unique text per payout |
 | `tests/test_payout_api.py` | 36 | Account, OTP, runs, hold/fail/retry/reject, cap, waiting period, roles, texts |
+| `tests/test_premium_payments.py` | 15 | Premium payment: start, QR, pay, cancel, expiry, one use, buy checks |
 | `tests/test_sms_texts.py` | 26 | SMS parts, every tier × language, all 103 hawker centres, cover-text endpoint, demo languages |
 
 ## 4. Manual test script (local, http://127.0.0.1:8000)
@@ -87,12 +89,20 @@ policy in the local `api/tariff.db` (gitignored), for example
 1. Set the language to 中文 and repeat B and C. Expect the welcome and paid texts in Mandarin, with dates like "12月15日".
 2. Send `sms_language: "ms"` to `PUT /api/payout-account`: expect 422.
 
+**H. Paying the first premium by PayNow (simulated)**
+1. Open `/buy/`, click Next to the Pay step and keep PayNow. Click "Pay S$…". Expect a QR, the payee "SafeDay by Income (demo)", the amount, a reference `SDP-…` and a 10-minute countdown.
+2. Scan the QR with a phone on the hosted site, or click "open the bank screen". Expect the simulated bank screen with the same amount and reference.
+3. Press Pay on the bank screen. Within 2 seconds the buy flow shows "You are covered" with the same reference and "Paid by PayNow".
+4. Start again and press Cancel on the bank screen: expect "Payment cancelled. Press Pay to get a new QR."
+5. Pick GIRO instead: the QR disappears and the purchase finishes with a `DEMO-` reference.
+
 ## 5. Known gaps (say so in the demo; don't claim them)
 
 - **Mandarin wording is compressed:** to fit 70 characters it uses 7-19时, 日赔≤ and 否则亏损也不赔, and has no "SafeDay：" prefix. A native speaker should check it reads naturally.
 - **Sender ID:** the Mandarin texts rely on the phone showing "SafeDay" as the sender. That needs the name registered with the Singapore SMS Sender ID Registry; the demo's simulated gateway doesn't show a sender.
 - **Malay and Tamil are off for the demo:** the brief asks for the customer's language; say these come after the demo.
 - **"Say it back" test:** the brief asks that customers can say back what the product does. This hasn't been done with a hawker or rider yet; it needs one English and one Mandarin speaker.
+- **The premium QR is not a PayNow code:** it links to the simulated bank screen, so it can't move real money, and a real banking app won't recognise it. A phone can only reach the bank screen on the hosted site, not on `127.0.0.1`.
 - **Real providers:** PayNow and the SMS gateway are simulated. A real rollout needs a bank's PayNow API and an SMS provider with a registered Singapore sender ID.
 - **Feed failure:** a station with no row for a day reads 0, because the readings file leaves out zero rows. A station outage therefore looks like a dry, cool day. The fallback is a manual run from the insurer desk.
 - **Station vs stall:** readings come from the nearest NEA station, not the stall. The paid text names the centre, not the station.
@@ -101,7 +111,7 @@ policy in the local `api/tariff.db` (gitignored), for example
 ## 6. Checklist
 
 Automated
-- [ ] `uv run pytest -q` passes (151)
+- [ ] `uv run pytest -q` passes (187)
 - [ ] `uvx ruff check` passes for the payout files
 
 PayNow and mobile
@@ -129,6 +139,13 @@ Texts
 - [ ] English and Mandarin texts are one SMS at every tier and centre
 - [ ] Insurer desk shows each payout's SMS under its row
 - [ ] Texts arrive in the chosen language (English or Mandarin); Malay and Tamil are refused
+
+Paying at sign-up (PayNow, simulated)
+- [ ] Pay step shows the QR, payee, amount, `SDP-` reference and countdown
+- [ ] Bank screen (QR or link) shows the same amount and reference
+- [ ] Paying on the bank screen finishes the purchase with that reference
+- [ ] Cancel or expiry asks for a new QR; a payment can't be reused or paid twice
+- [ ] GIRO still finishes without PayNow
 
 Point of sale
 - [ ] Landing, buy confirm step, dashboard and risk atlas show the same text as `/api/cover-text`

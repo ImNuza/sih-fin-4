@@ -330,19 +330,18 @@ async function renderSummary() {
   ].join("") + (tier ? `<p class="fine">What you are buying, in the SMS we will send you:</p>
     <div class="cover-sms" id="buy-cover-sms"></div>` : "");
   if (tier) {
-    showPaynow(tier.weekly_premium_sgd);
+    showDue(tier.weekly_premium_sgd);
     coverSms(el("buy-cover-sms"), tier.tier);
   }
 }
 
 /* ---------- step 5: pay ---------- */
-function showPaynow(amountSgd) {
+/** The first week's premium due today. GIRO keeps a made-up DEMO- reference; PayNow takes its
+    reference from the simulated payment (startPayNow). */
+function showDue(amountSgd) {
   buyState.paymentRef ??= `DEMO-${hex(3)}`;
+  buyState.dueSgd = amountSgd;
   el("due-amount").textContent = SGD(amountSgd);
-  const query = new URLSearchParams({ amount_sgd: amountSgd.toFixed(2), reference: buyState.paymentRef });
-  el("paynow-qr").src = `/api/paynow/qr?${query}`;
-  el("paynow-ref").textContent = `Reference ${buyState.paymentRef} · ${SGD(amountSgd)}`;
-  el("paynow-box").hidden = chosen("payment_method") !== "paynow";
 }
 
 /* ---------- navigation ---------- */
@@ -363,7 +362,9 @@ function showStep(step, scroll = true) {
   el("buy-next").textContent = step === "pay"
     ? `Pay ${el("due-amount").textContent}`
     : last ? "Submit application" : step === "confirm" ? "Continue to payment" : "Next";
+  el("buy-next").disabled = false;
   el("buy-error").textContent = "";
+  if (step !== "pay") resetPayNow();
   if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -420,6 +421,7 @@ function requestBody() {
     marketing_email: Boolean(data.marketing_email), marketing_sms: Boolean(data.marketing_sms),
     payment_method: pays() ? data.payment_method : null,
     payment_ref: pays() ? buyState.paymentRef : null,
+    payment_token: pays() && data.payment_method === "paynow" ? paynowState.payment?.token ?? null : null,
   };
 }
 
@@ -474,6 +476,14 @@ async function onNext(event) {
     showStep(next);
     return;
   }
+  if (step === "pay" && chosen("payment_method") === "paynow") {
+    await startPayNow();
+    return;
+  }
+  await submitBuy();
+}
+
+async function submitBuy() {
   el("buy-next").disabled = true;
   try {
     const result = await submitApplication(requestBody());
@@ -482,6 +492,87 @@ async function onNext(event) {
   } catch (error) {
     el("buy-error").textContent = error.message;
   } finally {
+    el("buy-next").disabled = false;
+  }
+}
+
+/* ---------- step 5: pay by PayNow (simulated) ----------
+   POST /api/premium-payments prices the first week and returns a QR. The QR opens a simulated
+   bank screen (/paynow-demo/); this page checks the payment every POLL_MS and finishes the
+   purchase once it is paid. No real PayNow code is made and no money moves. */
+const POLL_MS = 1500;
+const paynowState = { payment: null, timer: null };
+
+function paynowHtml(p) {
+  return `<img class="paynow-qr" src="${p.qr_url}" width="180" height="180"
+      alt="QR code that opens the simulated bank screen" />
+    <div class="paynow-info">
+      <p class="paynow-brand">PayNow · simulated</p>
+      <div class="kv"><span class="k">Pay to</span><span class="v">${p.payee}</span></div>
+      <div class="kv"><span class="k">Amount</span><span class="v">${SGD(p.amount_sgd)}</span></div>
+      <div class="kv"><span class="k">Reference</span><span class="v">${p.reference}</span></div>
+      <p class="fine">Scan with your phone's camera, or <a href="${p.bank_url}" target="_blank" rel="noopener">open the bank screen</a>.</p>
+      <p class="paynow-status" id="paynow-status" role="status">Waiting for payment…</p>
+    </div>`;
+}
+
+function minutesLeft(expiresAt) {
+  const seconds = Math.max(0, Math.round((new Date(expiresAt) - Date.now()) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function stopPolling() {
+  clearInterval(paynowState.timer);
+  paynowState.timer = null;
+}
+
+/** Leave the PayNow panel: stop checking and cancel a payment that was never made. */
+function resetPayNow() {
+  stopPolling();
+  const pending = paynowState.payment;
+  paynowState.payment = null;
+  if (el("paynow-box")) el("paynow-box").hidden = true;
+  if (pending) post(`/api/premium-payments/${encodeURIComponent(pending.token)}/cancel`, {}).catch(() => {});
+}
+
+async function startPayNow() {
+  el("buy-next").disabled = true;
+  try {
+    const payment = await post("/api/premium-payments", {
+      tier: buyState.tier, amount_sgd: buyState.dueSgd,
+    });
+    paynowState.payment = payment;
+    el("paynow-box").innerHTML = paynowHtml(payment);
+    el("paynow-box").hidden = false;
+    el("buy-next").textContent = "Waiting for PayNow…";
+    paynowState.timer = setInterval(checkPayment, POLL_MS);
+  } catch (error) {
+    el("buy-error").textContent = error.message;
+    el("buy-next").disabled = false;
+  }
+}
+
+async function checkPayment() {
+  const payment = paynowState.payment;
+  if (!payment) return;
+  try {
+    const now = await api(`/api/premium-payments/${encodeURIComponent(payment.token)}`);
+    if (now.status === "paid") {
+      stopPolling();
+      el("paynow-status").textContent = `Paid ${SGD(now.amount_sgd)}. Setting up your cover…`;
+      await submitBuy();
+    } else if (now.status === "pending") {
+      el("paynow-status").textContent = `Waiting for payment… ${minutesLeft(now.expires_at)} left`;
+    } else {
+      stopPolling();
+      paynowState.payment = null;
+      el("paynow-status").textContent = `Payment ${now.status}. Press Pay to get a new QR.`;
+      el("buy-next").textContent = `Pay ${el("due-amount").textContent}`;
+      el("buy-next").disabled = false;
+    }
+  } catch (error) {
+    stopPolling();
+    el("buy-error").textContent = error.message;
     el("buy-next").disabled = false;
   }
 }
@@ -512,7 +603,6 @@ function onChange(event) {
   if (["business_class", "centre", "postcode", "product"].includes(name)) { buyState.tier = null; renderTiers(); }
   if (name === "add_safeday") renderTiers();
   if (name === "cover_start" || name === "term_months") showWaitingNote();
-  if (name === "payment_method") el("paynow-box").hidden = chosen("payment_method") !== "paynow";
   if (name === "declined_before") {
     el("declined-box").hidden = !referred();
     showStep("confirm", false);
@@ -534,6 +624,8 @@ async function wireBuy() {
   buyForm().addEventListener("submit", onNext);
   buyForm().addEventListener("change", onChange);
   field("postcode").addEventListener("input", checkPostcode);
+  buyForm().querySelectorAll('[name="payment_method"]').forEach((radio) =>
+    radio.addEventListener("change", () => showStep("pay", false)));
   el("buy-back").addEventListener("click", onBack);
   el("buy-tiers").addEventListener("click", (event) => {
     const card = event.target.closest("[data-tier]");

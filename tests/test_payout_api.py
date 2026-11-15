@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 
-from api import sms
+from api import payout_flow, sms, sms_gateway
 from api.accounts import policies
 from api.main import app
 
@@ -350,3 +350,95 @@ def test_welcome_and_paid_texts_go_out_in_the_chosen_language(client, language):
     assert {t["language"] for t in texts} == {language}
     [paid] = [t for t in texts if t["kind"] == "payout_paid"]
     assert "52.4" in paid["body"]
+
+
+RAIN_STORM = {"rain": 50}
+
+
+def demo_payout(client, user_id: int, readings: dict | None = None):
+    return client.post(
+        "/api/insurer/demo-payouts",
+        json={"user_id": user_id, "readings": readings or RAIN_STORM},
+    )
+
+
+def insurer_sees_one_policyholder(client) -> int:
+    register(client, "insurer", "desk@example.com")
+    [holder] = client.get("/api/insurer/policyholders").json()["policyholders"]
+    return holder["user_id"]
+
+
+def test_insurer_lists_policyholders_with_where_their_texts_go(client):
+    stallholder_with_cover(client)
+    register(client, "insurer", "desk@example.com")
+    listing = client.get("/api/insurer/policyholders").json()
+    assert listing["texts_are_real"] is False
+    [holder] = listing["policyholders"]
+    assert holder["texts_to"] == "+65 ****4567"
+    assert holder["mobile_verified"] is True
+
+
+def test_demo_payout_pays_today_inside_the_waiting_period_and_texts(client):
+    stallholder_with_cover(client, started_at=datetime.now(UTC))
+    user_id = insurer_sees_one_policyholder(client)
+    response = demo_payout(client, user_id)
+    assert response.status_code == 200, response.text
+    sent = response.json()
+    payout = sent["payout"]
+    assert sent["outcome"] == "paid"
+    assert payout["source"] == "demo"
+    assert payout["loss_date"] == datetime.now(payout_flow.SINGAPORE).date().isoformat()
+    assert payout["texts"][-1]["kind"] == "payout_paid"
+    assert payout["texts"][-1]["status"] == "delivered"
+
+
+def test_demo_payout_can_be_run_again_on_the_day_before(client):
+    stallholder_with_cover(client)
+    user_id = insurer_sees_one_policyholder(client)
+    first = demo_payout(client, user_id).json()["payout"]["loss_date"]
+    second = demo_payout(client, user_id).json()["payout"]["loss_date"]
+    assert date.fromisoformat(second) == date.fromisoformat(first) - timedelta(days=1)
+
+
+def test_demo_payout_below_every_trigger_pays_nothing(client):
+    stallholder_with_cover(client)
+    user_id = insurer_sees_one_policyholder(client)
+    assert demo_payout(client, user_id, {"rain": 1}).status_code == 422
+    assert client.get("/api/payouts").json() == []
+
+
+def test_demo_payout_rejects_an_unknown_hazard(client):
+    stallholder_with_cover(client)
+    user_id = insurer_sees_one_policyholder(client)
+    assert demo_payout(client, user_id, {"earthquake": 9}).status_code == 422
+
+
+def test_stallholders_cannot_send_demo_payouts(client):
+    stallholder_with_cover(client)
+    assert demo_payout(client, 1).status_code == 403
+
+
+def test_code_is_not_shown_once_texts_reach_real_phones(client, monkeypatch):
+    stallholder_with_cover(client, verify=False)
+    monkeypatch.setattr(sms_gateway, "twilio", lambda: sms_gateway.Twilio("AC1", "t", "+1"))
+    monkeypatch.setattr(
+        sms_gateway, "send_by_twilio",
+        lambda login, to, body: sms_gateway.Delivery("sent", "SM9", None),
+    )
+    sent = client.post("/api/payout-account/verify/start").json()
+    assert sent["texts_are_real"] is True
+    assert "demo_code" not in sent
+
+
+def test_a_text_twilio_refuses_still_leaves_the_payout_paid(client, monkeypatch):
+    stallholder_with_cover(client)
+    user_id = insurer_sees_one_policyholder(client)
+    monkeypatch.setattr(sms_gateway, "twilio", lambda: sms_gateway.Twilio("AC1", "t", "+1"))
+    monkeypatch.setattr(
+        sms_gateway, "send_by_twilio",
+        lambda login, to, body: sms_gateway.Delivery("failed", None, "Twilio 21608: Unverified"),
+    )
+    payout = demo_payout(client, user_id).json()["payout"]
+    assert payout["status"] == "paid"
+    assert payout["texts"][-1]["status"] == "failed"
+    assert payout["texts"][-1]["error"] == "Twilio 21608: Unverified"

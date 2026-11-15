@@ -177,7 +177,8 @@ def send(db: Connection, payout_id: int, actor: str = "system") -> str:
 
 
 def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, loss_date: date,
-                  readings: dict[str, float], source: str) -> str:
+                  readings: dict[str, float], source: str,
+                  apply_waiting_period: bool = True) -> str:
     already = db.execute(
         select(payouts.c.id).where(
             payouts.c.user_id == policy.user_id, payouts.c.loss_date == loss_date
@@ -185,7 +186,7 @@ def assess_policy(db: Connection, policy, tariff: Tariff, tariff_version: int, l
     ).first()
     if already:
         return "already_assessed"
-    if loss_date < first_covered_day(policy.started_at):
+    if apply_waiting_period and loss_date < first_covered_day(policy.started_at):
         return "waiting_period"
     assessment = calculator.assess(tariff, policy.product, policy.tier, readings)
     if assessment.payout_sgd <= 0:
@@ -231,6 +232,30 @@ def run_day(db: Connection, tariff: Tariff, tariff_version: int, loss_date: date
                                 readings_for(policy), source)
         counts[outcome] += 1
     return counts
+
+
+def demo_day(db: Connection, user_id: int) -> date:
+    """Today in Singapore, or the latest earlier day not yet assessed, so a demo can be rerun."""
+    assessed = set(
+        db.execute(select(payouts.c.loss_date).where(payouts.c.user_id == user_id)).scalars()
+    )
+    day = datetime.now(SINGAPORE).date()
+    while day in assessed:
+        day -= timedelta(days=1)
+    return day
+
+
+def pay_demo(db: Connection, policy, tariff: Tariff, tariff_version: int,
+             readings: dict[str, float]) -> tuple[str, date]:
+    """Pay one stallholder now on readings the insurer enters, to show a payout and its SMS.
+
+    The waiting period is skipped, since a demo customer bought cover minutes ago. The cap,
+    the tariff and the one-payout-a-day rule still apply, and the payout is saved as a demo.
+    """
+    loss_date = demo_day(db, policy.user_id)
+    outcome = assess_policy(db, policy, tariff, tariff_version, loss_date, readings, "demo",
+                            apply_waiting_period=False)
+    return outcome, loss_date
 
 
 def release_held(db: Connection, user_id: int) -> None:

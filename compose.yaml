@@ -43,6 +43,10 @@ services:
       # Optional: without them the map's live mode is off and the shop box matches keywords.
       DATA_GOV_SG_API_KEY: ${DATA_GOV_SG_API_KEY_DEV:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
+      # Optional: texts reach real phones through Twilio only when all three are set.
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM: ${TWILIO_FROM:-}
     depends_on:
       db:
         condition: service_healthy
