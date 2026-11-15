@@ -1,0 +1,11 @@
+kind,product,places,cheapest_tier,monthly_median_sgd,monthly_lowest_sgd,monthly_highest_sgd,weekly_median_sgd,weekly_lowest_sgd,weekly_highest_sgd,lowest_at
+hawker centre,cooked_food,103,tier_1,47.91,37.62,61.37,11.06,8.68,14.16,Changi Village Blk 2 and 3
+hawker centre,flowers,103,tier_1,28.08,23.43,34.21,6.48,5.41,7.9,Changi Village Blk 2 and 3
+hawker centre,fresh_produce,103,tier_1,24.21,20.65,28.91,5.59,4.77,6.67,Changi Village Blk 2 and 3
+hawker centre,general_goods,103,tier_1,15.48,14.38,16.95,3.57,3.32,3.91,Changi Village Blk 2 and 3
+hawker centre,packaged_food,103,tier_1,15.63,14.48,17.14,3.61,3.34,3.96,Changi Village Blk 2 and 3
+postcode area,cooked_food,81,tier_1,48.17,40.3,61.37,11.12,9.3,14.16,postal sector 51
+postcode area,flowers,81,tier_1,28.19,24.63,34.21,6.51,5.68,7.89,postal sector 51
+postcode area,fresh_produce,81,tier_1,24.3,21.57,28.91,5.61,4.98,6.67,postal sector 51
+postcode area,general_goods,81,tier_1,15.51,14.67,16.94,3.58,3.38,3.91,postal sector 51
+postcode area,packaged_food,81,tier_1,15.66,14.78,17.14,3.61,3.41,3.95,postal sector 51
