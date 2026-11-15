@@ -68,3 +68,37 @@ NOT_AN_SME = (
     "SafeDay is for small and medium enterprises: annual sales up to S$100 million or up to "
     "200 workers (Enterprise Singapore and SingStat definition)"
 )
+
+# Income sells SmartBiz 360 through intermediaries, and a sale around the customer's agent is not
+# allowed (Income product lead, private mentoring session, 15 Nov 2026). So every application
+# names who arranged it with the customer: their Income adviser, or an association that offers
+# SafeDay to its members as a group scheme.
+SoldBy = Literal["adviser", "association"]
+SOLD_BY = {
+    "adviser": "Income adviser",
+    "association": "Hawker or merchants' association",
+}
+# Income's adviser code format is not public, so only the characters and length are checked.
+ADVISER_CODE = re.compile(r"^[A-Z0-9]{4,12}$")
+ASSOCIATION_NAME_LENGTH = (3, 120)
+# Suggestions for the association field, not a closed list: the Federation of Merchants'
+# Associations, Singapore (75 member associations, FMAS Instagram post of 27 Aug 2026) and centre
+# associations named in the press (Mothership Feb 2025, NLB Infopedia, TNP Oct 2024, Must Share
+# News May 2024, CNA 20 May 2026). Sources in docs/notes/distribution-proposal-2026-11-15.md.
+FMAS = "Federation of Merchants' Associations, Singapore (FMAS)"
+# Each centre association by the name of its centre in data/processed/map_static.json.
+CENTRE_ASSOCIATIONS = {
+    "Tiong Bahru Market": "Tiong Bahru Market Hawkers' Association",
+    "Smith Street Blk 335 (Chinatown Complex Market)": "Chinatown Complex Hawkers' Association",
+    "Old Airport Road Blk 51 (51 Old Airport Road Food Centre and Shopping Mall)":
+        "Old Airport Road Food Centre Merchants' Association",
+    "Ghim Moh Road Blk 20": "Ghim Moh Market & Shops Merchants' Association",
+    "Bedok North Street 1 Blk 216":
+        "Bedok North Blk 216 Food Centre and Market Hawkers' Association",
+}
+ASSOCIATIONS = (FMAS, *CENTRE_ASSOCIATIONS.values())
+
+
+def association_for(centre: str | None) -> str:
+    """The association a stall at this centre would join through: its centre's own, else FMAS."""
+    return CENTRE_ASSOCIATIONS.get(centre or "", FMAS)

@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import insert, update
 
-from api import burn, calculator, postcodes, readings, store
+from api import burn, calculator, onboarding, postcodes, readings, store
 from api.accounts import application_profile
 from api.main import DEFAULT_TARIFF_PATH, MAP_STATIC_PATH, SINGAPORE, add_months, app
 from api.paynow_qr import crc16_ccitt, paynow_payload
@@ -127,6 +127,8 @@ def test_rent_table_covers_every_map_centre(client):
 def buy_body(**changes) -> dict:
     body = {
         "business_class": "hawker",
+        "sold_by": "adviser",
+        "adviser_code": "demo1234",
         "licence_no": "DEMO/12345",
         "staff_band": "1-4",
         "name": "Tan Ah Kow",
@@ -193,10 +195,42 @@ def test_past_decline_is_referred_and_cannot_buy_from_the_dashboard(client):
         {"staff_band": None},
         {"term_months": 6},
         {"product": "platform_work"},
+        {"sold_by": None},
+        {"sold_by": "direct"},
+        {"adviser_code": None},
+        {"adviser_code": "A1"},
+        {"sold_by": "association", "association": ""},
     ],
 )
 def test_buy_rejects_incomplete_applications(client, changes):
     assert client.post("/api/buy", json=buy_body(**changes)).status_code == 422
+
+
+def test_an_adviser_sale_keeps_the_adviser_code(client):
+    application = client.post("/api/buy", json=buy_body(association="Ignored")).json()["application"]
+    assert (application["sold_by"], application["adviser_code"]) == ("adviser", "DEMO1234")
+    assert application["association"] is None
+    assert client.get("/api/applications/mine").json()["adviser_code"] == "DEMO1234"
+
+
+def test_an_association_sale_keeps_the_association_and_shows_on_the_insurer_desk(client):
+    body = buy_body(sold_by="association", association="  Test Hawkers' Association ")
+    application = client.post("/api/buy", json=body).json()["application"]
+    assert (application["sold_by"], application["adviser_code"]) == ("association", None)
+    assert application["association"] == "Test Hawkers' Association"
+    client.post("/api/auth/logout")
+    client.post("/api/auth/register", json={
+        "role": "insurer", "name": "Desk", "email": "desk@example.test",
+        "password": "insurer-pass-1", "insurer": "Income Insurance",
+    })
+    [policy] = client.get("/api/insurer/policies").json()
+    assert (policy["sold_by"], policy["association"]) == ("association", "Test Hawkers' Association")
+
+
+def test_buy_options_name_the_two_channels(client):
+    options = client.get("/api/buy/options").json()
+    assert set(options["sold_by"]) == {"adviser", "association"}
+    assert options["associations"]
 
 
 def test_company_uen_is_stored_in_capitals(client):
@@ -821,3 +855,11 @@ def test_burn_by_region_needs_a_known_region_and_no_half_point(client):
     assert client.get("/api/map/burn", params={"region": "middle"}).status_code == 404
     query = {"region": "north", "lat": 1.35}
     assert client.get("/api/map/burn", params=query).status_code == 422
+
+
+def test_a_stall_joins_through_its_centre_association_else_fmas():
+    assert onboarding.association_for("Tiong Bahru Market") == (
+        "Tiong Bahru Market Hawkers' Association"
+    )
+    assert onboarding.association_for("Maxwell Food Centre (Kim Hua Market)") == onboarding.FMAS
+    assert onboarding.association_for(None) == onboarding.FMAS

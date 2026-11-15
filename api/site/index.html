@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/ui.css?v=4" />
     <link rel="stylesheet" href="/landing.css?v=2" />
     <script src="/ui.js?v=2" defer></script>
-    <script src="/site.js?v=15" defer></script>
+    <script src="/site.js?v=16" defer></script>
   </head>
   <body>
     <header class="topnav">
@@ -34,7 +34,8 @@
               flash floods. The payout follows NEA's public readings. No claim forms, no waiting.
             </p>
             <div class="hero-actions">
-              <a class="btn primary large" href="/buy/">Get covered</a>
+              <a class="btn primary large" href="/buy/?via=adviser">Ask your Income adviser</a>
+              <a class="btn large" href="/buy/?via=association">Join through your hawker association</a>
               <a class="btn ghost" href="/map/"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#map"/></svg>Explore the 3D risk atlas</a>
             </div>
           </div>
@@ -108,7 +109,9 @@
               <li>From about S$3.60 a week. Your price depends on your own area's weather history.</li>
               <li>Payment is automatic when NEA readings cross the trigger levels. If readings stay below them, nothing is paid, and the levels are public.</li>
             </ul>
-            <a class="btn primary" href="/buy/">Get covered</a>
+            <p class="fine">Sold as an add-on to SmartBiz 360 by your Income adviser, or as a group scheme by your hawker or merchants' association. You pay your own premium either way.</p>
+            <a class="btn primary" href="/buy/?via=adviser">Ask your Income adviser</a>
+            <a class="btn" href="/buy/?via=association">Join through your association</a>
           </article>
 
           <div class="card role-others">
@@ -173,7 +176,10 @@
       <section class="wrap closer" aria-label="Get covered">
         <div class="closer-inner">
           <p class="closer-line">Your price depends on your own area's weather history.</p>
-          <a class="btn primary large" href="/buy/">Get covered</a>
+          <div class="hero-actions">
+            <a class="btn primary large" href="/buy/?via=adviser">Ask your Income adviser</a>
+            <a class="btn large" href="/buy/?via=association">Join through your hawker association</a>
+          </div>
         </div>
       </section>
     </main>

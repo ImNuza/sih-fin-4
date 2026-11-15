@@ -51,6 +51,7 @@ def test_seed_adds_200_priced_demo_policies_once(database):
     assert {policy["business_class"] for policy in book} == {"hawker", "shop", "platform_worker"}
     assert len({policy["region"] for policy in book}) == 5
     assert all(policy["term_months"] in (12, 24) for policy in book)
+    assert {policy["sold_by"] for policy in book} == {"adviser", "association"}
 
     for kind, policy in first_of_each_class(book).items():
         tier = next(t for t in quotes[kind]["tiers"] if t["tier"] == policy["tier"])

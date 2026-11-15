@@ -1,4 +1,7 @@
-/* SafeDay guided buy flow (/buy/): a SmartBiz 360-style application with SafeDay as an add-on.
+/* SafeDay guided buy flow (/buy/): a SmartBiz 360-style application with SafeDay as an add-on,
+   filled in with the customer by their Income adviser or by an association (sold_by). Income
+   sells SmartBiz 360 through intermediaries, so the flow never reads as a direct sale.
+   /buy/?via=adviser or ?via=association picks who fills it in.
    Steps: business, cover, details, confirm, pay. Pay is skipped when SafeDay is not added or a
    past decline sends the application to an underwriter. Three business classes, one path each:
    hawker stall, neighbourhood shop, platform worker (the choices come from /api/buy/options).
@@ -26,6 +29,7 @@ function businessClass() { return chosen("business_class"); }
 function isHawker() { return businessClass() === "hawker"; }
 function isPlatformWorker() { return businessClass() === "platform_worker"; }
 function addsSafeDay() { return el("add-safeday").checked; }
+function soldBy() { return chosen("sold_by"); }
 function referred() { return chosen("declined_before") === "yes"; }
 function pays() { return addsSafeDay() && !referred(); }
 function shownSteps() { return STEPS.filter((s) => s !== "done" && (s !== "pay" || pays())); }
@@ -80,6 +84,9 @@ function priceBasis() {
 /* ---------- errors ---------- */
 /* What to do when a field is empty or wrong, by input name. A custom validity message wins. */
 const FIELD_PROBLEMS = {
+  sold_by: "Say who is filling in this form with you: your Income adviser or your association.",
+  adviser_code: "Enter the Income adviser code: 4 to 12 letters or digits, for example DEMO1234.",
+  association: "Enter the name of the association, at least 3 characters.",
   business_class: "Pick the kind of business.",
   applicant_type: "Say whether you apply as an individual or a company.",
   uen: "Enter the UEN as ACRA shows it, for example 53123456A or 201912345K.",
@@ -215,6 +222,7 @@ const SHOP_KINDS = {
 const TOWN_SECTORS = ["31", "38", "46", "52", "54", "56", "60", "64", "67", "73", "76", "82"];
 const ROLES = ["Owner", "Owner", "Director", "Partner", "Manager"];
 const COMPANY_SHARE = { hawker: 0.25, shop: 0.5, platform_worker: 0 };
+const ADVISER_SHARE = 0.7;
 
 function setRadio(name, value) {
   const input = buyForm().querySelector(`[name="${name}"][value="${value}"]`);
@@ -249,8 +257,22 @@ function fillShop(short) {
   field("staff_band").value = pick(["1-4", "1-4", "5-9", "10-49"]);
 }
 
+/* Who fills in the form: the ?via= link from the landing page, else mostly an adviser. */
+function fillChannel() {
+  const via = new URLSearchParams(location.search).get("via");
+  const sold = via in buyState.options.sold_by ? via : Math.random() < ADVISER_SHARE ? "adviser" : "association";
+  setRadio("sold_by", sold);
+  field("adviser_code").value = `DEMO${digits(4)}`;
+}
+/* The association a stall joins through: its centre's own, else the federation (FMAS). */
+function fillAssociation() {
+  const centre = isHawker() ? field("centre").value : "";
+  field("association").value = buyState.options.centre_associations[centre] || buyState.options.associations[0];
+}
+
 function fillRandom() {
   const [name, short] = pick(OWNERS);
+  fillChannel();
   const kind = businessClassAtRandom();
   setRadio("business_class", kind);
   field("centre").value = pick(buyState.centres).name;
@@ -284,6 +306,7 @@ function fillRandom() {
   field("accept_declaration").checked = true;
   field("accept_pdpa").checked = true;
   setRadio("payment_method", "paynow");
+  fillAssociation();
   afterRefill();
 }
 
@@ -302,12 +325,24 @@ function afterRefill() {
   buyState.paymentRef = null;
   showBuyError("");
   for (const input of buyForm().querySelectorAll("[aria-invalid]")) clearInvalid(input);
+  showChannelFields();
   showClassFields();
   showWaitingNote();
   renderTiers();
 }
 
 /* ---------- step 1: business ---------- */
+function showChannelFields() {
+  const sold = soldBy();
+  el("adviser-field").hidden = sold !== "adviser";
+  el("association-field").hidden = sold !== "association";
+  el("addon-who").textContent = sold === "association" ? "Your association" : "Your adviser";
+}
+function channelText() {
+  return soldBy() === "association"
+    ? `${field("association").value.trim()} (group scheme)`
+    : `Income adviser · code ${field("adviser_code").value.trim().toUpperCase()}`;
+}
 function showClassFields() {
   const kind = businessClass();
   const placed = kind === "shop" || kind === "platform_worker";
@@ -475,6 +510,7 @@ async function renderSummary() {
   const dates = coverDates();
   const row = (k, v) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
   el("summary").innerHTML = [
+    row("Filled in with", escapeHtml(channelText())),
     row("Applying as", isPlatformWorker() ? "Individual platform worker"
       : chosen("applicant_type") === "company" ? `Company · UEN ${field("uen").value.toUpperCase()}` : "Individual"),
     row("Business", isPlatformWorker() ? productLabel : `${field("business_name").value} · ${productLabel}`),
@@ -562,6 +598,9 @@ function requestBody() {
   const applicantType = platformWorker ? "individual" : data.applicant_type;
   return {
     business_class: kind,
+    sold_by: soldBy(),
+    adviser_code: soldBy() === "adviser" ? data.adviser_code.trim() : null,
+    association: soldBy() === "association" ? data.association.trim() : null,
     name: data.name, email: data.email, password: data.password,
     business_name: platformWorker ? null : data.business_name,
     centre: hawker ? data.centre : null,
@@ -792,6 +831,7 @@ function fillChoices(options) {
     choice("other", "Other: I will type my code");
   el("buy-platform").innerHTML = choice("", "Pick your platform…") +
     buyState.options.platforms.map((p) => choice(p, p)).join("");
+  el("association-list").innerHTML = buyState.options.associations.map((a) => `<option value="${escapeHtml(a)}"></option>`).join("");
   el("buy-staff").innerHTML = choice("", "Pick a number…") +
     buyState.options.staff_bands.map((b) => choice(b, STAFF_LABELS[b] || b)).join("");
 }
@@ -799,6 +839,10 @@ function fillChoices(options) {
 function onChange(event) {
   clearInvalid(event.target);
   const name = event.target.name;
+  if (name === "sold_by") showChannelFields();
+  // A new centre suggests its own association, unless someone typed a name not on the list.
+  const typed = field("association").value.trim();
+  if (["business_class", "centre"].includes(name) && (!typed || buyState.options.associations.includes(typed))) fillAssociation();
   if (["business_class", "applicant_type", "ssic_choice", "staff_band", "centre", "postcode"].includes(name)) showClassFields();
   if (["business_class", "centre", "postcode", "product"].includes(name)) { buyState.tier = null; renderTiers(); }
   if (name === "add_safeday") renderTiers();

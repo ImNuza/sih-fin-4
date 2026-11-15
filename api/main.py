@@ -868,12 +868,18 @@ LATEST_COVER_START_DAYS = 90
 class BuyRequest(BaseModel):
     """Everything the guided buy flow (/buy/) collects, sent once at the pay step.
 
+    The form is filled in with the customer by their Income adviser or by an association
+    (sold_by), never sold to them directly. See api/onboarding.py.
+
     Email and password are only checked for being present: the demo fills them with made-up
     values. An email that already has an account is still refused. Each business class sends
     only its own identifying fields; the others are dropped. See api/onboarding.py.
     """
 
     business_class: onboarding.BusinessClass
+    sold_by: onboarding.SoldBy
+    adviser_code: str | None = None
+    association: str | None = Field(default=None, max_length=120)
     name: str = Field(min_length=1, max_length=120)
     email: str = Field(min_length=1, max_length=200)
     password: str = Field(min_length=1, max_length=200)
@@ -927,6 +933,16 @@ class BuyRequest(BaseModel):
             raise ValueError("That UEN does not look right, e.g. 53123456A or 201912345K")
         return value
 
+    @field_validator("adviser_code")
+    @classmethod
+    def adviser_code_format(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.strip().upper()
+        if not onboarding.ADVISER_CODE.match(value):
+            raise ValueError("An adviser code has 4 to 12 letters or digits")
+        return value
+
     @field_validator("licence_no")
     @classmethod
     def licence_format(cls, value: str | None) -> str | None:
@@ -963,6 +979,7 @@ class BuyRequest(BaseModel):
             "shop": self.shop_complete,
             "platform_worker": self.platform_worker_complete,
         }[self.business_class]()
+        self.channel_complete()
         platform_product = self.product == onboarding.PLATFORM_PRODUCT
         if platform_product != (self.business_class == "platform_worker"):
             raise ValueError("Ride-hail and delivery work is the cover for platform workers only")
@@ -982,6 +999,19 @@ class BuyRequest(BaseModel):
         if self.declined_before and not (self.declined_details or "").strip():
             raise ValueError("Say which insurer declined you and why")
         return self
+
+    def channel_complete(self) -> None:
+        if self.sold_by == "adviser":
+            if self.adviser_code is None:
+                raise ValueError("Enter the code of the Income adviser who helps the customer")
+            self.association = None
+            return
+        shortest, longest = onboarding.ASSOCIATION_NAME_LENGTH
+        association = (self.association or "").strip()
+        if not shortest <= len(association) <= longest:
+            raise ValueError("Enter the name of the association that offers the cover")
+        self.association = association
+        self.adviser_code = None
 
     def hawker_complete(self) -> None:
         if self.licence_no is None:
@@ -1043,6 +1073,9 @@ def buy_options() -> dict:
     """The choices the buy flow offers each business class, and the postal sector regions."""
     return {
         "business_classes": onboarding.BUSINESS_CLASSES,
+        "sold_by": onboarding.SOLD_BY,
+        "associations": onboarding.ASSOCIATIONS,
+        "centre_associations": onboarding.CENTRE_ASSOCIATIONS,
         "platform_product": onboarding.PLATFORM_PRODUCT,
         "ssic_codes": [
             {"code": code, "title": title} for code, title in onboarding.SHOP_SSIC_CODES.items()
@@ -1161,7 +1194,15 @@ def buy(
         }
         profile_row = {"application_id": application["id"], **profile}
         db.execute(sa_insert(accounts.application_profile).values(**profile_row))
-        application.update(details, **profile)
+        channel = {
+            "sold_by": body.sold_by,
+            "adviser_code": body.adviser_code,
+            "association": body.association,
+        }
+        db.execute(
+            sa_insert(accounts.application_channel).values(application_id=application["id"], **channel)
+        )
+        application.update(details, **profile, **channel)
     accounts.start_session(engine, user_id, response)
     return {
         "application": {k: v for k, v in application.items() if k != "user_id"},
@@ -1170,8 +1211,10 @@ def buy(
 
 
 def latest_application(engine, user_id: int) -> dict | None:
-    """The user's latest application with its details and profile, flat. Missing rows: nulls."""
+    """The user's latest application with its details, profile and channel, flat. Missing rows:
+    nulls."""
     details, profile = accounts.application_details, accounts.application_profile
+    channel = accounts.application_channel
     query = (
         sa_select(
             accounts.applications,
@@ -1179,9 +1222,11 @@ def latest_application(engine, user_id: int) -> dict | None:
             details.c.designation,
             details.c.cover_start,
             *(column for column in profile.c if column.name != "application_id"),
+            *(column for column in channel.c if column.name != "application_id"),
         )
         .outerjoin(details, details.c.application_id == accounts.applications.c.id)
         .outerjoin(profile, profile.c.application_id == accounts.applications.c.id)
+        .outerjoin(channel, channel.c.application_id == accounts.applications.c.id)
         .where(accounts.applications.c.user_id == user_id)
         .order_by(accounts.applications.c.id.desc())
     )
@@ -1336,6 +1381,7 @@ def insurer_policies(_: InsurerDep, request: Request) -> list[dict]:
     demo is true for the made-up book that scripts/seed_demo_policies.py adds for the pitch.
     """
     policies, users, profile = accounts.policies, accounts.users, accounts.application_profile
+    channel = accounts.application_channel
     decisions = underwriting.underwriting_decisions
     latest, paid = latest_application_ids(), payouts_by_policy()
     query = (
@@ -1348,6 +1394,9 @@ def insurer_policies(_: InsurerDep, request: Request) -> list[dict]:
             profile.c.postcode,
             profile.c.term_months,
             profile.c.cover_ends,
+            channel.c.sold_by,
+            channel.c.adviser_code,
+            channel.c.association,
             decisions.c.decision.label("underwriting_decision"),
             decisions.c.note.label("underwriting_note"),
             paid.c.payouts_paid,
@@ -1357,6 +1406,7 @@ def insurer_policies(_: InsurerDep, request: Request) -> list[dict]:
         .join(users, users.c.id == policies.c.user_id)
         .outerjoin(latest, latest.c.user_id == policies.c.user_id)
         .outerjoin(profile, profile.c.application_id == latest.c.application_id)
+        .outerjoin(channel, channel.c.application_id == latest.c.application_id)
         .outerjoin(decisions, decisions.c.application_id == latest.c.application_id)
         .outerjoin(paid, paid.c.policy_id == policies.c.id)
         .order_by(policies.c.started_at.desc(), policies.c.id.desc())

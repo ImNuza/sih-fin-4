@@ -12,8 +12,8 @@ Usage:
 
 Reads  DATABASE_URL (default: the API's SQLite file api/tariff.db), the latest saved tariff,
        data/processed/site_hazard_readings.csv, data/processed/map_static.json
-Writes users, applications, application_details, application_profile, policies and
-       underwriting_decisions rows for the demo accounts. Refuses a database that is not on
+Writes users, applications, application_details, application_profile, application_channel,
+       policies and underwriting_decisions rows for the demo accounts. Refuses a database that is not on
        this machine.
 """
 
@@ -35,7 +35,7 @@ from sqlalchemy.engine import make_url
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from api import accounts, postcodes, store  # noqa: E402
+from api import accounts, onboarding, postcodes, store  # noqa: E402
 from api.main import (  # noqa: E402
     DEFAULT_DATABASE_URL,
     DEFAULT_TARIFF_PATH,
@@ -62,6 +62,7 @@ DAYS_APPLIED_BEFORE_START = (1, 6)
 CLASS_WEIGHTS = {"hawker": 0.55, "shop": 0.30, "platform_worker": 0.15}
 TIER_WEIGHTS = {"tier_1": 0.25, "tier_2": 0.40, "tier_3": 0.25, "tier_4": 0.10}
 TERM_WEIGHTS = {12: 0.7, 24: 0.3}
+SOLD_BY_WEIGHTS = {"adviser": 0.7, "association": 0.3}
 DECLINED_BEFORE_SHARE = 0.04
 FRESH_PRODUCE_STALL_SHARE = 0.2
 UNDERWRITER_EMAIL = f"underwriter@{DEMO_EMAIL_DOMAIN}"
@@ -201,6 +202,8 @@ MAKE_BUSINESS = {
 def demo_records(centres: list[dict], today: date) -> list[dict]:
     """The demo book: the same DEMO_POLICIES businesses, tiers and dates on every run."""
     rng = random.Random(RANDOM_SEED)
+    # A second generator, so the channel draws leave the rest of the book as it was before.
+    channel_rng = random.Random(f"{RANDOM_SEED}-channel")
     records = []
     for number in range(1, DEMO_POLICIES + 1):
         business = MAKE_BUSINESS[weighted(rng, CLASS_WEIGHTS)](rng, number, centres)
@@ -221,8 +224,20 @@ def demo_records(centres: list[dict], today: date) -> list[dict]:
             "payment_method": rng.choice(("paynow", "giro")),
             "payment_ref": f"DEMO-{rng.randrange(16**6):06X}",
             "approval_note": rng.choice(APPROVAL_NOTES) if declined_before else None,
+            **demo_channel(channel_rng, business),
         })
     return records
+
+
+def demo_channel(rng: random.Random, business: dict) -> dict:
+    """Who arranged a demo policy: a made-up Income adviser code, or the association a hawker or
+    shop would join through. Platform workers have no association in the pilot."""
+    sold_by = weighted(rng, SOLD_BY_WEIGHTS)
+    if sold_by == "adviser" or business["business_class"] == "platform_worker":
+        return {"sold_by": "adviser", "adviser_code": f"DEMO{rng.randrange(10**4):04d}",
+                "association": None}
+    return {"sold_by": sold_by, "adviser_code": None,
+            "association": onboarding.association_for(business.get("centre"))}
 
 
 def demo_user_ids(db) -> list[int]:
@@ -291,6 +306,10 @@ def add_record(
         **{field: record.get(field) for field in profile_fields},
         **cover_dates(record["cover_start"], record["term_months"]),
     ))
+    db.execute(insert(accounts.application_channel).values(
+        application_id=application_id,
+        **{field: record[field] for field in ("sold_by", "adviser_code", "association")},
+    ))
     if declined_before:
         db.execute(insert(underwriting_decisions).values(
             application_id=application_id, decision="approve", note=record["approval_note"],
@@ -348,7 +367,7 @@ def remove(engine: Engine) -> int:
                       accounts.sessions, accounts.applications):
             db.execute(delete(table).where(table.c.user_id.in_(user_ids)))
         for table in (underwriting_decisions, accounts.application_details,
-                      accounts.application_profile):
+                      accounts.application_profile, accounts.application_channel):
             db.execute(delete(table).where(table.c.application_id.in_(application_ids)))
         db.execute(delete(accounts.users).where(accounts.users.c.id.in_(user_ids)))
     return len(user_ids)

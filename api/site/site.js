@@ -154,7 +154,7 @@ function wireLogin() {
       return "An account with this email already exists. Sign in with it instead, or use another email.";
     if (/wrong email or password/i.test(error.message))
       return formId === "sme-login"
-        ? "The email or password is wrong. Check both and try again. No account yet? Get covered first."
+        ? "The email or password is wrong. Check both and try again. No account yet? Apply with your Income adviser first."
         : "The email or password is wrong. Check both and try again, or set up insurer access.";
     return `Could not sign in: ${escapeHtml(error.message)}. Try again.`;
   };
@@ -902,13 +902,20 @@ function wireTiers(slot) {
 
 /* ---------- insurer: policies table and drawer ---------- */
 let bookPolicies = [];
+const SOLD_BY = { adviser: "Income adviser", association: "Association" };
+/* Who filled in the application with the customer: an adviser's code or an association's name. */
+function channelOf(p) {
+  if (p.sold_by === "adviser") return `Income adviser · ${p.adviser_code}`;
+  if (p.sold_by === "association") return p.association;
+  return "Not recorded";
+}
 
 function bookRow(p, tierOrder) {
   const status = policyStatus(p);
   const businessClass = businessClassOf(p);
-  const search = [p.business_name, p.name, p.centre, p.postcode, p.region, p.tier_label].join(" ").toLowerCase();
+  const search = [p.business_name, p.name, p.centre, p.postcode, p.region, p.tier_label, channelOf(p)].join(" ").toLowerCase();
   return `<tr class="clickable" tabindex="0" data-policy="${p.id}" data-tier="${p.tier}" data-region="${p.region}"
-      data-class="${businessClass}" data-status="${status}" data-search="${escapeHtml(search)}">
+      data-class="${businessClass}" data-channel="${p.sold_by || ""}" data-status="${status}" data-search="${escapeHtml(search)}">
     <td data-value="${escapeHtml((p.business_name || p.name).toLowerCase())}"><span class="biz">${escapeHtml(p.business_name || p.name)}</span>${p.demo ? ` <span class="demo-tag">demo</span>` : ""}</td>
     <td>${escapeHtml(placeOf(p))}</td>
     <td>${titleCase(p.region)}</td>
@@ -938,6 +945,7 @@ function bookSection(book, options) {
       ${filterSelect("book-tier", "Tier", "All tiers", options.tiers.map((t) => [t.key, t.label]))}
       ${filterSelect("book-region", "Region", "All regions", options.regions.map((r) => [r, titleCase(r)]))}
       ${filterSelect("book-class", "Business type", "All business types", Object.entries(BUSINESS_CLASSES))}
+      ${filterSelect("book-channel", "Filled in with", "All channels", Object.entries(SOLD_BY))}
       ${filterSelect("book-status", "Status", "All statuses", Object.entries(POLICY_STATUS).map(([k, s]) => [k, s.label]))}
       <span class="count" id="book-count" aria-live="polite"></span>
     </div>
@@ -963,8 +971,8 @@ function bookSection(book, options) {
 function wireBook(slot) {
   const table = el("book-table");
   if (!table) return;
-  const controls = ["book-search", "book-tier", "book-region", "book-class", "book-status"].map(el);
-  const [search, tier, region, businessClass, status] = controls;
+  const controls = ["book-search", "book-tier", "book-region", "book-class", "book-channel", "book-status"].map(el);
+  const [search, tier, region, businessClass, channel, status] = controls;
   const apply = () => {
     const words = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
     let shown = 0;
@@ -973,6 +981,7 @@ function wireBook(slot) {
         && (!tier.value || row.dataset.tier === tier.value)
         && (!region.value || row.dataset.region === region.value)
         && (!businessClass.value || row.dataset.class === businessClass.value)
+        && (!channel.value || row.dataset.channel === channel.value)
         && (!status.value || row.dataset.status === status.value);
       row.hidden = !match;
       shown += match;
@@ -1032,6 +1041,7 @@ function policyDrawer(p, status) {
       ${kv(p.centre ? "Hawker centre" : "Postcode", escapeHtml(p.centre || p.postcode || "Not recorded"))}
       ${kv("Region", titleCase(p.region))}
       ${kv("Owner", escapeHtml(p.name))}
+      ${kv("Filled in with", escapeHtml(channelOf(p)))}
     </section>
     <section><h3>Cover</h3>
       ${kv("Tier", escapeHtml(p.tier_label))}

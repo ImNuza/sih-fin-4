@@ -125,6 +125,16 @@ application_profile = Table(
     Column("waiting_ends", Date, nullable=False),
     Column("cover_ends", Date, nullable=False),
 )
+# Who arranged the application with the customer, one row per application. sold_by is "adviser"
+# (with the adviser's code) or "association" (with its name). See api/onboarding.py.
+application_channel = Table(
+    "application_channel",
+    metadata,
+    Column("application_id", Integer, primary_key=True),
+    Column("sold_by", String, nullable=False),
+    Column("adviser_code", String),
+    Column("association", String),
+)
 
 
 def hash_password(password: str) -> str:
