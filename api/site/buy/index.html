@@ -9,48 +9,68 @@
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/theme.css?v=5" />
     <link rel="stylesheet" href="/ui.css?v=1" />
-    <link rel="stylesheet" href="/buy.css?v=1" />
+    <link rel="stylesheet" href="/buy.css?v=2" />
     <script src="/ui.js?v=1" defer></script>
-    <script src="/site.js?v=12" defer></script>
-    <script src="/buy.js?v=6" defer></script>
+    <script src="/site.js?v=13" defer></script>
+    <script src="/buy.js?v=7" defer></script>
   </head>
   <body>
     <header class="topnav">
-      <p class="brand"><a href="/">SafeDay</a></p>
-      <nav>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">☾</button>
-        <a href="/map/">Risk atlas</a>
-        <a id="nav-auth" href="/login/">Sign in</a>
+      <a class="brand" href="/"><span class="brand-mark"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg></span>SafeDay</a>
+      <nav aria-label="Main">
+        <a href="/map/" aria-label="Risk atlas"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#map"/></svg><span class="label-wide">Risk atlas</span></a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#moon"/></svg></button>
+        <a class="btn small" id="nav-auth" href="/login/"><span class="label-wide">Sign in</span></a>
       </nav>
     </header>
 
-    <p class="prototype">Prototype. Designed to sit inside SmartBiz 360 by Income. This is not an Income page, and no money moves.</p>
-
     <main class="buy">
       <div class="buy-main">
+        <p class="notice prototype">
+          <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg>
+          <span>Prototype. Designed to sit inside SmartBiz 360 by Income. This is not an Income page, and no money moves.</span>
+        </p>
+        <p class="notice warning" id="insurer-note" hidden>
+          <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#triangle-alert"/></svg>
+          <span><b>You are signed in as an insurer.</b> This flow is for business owners who buy cover. <a class="linklike" href="/dashboard/">Go to the portfolio desk</a></span>
+        </p>
+
         <h1 class="buy-title">SmartBiz 360 <span>with SafeDay climate income cover</span></h1>
-        <div class="progress" aria-hidden="true"><div class="bar" id="progress-bar"></div></div>
-        <ol class="stepper" id="stepper">
-          <li data-for="business">Business</li>
-          <li data-for="cover">Cover</li>
-          <li data-for="details">Details</li>
-          <li data-for="confirm">Confirm</li>
-          <li data-for="pay">Pay</li>
+
+        <ol class="stepper" id="stepper" aria-label="Steps">
+          <li data-for="business"><span class="dot" aria-hidden="true"><span class="n">1</span><svg class="i"><use href="/vendor/icons.svg#check"/></svg></span><span class="label">Business</span></li>
+          <li data-for="cover"><span class="dot" aria-hidden="true"><span class="n">2</span><svg class="i"><use href="/vendor/icons.svg#check"/></svg></span><span class="label">Cover</span></li>
+          <li data-for="details"><span class="dot" aria-hidden="true"><span class="n">3</span><svg class="i"><use href="/vendor/icons.svg#check"/></svg></span><span class="label">Details</span></li>
+          <li data-for="confirm"><span class="dot" aria-hidden="true"><span class="n">4</span><svg class="i"><use href="/vendor/icons.svg#check"/></svg></span><span class="label">Confirm</span></li>
+          <li data-for="pay"><span class="dot" aria-hidden="true"><span class="n">5</span><svg class="i"><use href="/vendor/icons.svg#check"/></svg></span><span class="label">Pay</span></li>
         </ol>
 
         <form id="buy" class="card buy-card" novalidate>
+          <div class="progress" aria-hidden="true"><div class="bar" id="progress-bar"></div></div>
+
           <section data-step="business">
             <div class="step-head"><h2>Hi, tell us about your business</h2>
               <span class="step-tools">
-                <button class="btn quiet small" id="refill" type="button">New random details</button>
-                <button class="btn quiet small" id="clear" type="button">Clear</button>
+                <button class="btn ghost small" id="refill" type="button">New random details</button>
+                <button class="btn ghost small" id="clear" type="button">Clear</button>
               </span></div>
-            <p class="statement">Statement under section 23(5) of the Insurance Act 1966: you must tell us every fact you know, or ought to know, that may affect the cover you apply for. If you do not, the policy may not be valid.</p>
-            <fieldset class="choice">
+            <p class="notice statement">
+              <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#shield-check"/></svg>
+              <span><b>Statement under section 23(5) of the Insurance Act 1966:</b> you must tell us every fact you know, or ought to know, that may affect the cover you apply for. If you do not, the policy may not be valid.</span>
+            </p>
+            <fieldset class="choice kinds">
               <legend>What kind of business is it?</legend>
-              <label><input type="radio" name="business_class" value="hawker" required /> Hawker stall</label>
-              <label><input type="radio" name="business_class" value="shop" /> Neighbourhood shop</label>
-              <label><input type="radio" name="business_class" value="platform_worker" /> Platform worker (ride-hail or delivery)</label>
+              <div class="kind-grid">
+                <label><input type="radio" name="business_class" value="hawker" required />
+                <span class="kind-icon" aria-hidden="true"><svg class="i"><use href="/vendor/icons.svg#store"/></svg></span>
+                <span class="kind-text"><b>Hawker stall</b><span>At a hawker centre, with an SFA or NEA licence</span></span></label>
+                <label><input type="radio" name="business_class" value="shop" />
+                <span class="kind-icon" aria-hidden="true"><svg class="i"><use href="/vendor/icons.svg#building-2"/></svg></span>
+                <span class="kind-text"><b>Neighbourhood shop</b><span>With a postcode and an SSIC code</span></span></label>
+                <label><input type="radio" name="business_class" value="platform_worker" />
+                <span class="kind-icon" aria-hidden="true"><svg class="i"><use href="/vendor/icons.svg#bike"/></svg></span>
+                <span class="kind-text"><b>Platform worker</b><span>Ride-hail or delivery</span></span></label>
+              </div>
             </fieldset>
             <div id="applicant-box">
               <fieldset class="choice">
@@ -59,36 +79,36 @@
                 <label><input type="radio" name="applicant_type" value="company" /> Company</label>
               </fieldset>
               <label id="uen-field" hidden>UEN
-                <input name="uen" autocomplete="off" placeholder="e.g. 53123456A" />
-                <span class="fine">Your business registration number from ACRA.</span></label>
-              <label>Business name <input name="business_name" placeholder="e.g. Ah Hock Chicken Rice" required /></label>
+                <input name="uen" autocomplete="off" autocapitalize="characters" pattern="\s*(\d{8}[A-Za-z]|\d{9}[A-Za-z]|[TSRtsr]\d{2}[A-Za-z]{2}\d{4}[A-Za-z])\s*" placeholder="e.g. 53123456A" />
+                <span class="hint">Your business registration number from ACRA.</span></label>
+              <label>Business name <input name="business_name" autocomplete="organization" maxlength="120" placeholder="e.g. Ah Hock Chicken Rice" required /></label>
             </div>
             <div id="hawker-box" hidden>
               <label>Hawker centre
                 <select name="centre" id="buy-centre" required><option value="">Loading centres…</option></select>
               </label>
-              <p class="fine rent-hint" id="buy-rent" hidden></p>
+              <p class="rent-hint" id="buy-rent" hidden></p>
               <label>Stall unit (optional) <input name="stall_unit" placeholder="e.g. 01-23" /></label>
               <label>Licence number
-                <input name="licence_no" autocomplete="off" required pattern="[A-Za-z0-9\/\-]{5,20}" placeholder="e.g. FS12345X" />
-                <span class="fine">Your SFA food stall licence or NEA stall tenancy number. A licensed hawker needs no UEN.</span></label>
+                <input name="licence_no" autocomplete="off" autocapitalize="characters" required pattern="[A-Za-z0-9\/\-]{5,20}" placeholder="e.g. FS12345X" />
+                <span class="hint">Your SFA food stall licence or NEA stall tenancy number. A licensed hawker needs no UEN.</span></label>
             </div>
             <div id="shop-box" hidden>
               <label>SSIC code
                 <select name="ssic_choice" id="buy-ssic" required></select>
-                <span class="fine">The industry code you gave ACRA (SSIC 2025, SingStat).</span></label>
+                <span class="hint">The industry code you gave ACRA (SSIC 2025, SingStat).</span></label>
               <label id="ssic-other-field" hidden>Your 5-digit SSIC code
-                <input name="ssic_other" inputmode="numeric" required pattern="\d{5}" placeholder="e.g. 47219" /></label>
+                <input name="ssic_other" inputmode="numeric" required pattern="\d{5}" maxlength="5" placeholder="e.g. 47219" /></label>
             </div>
             <div id="platform-box" hidden>
               <label>Platform <select name="platform" id="buy-platform" required></select></label>
               <label>Driver or rider ID
                 <input name="platform_worker_id" autocomplete="off" required minlength="3" maxlength="40" />
-                <span class="fine">The ID the platform shows in your driver or rider app.</span></label>
+                <span class="hint">The ID the platform shows in your driver or rider app.</span></label>
             </div>
             <label id="postcode-field" hidden><span id="postcode-label">Postcode</span>
-              <input name="postcode" inputmode="numeric" autocomplete="postal-code" required pattern="\d{6}" placeholder="e.g. 560123" />
-              <span class="fine" id="postcode-region"></span></label>
+              <input name="postcode" inputmode="numeric" autocomplete="postal-code" required pattern="\d{6}" maxlength="6" placeholder="e.g. 560123" />
+              <span class="hint" id="postcode-region"></span></label>
             <label id="product-field">What you sell <select name="product" id="buy-product" required></select></label>
             <div id="staff-box">
               <label>How many people work in the business, you included?
@@ -104,7 +124,7 @@
           <section data-step="cover" hidden>
             <h2>Your cover</h2>
             <div class="package">
-              <p class="package-head"><span class="tick" aria-hidden="true">✓</span> SmartBiz 360 · base package</p>
+              <p class="package-head"><span class="tick" aria-hidden="true"><svg class="i"><use href="/vendor/icons.svg#check"/></svg></span>SmartBiz 360 · base package</p>
               <p class="fine">All-risk cover for your stock and equipment, a daily payout when an insured loss stops your business, and public liability. Income sets this price from your business details. This prototype does not price it.</p>
             </div>
             <div class="addon" id="addon">
@@ -113,10 +133,10 @@
                 <span class="fine" id="addon-pitch">Pays a fixed amount on days when NEA readings show haze, heavy rain, extreme heat or a flood alert near your stall. No claim form and no proof of damage.</span></span></label>
               <div id="addon-body" hidden>
                 <div class="tiers-row" id="buy-tiers" role="radiogroup" aria-label="SafeDay tier"></div>
-                <p class="fine" id="tier-note"></p>
+                <p class="fine" id="tier-note" aria-live="polite"></p>
                 <div class="what-pays" id="what-pays"></div>
                 <details class="why-price">
-                  <summary>Why this price?</summary>
+                  <summary><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#chevron-right"/></svg>Why this price?</summary>
                   <div id="why-price"></div>
                 </details>
               </div>
@@ -125,21 +145,22 @@
               <legend>How long do you want cover?</legend>
               <label><input type="radio" name="term_months" value="12" required /> 12 months</label>
               <label><input type="radio" name="term_months" value="24" /> 24 months</label>
+              <span class="hint">Same weekly price for both terms.</span>
             </fieldset>
-            <p class="fine">Same weekly price for both terms.</p>
             <label>Cover starts on <input name="cover_start" type="date" id="cover-start" required />
-              <span class="fine" id="waiting-note"></span></label>
+              <span class="hint" id="waiting-note"></span></label>
           </section>
 
           <section data-step="details" hidden>
             <h2>Your details</h2>
-            <label>Your name <input name="name" autocomplete="name" required /></label>
-            <label>Your role in the business (optional) <input name="designation" placeholder="e.g. Owner" /></label>
+            <label>Your name <input name="name" autocomplete="name" maxlength="120" required /></label>
+            <label>Your role in the business (optional) <input name="designation" autocomplete="organization-title" placeholder="e.g. Owner" /></label>
             <label>Mobile number
               <input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="e.g. 9123 4567" required pattern="(\+65)?\s*[3689]\d{3}\s*-?\d{4}" />
-              <span class="fine">We send payout alerts here.</span></label>
-            <label>Email <input name="email" autocomplete="email" required /></label>
-            <label>Password <input name="password" type="password" autocomplete="new-password" required /></label>
+              <span class="hint">We send payout alerts here.</span></label>
+            <label>Email <input name="email" type="email" inputmode="email" autocomplete="email" required /></label>
+            <label>Password <input name="password" type="password" autocomplete="new-password" required />
+              <span class="hint">You sign in to your dashboard with it.</span></label>
           </section>
 
           <section data-step="confirm" hidden>
@@ -152,14 +173,15 @@
             </fieldset>
             <div id="declined-box" hidden>
               <label>Which insurer, and why? <textarea name="declined_details" rows="3" maxlength="500"></textarea></label>
-              <p class="fine">An underwriter will review your application. No cover starts and nothing is charged until they reply.</p>
+              <p class="notice warning"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#clock"/></svg>
+                <span>An underwriter will review your application. No cover starts and nothing is charged until they reply.</span></p>
             </div>
             <div class="declare">
               <label class="check"><input type="checkbox" name="accept_declaration" required />
                 <span>I declare that what I have told you is true and complete. Cover starts only after the application is accepted and the first premium is paid, and runs for the term I chose (12 or 24 months). No payout is due for a bad day in the first 30 days after cover starts (the waiting period). SafeDay pays on NEA readings near my business, not on my actual loss, so a bad day can pay more or less than I lost.</span></label>
               <label class="check"><input type="checkbox" name="accept_pdpa" required />
                 <span>I agree that the insurer may collect, use and disclose my personal data to assess this application, run the policy and make payouts, as its data protection policy describes.</span></label>
-              <p class="fine">Optional: send me news and offers by</p>
+              <p class="fine optins-title">Optional: send me news and offers by</p>
               <div class="optins">
                 <label class="check"><input type="checkbox" name="marketing_email" /> <span>Email</span></label>
                 <label class="check"><input type="checkbox" name="marketing_sms" /> <span>SMS</span></label>
@@ -182,7 +204,8 @@
             <figure class="paynow" id="paynow-box">
               <img id="paynow-qr" width="220" height="220" alt="PayNow QR for the first week's premium" />
               <figcaption><span id="paynow-ref"></span>
-                <b>Prototype: this QR pays nobody. Do not scan it with a banking app.</b></figcaption>
+                <span class="notice warning"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#triangle-alert"/></svg>
+                  <span><b>Prototype: this QR pays nobody.</b> Do not scan it with a banking app.</span></span></figcaption>
             </figure>
             <p class="fine">Prototype: nothing is charged. You get a made-up reference.</p>
           </section>
@@ -193,14 +216,14 @@
 
           <p class="error" id="buy-error" role="alert"></p>
           <div class="buy-actions" id="buy-actions">
-            <button class="btn quiet" id="buy-back" type="button" hidden>Back</button>
+            <button class="btn ghost" id="buy-back" type="button" hidden><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#chevron-left"/></svg>Back</button>
             <button class="btn primary" id="buy-next" type="submit">Next</button>
           </div>
         </form>
       </div>
 
-      <aside class="buy-side card">
-        <p class="side-time">About 5 minutes</p>
+      <aside class="buy-side card" aria-label="Before you start">
+        <p class="side-time"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#clock"/></svg>About 5 minutes</p>
         <h2>What you need</h2>
         <ul>
           <li>Hawker stall: your centre and your SFA or NEA licence number</li>
@@ -213,7 +236,7 @@
         <ul>
           <li>An insurer has declined, cancelled or refused to renew your cover before</li>
         </ul>
-        <p class="fine">Already have an account? <a href="/login/">Sign in</a></p>
+        <p class="fine side-signin">Already have an account? <a class="linklike" href="/login/">Sign in</a></p>
       </aside>
     </main>
   </body>
