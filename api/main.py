@@ -1369,10 +1369,10 @@ def buy(
                 priced, user_id, user["region"], user["centre"], body.product, body.tier
             )
             policy["started_at"] = starts_at
+            # The first week's PayNow payment covers the add-on too, when the customer chose it.
+            first_week_sgd = policy["weekly_premium_sgd"] + (offer.weekly_sgd if offer else 0)
             payment_ref = (
-                premium.take_payment(
-                    db, body.payment_token, body.tier, round(policy["weekly_premium_sgd"] * 100)
-                )
+                premium.take_payment(db, body.payment_token, body.tier, round(first_week_sgd * 100))
                 if paynow
                 else body.payment_ref or demo_payment_ref()
             )

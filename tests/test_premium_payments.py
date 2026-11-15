@@ -7,14 +7,14 @@ bank screen, so scanning it cannot send real money.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 
-from api import premium
+from api import calculator, premium
 from api.main import app
 from tests import test_api
 
@@ -181,3 +181,24 @@ def test_a_public_site_url_without_http_is_ignored(client, monkeypatch):
     monkeypatch.setenv("PUBLIC_SITE_URL", "safeday.example.test")
     payment = start(client)
     assert payment["bank_url"].startswith("https://safeday.nuza.dev/paynow-demo/?")
+
+
+def add_on_weekly(client, tier: str = "tier_2") -> float:
+    quote = client.post("/api/quote", json={"centre": CENTRE, "product": "cooked_food"})
+    return next(t for t in quote.json()["tiers"] if t["tier"] == tier)["haze_bonus"]["weekly_sgd"]
+
+
+def test_the_first_payment_covers_the_severe_haze_payout_when_it_is_added(client, monkeypatch):
+    monkeypatch.setattr(calculator, "singapore_today", lambda: date(2026, 11, 15))
+    total = round(weekly_premium(client) + add_on_weekly(client), 2)
+    cover_only = paid(client)
+    refused = client.post("/api/buy", json=buy_body(
+        payment_token=cover_only["token"], add_haze_bonus=True,
+    ))
+    assert refused.status_code == 409
+    both = paid(client, amount_sgd=total)
+    bought = client.post("/api/buy", json=buy_body(
+        payment_token=both["token"], add_haze_bonus=True, email="both@example.test",
+    ))
+    assert bought.status_code == 200, bought.text
+    assert bought.json()["policy"]["haze_bonus"]["weekly_sgd"] == add_on_weekly(client)
