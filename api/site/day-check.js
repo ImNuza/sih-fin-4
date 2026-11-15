@@ -110,19 +110,18 @@ function wireServiceRequest() {
 }
 
 /* The card: a date box and the readings below it, open from the start on the owner's latest
-   payout day, or else the latest day NEA has published. */
+   payout day, or else the latest day NEA has published. Picking another day shows it at once. */
 async function renderDayCheck(slot, latestPayoutDay) {
   const history = await api("/api/map/day?date=0000-00-00");
   const latest = history.available.max;
   slot.innerHTML = `<form id="day-check-form" class="day-check-form">
       <label>Day <input type="date" id="day-check-date" value="${latest}" max="${latest}" required /></label>
-      <button class="btn small" type="submit">See the reading</button>
     </form>
-    <p class="fine">Any day shows the NEA reading at your place, the station it came from and the trigger it is measured against. NEA readings run to ${dayLabel(latest)}.</p>
+    <p class="fine">Pick any day to see the NEA reading at your place, the station it came from and the level it is measured against. NEA readings run to ${dayLabel(latest)}.</p>
     <div id="day-check-result" aria-live="polite"></div>`;
-  el("day-check-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    showDay(el("day-check-date").value);
+  el("day-check-form").addEventListener("submit", (event) => event.preventDefault());
+  el("day-check-date").addEventListener("change", (event) => {
+    if (event.target.value) showDay(event.target.value);
   });
   await showDay(latestPayoutDay || latest);
 }
