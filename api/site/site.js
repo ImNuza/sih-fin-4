@@ -646,21 +646,33 @@ function tenDaysText(h, todays) {
     <p class="fine card-foot">This is what these dates did in past years, not a weather forecast.</p>`;
 }
 
-function tenYearsText(h) {
-  const d = h.next_10_years;
+function outlookYearsText(h) {
   const e = h.el_nino;
+  const first = h.outlooks[0];
+  const rows = h.outlooks.map((o) => `<tr>
+    <td>Next ${o.years} years</td>
+    <td class="num">${SGD(o.premium_sgd)}</td>
+    <td class="num">${SGD(o.typical_sgd)}</td>
+    <td class="num">${SGD(o.bad_sgd)}</td>
+    <td class="num">${SGD(o.highest_sgd)}<br><span class="fine">${o.highest_from_year} to ${o.highest_to_year}</span></td>
+    <td>${colourDays(o.typical_red_days, o.typical_yellow_days, o.typical_green_days)}</td>
+    <td class="num">${o.windows_paid_more_than_premium} of ${o.windows}</td>
+  </tr>`).join("");
   return `
-    <p class="burn-headline">Every ten-year stretch since 1980 paid between <b>${SGD(d.lowest_sgd)}</b> and <b>${SGD(d.highest_sgd)}</b>
-      here at ${h.tier_label}, typically <b>${SGD(d.typical_sgd)}</b>, for ${SGD(d.premium_sgd)} of premium
-      (${SGD(h.weekly_premium_sgd)} a week).</p>
-    ${kv("Payout days in a typical decade", `<span class="num">${Math.round(d.typical_trigger_days)}</span>: ${colourDays(d.typical_red_days, d.typical_yellow_days, d.typical_green_days)}`)}
+    <p class="burn-headline">Every stretch of the last ${first.basis_years} years (${first.basis_from_year} to ${first.basis_to_year})
+      at this stall, at ${h.tier_label}: what you would pay, what a typical, a bad and the worst stretch paid back, and the payout
+      days to expect. These years run hotter and wetter than the decades before, so they are the best guide to what is coming.</p>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th>Period</th><th class="num">You pay</th><th class="num">Typical payout</th><th class="num">Bad stretch (1 in 10)</th>
+        <th class="num">Worst stretch</th><th>Payout days, typical</th><th class="num">Stretches that paid back more than the premium</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
     ${kv(`El Niño years (${e.years.join(", ")})`, `<span class="num">${SGD(e.average_paid_sgd)}</span> a year on average`)}
     ${kv("Other years", `<span class="num">${SGD(e.average_paid_other_sgd)}</span> a year on average`)}
     <p class="fine">A red day loses most of a day's sales, a yellow day a third to two thirds, a green day less; each pays that
       share of ${SGD(h.daily_payout_sgd)}. ${hazeOutlook(h.haze_facts)}</p>
-    <p class="fine card-foot">Expect the next ten years to look like these, not better: Singapore is getting hotter and wetter.
-      This is history, not a promise. Payung pays only when the readings reach a payout level, so a year can bring
-      losses and no payout.</p>`;
+    <p class="fine card-foot">Only this stall's location is used. This is history, not a promise: Payung pays only when the
+      readings reach a payout level, so a year can bring losses and no payout. The cover earns its keep in the bad stretches.</p>`;
 }
 
 async function renderModelHistory(target, place, tier, todays) {
@@ -677,7 +689,7 @@ async function renderModelHistory(target, place, tier, todays) {
   target.innerHTML = `
     <section class="card dash-section" id="model-years">
       <div class="card-head"><div><h2>Every year since 1980 at your stall</h2>
-        <p class="fine">What ${h.tier_label} would have paid each year, from ${from}, scored by the live tariff.</p></div></div>
+        <p class="fine">What ${h.tier_label} would have paid each year, from ${from}, scored by the live tariff. Only this location is used, never the whole market.</p></div></div>
       <p class="burn-headline">With ${h.tier_label} (${SGD(h.daily_payout_sgd)} for a full bad day, up to
         ${SGD(h.max_payout_per_year_sgd)} a year), Payung would have paid you about <b>${SGD(all.typical_sgd)}</b>
         in a typical year since ${all.from_year}, and the full <b>${SGD(all.worst_sgd)}</b> in ${all.worst_year}.
@@ -716,8 +728,8 @@ async function renderModelHistory(target, place, tier, todays) {
       ${tenDaysText(h, todays)}
     </section>
     <section class="card dash-section">
-      <h2>The next 10 years</h2>
-      ${tenYearsText(h)}
+      <h2>The next 2, 5 and 10 years at your stall</h2>
+      ${outlookYearsText(h)}
     </section>`;
   const pick = (year) => {
     picked = year;
