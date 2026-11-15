@@ -177,15 +177,30 @@ function liveStatus(live) {
   return { ok: true, text: `NEA readings as of ${String(live.fetched_at).slice(11, 16)} SGT` };
 }
 
+/* A business outside a hawker centre, placed at its postcode's area point, or null. */
+function areaOf(user, application) {
+  if (user.centre || application?.area_lat == null) return null;
+  return {
+    query: new URLSearchParams({
+      lat: application.area_lat, lng: application.area_lng, region: user.region,
+      product: user.product || "cooked_food",
+    }).toString(),
+    label: `around postcode ${escapeHtml(application.postcode)} (${escapeHtml(application.area_basis)})`,
+  };
+}
+
 async function renderSme(user) {
-  const [quote, policies, staticData, live, rentTable] = await Promise.all([
+  const [quote, policies, staticData, centreLive, rentTable, application] = await Promise.all([
     post("/api/quote", { region: user.region, product: user.product || "cooked_food" }),
     api("/api/policies"),
     api("/api/map/static"),
-    api("/api/map/live").catch(() => null),
+    user.centre ? api("/api/map/live").catch(() => null) : null,
     api("/api/rent"),
+    api("/api/applications/mine").catch(() => null),
   ]);
-  const application = await api("/api/applications/mine").catch(() => null);
+  const area = areaOf(user, application);
+  const live = user.centre ? centreLive
+    : await api(area ? `/api/map/live/at?${area.query}` : "/api/map/live").catch(() => null);
   const decision = application?.declined_before
     ? await api("/api/applications/mine/decision").catch(() => null) : null;
   const underReview = application?.status === "referred";
@@ -194,7 +209,7 @@ async function renderSme(user) {
   const rent = rentTable.centres[user.centre];
   const policy = policies[0] || null;
   const index = staticData.hawker_centres.findIndex((c) => c.name === user.centre);
-  const todays = live?.available && index >= 0 ? live.hawker_losses[index] : null;
+  const todays = !live?.available ? null : area ? live : index >= 0 ? live.hawker_losses[index] : null;
   const status = liveStatus(live);
   // Recommend the smallest tier that pays a full day's rent at this centre.
   const rec = rent ? rent.recommended_tier : quote.tiers[0].tier;
@@ -207,7 +222,7 @@ async function renderSme(user) {
   el("dash").innerHTML = `
     <h1>${user.business_name || user.name}</h1>
     ${proof ? `<p class="sub proof">${escapeHtml(proof)}</p>` : ""}
-    <p class="sub">${[user.centre, `${user.region} region`, "priced from your region's own NEA history"].filter(Boolean).join(" · ")}</p>
+    <p class="sub">${[user.centre || area?.label, `${user.region} region`, "priced from your region's own NEA history"].filter(Boolean).join(" · ")}</p>
     ${user.centre
       ? mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")
       : mapPreview({ view: "owner", camera: "city" }, `The ${user.region} region on the risk atlas`)}
@@ -221,7 +236,7 @@ async function renderSme(user) {
       ${rent ? kpi("Your rent per trading day", SGD(rent.rent_per_day_sgd), `${rent.rent_class_label} centre${rent.estimated ? " · estimated" : ""}`) : ""}
     </div>
     <div class="grid">
-      <div class="card"><h2>Today at your stall</h2>
+      <div class="card"><h2>${area ? "Today around your postcode" : "Today at your stall"}</h2>
         ${todays ? `
         <div class="kv"><span class="k">24-h PSI (your region)</span><span class="v">${Math.round(todays.readings.haze)}</span></div>
         <div class="kv"><span class="k">Wettest work hour (nearest gauge)</span><span class="v">${todays.readings.rain.toFixed(1)} mm</span></div>
@@ -264,9 +279,9 @@ async function renderSme(user) {
         <p class="error" id="buy-error"></p>`}
       </div>
     </div>
-    ${user.centre ? `<div class="card" id="burn-card">
+    ${user.centre || area ? `<div class="card" id="burn-card">
       <h2>Your last ten years, replayed</h2>
-      <p class="fine">Every NEA reading since 2017 at ${user.centre}, scored by the live tariff.
+      <p class="fine">Every NEA reading since 2017 ${user.centre ? `at ${user.centre}` : area.label}, scored by the live tariff.
         Set your normal daily sales; the losses scale with it, the payouts do not.</p>
       <div class="burn-controls">
         <label>My daily sales (S$)
@@ -296,14 +311,15 @@ async function renderSme(user) {
   const loadBurn = async () => {
     const takings = +el("burn-takings").value || 500;
     try {
-      const burn = await api(`/api/map/burn?centre=${encodeURIComponent(user.centre)}`
-        + `&product=${user.product || "cooked_food"}&tier=${burnTier}&takings=${takings}`);
+      const place = user.centre ? `centre=${encodeURIComponent(user.centre)}`
+        + `&product=${user.product || "cooked_food"}` : area.query;
+      const burn = await api(`/api/map/burn?${place}&tier=${burnTier}&takings=${takings}`);
       el("burn-body").innerHTML = renderBurn(burn, policy);
     } catch (error) {
       el("burn-body").innerHTML = `<p class="error">${error.message}</p>`;
     }
   };
-  if (!user.centre) return;
+  if (!user.centre && !area) return;
   el("burn-takings").addEventListener("change", loadBurn);
   loadBurn();
 }
