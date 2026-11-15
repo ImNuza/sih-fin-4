@@ -43,6 +43,7 @@ from sqlalchemy import select as sa_select
 from api import (
     accounts, assistant, burn, calculator, day_check, kyc, model_history, onboarding,
     payout_api, payout_flow, paynow_qr, postcodes, premium, readings, sms, store, underwriting,
+    voice,
 )
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.calculator import BidRecord, History, Readings, Site, Sites
@@ -1586,6 +1587,7 @@ app.include_router(day_check.router)
 app.include_router(underwriting.router)
 app.include_router(premium.router)
 app.include_router(assistant.router)
+app.include_router(voice.router)
 app.mount("/admin", StaticFiles(directory=API_DIR / "admin", html=True), name="admin")
 app.mount("/map", StaticFiles(directory=API_DIR / "map", html=True), name="map")
 app.mount("/", StaticFiles(directory=API_DIR / "site", html=True), name="site")
