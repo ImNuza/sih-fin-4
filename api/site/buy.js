@@ -680,7 +680,7 @@ async function submitBuy() {
    server. This page checks every POLL_MS and finishes the purchase once it is paid. No real
    PayNow code is made and no money moves. */
 const POLL_MS = 1000;
-const AUTO_PAY_MS = 5000;
+const AUTO_PAY_MS = 20000;
 const paynowState = { payment: null, timer: null, autoPay: null, autoPayAt: 0, finishing: false };
 
 function paynowHtml(p) {
@@ -693,7 +693,7 @@ function paynowHtml(p) {
       <div class="kv"><span class="k">Reference</span><span class="v">${p.reference}</span></div>
       <p class="fine"><b>Scan with your phone's camera app</b> to see the payment go through (a
         banking app will not recognise this demo QR), or
-        <a href="${p.bank_url}" target="_blank" rel="noopener">open it here</a>. Demo: the
+        <a href="${p.bank_path}" target="_blank" rel="noopener">open it here</a>. Demo: the
         payment also goes through by itself after ${AUTO_PAY_MS / 1000} seconds.</p>
       <p class="paynow-status" id="paynow-status" role="status">Waiting for payment…</p>
     </div>`;

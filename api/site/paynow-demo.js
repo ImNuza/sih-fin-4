@@ -1,20 +1,19 @@
-/* Simulated "payment successful" screen for the buy flow's PayNow step (/paynow-demo/?t=<token>).
-   The buy flow's QR opens this page, and opening it pays the demo payment: there is nothing to
-   press. The buy flow, which checks every second, then finishes the purchase. (It also pays by
-   itself after a few seconds, so the demo goes on when a phone cannot reach this server.)
-   No real PayNow code, no money moves. */
+/* The "payment successful" screen the buy flow's PayNow QR opens on the scanner's phone
+   (/paynow-demo/?t=<token>&a=<amount>&r=<reference>). It is a demo: no money moves.
+
+   The QR always points at the public site, so this page loads on any phone with internet, even
+   when the buy flow runs on a laptop the phone cannot reach. The amount and reference come in
+   the link, so the screen shows at once without this server. It then tells the server the
+   payment went through; when the buy flow runs on the same site, the laptop moves on at once,
+   and otherwise it moves on by itself after a few seconds. */
 "use strict";
 
-const bankToken = new URLSearchParams(location.search).get("t") || "";
-const bankUrl = (action = "") => `/api/premium-payments/${encodeURIComponent(bankToken)}${action}`;
-const money = (sgd) => `S$${Number(sgd).toFixed(2)}`;
-
-async function bankCall(url, method = "GET") {
-  const response = await fetch(url, { method });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
-  return body;
-}
+const params = new URLSearchParams(location.search);
+const token = params.get("t") || "";
+const payUrl = `/api/premium-payments/${encodeURIComponent(token)}/pay`;
+const PAYEE = "SafeDay by Income";
+const MAX_AMOUNT_SGD = 500;
+const REFERENCE = /^SDP-[0-9A-F]{6}$/;
 
 function make(tag, className, text) {
   const node = document.createElement(tag);
@@ -24,51 +23,60 @@ function make(tag, className, text) {
 }
 
 function row(label, value) {
-  const line = make("div", "kv");
-  line.append(make("span", "k", label), make("span", "v", value));
+  const line = make("div", "bank-row");
+  line.append(make("span", "", label), make("b", "", value));
   return line;
 }
 
-const ENDED_TEXT = {
-  cancelled: "This payment was cancelled. Go back to SafeDay for a new QR.",
-  expired: "This payment request has expired. Go back to SafeDay for a new QR.",
-};
+/** The amount and reference from the link, or null if they are missing or not ours. */
+function fromLink() {
+  const amount = Number(params.get("a"));
+  const reference = params.get("r") || "";
+  if (!(amount > 0 && amount <= MAX_AMOUNT_SGD) || !REFERENCE.test(reference)) return null;
+  return { amount, reference };
+}
 
-function drawPayment(payment) {
-  const body = document.getElementById("bank-body");
-  const done = payment.status === "paid" || payment.status === "used";
-  if (!done) {
-    body.replaceChildren(make("p", "bank-done", ENDED_TEXT[payment.status] || payment.status));
-    return;
-  }
-  const tick = make("div", "bank-tick", "✓");
+function paidAt() {
+  return new Date().toLocaleString("en-SG", {
+    day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit",
+    timeZone: "Asia/Singapore",
+  });
+}
+
+function showSuccess({ amount, reference }) {
+  const tick = make("div", "bank-tick");
   tick.setAttribute("aria-hidden", "true");
-  body.replaceChildren(
+  tick.innerHTML = '<svg viewBox="0 0 52 52"><path d="M14 27 l8 8 l16 -18" /></svg>';
+  const card = make("section", "bank-receipt");
+  card.append(
+    row("To", PAYEE),
+    row("Reference", reference),
+    row("Paid by", "PayNow"),
+    row("Date", paidAt()),
+  );
+  document.getElementById("bank-body").replaceChildren(
     tick,
-    make("h1", "", "Payment successful"),
-    make("p", "bank-amount", money(payment.amount_sgd)),
-    row("To", payment.payee),
-    row("Reference", payment.reference),
-    row("Paid by", "PayNow (simulated)"),
-    make("p", "bank-done", "You can go back to SafeDay: your cover is being set up."),
+    make("h1", "bank-title", "Payment successful"),
+    make("p", "bank-amount", `S$${amount.toFixed(2)}`),
+    card,
+    make("p", "bank-done", "You can go back to SafeDay. Your cover is being set up."),
   );
 }
 
-/** Opening this page is the payment. A payment already paid, by the demo timer or an earlier
-    scan, is shown as successful too. */
-async function payAndShow() {
-  try {
-    const payment = await bankCall(bankUrl());
-    if (payment.status !== "pending") return drawPayment(payment);
-    try {
-      return drawPayment(await bankCall(bankUrl("/pay"), "POST"));
-    } catch {
-      return drawPayment(await bankCall(bankUrl()));  // paid in the meantime by the demo timer
-    }
-  } catch (failure) {
-    document.getElementById("bank-body").replaceChildren(
-      make("p", "error", `Could not open this payment: ${failure.message}`));
-  }
+function showProblem(text) {
+  document.getElementById("bank-body").replaceChildren(make("p", "bank-done", text));
 }
 
-payAndShow();
+/** Tell the server the payment went through. Best effort: a laptop demo's payment lives on
+    the laptop, not on this site, and pays itself there. */
+function markPaid() {
+  if (token) fetch(payUrl, { method: "POST" }).catch(() => {});
+}
+
+const payment = fromLink();
+if (payment) {
+  showSuccess(payment);
+  markPaid();
+} else {
+  showProblem("This payment link is not complete. Go back to SafeDay and scan the QR again.");
+}

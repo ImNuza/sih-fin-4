@@ -16,8 +16,8 @@ from __future__ import annotations
 import io
 import os
 import secrets
-import socket
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlencode
 
 import segno
 from fastapi import APIRouter, HTTPException, Request, Response, status
@@ -40,10 +40,9 @@ PAYMENT_LIFETIME = timedelta(minutes=10)
 MAX_WEEKLY_PREMIUM_SGD = 500
 PAYEE = "SafeDay by Income (demo)"
 BANK_PAGE = "/paynow-demo/"
-LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
-# Any address routed like the internet: connecting a UDP socket only picks the outgoing
-# interface and sends nothing. 192.0.2.1 is TEST-NET-1, reserved for documentation.
-ROUTE_PROBE = ("192.0.2.1", 80)
+# The phone that scans the QR opens the success page on the public demo site, so it shows on any
+# network with internet, even when the buy flow runs on a laptop the phone cannot reach.
+DEFAULT_PUBLIC_SITE_URL = "https://safeday.nuza.dev"
 
 premium_payments = Table(
     "premium_payments",
@@ -79,45 +78,20 @@ def current_status(row) -> str:
     return row.status
 
 
-def lan_address() -> str | None:
-    """This machine's address on the local network (e.g. Wi-Fi), or None without one."""
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
-        try:
-            probe.connect(ROUTE_PROBE)
-            return probe.getsockname()[0]
-        except OSError:
-            return None
-
-
-def public_site_url() -> str | None:
-    """PUBLIC_SITE_URL, e.g. https://safeday.nuza.dev, set where the site is hosted."""
+def public_site_url() -> str:
+    """PUBLIC_SITE_URL if it is a web address, else the public demo site."""
     value = os.environ.get("PUBLIC_SITE_URL", "").strip().rstrip("/")
-    return value if value.startswith(("https://", "http://")) else None
+    return value if value.startswith(("https://", "http://")) else DEFAULT_PUBLIC_SITE_URL
 
 
-def site_origin(request: Request) -> str:
-    """The address a phone scanning the QR can reach.
-
-    The hosted site sets PUBLIC_SITE_URL, because behind its tunnel a request may not carry the
-    public address. Otherwise it is the address the customer used, except on a laptop at
-    localhost, which a phone cannot reach: then the laptop's network address, with the same
-    port. The phone must be on the same network and the server started with --host 0.0.0.0.
-    """
-    if public := public_site_url():
-        return public
-    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
-    name, _, port = host.rpartition(":") if host.count(":") == 1 else (host, "", "")
-    if name in LOOPBACK_HOSTS and (address := lan_address()):
-        host = f"{address}:{port}" if port else address
-    return f"{scheme}://{host}"
+def pay_page(row) -> str:
+    """The success page's path. It carries the amount and reference, so it shows them without
+    reaching this server; the token lets it also mark the payment paid when it can."""
+    query = urlencode({"t": row.token, "a": f"{row.amount_cents / 100:.2f}", "r": row.reference})
+    return f"{BANK_PAGE}?{query}"
 
 
-def bank_url(request: Request, token: str) -> str:
-    return f"{site_origin(request)}{BANK_PAGE}?t={token}"
-
-
-def view(row, request: Request) -> dict:
+def view(row) -> dict:
     return {
         "token": row.token,
         "reference": row.reference,
@@ -126,7 +100,8 @@ def view(row, request: Request) -> dict:
         "tier": row.tier,
         "status": current_status(row),
         "expires_at": as_utc(row.expires_at),
-        "bank_url": bank_url(request, row.token),
+        "bank_url": public_site_url() + pay_page(row),
+        "bank_path": pay_page(row),
         "qr_url": f"/api/premium-payments/{row.token}/qr.svg",
     }
 
@@ -164,22 +139,22 @@ def start_payment(body: PaymentIn, request: Request) -> dict:
         }
         db.execute(insert(premium_payments).values(**values))
         row = find(db, values["token"])
-    return view(row, request)
+    return view(row)
 
 
 @router.get("/{token}")
 def get_payment(token: str, request: Request) -> dict:
     with request.app.state.db.connect() as db:
-        return view(find(db, token), request)
+        return view(find(db, token))
 
 
 @router.get("/{token}/qr.svg")
 def payment_qr(token: str, request: Request) -> Response:
     """A QR of the simulated bank screen's link. Not a PayNow code: it cannot move real money."""
     with request.app.state.db.connect() as db:
-        find(db, token)
+        row = find(db, token)
     svg = io.BytesIO()
-    segno.make(bank_url(request, token), error="m").save(svg, kind="svg", scale=6, border=2)
+    segno.make(public_site_url() + pay_page(row), error="m").save(svg, kind="svg", scale=6, border=2)
     return Response(svg.getvalue(), media_type="image/svg+xml",
                     headers={"Cache-Control": "no-store"})
 
@@ -198,7 +173,7 @@ def finish(request: Request, token: str, to_status: str) -> dict:
             .values(status=to_status, **stamp)
         )
         row = find(db, token)
-    return view(row, request)
+    return view(row)
 
 
 @router.post("/{token}/pay")

@@ -8,6 +8,7 @@ bank screen, so scanning it cannot send real money.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
@@ -153,40 +154,30 @@ def test_giro_buy_needs_no_paynow_payment(client):
     assert response.json()["application"]["payment_ref"].startswith("DEMO-")
 
 
-@pytest.mark.parametrize("host", ["127.0.0.1:8000", "localhost:8000"])
-def test_on_localhost_the_qr_link_uses_the_laptops_network_address(client, monkeypatch, host):
-    monkeypatch.setattr(premium, "lan_address", lambda: "192.168.1.20")
-    order = ORDER | {"amount_sgd": weekly_premium(client)}
-    payment = client.post("/api/premium-payments", json=order, headers={"host": host}).json()
-    assert payment["bank_url"].startswith("http://192.168.1.20:8000/paynow-demo/?t=")
+def test_the_qr_opens_the_success_page_on_the_public_site(client, monkeypatch):
+    monkeypatch.delenv("PUBLIC_SITE_URL", raising=False)
+    payment = start(client)
+    assert payment["bank_url"].startswith("https://safeday.nuza.dev/paynow-demo/?")
+    assert payment["bank_url"].endswith(payment["bank_path"])
 
 
-def test_on_localhost_without_a_network_the_qr_link_stays_local(client, monkeypatch):
-    monkeypatch.setattr(premium, "lan_address", lambda: None)
-    order = ORDER | {"amount_sgd": weekly_premium(client)}
-    headers = {"host": "127.0.0.1:8000"}
-    payment = client.post("/api/premium-payments", json=order, headers=headers).json()
-    assert payment["bank_url"].startswith("http://127.0.0.1:8000/paynow-demo/")
+def test_the_success_page_link_carries_the_amount_and_reference(client):
+    payment = start(client)
+    query = parse_qs(urlsplit(payment["bank_path"]).query)
+    assert query == {
+        "t": [payment["token"]],
+        "a": [f"{payment['amount_sgd']:.2f}"],
+        "r": [payment["reference"]],
+    }
 
 
-def test_a_hosted_site_keeps_its_own_address_in_the_qr_link(client, monkeypatch):
-    monkeypatch.setattr(premium, "lan_address", lambda: "192.168.1.20")
-    order = ORDER | {"amount_sgd": weekly_premium(client)}
-    headers = {"host": "safeday.example.test", "x-forwarded-proto": "https"}
-    payment = client.post("/api/premium-payments", json=order, headers=headers).json()
-    assert payment["bank_url"].startswith("https://safeday.example.test/paynow-demo/")
-
-
-def test_the_deployed_site_links_the_qr_to_its_public_address(client, monkeypatch):
+def test_public_site_url_moves_the_qr_to_another_site(client, monkeypatch):
     monkeypatch.setenv("PUBLIC_SITE_URL", "https://safeday.example.test/")
-    order = ORDER | {"amount_sgd": weekly_premium(client)}
-    headers = {"host": "api:8000"}  # what the server may see behind the tunnel
-    payment = client.post("/api/premium-payments", json=order, headers=headers).json()
-    assert payment["bank_url"].startswith("https://safeday.example.test/paynow-demo/?t=")
+    payment = start(client)
+    assert payment["bank_url"].startswith("https://safeday.example.test/paynow-demo/?")
 
 
-def test_a_public_address_without_http_is_ignored(client, monkeypatch):
+def test_a_public_site_url_without_http_is_ignored(client, monkeypatch):
     monkeypatch.setenv("PUBLIC_SITE_URL", "safeday.example.test")
-    order = ORDER | {"amount_sgd": weekly_premium(client)}
-    payment = client.post("/api/premium-payments", json=order, headers={"host": "api:8000"}).json()
-    assert payment["bank_url"].startswith("http://api:8000/paynow-demo/")
+    payment = start(client)
+    assert payment["bank_url"].startswith("https://safeday.nuza.dev/paynow-demo/?")

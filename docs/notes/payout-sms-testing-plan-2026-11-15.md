@@ -90,9 +90,9 @@ policy in the local `api/tariff.db` (gitignored), for example
 2. Send `sms_language: "ms"` to `PUT /api/payout-account`: expect 422.
 
 **H. Paying the first premium by PayNow (simulated)**
-1. Open `/buy/`, click Next to the Pay step and keep PayNow. Click "Pay S$…". Expect a QR, the payee "SafeDay by Income (demo)", the amount, a reference `SDP-…` and "paying by itself in 5 s".
-2. Without scanning: after about 5 seconds the page shows "You are covered" with that reference and "Paid by PayNow".
-3. Start again and scan the QR with the phone's camera app (or click "open it here") within 5 seconds. Expect a "Payment successful" screen with the same amount and reference, and the laptop finishes straight away.
+1. Open `/buy/`, click Next to the Pay step and keep PayNow. Click "Pay S$…". Expect a QR, the payee "SafeDay by Income (demo)", the amount, a reference `SDP-…` and "paying by itself in 20 s".
+2. Without scanning: after about 20 seconds the page shows "You are covered" with that reference and "Paid by PayNow".
+3. Start again and scan the QR with the phone's camera app (or click "open it here") within 20 seconds. Expect a "Payment successful" screen with the same amount and reference, and the laptop finishes straight away.
 4. Pick GIRO instead: the QR disappears and the purchase finishes with a `DEMO-` reference.
 
 ## 5. Known gaps (say so in the demo; don't claim them)
@@ -141,7 +141,7 @@ Texts
 
 Paying at sign-up (PayNow, simulated)
 - [ ] Pay step shows the QR, payee, amount, `SDP-` reference and countdown
-- [ ] Without scanning, the purchase finishes by itself after about 5 seconds
+- [ ] Without scanning, the purchase finishes by itself after about 20 seconds
 - [ ] Scanning (camera app) shows "Payment successful" with the same amount and reference
 - [ ] A payment can't be reused or paid twice; an expired one asks for a new QR
 - [ ] GIRO still finishes without PayNow

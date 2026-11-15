@@ -239,12 +239,30 @@ form .check {
 
 
 /* ---------- the simulated bank page the PayNow QR opens (/paynow-demo/) ---------- */
-.bank-demo { background: var(--bg); min-height: 100vh; display: flex; justify-content: center; padding: var(--s-4); }
-.bank-phone { width: 100%; max-width: 380px; }
-.bank-phone h1 { font: var(--w-bold) var(--t-xl)/1.2 var(--sans); margin: var(--s-3) 0; }
-.bank-banner { background: var(--accent-soft); color: var(--ink); border-radius: var(--r-md);
-  padding: 8px 12px; font-size: var(--t-sm); margin: 0; }
-.bank-amount { font: var(--w-bold) 2.4rem/1.1 var(--sans); margin: var(--s-3) 0; }
-.bank-done { font-weight: var(--w-medium); margin-top: var(--s-4); }
-.bank-tick { width: 64px; height: 64px; border-radius: 50%; background: var(--good); color: #fff;
-  display: grid; place-items: center; font: var(--w-bold) 34px/1 var(--sans); margin: var(--s-5) 0 var(--s-2); }
+.bank-demo { background: var(--bg); min-height: 100vh; display: flex; justify-content: center;
+  padding: var(--s-4); }
+.bank-phone { width: 100%; max-width: 380px; display: flex; flex-direction: column; min-height: calc(100vh - 2 * var(--s-4)); }
+#bank-body { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding-top: var(--s-6, 40px); }
+.bank-tick { width: 88px; height: 88px; border-radius: 50%; background: var(--good-fill, var(--good));
+  display: grid; place-items: center; box-shadow: 0 0 0 10px var(--good-soft);
+  animation: bank-pop 420ms cubic-bezier(.2, 1.4, .4, 1) both; }
+.bank-tick svg { width: 52px; height: 52px; fill: none; stroke: #fff; stroke-width: 5;
+  stroke-linecap: round; stroke-linejoin: round; }
+.bank-tick path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: bank-draw 360ms 260ms ease-out forwards; }
+.bank-title { font: var(--w-bold) var(--t-xl)/1.2 var(--sans); margin: var(--s-5) 0 var(--s-1); }
+.bank-amount { font: var(--w-bold) 2.6rem/1.1 var(--sans); margin: 0 0 var(--s-5); letter-spacing: -0.01em; }
+.bank-receipt { width: 100%; text-align: left; background: var(--surface, var(--bg)); border: 1px solid var(--line);
+  border-radius: var(--r-lg, 14px); padding: var(--s-2) var(--s-4); }
+.bank-row { display: flex; justify-content: space-between; gap: var(--s-3); padding: var(--s-3) 0;
+  font-size: var(--t-sm); }
+.bank-row + .bank-row { border-top: 1px solid var(--line); }
+.bank-row span { color: var(--muted); }
+.bank-row b { font-weight: var(--w-medium, 600); text-align: right; }
+.bank-done { color: var(--muted); font-size: var(--t-sm); margin-top: var(--s-5); }
+.bank-banner { order: 2; margin: var(--s-5) 0 0; text-align: center; font-size: 12px; color: var(--muted); }
+@keyframes bank-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes bank-draw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .bank-tick, .bank-tick path { animation: none; stroke-dashoffset: 0; }
+}
