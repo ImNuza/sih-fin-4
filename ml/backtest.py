@@ -76,7 +76,7 @@ def day_loss(gauges: pd.DataFrame, product_key: str) -> pd.DataFrame:
     """Loss share per hazard and combined, as in api.calculator.assess."""
     tariff = data.load_tariff()
     product = find(tariff.products, product_key, "product")
-    factor = product_factor(product, tariff.pricing.recovered_share)
+    factor = product_factor(product)
     losses = pd.DataFrame(index=gauges.index)
     for key in HAZARD_KEYS:
         hazard = find(tariff.hazards, key, "hazard")

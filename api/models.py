@@ -37,6 +37,9 @@ class Hazard(BaseModel):
         description="False when the loss is the same for every product."
     )
     bands: list[Band] = Field(min_length=1)
+    sites_used: int = Field(
+        ge=1, description="How many of the nearest NEA stations the trigger reads."
+    )
     assumed_days_per_year: float | None = Field(
         default=None,
         ge=0,
@@ -60,6 +63,11 @@ class Product(BaseModel):
     demand_sensitivity: Share = Field(
         description="How much of a bad day's demand this product loses."
     )
+    gross_margin: Share = Field(
+        description="Share of sales left after buying the stock that was sold."
+    )
+    recovered_share: Share = Field(description="Share of lost sales made up on later days.")
+    source: str
 
 
 class Tier(BaseModel):
@@ -70,7 +78,6 @@ class Tier(BaseModel):
 
 
 class Pricing(BaseModel):
-    recovered_share: Share = Field(description="Share of lost non-perishable sales made up later.")
     uncertainty_load: Share
     catastrophe_load: Share
     expense_ratio: float = Field(ge=0, lt=1)
@@ -167,8 +174,17 @@ class Options(BaseModel):
 
 
 class QuoteRequest(BaseModel):
-    region: str
     product: str
+    region: str | None = Field(default=None, description="Price for the region as a whole.")
+    latitude: float | None = Field(default=None, description="Price for this exact place.")
+    longitude: float | None = None
+
+    @model_validator(mode="after")
+    def region_or_place(self) -> QuoteRequest:
+        has_place = self.latitude is not None and self.longitude is not None
+        if (self.region is None) == (not has_place):
+            raise ValueError("Give either a region, or a latitude and longitude")
+        return self
 
 
 class TierQuote(BaseModel):
@@ -181,11 +197,24 @@ class TierQuote(BaseModel):
     weekly_premium_sgd: float
 
 
+class LocalRisk(BaseModel):
+    hazard: str
+    stations: list[str]
+    station_days: int
+    credibility: float = Field(description="Weight on the stations; the rest is the region.")
+    station_loss_days: float
+    region_loss_days: float
+    loss_days: float
+
+
 class Quote(BaseModel):
     region: str
     product: str
     expected_loss_days: float
     tiers: list[TierQuote]
+    local_risks: list[LocalRisk] = Field(
+        default=[], description="How each hazard was priced for a place. Empty for a region."
+    )
 
 
 class AssessRequest(BaseModel):

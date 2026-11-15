@@ -11,6 +11,7 @@
         {"at_least": 201, "severity": 0.6},
         {"at_least": 301, "severity": 1.0}
       ],
+      "sites_used": 1,
       "assumed_days_per_year": null,
       "source": "NEA 24-hour PSI by region, Mar 2016 to Nov 2026. Band levels are the NEA PSI bands. Severities are a starting assumption."
     },
@@ -25,6 +26,7 @@
         {"at_least": 30, "severity": 0.6},
         {"at_least": 50, "severity": 1.0}
       ],
+      "sites_used": 3,
       "assumed_days_per_year": null,
       "source": "NEA rain gauges, Dec 2016 to Nov 2026, work hours 7am to 7pm. Severities are a starting assumption."
     },
@@ -39,6 +41,7 @@
         {"at_least": 4, "severity": 0.6},
         {"at_least": 6, "severity": 1.0}
       ],
+      "sites_used": 1,
       "assumed_days_per_year": null,
       "source": "NEA WBGT stations, Jan 2025 to Nov 2026. 32°C is the MOM rest-break level. Severities are a starting assumption."
     },
@@ -49,6 +52,7 @@
       "weight": 0.8,
       "scaled_by_product": true,
       "bands": [{"at_least": 1, "severity": 1.0}],
+      "sites_used": 1,
       "assumed_days_per_year": 0,
       "source": "No flood history in the repo yet. Priced at 0 days a year until PUB flood records are added."
     },
@@ -59,16 +63,17 @@
       "weight": 1.0,
       "scaled_by_product": false,
       "bands": [{"at_least": 1, "severity": 1.0}],
+      "sites_used": 1,
       "assumed_days_per_year": 0,
       "source": "No history. A closure stops all sales, so it pays the full tier payout. Set the assumed days with Income."
     }
   ],
   "products": [
-    {"key": "cooked_food", "label": "Cooked food", "shelf_life_days": 0.5, "restock_every_days": 1, "demand_sensitivity": 1.0},
-    {"key": "fresh_produce", "label": "Fresh produce, meat and seafood", "shelf_life_days": 3, "restock_every_days": 1, "demand_sensitivity": 0.9},
-    {"key": "flowers", "label": "Flowers and plants", "shelf_life_days": 5, "restock_every_days": 3, "demand_sensitivity": 0.8},
-    {"key": "packaged_food", "label": "Packaged food and drinks", "shelf_life_days": 180, "restock_every_days": 7, "demand_sensitivity": 0.6},
-    {"key": "general_goods", "label": "Clothing and general goods", "shelf_life_days": 365, "restock_every_days": 30, "demand_sensitivity": 0.5}
+    {"key": "cooked_food", "label": "Cooked food", "shelf_life_days": 0.5, "restock_every_days": 1, "demand_sensitivity": 1.0, "gross_margin": 0.67, "recovered_share": 0.0, "source": "Margin 0.67: SingStat Annual Survey of Services 2024, food and beverage services (SSIC 56) spent 32.9% of operating revenue on goods and materials (data.gov.sg d_38d62de582eb7ee2c58d1bba4cd4132d, d_4eb10d0ef99e56c2336c37d78b10c6bc). A cooked meal not sold today is not sold later. Demand lost and sales recovered are starting assumptions until we have sales data."},
+    {"key": "fresh_produce", "label": "Fresh produce, meat and seafood", "shelf_life_days": 3, "restock_every_days": 1, "demand_sensitivity": 0.9, "gross_margin": 0.32, "recovered_share": 0.5, "source": "Margin 0.32: SingStat Annual Survey of Services 2024, retail trade (SSIC 47) spent 68.0% of operating revenue on goods and materials (same datasets). Demand lost and sales recovered are starting assumptions until we have sales data."},
+    {"key": "flowers", "label": "Flowers and plants", "shelf_life_days": 5, "restock_every_days": 3, "demand_sensitivity": 0.8, "gross_margin": 0.32, "recovered_share": 0.5, "source": "Margin 0.32: SingStat Annual Survey of Services 2024, retail trade (SSIC 47) spent 68.0% of operating revenue on goods and materials (same datasets). Demand lost and sales recovered are starting assumptions until we have sales data."},
+    {"key": "packaged_food", "label": "Packaged food and drinks", "shelf_life_days": 180, "restock_every_days": 7, "demand_sensitivity": 0.6, "gross_margin": 0.32, "recovered_share": 0.5, "source": "Margin 0.32: SingStat Annual Survey of Services 2024, retail trade (SSIC 47) spent 68.0% of operating revenue on goods and materials (same datasets). Demand lost and sales recovered are starting assumptions until we have sales data."},
+    {"key": "general_goods", "label": "Clothing and general goods", "shelf_life_days": 365, "restock_every_days": 30, "demand_sensitivity": 0.5, "gross_margin": 0.32, "recovered_share": 0.5, "source": "Margin 0.32: SingStat Annual Survey of Services 2024, retail trade (SSIC 47) spent 68.0% of operating revenue on goods and materials (same datasets). Demand lost and sales recovered are starting assumptions until we have sales data."}
   ],
   "tiers": [
     {"key": "tier_1", "label": "Tier 1", "daily_payout_sgd": 20, "max_paid_days_per_year": 10},
@@ -77,7 +82,6 @@
     {"key": "tier_4", "label": "Tier 4", "daily_payout_sgd": 100, "max_paid_days_per_year": 30}
   ],
   "pricing": {
-    "recovered_share": 0.5,
     "uncertainty_load": 0.15,
     "catastrophe_load": 0.1,
     "expense_ratio": 0.25,

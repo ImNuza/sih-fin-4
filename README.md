@@ -56,7 +56,7 @@ The API docs are on http://localhost:8000/docs, the admin panel is on http://loc
 | Endpoint | What it does |
 |---|---|
 | `GET /api/options` | Regions, products, tiers and hazards to choose from. |
-| `POST /api/quote` | Region and product in, weekly premium and payout of every tier out. |
+| `POST /api/quote` | Product and a region, or a latitude and longitude, in; weekly premium and payout of every tier out. A place is priced from its nearest NEA stations, blended with its region by credibility. |
 | `POST /api/assess` | Product, tier and the day's readings in, loss score and payout out. |
 | `GET /api/map/static` | Geography, exposure and hazard stats the map draws (from `scripts/build_map_static.py`). |
 | `GET /api/map/quotes` | Quotes for every region at once, with the per-hazard loss-day split. |

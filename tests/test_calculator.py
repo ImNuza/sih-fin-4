@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from api import calculator
-from api.calculator import Readings
+from api.calculator import Readings, Site
 from api.models import Tariff
 
 DAYS = calculator.DAYS_PER_YEAR
@@ -26,6 +26,7 @@ def make_tariff(**changes) -> Tariff:
                 "weight": 1.0,
                 "scaled_by_product": True,
                 "bands": [{"at_least": 101, "severity": 0.5}, {"at_least": 201, "severity": 1.0}],
+                "sites_used": 1,
                 "source": "test",
             },
             {
@@ -35,6 +36,7 @@ def make_tariff(**changes) -> Tariff:
                 "weight": 1.0,
                 "scaled_by_product": False,
                 "bands": [{"at_least": 1, "severity": 1.0}],
+                "sites_used": 1,
                 "assumed_days_per_year": 0,
                 "source": "test",
             },
@@ -46,6 +48,9 @@ def make_tariff(**changes) -> Tariff:
                 "shelf_life_days": 0.5,
                 "restock_every_days": 1,
                 "demand_sensitivity": 1.0,
+                "gross_margin": 0.6,
+                "recovered_share": 0,
+                "source": "test",
             },
             {
                 "key": "dry_goods",
@@ -53,6 +58,9 @@ def make_tariff(**changes) -> Tariff:
                 "shelf_life_days": 100,
                 "restock_every_days": 10,
                 "demand_sensitivity": 0.5,
+                "gross_margin": 0.4,
+                "recovered_share": 0.5,
+                "source": "test",
             },
         ],
         "tiers": [
@@ -70,7 +78,6 @@ def make_tariff(**changes) -> Tariff:
             },
         ],
         "pricing": {
-            "recovered_share": 0.5,
             "uncertainty_load": 0,
             "catastrophe_load": 0,
             "expense_ratio": 0,
@@ -87,12 +94,11 @@ def test_severity_is_the_highest_band_reached():
     assert calculator.severities(haze, values).tolist() == [0, 0.5, 0.5, 1.0, 1.0]
 
 
-def test_product_factor_counts_wasted_stock_in_full():
-    tariff = make_tariff()
-    cooked, dry = tariff.products
-    assert calculator.product_factor(cooked, 0.5) == 1.0
-    wasted = 10 / 100
-    assert calculator.product_factor(dry, 0.5) == pytest.approx(0.5 * (wasted + (1 - wasted) * 0.5))
+def test_product_factor_is_lost_profit_plus_spoiled_stock():
+    cooked, dry = make_tariff().products
+    assert calculator.product_factor(cooked) == pytest.approx(1.0)
+    lost_profit, spoiled_stock = 0.4 * (1 - 0.5), (10 / 100) * (1 - 0.4)
+    assert calculator.product_factor(dry) == pytest.approx(0.5 * (lost_profit + spoiled_stock))
 
 
 def test_closure_is_full_loss_for_every_product():
@@ -133,7 +139,6 @@ def test_days_weight_each_reading():
 
 def test_loads_raise_the_premium():
     pricing = {
-        "recovered_share": 0.5,
         "uncertainty_load": 0.1,
         "catastrophe_load": 0.1,
         "expense_ratio": 0.2,
@@ -252,3 +257,66 @@ def test_tariff_without_rent_loads_the_default_classes():
 def test_rent_classes_must_start_at_zero_and_rise(classes):
     with pytest.raises(ValidationError):
         make_tariff(rent={**RENT, "classes": classes})
+
+
+def site(key: str, latitude: float, value_days: dict[float, int], region: str = "east") -> Site:
+    values = np.array(list(value_days))
+    return Site(key, region, latitude, 103.9, Readings(values, np.array(list(value_days.values()))))
+
+
+def pooled(sites: list[Site]) -> Readings:
+    return Readings(
+        np.concatenate([s.readings.values for s in sites]),
+        np.concatenate([s.readings.days for s in sites]),
+    )
+
+
+def test_km_between_one_degree_of_latitude():
+    assert calculator.km_between(1.0, 103.9, 2.0, 103.9) == pytest.approx(111.2, abs=0.1)
+
+
+def test_place_with_steady_stations_is_priced_from_its_own_station():
+    stations = [site("near", 1.30, {50.0: 1000}), site("far", 1.45, {250.0: 1000})]
+    history = {"east": {"haze": pooled(stations)}}
+    quote = calculator.quote_at(
+        make_tariff(), history, {"haze": stations}, 1.31, 103.9, "cooked_food"
+    )
+    (haze,) = quote.local_risks
+    assert (haze.stations, haze.credibility) == (["near"], 1.0)
+    assert haze.region_loss_days == pytest.approx(DAYS * 0.5, abs=0.01)
+    assert quote.expected_loss_days == 0
+
+
+def test_stations_that_only_differ_by_chance_get_the_region_price():
+    stations = [site("a", 1.30, {50.0: 2, 250.0: 2}), site("b", 1.45, {50.0: 2, 250.0: 2})]
+    history = {"east": {"haze": pooled(stations)}}
+    quote = calculator.quote_at(
+        make_tariff(), history, {"haze": stations}, 1.31, 103.9, "cooked_food"
+    )
+    assert quote.local_risks[0].credibility == 0
+    assert quote.expected_loss_days == pytest.approx(DAYS * 0.5, abs=0.01)
+
+
+def test_credibility_blends_station_and_region():
+    """Worked by hand: within-station variance 0.25, between-station variance 0.0625, so K = 4."""
+    stations = [site("a", 1.30, {50.0: 3, 250.0: 1}), site("b", 1.45, {50.0: 1, 250.0: 3})]
+    tariff = make_tariff()
+    assert calculator.credibility_constant(tariff.hazards[0], stations) == pytest.approx(4)
+    history = {"east": {"haze": pooled(stations)}}
+    quote = calculator.quote_at(tariff, history, {"haze": stations}, 1.31, 103.9, "cooked_food")
+    haze = quote.local_risks[0]
+    assert haze.credibility == 0.5
+    assert haze.loss_days == pytest.approx(DAYS * (0.5 * 0.25 + 0.5 * 0.5), abs=0.01)
+
+
+def test_a_place_reads_as_many_stations_as_its_trigger():
+    tariff = make_tariff()
+    tariff.hazards[0].sites_used = 2
+    stations = [
+        site("a", 1.30, {50.0: 10}),
+        site("b", 1.32, {250.0: 10}),
+        site("c", 1.45, {250.0: 10}),
+    ]
+    history = {"east": {"haze": pooled(stations)}}
+    quote = calculator.quote_at(tariff, history, {"haze": stations}, 1.30, 103.9, "cooked_food")
+    assert quote.local_risks[0].stations == ["a", "b"]

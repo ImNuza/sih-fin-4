@@ -18,6 +18,7 @@ from api.models import (
     CentreRent,
     Hazard,
     HazardLoss,
+    LocalRisk,
     Pricing,
     Product,
     Quote,
@@ -30,6 +31,7 @@ from api.models import (
 
 DAYS_PER_YEAR = 365.25
 WEEKS_PER_YEAR = 52
+EARTH_RADIUS_KM = 6371.0
 
 
 @dataclass(frozen=True)
@@ -40,7 +42,19 @@ class Readings:
     days: np.ndarray
 
 
+@dataclass(frozen=True)
+class Site:
+    """One NEA station's history of one hazard, and where it is."""
+
+    key: str
+    region: str
+    latitude: float
+    longitude: float
+    readings: Readings
+
+
 History = dict[str, dict[str, Readings]]
+Sites = dict[str, list[Site]]
 Keyed = TypeVar("Keyed", Hazard, Product, Tier)
 
 
@@ -66,14 +80,17 @@ def severities(hazard: Hazard, readings: np.ndarray) -> np.ndarray:
     return values[np.searchsorted(levels, readings, side="right")]
 
 
-def product_factor(product: Product, recovered_share: float) -> float:
-    """Share of a bad day's lost sales the seller never gets back.
+def product_factor(product: Product) -> float:
+    """Share of a bad day's normal sales the seller loses for good, per S$1 of those sales.
 
-    Stock that spends most of its shelf life waiting for the next restock is thrown away when
-    a day is lost. The rest can still be sold, and part of the lost demand comes back later.
+    Two parts, as insurers split them: the gross profit on sales that never come back (business
+    interruption cover), and the cost of stock that spoils before it can be sold (deterioration
+    of stock cover). Stock spoils when it waits longer for a sale than its shelf life.
     """
     wasted = min(1.0, product.restock_every_days / product.shelf_life_days)
-    return product.demand_sensitivity * (wasted + (1 - wasted) * (1 - recovered_share))
+    lost_profit = product.gross_margin * (1 - product.recovered_share)
+    spoiled_stock = wasted * (1 - product.gross_margin)
+    return product.demand_sensitivity * (lost_profit + spoiled_stock)
 
 
 def hazard_loss(hazard: Hazard, severity: float, factor: float) -> float:
@@ -89,7 +106,7 @@ def assess(
 ) -> Assessment:
     product = find(tariff.products, product_key, "product")
     tier = find(tariff.tiers, tier_key, "tier")
-    factor = product_factor(product, tariff.pricing.recovered_share)
+    factor = product_factor(product)
     hazards = []
     for key, reading in readings.items():
         hazard = find(tariff.hazards, key, "hazard")
@@ -117,7 +134,7 @@ def loss_day_parts(
 
     A day with two hazards counts twice, a small overstatement.
     """
-    factor = product_factor(product, tariff.pricing.recovered_share)
+    factor = product_factor(product)
     parts: dict[str, float] = {}
     for hazard in tariff.hazards:
         if hazard.assumed_days_per_year is not None:
@@ -143,11 +160,7 @@ def yearly_premium(risk_cost: float, pricing: Pricing) -> float:
     return loaded / (1 - pricing.expense_ratio) * (1 + pricing.gst_rate)
 
 
-def quote(tariff: Tariff, history: History, region: str, product_key: str) -> Quote:
-    if region not in history:
-        raise UnknownKey(f"Unknown region: {region}")
-    product = find(tariff.products, product_key, "product")
-    loss_days = expected_loss_days(tariff, product, history[region])
+def tier_quotes(tariff: Tariff, loss_days: float) -> list[TierQuote]:
     tiers = []
     for tier in tariff.tiers:
         # The cap applies to the average year. Bad years reach it sooner; the catastrophe load
@@ -165,8 +178,140 @@ def quote(tariff: Tariff, history: History, region: str, product_key: str) -> Qu
                 weekly_premium_sgd=round(premium / WEEKS_PER_YEAR, 2),
             )
         )
+    return tiers
+
+
+def quote(tariff: Tariff, history: History, region: str, product_key: str) -> Quote:
+    if region not in history:
+        raise UnknownKey(f"Unknown region: {region}")
+    product = find(tariff.products, product_key, "product")
+    loss_days = expected_loss_days(tariff, product, history[region])
     return Quote(
-        region=region, product=product.key, expected_loss_days=round(loss_days, 2), tiers=tiers
+        region=region,
+        product=product.key,
+        expected_loss_days=round(loss_days, 2),
+        tiers=tier_quotes(tariff, loss_days),
+    )
+
+
+def km_between(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    rad = np.radians([lat1, lng1, lat2, lng2])
+    h = (
+        np.sin((rad[2] - rad[0]) / 2) ** 2
+        + np.cos(rad[0]) * np.cos(rad[2]) * np.sin((rad[3] - rad[1]) / 2) ** 2
+    )
+    return float(2 * EARTH_RADIUS_KM * np.arcsin(np.sqrt(h)))
+
+
+def nearest_sites(sites: list[Site], latitude: float, longitude: float, count: int) -> list[Site]:
+    return sorted(
+        sites, key=lambda site: km_between(latitude, longitude, site.latitude, site.longitude)
+    )[:count]
+
+
+def mean_severity(hazard: Hazard, readings: list[Readings]) -> tuple[float, int]:
+    """Average severity over the pooled days of these readings, and how many days that is."""
+    values = np.concatenate([r.values for r in readings])
+    days = np.concatenate([r.days for r in readings])
+    return float(np.average(severities(hazard, values), weights=days)), int(days.sum())
+
+
+def credibility_constant(hazard: Hazard, sites: list[Site]) -> float:
+    """Bühlmann-Straub K = within-station variance / variance between stations of one region.
+
+    Werner and Modlin, Basic Ratemaking (CAS, 2016), ch. 12: Z = N / (N + K). Daily severity is
+    the observation and each station is a risk; the region's mean is the complement, so the
+    between-station spread is measured inside each region. K is infinite (no weight on the
+    station) when the stations of a region differ no more than chance would make them.
+    """
+    by_region: dict[str, list[tuple[float, int]]] = {}
+    within_squares, within_freedom = 0.0, 0
+    for site in sites:
+        severity = severities(hazard, site.readings.values)
+        mean, days = mean_severity(hazard, [site.readings])
+        within_squares += float(np.sum(site.readings.days * (severity - mean) ** 2))
+        within_freedom += days - 1
+        by_region.setdefault(site.region, []).append((mean, days))
+    within_variance = within_squares / within_freedom
+    between_squares, between_weight = 0.0, 0.0
+    for stations in by_region.values():
+        region_days = sum(days for _, days in stations)
+        region_mean = sum(mean * days for mean, days in stations) / region_days
+        between_squares += sum(days * (mean - region_mean) ** 2 for mean, days in stations)
+        between_weight += region_days - sum(days**2 for _, days in stations) / region_days
+    station_count = sum(len(stations) for stations in by_region.values())
+    if between_weight == 0:
+        return math.inf
+    excess = between_squares - (station_count - len(by_region)) * within_variance
+    between_variance = excess / between_weight
+    return within_variance / between_variance if between_variance > 0 else math.inf
+
+
+def local_risk(
+    tariff: Tariff,
+    product: Product,
+    history: History,
+    hazard: Hazard,
+    sites: list[Site],
+    latitude: float,
+    longitude: float,
+) -> LocalRisk:
+    """Loss days a year at one place: its nearest stations, blended with their region.
+
+    The price reads the same stations as the trigger. With little station history the region
+    average carries most of the weight; with years of it, the station does.
+    """
+    factor = product_factor(product)
+    nearest = nearest_sites(sites, latitude, longitude, hazard.sites_used)
+    region = nearest[0].region
+    station_severity, station_days = mean_severity(hazard, [site.readings for site in nearest])
+    region_severity, _ = mean_severity(hazard, [history[region][hazard.key]])
+    k = credibility_constant(hazard, sites)
+    credibility = station_days / (station_days + k)
+    severity = credibility * station_severity + (1 - credibility) * region_severity
+
+    def loss_days(mean: float) -> float:
+        return DAYS_PER_YEAR * hazard_loss(hazard, mean, factor)
+
+    return LocalRisk(
+        hazard=hazard.key,
+        stations=[site.key for site in nearest],
+        station_days=station_days,
+        credibility=round(credibility, 3),
+        station_loss_days=round(loss_days(station_severity), 2),
+        region_loss_days=round(loss_days(region_severity), 2),
+        loss_days=round(loss_days(severity), 2),
+    )
+
+
+def quote_at(
+    tariff: Tariff,
+    history: History,
+    sites: Sites,
+    latitude: float,
+    longitude: float,
+    product_key: str,
+) -> Quote:
+    """Quote for one place, from the NEA stations nearest to it."""
+    product = find(tariff.products, product_key, "product")
+    every_site = [site for hazard_sites in sites.values() for site in hazard_sites]
+    region = nearest_sites(every_site, latitude, longitude, 1)[0].region
+    risks = [
+        local_risk(tariff, product, history, hazard, sites[hazard.key], latitude, longitude)
+        for hazard in tariff.hazards
+        if hazard.assumed_days_per_year is None and hazard.key in sites
+    ]
+    priced = {risk.hazard for risk in risks}
+    region_parts = loss_day_parts(tariff, product, history[region])
+    loss_days = sum(risk.loss_days for risk in risks) + sum(
+        days for key, days in region_parts.items() if key not in priced
+    )
+    return Quote(
+        region=region,
+        product=product.key,
+        expected_loss_days=round(loss_days, 2),
+        tiers=tier_quotes(tariff, loss_days),
+        local_risks=risks,
     )
 
 

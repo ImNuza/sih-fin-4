@@ -36,7 +36,7 @@ def daily_payout_sgd(tariff: Tariff, hazard_key: str, readings: np.ndarray) -> n
     hazard = find(tariff.hazards, hazard_key, "hazard")
     product = find(tariff.products, REPORT_PRODUCT_KEY, "product")
     tier = find(tariff.tiers, REPORT_TIER_KEY, "tier")
-    factor = product_factor(product, tariff.pricing.recovered_share)
+    factor = product_factor(product)
     loss = hazard_loss(hazard, severities(hazard, readings), factor)
     return loss * tier.daily_payout_sgd
 
