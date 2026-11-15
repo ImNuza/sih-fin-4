@@ -48,8 +48,82 @@ function ssicCode() {
 async function quoteFor(region, product) {
   if (!region || !product) return null;
   const key = `${region}/${product}`;
-  buyState.quotes[key] ??= post("/api/quote", { region, product });
+  buyState.quotes[key] ??= post("/api/quote", { region, product }).catch((error) => {
+    delete buyState.quotes[key];
+    throw error;
+  });
   return buyState.quotes[key];
+}
+
+/* ---------- errors ---------- */
+/* What to do when a field is empty or wrong, by input name. A custom validity message wins. */
+const FIELD_PROBLEMS = {
+  business_class: "Pick the kind of business.",
+  applicant_type: "Say whether you apply as an individual or a company.",
+  uen: "Enter the UEN as ACRA shows it, for example 53123456A or 201912345K.",
+  business_name: "Enter the business name.",
+  centre: "Pick your hawker centre.",
+  licence_no: "Enter your licence number: 5 to 20 letters, digits, / or -, for example FS12345X.",
+  ssic_choice: "Pick your SSIC code, or pick Other and type it.",
+  ssic_other: "Enter your 5-digit SSIC code, for example 47219.",
+  platform: "Pick your platform.",
+  platform_worker_id: "Enter the driver or rider ID from your platform app, 3 to 40 characters.",
+  postcode: "Enter the 6-digit postcode, for example 560123.",
+  product: "Pick what you sell.",
+  staff_band: "Pick how many people work in the business.",
+  sales_under_100m: "Say whether annual sales were under S$100 million.",
+  term_months: "Pick 12 or 24 months.",
+  cover_start: "Pick the day cover starts: today or a later day.",
+  name: "Enter your name.",
+  phone: "Enter a Singapore mobile number: 8 digits that start with 3, 6, 8 or 9.",
+  email: "Enter an email address like name@example.com.",
+  password: "Enter a password for your dashboard.",
+  declined_before: "Say whether an insurer has declined this business before.",
+  declined_details: "Say which insurer declined you and why.",
+  accept_declaration: "Tick the declaration to go on.",
+  accept_pdpa: "Tick the data protection consent to go on.",
+  payment_method: "Pick how you want to pay.",
+};
+const OFFLINE_PROBLEM = "Could not reach SafeDay. Check your connection and try again.";
+
+function showBuyError(message) {
+  el("buy-error").innerHTML = message ? `${SafeUI.icon("circle-alert")}<span></span>` : "";
+  if (message) el("buy-error").lastElementChild.textContent = message;
+}
+function problemText(error) {
+  return error instanceof TypeError ? OFFLINE_PROBLEM : error.message;
+}
+
+/* The box that shows a field's error: its fieldset for a radio, else its label. */
+function errorHolder(input) {
+  return input.type === "radio" ? input.closest("fieldset") : input.closest("label");
+}
+function clearInvalid(input) {
+  if (!input.name) return;
+  el(`error-${input.name}`)?.remove();
+  for (const same of buyForm().querySelectorAll(`[name="${input.name}"]`)) {
+    same.removeAttribute("aria-invalid");
+    same.removeAttribute("aria-describedby");
+  }
+}
+function markInvalid(input, message) {
+  clearInvalid(input);
+  const note = document.createElement("span");
+  note.className = "field-error";
+  note.id = `error-${input.name}`;
+  note.innerHTML = SafeUI.icon("circle-alert");
+  note.append(message);
+  const holder = errorHolder(input);
+  if (holder.classList.contains("check")) holder.after(note);
+  else holder.append(note);
+  input.setAttribute("aria-invalid", "true");
+  input.setAttribute("aria-describedby", note.id);
+  input.focus();
+}
+function fieldProblem(input) {
+  if (input.validity.customError) return input.validationMessage;
+  if (input.validity.rangeUnderflow && input.type === "date") return "Cover cannot start before today. Pick today or a later day.";
+  return FIELD_PROBLEMS[input.name] || input.validationMessage;
 }
 
 /* ---------- dates ---------- */
@@ -204,7 +278,8 @@ function clearAll() {
 function afterRefill() {
   buyState.tier = null;
   buyState.paymentRef = null;
-  el("buy-error").textContent = "";
+  showBuyError("");
+  for (const input of buyForm().querySelectorAll("[aria-invalid]")) clearInvalid(input);
   showClassFields();
   showWaitingNote();
   renderTiers();
@@ -243,7 +318,7 @@ function checkPostcode() {
   const input = field("postcode"), postcode = input.value.trim();
   const region = sectorRegion(postcode);
   const unknown = /^\d{6}$/.test(postcode) && !region;
-  input.setCustomValidity(unknown ? `Postal sector ${postcode.slice(0, 2)} is not a Singapore postal sector. Check the postcode` : "");
+  input.setCustomValidity(unknown ? `Postal sector ${postcode.slice(0, 2)} is not a Singapore postal sector. Check the postcode.` : "");
   el("postcode-region").textContent = region ? `NEA region: ${region}. Your price comes from this region's weather history.` : "";
 }
 
@@ -260,10 +335,23 @@ async function renderTiers() {
   el("addon").classList.toggle("on", addsSafeDay());
   body.hidden = !addsSafeDay();
   if (!addsSafeDay()) return;
-  const quote = await quoteFor(businessRegion(), businessProduct());
+  let quote;
+  try {
+    quote = await quoteFor(businessRegion(), businessProduct());
+  } catch (error) {
+    el("buy-tiers").innerHTML = "";
+    el("what-pays").innerHTML = "";
+    el("why-price").innerHTML = "";
+    el("tier-note").innerHTML = `<span class="tier-problem">${SafeUI.icon("circle-alert")}<span>Could not load the prices. ${escapeHtml(problemText(error))}</span>
+      <button class="btn small" id="tier-retry" type="button">Try again</button></span>`;
+    el("tier-retry").addEventListener("click", renderTiers);
+    return;
+  }
   const rent = currentRent();
   if (!quote) {
     el("buy-tiers").innerHTML = "";
+    el("what-pays").innerHTML = "";
+    el("why-price").innerHTML = "";
     el("tier-note").textContent = "Tell us where the business is and what it does to see the prices.";
     return;
   }
@@ -272,7 +360,8 @@ async function renderTiers() {
   el("buy-tiers").innerHTML = quote.tiers.map((t) => `
     <button class="tier-card ${t.tier === rent?.recommended_tier ? "rec" : ""}" type="button" role="radio"
       aria-checked="${t.tier === buyState.tier}" data-tier="${t.tier}">
-      <span class="t">${t.label}${t.tier === rent?.recommended_tier ? " · suggested" : ""}</span>
+      <span class="tier-check">${SafeUI.icon("check")}</span>
+      <span class="t">${t.label}${t.tier === rent?.recommended_tier ? ' <span class="chip accent">Suggested</span>' : ""}</span>
       <span class="p">${SGD(t.weekly_premium_sgd)}<small>/wk</small></span>
       <span class="d">${SGD(t.daily_payout_sgd)} a bad day · up to ${SGD(t.max_payout_per_year_sgd)} a year</span>
       ${rent ? `<span class="d">${share(t)}</span>` : ""}
@@ -395,6 +484,8 @@ function showStep(step, scroll = true) {
     const index = steps.indexOf(li.dataset.for);
     li.classList.toggle("skip", index < 0);
     li.classList.toggle("on", li.dataset.for === step);
+    if (li.dataset.for === step) li.setAttribute("aria-current", "step");
+    else li.removeAttribute("aria-current");
     li.classList.toggle("done", step === "done" || (index >= 0 && index < at));
   }
   el("buy-back").hidden = at <= 0;
@@ -403,7 +494,7 @@ function showStep(step, scroll = true) {
   el("buy-next").textContent = step === "pay"
     ? `Pay ${el("due-amount").textContent}`
     : last ? "Submit application" : step === "confirm" ? "Continue to payment" : "Next";
-  el("buy-error").textContent = "";
+  showBuyError("");
   if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -412,20 +503,21 @@ function stepIsValid(step) {
   const section = buyForm().querySelector(`[data-step="${step}"]`);
   for (const input of section.querySelectorAll("input, select, textarea")) {
     if (input.closest("[hidden]")) continue;
-    if (!input.reportValidity()) return false;
+    if (!input.checkValidity()) {
+      markInvalid(input, fieldProblem(input));
+      return false;
+    }
   }
   if (step === "business" && overSmeStaff() && chosen("sales_under_100m") === "no") {
-    el("buy-error").textContent = buyState.options.not_an_sme;
+    showBuyError(buyState.options.not_an_sme);
     return false;
   }
   if (step === "cover" && addsSafeDay() && !buyState.tier) {
-    el("buy-error").textContent = "Pick a SafeDay tier";
+    showBuyError("Pick a SafeDay tier, or untick SafeDay to apply for SmartBiz 360 alone.");
     return false;
   }
   if (step === "confirm" && referred() && !field("declined_details").value.trim()) {
-    field("declined_details").setCustomValidity("Say which insurer declined you and why");
-    field("declined_details").reportValidity();
-    field("declined_details").setCustomValidity("");
+    markInvalid(field("declined_details"), FIELD_PROBLEMS.declined_details);
     return false;
   }
   return true;
@@ -473,7 +565,9 @@ async function submitApplication(body) {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(errorText(result.detail) || `/api/buy: HTTP ${response.status}`);
+  if (!response.ok)
+    throw new Error(errorText(result.detail)
+      || `The application could not be saved (error ${response.status}). Nothing was charged. Try again in a minute.`);
   rememberDemoAccount("sme", body.email, body.password);
   return result;
 }
@@ -485,44 +579,49 @@ function coverPlace(application, policy) {
 
 function doneHtml({ application, policy }) {
   if (application.status === "referred")
-    return `<h2>Sent to an underwriter</h2>
+    return `<span class="done-mark wait">${SafeUI.icon("clock", "i-lg")}</span>
+      <h2>Sent to an underwriter</h2>
       <p>Thank you. Because an insurer has declined cover for this business before, an underwriter will review your application first. No cover has started and nothing was charged.</p>
       <p class="fine">Application ${application.id} · we will contact you on ${application.phone}.</p>
       <a class="btn primary" href="/dashboard/">Go to your dashboard</a>`;
   if (!policy)
-    return `<h2>Application received</h2>
+    return `<span class="done-mark">${SafeUI.icon("check", "i-lg")}</span>
+      <h2>Application received</h2>
       <p>Income will send your SmartBiz 360 quote. You did not add SafeDay. You can add it any time from your dashboard.</p>
       <a class="btn primary" href="/dashboard/">Go to your dashboard</a>`;
   const starts = application.cover_start > todayIso() ? `on ${DATE(localDate(application.cover_start))}` : "today";
-  return `<h2>Your SafeDay cover starts ${starts}</h2>
+  return `<span class="done-mark">${SafeUI.icon("check", "i-lg")}</span>
+    <h2>Your SafeDay cover starts ${starts}</h2>
     <p>The first ${buyState.options.waiting_period_days} days are a waiting period: SafeDay pays for bad days from ${DATE(localDate(application.waiting_ends))}. Your ${application.term_months}-month cover ends on ${DATE(localDate(application.cover_ends))}.</p>
     <p>SafeDay ${policy.tier_label} pays up to ${SGD(policy.daily_payout_sgd)} on a bad day ${coverPlace(application, policy)}, for ${SGD(policy.weekly_premium_sgd)} a week. There is nothing to claim: we pay when NEA readings cross the trigger levels.</p>
-    <div class="kv"><span class="k">Payment reference (prototype)</span><span class="v">${application.payment_ref}</span></div>
-    <div class="kv"><span class="k">Paid by</span><span class="v">${application.payment_method === "giro" ? "GIRO, every week" : "PayNow"}</span></div>
+    <div class="done-facts">
+      <div class="kv"><span class="k">Payment reference (prototype)</span><span class="v num">${application.payment_ref}</span></div>
+      <div class="kv"><span class="k">Paid by</span><span class="v">${application.payment_method === "giro" ? "GIRO, every week" : "PayNow"}</span></div>
+    </div>
     <a class="btn primary" href="/dashboard/">Go to your dashboard</a>`;
 }
 
 async function onNext(event) {
   event.preventDefault();
   const step = buyState.step;
-  if (!stepIsValid(step)) return;
+  if (el("buy-next").hasAttribute("aria-busy") || !stepIsValid(step)) return;
   const steps = shownSteps();
   const last = step === "pay" || (step === "confirm" && !pays());
-  if (!last) {
-    const next = steps[steps.indexOf(step) + 1];
-    if (next === "confirm" || next === "pay") await renderSummary();
-    showStep(next);
-    return;
-  }
-  el("buy-next").disabled = true;
+  el("buy-next").setAttribute("aria-busy", "true");
   try {
+    if (!last) {
+      const next = steps[steps.indexOf(step) + 1];
+      if (next === "confirm" || next === "pay") await renderSummary();
+      showStep(next);
+      return;
+    }
     const result = await submitApplication(requestBody());
     el("done").innerHTML = doneHtml(result);
     showStep("done");
   } catch (error) {
-    el("buy-error").textContent = error.message;
+    showBuyError(problemText(error));
   } finally {
-    el("buy-next").disabled = false;
+    el("buy-next").removeAttribute("aria-busy");
   }
 }
 
@@ -547,6 +646,7 @@ function fillChoices(options) {
 }
 
 function onChange(event) {
+  clearInvalid(event.target);
   const name = event.target.name;
   if (["business_class", "applicant_type", "ssic_choice", "staff_band", "centre", "postcode"].includes(name)) showClassFields();
   if (["business_class", "centre", "postcode", "product"].includes(name)) { buyState.tier = null; renderTiers(); }
@@ -559,11 +659,39 @@ function onChange(event) {
   }
 }
 
+function showLoadProblem(error) {
+  const notice = document.createElement("div");
+  notice.className = "notice critical load-problem";
+  notice.innerHTML = `${SafeUI.icon("circle-alert")}<span><b>Could not load the form.</b> <span></span></span>
+    <button class="btn small" type="button">Reload</button>`;
+  notice.querySelector("span span").textContent = problemText(error);
+  notice.querySelector("button").addEventListener("click", () => location.reload());
+  buyForm().before(notice);
+  buyForm().hidden = true;
+}
+
+/* A signed-in insurer is told this flow is for business owners. Signed out: nothing to show. */
+async function noteInsurer() {
+  const user = await api("/api/auth/me").catch(() => null);
+  el("insurer-note").hidden = user?.role !== "insurer";
+}
+
 async function wireBuy() {
   if (!el("buy")) return;
-  const [map, options, rent, buyOptions] = await Promise.all([
-    api("/api/map/static"), api("/api/options"), api("/api/rent").catch(() => null), api("/api/buy/options"),
-  ]);
+  noteInsurer();
+  el("buy-next").setAttribute("aria-busy", "true");
+  let loaded;
+  try {
+    loaded = await Promise.all([
+      api("/api/map/static"), api("/api/options"), api("/api/rent").catch(() => null), api("/api/buy/options"),
+    ]);
+  } catch (error) {
+    el("buy-next").removeAttribute("aria-busy");
+    showLoadProblem(error);
+    return;
+  }
+  el("buy-next").removeAttribute("aria-busy");
+  const [map, options, rent, buyOptions] = loaded;
   buyState.centres = [...map.hawker_centres].sort((a, b) => a.name.localeCompare(b.name));
   buyState.rent = rent;
   buyState.options = {
@@ -575,6 +703,7 @@ async function wireBuy() {
   buyForm().addEventListener("submit", onNext);
   buyForm().addEventListener("change", onChange);
   field("postcode").addEventListener("input", checkPostcode);
+  buyForm().addEventListener("input", (event) => clearInvalid(event.target));
   el("buy-back").addEventListener("click", onBack);
   el("buy-tiers").addEventListener("click", (event) => {
     const card = event.target.closest("[data-tier]");

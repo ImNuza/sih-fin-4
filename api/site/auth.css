@@ -1,17 +1,33 @@
-/* Sign-in and sign-up page (/login/). Tokens in /theme.css, shared parts in /ui.css. */
-.auth { max-width: 500px; }
-.auth-title { font: 700 var(--t-2xl)/1.15 var(--sans); letter-spacing: -0.02em; margin: var(--s-5) 0 0; }
-.roletabs {
-  display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: var(--r-md);
-  width: fit-content; margin: var(--s-4) 0 var(--s-5); background: var(--surface);
+/* Sign-in and insurer sign-up page (/login/). Tokens in /theme.css, shared parts in /ui.css. */
+.topnav #nav-auth { border-radius: var(--r-pill); color: var(--ink); }
+.topnav #nav-auth .label-wide { display: inline; }
+
+.auth { max-width: 480px; padding-top: var(--s-7); }
+.auth .page-sub { margin-top: var(--s-2); }
+
+.roletabs { display: flex; width: 100%; margin: var(--s-5) 0 var(--s-4); }
+.roletabs button { flex: 1 1 0; justify-content: center; min-height: 44px; padding: 0 var(--s-3); white-space: nowrap; }
+.roletabs .i { width: 18px; height: 18px; }
+
+.authcard h2 { font: var(--w-bold) var(--t-lg)/1.25 var(--sans); }
+.authcard h2 + .fine, .authcard h2 + .notice { margin-top: var(--s-2); }
+.authcard .notice { margin-bottom: var(--s-2); }
+.authcard form label:first-of-type { margin-top: var(--s-4); }
+.authcard .error:empty { margin: 0; min-height: 0; }
+.authcard .error:not(:empty) { margin: var(--s-3) 0; }
+.authcard .error .i { flex: none; margin-top: 2px; color: var(--critical); }
+.authcard .btn.primary { margin-top: var(--s-2); }
+.authcard .clear { display: flex; margin: var(--s-2) auto 0; }
+
+.switchline { margin-top: var(--s-4); font-size: var(--t-sm); color: var(--muted); }
+.authcard .switchline { padding-top: var(--s-4); border-top: 1px solid var(--line); }
+.linklike { font-size: inherit; }
+
+@media (hover: hover) and (pointer: fine) {
+  .roletabs button:not(.on):hover { color: var(--ink); }
+  .linklike:hover { color: var(--accent-hover); }
 }
-.roletabs button {
-  appearance: none; border: 0; background: transparent; color: var(--ink-2); cursor: pointer;
-  font: 600 var(--t-base) var(--sans); padding: 10px 16px; border-radius: 7px;
-}
-.roletabs button.on { background: var(--ink); color: var(--surface); }
-.switchline { font-size: var(--t-sm); color: var(--muted); margin: var(--s-4) 0 0; }
-.linklike {
-  appearance: none; background: none; border: 0; padding: 0; cursor: pointer;
-  color: var(--ink); font: 600 var(--t-sm) var(--sans); text-decoration: underline; text-underline-offset: 3px;
+@media (max-width: 420px) {
+  .auth { padding-top: var(--s-5); }
+  .roletabs button { font-size: var(--t-xs); gap: var(--s-1); padding: 0 var(--s-2); }
 }

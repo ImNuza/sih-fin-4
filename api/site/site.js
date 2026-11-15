@@ -77,12 +77,14 @@ function rememberDemoAccount(role, email, password) {
   const accounts = { ...demoAccounts(), [role]: { email, password, role } };
   try { localStorage.setItem(DEMO_ACCOUNTS_KEY, JSON.stringify(accounts)); } catch { /* private window */ }
 }
+/* Fill the sign-in form with this browser's demo account for `role`. Returns whether one exists. */
 function fillDemoSignIn(formId, hintId, role) {
   const account = demoAccounts()[role];
   el(hintId).hidden = Boolean(account);
-  if (!account) return;
+  if (!account) return false;
   el(formId).elements.email.value = account.email;
   el(formId).elements.password.value = account.password;
+  return true;
 }
 function fillDemoInsurerRegister() {
   const form = el("ins-register");
@@ -94,34 +96,92 @@ function fillDemoInsurerRegister() {
 
 function wireLogin() {
   if (!el("tab-sme")) return;
+  const MIN_PASSWORD_LENGTH = 8;
+  const EMAIL_SHAPE = /^[^@\s]+@[^@\s]+$/;
+  const tabs = { sme: el("tab-sme"), insurer: el("tab-insurer") };
+
   const showPane = (role) => {
-    el("tab-sme").classList.toggle("on", role === "sme");
-    el("tab-insurer").classList.toggle("on", role === "insurer");
-    el("pane-sme").hidden = role !== "sme";
-    el("pane-insurer").hidden = role !== "insurer";
+    for (const [key, tab] of Object.entries(tabs)) {
+      const on = key === role;
+      tab.classList.toggle("on", on);
+      tab.setAttribute("aria-selected", String(on));
+      tab.tabIndex = on ? 0 : -1;
+      el(`pane-${key}`).hidden = !on;
+    }
   };
-  el("tab-sme").addEventListener("click", () => showPane("sme"));
-  el("tab-insurer").addEventListener("click", () => showPane("insurer"));
+  const showStep = (card, step) => {
+    for (const section of card.querySelectorAll("[data-step]")) section.hidden = section.dataset.step !== step;
+  };
+  tabs.sme.addEventListener("click", () => showPane("sme"));
+  tabs.insurer.addEventListener("click", () => showPane("insurer"));
+  el("tab-sme").parentElement.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const next = tabs.sme.classList.contains("on") ? "insurer" : "sme";
+    showPane(next);
+    tabs[next].focus();
+  });
   if (location.hash === "#insurer") showPane("insurer");
   document.querySelectorAll(".authcard [data-goto]").forEach((link) =>
     link.addEventListener("click", () => {
       const card = link.closest(".authcard");
-      for (const step of card.querySelectorAll("[data-step]"))
-        step.hidden = step.dataset.step !== link.dataset.goto;
+      showStep(card, link.dataset.goto);
+      card.querySelector(`[data-step="${link.dataset.goto}"] input`)?.focus();
     }));
 
+  /* The first problem in a form, as [field, message], or null when it can be sent. */
+  const problemIn = (form) => {
+    const { name, email, password } = form.elements;
+    if (name && !name.value.trim()) return [name, "Enter your name."];
+    if (!email.value.trim()) return [email, "Enter your email address."];
+    if (!EMAIL_SHAPE.test(email.value.trim())) return [email, "Enter an email address like name@example.com."];
+    if (!password.value) return [password, "Enter your password."];
+    if (form.id === "ins-register" && password.value.length < MIN_PASSWORD_LENGTH)
+      return [password, `Use at least ${MIN_PASSWORD_LENGTH} characters for the password.`];
+    return null;
+  };
+  const showError = (errorId, message) => {
+    el(errorId).innerHTML = message ? `${SafeUI.icon("circle-alert")}<span>${message}</span>` : "";
+  };
+  const serverProblem = (formId, error) => {
+    if (error instanceof TypeError) return "Could not reach SafeDay. Check your connection and try again.";
+    if (formId === "ins-register" && /exists/i.test(error.message))
+      return "An account with this email already exists. Sign in with it instead, or use another email.";
+    if (/wrong email or password/i.test(error.message))
+      return formId === "sme-login"
+        ? "The email or password is wrong. Check both and try again. No account yet? Get covered first."
+        : "The email or password is wrong. Check both and try again, or set up insurer access.";
+    return `Could not sign in: ${escapeHtml(error.message)}. Try again.`;
+  };
+
   const submit = (formId, errorId, build) => {
-    el(formId).addEventListener("submit", async (event) => {
+    const form = el(formId);
+    form.addEventListener("input", (event) => {
+      event.target.removeAttribute("aria-invalid");
+      showError(errorId, "");
+    });
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      el(errorId).textContent = "";
+      for (const input of form.elements) input.removeAttribute("aria-invalid");
+      const problem = problemIn(form);
+      if (problem) {
+        const [input, message] = problem;
+        input.setAttribute("aria-invalid", "true");
+        showError(errorId, message);
+        input.focus();
+        return;
+      }
+      showError(errorId, "");
+      const button = form.querySelector('[type="submit"]');
+      button.setAttribute("aria-busy", "true");
       try {
-        const data = formData(event.target);
+        const data = formData(form);
         const body = build ? build(data) : data;
         await post(build ? "/api/auth/register" : "/api/auth/login", body);
         if (build) rememberDemoAccount(body.role, body.email, body.password);
         location.href = "/dashboard/";
       } catch (error) {
-        el(errorId).textContent = error.message;
+        showError(errorId, serverProblem(formId, error));
+        button.removeAttribute("aria-busy");
       }
     });
   };
@@ -130,12 +190,13 @@ function wireLogin() {
   submit("ins-register", "ins-register-error", (d) => ({ ...d, role: "insurer" }));
 
   fillDemoSignIn("sme-login", "sme-login-hint", "sme");
-  fillDemoSignIn("ins-login", "ins-login-hint", "insurer");
+  if (!fillDemoSignIn("ins-login", "ins-login-hint", "insurer")) showStep(el("pane-insurer").querySelector(".authcard"), "register");
   fillDemoInsurerRegister();
   document.querySelectorAll(".authcard [data-clear]").forEach((button) =>
     button.addEventListener("click", () => {
       const form = button.closest("form");
       form.reset();
+      for (const input of form.elements) input.removeAttribute("aria-invalid");
       form.querySelector(".error").textContent = "";
     }));
 }
