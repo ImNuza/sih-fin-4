@@ -4,8 +4,8 @@ Measured NEA readings are used wherever they exist: haze from April 2014, the we
 hour of rain from December 2016, heat from 2025. Before that, ml/serving.py rebuilt rain and
 heat with the trained models and matched them to the measured readings. This module turns
 those readings into money with the live tariff, so a tariff change reprices every year at
-once, and reads the history forward: what the same ten days, or the next ten years, brought
-in past years. It needs only numpy.
+once, and reads the history forward: what the same ten days, or the next two, five or ten
+years, brought in past years. It needs only numpy.
 
 Reads data/processed/model_history.npz and model_insights.json (from ml/serving.py).
 """
@@ -33,6 +33,7 @@ BAD_YEAR_QUANTILE = 0.9
 RECENT_YEARS = 20
 DECADE_YEARS = 10
 OUTLOOK_DAYS = 10
+OUTLOOK_PERIODS = (2, 5, 10)
 # 2015 is the worst haze year on record (46 region-days above PSI 100, peak 322).
 HAZE_YEAR = 2015
 MONTHS = 12
@@ -173,12 +174,12 @@ def window_outlook(
     }
 
 
-def decade_windows(values: np.ndarray) -> np.ndarray:
-    """Sums over every run of DECADE_YEARS consecutive complete years."""
-    if len(values) < DECADE_YEARS:
+def window_sums(values: np.ndarray, length: int) -> np.ndarray:
+    """Sums over every run of `length` consecutive years."""
+    if len(values) < length:
         return values.sum(keepdims=True)
     cumulative = np.concatenate([[0.0], np.cumsum(values)])
-    return cumulative[DECADE_YEARS:] - cumulative[:-DECADE_YEARS]
+    return cumulative[length:] - cumulative[:-length]
 
 
 def spread(rows: list[dict], premium_yearly_sgd: float) -> dict:
@@ -217,20 +218,31 @@ def el_nino_split(rows: list[dict], el_nino_years: set[int]) -> dict:
     }
 
 
-def next_decade(rows: list[dict], premium_yearly_sgd: float) -> dict:
-    """What every run of ten complete years paid, as a guide to the next ten."""
-    paid = decade_windows(np.array([r["paid_sgd"] for r in rows]))
-    typical = {
-        key: round(float(np.median(decade_windows(np.array([r[key] for r in rows])))), 1)
+def period_outlook(rows: list[dict], length: int, premium_yearly_sgd: float) -> dict:
+    """What every run of `length` years in these rows paid, as a guide to the next `length`."""
+    paid = window_sums(np.array([r["paid_sgd"] for r in rows]), length)
+    premium = premium_yearly_sgd * length
+    worst = int(np.argmax(paid))
+    days = {
+        key: window_sums(np.array([r[key] for r in rows], dtype=float), length)
         for key in ("trigger_days", "red_days", "yellow_days", "green_days")
     }
     return {
+        "years": length,
+        "basis_from_year": rows[0]["year"],
+        "basis_to_year": rows[-1]["year"],
+        "basis_years": len(rows),
         "windows": int(len(paid)),
         "lowest_sgd": round(float(paid.min()), 2),
         "typical_sgd": round(float(np.median(paid)), 2),
+        "bad_sgd": round(float(np.quantile(paid, BAD_YEAR_QUANTILE)), 2),
         "highest_sgd": round(float(paid.max()), 2),
-        "premium_sgd": round(premium_yearly_sgd * DECADE_YEARS, 2),
-        **{f"typical_{key}": value for key, value in typical.items()},
+        "highest_from_year": rows[worst]["year"],
+        "highest_to_year": rows[min(worst + length - 1, len(rows) - 1)]["year"],
+        "premium_sgd": round(premium, 2),
+        "windows_paid_more_than_premium": int((paid > premium).sum()),
+        **{f"typical_{key}": round(float(np.median(values)), 1) for key, values in days.items()},
+        **{f"highest_{key}": round(float(values.max()), 1) for key, values in days.items()},
     }
 
 
@@ -286,7 +298,12 @@ def centre_years(
         "recent": spread(complete[-RECENT_YEARS:], premium_yearly_sgd),
         "haze_year": next((r for r in rows if r["year"] == HAZE_YEAR), None),
         "el_nino": el_nino_split(complete, el_nino_years),
-        "next_10_years": next_decade(complete, premium_yearly_sgd),
+        # The outlooks read the last RECENT_YEARS years, which run hotter and wetter than the
+        # decades before, so they lean towards what is coming rather than the 1980s.
+        "outlooks": [
+            period_outlook(complete[-RECENT_YEARS:], length, premium_yearly_sgd)
+            for length in OUTLOOK_PERIODS
+        ],
         "next_10_days": window_outlook(
             history, combined, np.ones(1), tier.daily_payout_sgd, outlook_start, OUTLOOK_DAYS
         ),
@@ -323,7 +340,7 @@ def book_years(
     ratios = book_paid / book_premium
     by_month = np.bincount(history.months - 1, weights=day_paid, minlength=MONTHS)
     worst_year = int(np.argmax(np.where(complete, book_paid, -1)))
-    decade_ratios = decade_windows(book_paid[complete]) / (book_premium * DECADE_YEARS)
+    decade_ratios = window_sums(book_paid[complete], DECADE_YEARS) / (book_premium * DECADE_YEARS)
     in_el_nino = np.isin(years, list(el_nino_years)) & complete
     return {
         "policies": int(policies),
