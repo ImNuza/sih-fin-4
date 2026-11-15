@@ -278,16 +278,52 @@ function liveStatus(live) {
   return { ok: true, text: `NEA readings as of ${String(live.fetched_at).slice(11, 16)} SGT` };
 }
 
-/* A business outside a hawker centre, placed at its postcode's area point, or null. */
-function areaOf(user, application) {
-  if (user.centre || application?.area_lat == null) return null;
+/* A shop, placed at its postcode's area point, or null. */
+function areaOf(user, application, product) {
+  if (user.centre || application?.business_class !== "shop" || application.area_lat == null) return null;
   return {
     query: new URLSearchParams({
-      lat: application.area_lat, lng: application.area_lng, region: user.region,
-      product: user.product || "cooked_food",
+      lat: application.area_lat, lng: application.area_lng, region: user.region, product,
     }).toString(),
     label: `around postcode ${escapeHtml(application.postcode)} (${escapeHtml(application.area_basis)})`,
   };
+}
+
+/* Where today's score and the ten-year replay are read, as a payout reads them: a hawker at its
+   centre, a shop at its postcode's area point, anyone else (a platform worker) at its region's point. */
+function scoringSite(user, application, staticData, product) {
+  if (user.centre) {
+    const query = new URLSearchParams({ centre: user.centre, product }).toString();
+    return { kind: "centre", live: `/api/map/live?product=${encodeURIComponent(product)}`, burn: query,
+             heading: "Today at your stall", label: `at ${escapeHtml(user.centre)}` };
+  }
+  const area = areaOf(user, application, product);
+  if (area) {
+    return { kind: "area", live: `/api/map/live/at?${area.query}`, burn: area.query,
+             heading: "Today around your postcode", label: area.label };
+  }
+  const point = staticData.region_points?.[user.region];
+  if (!point) return null;
+  const [lat, lng] = point;
+  return {
+    kind: "region",
+    live: `/api/map/live/at?${new URLSearchParams({ lat, lng, region: user.region, product })}`,
+    burn: new URLSearchParams({ region: user.region, product }).toString(),
+    heading: "Today in your region", label: `in the ${escapeHtml(user.region)} region`,
+  };
+}
+
+/* Where the business is priced, as the server charges it: a hawker at its centre, a shop at its
+   postcode's area, anyone else (a platform worker) by region. */
+function pricedPlace(user, application) {
+  if (user.centre) return { centre: user.centre };
+  if (application?.business_class === "shop" && application.postcode) return { postcode: application.postcode };
+  return { region: user.region };
+}
+function priceBasis(place) {
+  if (place.centre) return "priced from the NEA stations nearest your centre";
+  if (place.postcode) return "priced from the NEA stations nearest your postcode's area";
+  return "priced from your region's NEA history";
 }
 
 /* ---------- business owner dashboard ---------- */
@@ -299,26 +335,28 @@ function smeSkeleton() {
 
 async function renderSme(user) {
   if (!el("sme-dash")) el("dash").innerHTML = smeSkeleton();
-  const [quote, policies, staticData, centreLive, rentTable, application] = await Promise.all([
-    post("/api/quote", { region: user.region, product: user.product || "cooked_food" }),
+  const [policies, staticData, rentTable, application] = await Promise.all([
     api("/api/policies"),
     api("/api/map/static"),
-    user.centre ? api("/api/map/live").catch(() => null) : null,
     api("/api/rent"),
     api("/api/applications/mine").catch(() => null),
   ]);
-  const area = areaOf(user, application);
-  const live = user.centre ? centreLive
-    : await api(area ? `/api/map/live/at?${area.query}` : "/api/map/live").catch(() => null);
+  const policy = policies[0] || null;
+  const product = policy?.product || user.product || "cooked_food";
+  const place = pricedPlace(user, application);
+  const site = scoringSite(user, application, staticData, product);
+  const [quote, live] = await Promise.all([
+    post("/api/quote", { ...place, product }),
+    site ? api(site.live).catch(() => null) : null,
+  ]);
   const decision = application?.declined_before
     ? await api("/api/applications/mine/decision").catch(() => null) : null;
-  const policy = policies[0] || null;
   const rent = rentTable.centres[user.centre];
   const index = staticData.hawker_centres.findIndex((c) => c.name === user.centre);
-  const todays = !live?.available ? null : area ? live : index >= 0 ? live.hawker_losses[index] : null;
+  const todays = !live?.available ? null : site?.kind !== "centre" ? live : index >= 0 ? live.hawker_losses[index] : null;
   // Recommend the smallest tier that pays a full day's rent at this centre.
   const rec = rent ? rent.recommended_tier : quote.tiers[0].tier;
-  const view = { user, quote, policy, rent, rentTable, application, decision, area, todays, rec, live };
+  const view = { user, quote, policy, rent, rentTable, application, decision, site, place, todays, rec, live };
 
   el("dash").innerHTML = `<div id="sme-dash">
     ${smeHead(view)}
@@ -332,7 +370,7 @@ async function renderSme(user) {
         ? mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")
         : mapPreview({ view: "owner", camera: "city" }, `The ${titleCase(user.region)} region on the risk atlas`)}
     </section>
-    ${user.centre || area ? burnCard(view) : ""}
+    ${site ? burnCard(view) : ""}
     <div id="payouts-panel" class="dash-section"></div>
   </div>`;
   renderSmePayouts(el("payouts-panel"), Boolean(policy)).catch((error) => {
@@ -341,13 +379,13 @@ async function renderSme(user) {
   wireSme(view);
 }
 
-function smeHead({ user, application, area }) {
+function smeHead({ user, application, site, place }) {
   const proof = businessProof(application);
-  const place = [user.centre || area?.label, `${titleCase(user.region)} region`, "priced from your region's own NEA history"];
+  const where = [user.centre || (site?.kind === "area" ? site.label : null), `${titleCase(user.region)} region`, priceBasis(place)];
   return `<div class="dash-head">
     <h1 class="page-title">${escapeHtml(user.business_name || user.name)}</h1>
     ${proof ? `<p class="proof">${escapeHtml(proof)}</p>` : ""}
-    <p class="page-sub">${place.filter(Boolean).join(" · ")}</p>
+    <p class="page-sub">${where.filter(Boolean).join(" · ")}</p>
   </div>`;
 }
 
@@ -371,20 +409,20 @@ function smeKpis({ quote, policy, rent, application, todays, rec, live }) {
       `<span class="num">${SGD(policy ? policy.weekly_premium_sgd : quote.tiers.find((t) => t.tier === rec).weekly_premium_sgd)}</span>`,
       policy ? policy.tier_label : "recommended tier"),
     kpi("Expected trigger days", `<span class="num">${quote.expected_loss_days.toFixed(1)}</span>&nbsp;/&nbsp;yr`, "full-loss-day equivalents",
-      "Days of full loss in an average year from your region's NEA history. Two half days count as one."),
+      "Days of full loss in an average year, from the NEA history where you are priced. Two half days count as one."),
     rent ? kpi("Your rent per trading day", `<span class="num">${SGD(rent.rent_per_day_sgd)}</span>`,
       `${rent.rent_class_label} centre${rent.estimated ? " · estimated" : ""}`) : "",
   ].join("");
 }
 
-function todayCard({ area, todays, live }) {
-  const title = `<h2>${area ? "Today around your postcode" : "Today at your stall"}</h2>`;
+function todayCard({ site, todays, live }) {
+  const title = `<h2>${site ? site.heading : "Today at your stall"}</h2>`;
   if (!todays) return `${title}<p class="fine">${escapeHtml(liveStatus(live).text)}</p>
     <button class="btn small" id="retry-live" type="button">Refresh</button>`;
   return `${title}
     ${kv("24-h PSI (your region)", `<span class="num">${Math.round(todays.readings.haze)}</span>`)}
-    ${kv("Wettest work hour (nearest gauge)", `<span class="num">${todays.readings.rain.toFixed(1)}</span>&nbsp;mm`)}
-    ${kv("Hours at WBGT ≥32 °C (nearest station)", `<span class="num">${todays.readings.heat}</span>&nbsp;h`)}
+    ${kv("Wettest work hour (middle of the 3 nearest rain gauges that reported)", `<span class="num">${todays.readings.rain.toFixed(1)}</span>&nbsp;mm`)}
+    ${kv("Hours at WBGT ≥32 °C (nearest heat station that reported)", `<span class="num">${todays.readings.heat}</span>&nbsp;h`)}
     <p class="fine card-foot">Readings refresh every 5 minutes from NEA. A payout needs no claim. It follows these numbers.</p>`;
 }
 
@@ -448,10 +486,10 @@ function chooseCover({ quote, rent, rentTable, rec }) {
     <p class="error" id="buy-error" role="alert"></p>`;
 }
 
-function burnCard({ user, area }) {
+function burnCard({ site }) {
   return `<section class="card dash-section" id="burn-card">
     <div class="card-head"><div><h2>Your last ten years, replayed</h2>
-      <p class="fine">Every NEA reading since 2017 ${user.centre ? `at ${escapeHtml(user.centre)}` : area.label}, scored by the live tariff.
+      <p class="fine">Every NEA reading since 2017 ${site.label}, scored by the live tariff.
         Set your normal daily sales; the losses scale with it, the payouts do not.</p></div></div>
     <label class="burn-takings">My daily sales (S$)
       <input type="number" id="burn-takings" min="50" max="20000" step="50" value="500" inputmode="numeric" /></label>
@@ -465,7 +503,7 @@ function burnSkeleton() {
 }
 
 function wireSme(view) {
-  const { user, policy, area, rec } = view;
+  const { user, policy, site, rec } = view;
   document.querySelectorAll("#cover-card .tier-card").forEach((button) =>
     button.addEventListener("click", async () => {
       const cards = document.querySelectorAll("#cover-card .tier-card");
@@ -482,19 +520,17 @@ function wireSme(view) {
     }));
   el("cancel-policy")?.addEventListener("click", () => confirmCancel(user, policy));
   el("retry-live")?.addEventListener("click", () => renderSme(user));
-  if (!user.centre && !area) return;
   const burnTier = policy ? policy.tier : rec;
   const loadBurn = async () => {
     const takings = +el("burn-takings").value || 500;
     try {
-      const place = user.centre ? `centre=${encodeURIComponent(user.centre)}`
-        + `&product=${user.product || "cooked_food"}` : area.query;
-      const burn = await api(`/api/map/burn?${place}&tier=${burnTier}&takings=${takings}`);
+      const burn = await api(`/api/map/burn?${site.burn}&tier=${burnTier}&takings=${takings}`);
       el("burn-body").innerHTML = renderBurn(burn, policy);
     } catch (error) {
       el("burn-body").innerHTML = `<p class="error" role="alert">Could not replay the last ten years: ${escapeHtml(error.message)}</p>`;
     }
   };
+  if (!site) return;
   el("burn-takings").addEventListener("change", loadBurn);
   loadBurn();
 }
@@ -733,9 +769,10 @@ function insurerKpis(portfolio, book, live, staticData, quotesData) {
   const maxLoss = live?.available && live.hawker_losses.length
     ? Math.max(...live.hawker_losses.map((l) => l.loss_percent)) : null;
   const stalls = staticData.hawker_centres.reduce((sum, c) => sum + c.food_stalls, 0);
-  const poolTier = quotesData.quotes[staticData.hawker_centres[0].region].tiers[1];
+  const centreQuote = (centre) => quotesData.centres?.[centre.name] ?? quotesData.quotes[centre.region];
+  const poolTier = centreQuote(staticData.hawker_centres[0]).tiers[1];
   const marketPool = staticData.hawker_centres.reduce((sum, centre) =>
-    sum + quotesData.quotes[centre.region].tiers[1].yearly_premium_sgd * centre.food_stalls, 0);
+    sum + centreQuote(centre).tiers[1].yearly_premium_sgd * centre.food_stalls, 0);
   const sold = portfolio.policies - demo;
   const policiesNote = empty ? "No policies on the book yet" : !book ? ""
     : demo ? `${demo.toLocaleString("en-SG")} demo · ${sold.toLocaleString("en-SG")} sold here` : "sold on this platform";
@@ -826,7 +863,7 @@ function tierSection(quotes, options, book) {
     <div class="table-wrap"><table class="data tiers-table">
       <thead><tr>
         <th>Tier</th>
-        <th class="num">Weekly premium ${SafeUI.help("Priced from each region's NEA history by the live tariff. A range covers the regions shown.")}</th>
+        <th class="num">Weekly premium ${SafeUI.help("The live tariff's price for each region. A hawker or shop pays the price for its own centre or postcode area, so its premium can differ. A range covers the regions shown.")}</th>
         <th class="num">Payout per full bad day ${SafeUI.help("Paid for a day with a loss score of 100%. A partial day pays its share.")}</th>
         <th class="num">Day cap a year ${SafeUI.help("Full bad days the tier pays in a year. The cap is in money, so partial days use less of it.")}</th>
         <th class="num">Most it pays a year</th>

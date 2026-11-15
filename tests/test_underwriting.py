@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.main import SINGAPORE, app
-from tests.test_api import ADMIN, buy_body
+from tests.test_api import ADMIN, buy_body, shop_body
 
 QUEUE = "/api/insurer/applications"
 REFERRED = {"declined_before": True, "declined_details": "AIG declined in 2024", "payment_method": None}
@@ -63,10 +63,22 @@ def test_approval_accepts_the_application_and_starts_the_priced_policy(client):
     assert result["status"] == "accepted"
     assert result["policy"]["tier"] == "tier_2"
     assert result["policy"]["started_at"].startswith(later)
+    centre_quote = {"product": "cooked_food", "centre": buy_body()["centre"]}
+    shown = client.post("/api/quote", json=centre_quote).json()
+    assert result["policy"]["weekly_premium_sgd"] == shown["tiers"][1]["weekly_premium_sgd"]
     assert len(client.get("/api/policies").json()) == 1
     queue = client.get(QUEUE).json()
     assert queue["waiting"] == []
     assert queue["recent_decisions"][0]["note"] == "Shelter fitted since 2024"
+
+
+def test_an_approved_shop_is_charged_the_price_shown_for_its_postcode(client):
+    response = client.post("/api/buy", json=shop_body(**REFERRED))
+    client.post("/api/auth/logout")
+    sign_in_as_insurer(client)
+    result = decide(client, response.json()["application"]["id"], "approve").json()
+    shown = client.post("/api/quote", json={"product": "packaged_food", "postcode": "560123"})
+    assert result["policy"]["weekly_premium_sgd"] == shown.json()["tiers"][1]["weekly_premium_sgd"]
 
 
 def test_decline_starts_no_policy_and_the_owner_sees_the_note(client):

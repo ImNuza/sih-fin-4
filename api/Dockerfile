@@ -17,8 +17,7 @@ COPY api/ api/
 COPY scripts/dgs.py scripts/
 COPY data/processed/site_hazard_readings.csv data/processed/map_static.json \
      data/processed/map_buildings.json data/processed/day_readings.csv.gz \
-     data/processed/hawker_rent.csv data/processed/burn_site_map.json \
-     data/processed/burn_active_stations.json data/processed/
+     data/processed/hawker_rent.csv data/processed/
 
 RUN useradd --uid 10002 --no-create-home --shell /usr/sbin/nologin pricing
 USER 10002

@@ -33,6 +33,8 @@ from api.models import (
 DAYS_PER_YEAR = 365.25
 WEEKS_PER_YEAR = 52
 EARTH_RADIUS_KM = 6371.0
+# Haze is read for a whole PSI region (api/readings.py); its history is one site per region.
+REGION_HAZARD = "haze"
 
 
 @dataclass(frozen=True)
@@ -107,10 +109,17 @@ def as_percent(share: float) -> float:
 
 
 def assess(
-    tariff: Tariff, product_key: str, tier_key: str, readings: dict[str, float]
+    tariff: Tariff,
+    product_key: str,
+    tier_key: str,
+    readings: dict[str, float],
+    daily_payout_sgd: float | None = None,
 ) -> Assessment:
+    """One day's loss and payout. daily_payout_sgd is the amount a policy was sold with; it
+    defaults to the tier's amount in this tariff, so a tariff change never alters a policy."""
     product = find(tariff.products, product_key, "product")
     tier = find(tariff.tiers, tier_key, "tier")
+    daily = tier.daily_payout_sgd if daily_payout_sgd is None else daily_payout_sgd
     factor = product_factor(product)
     hazards = []
     for key, reading in readings.items():
@@ -122,7 +131,7 @@ def assess(
     return Assessment(
         tier=tier.key,
         loss_percent=as_percent(day_loss),
-        payout_sgd=round(day_loss * tier.daily_payout_sgd, 2),
+        payout_sgd=round(day_loss * daily, 2),
         hazards=[
             HazardLoss(
                 hazard=key, reading=reading, severity=severity, loss_percent=as_percent(loss)
@@ -283,17 +292,22 @@ def local_risk(
     sites: list[Site],
     latitude: float,
     longitude: float,
+    region: str | None = None,
 ) -> LocalRisk:
     """Loss days a year at one place: its nearest stations, blended with their region.
 
     The price reads the same stations as the trigger. With little station history the region
-    average carries most of the weight; with years of it, the station does.
+    average carries most of the weight; with years of it, the station does. Haze is read for a
+    whole PSI region, so with a region given, haze reads that region's history.
     """
     factor = product_factor(product)
-    nearest = nearest_sites(sites, latitude, longitude, hazard.sites_used)
-    region = nearest[0].region
+    candidates = sites
+    if region is not None and hazard.key == REGION_HAZARD:
+        candidates = [site for site in sites if site.region == region]
+    nearest = nearest_sites(candidates, latitude, longitude, hazard.sites_used)
+    station_region = nearest[0].region
     station_severity, station_days = mean_severity(hazard, [site.readings for site in nearest])
-    region_severity, _ = mean_severity(hazard, [history[region][hazard.key]])
+    region_severity, _ = mean_severity(hazard, [history[station_region][hazard.key]])
     k = credibility_constant(hazard, sites)
     credibility = station_days / (station_days + k)
     severity = credibility * station_severity + (1 - credibility) * region_severity
@@ -319,16 +333,26 @@ def quote_at(
     latitude: float,
     longitude: float,
     product_key: str,
+    region: str | None = None,
 ) -> Quote:
-    """Quote for one place, from the NEA stations nearest to it."""
+    """Quote for one place, from the NEA stations nearest to it.
+
+    region is the PSI region the place is paid on (a shop's postcode region, a hawker centre's
+    map region); without one, it is the region of the nearest station.
+    """
     product = find(tariff.products, product_key, "product")
-    every_site = [site for hazard_sites in sites.values() for site in hazard_sites]
-    region = nearest_sites(every_site, latitude, longitude, 1)[0].region
+    if region is not None and region not in history:
+        raise UnknownKey(f"Unknown region: {region}")
     risks = [
-        local_risk(tariff, product, history, hazard, sites[hazard.key], latitude, longitude)
+        local_risk(
+            tariff, product, history, hazard, sites[hazard.key], latitude, longitude, region
+        )
         for hazard in tariff.hazards
         if hazard.assumed_days_per_year is None and hazard.key in sites
     ]
+    if region is None:
+        every_site = [site for hazard_sites in sites.values() for site in hazard_sites]
+        region = nearest_sites(every_site, latitude, longitude, 1)[0].region
     region_parts = loss_day_parts(tariff, product, history[region])
     parts = region_parts | {risk.hazard: risk.loss_days for risk in risks}
     loss_days = sum(parts.values())

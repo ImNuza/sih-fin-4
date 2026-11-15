@@ -3,8 +3,8 @@
 Every demo account has an email at api.main.DEMO_EMAIL_DOMAIN, so the dashboard tags its
 policies "demo" and --remove deletes only them. The businesses are made up. Their places are
 real: hawker centres from data/processed/map_static.json and URA postal sectors. Each policy is
-priced by the live tariff through api.main.policy_values, as the buy flow prices one. The same
-200 records come out on every run, and a rerun adds only the ones that are missing.
+priced by the live tariff through api.main.business_quote and policy_values, as the buy flow
+prices one. The same 200 records come out on every run, and a rerun adds only the missing ones.
 
 Usage:
     uv run scripts/seed_demo_policies.py            add the demo book
@@ -27,6 +27,7 @@ import secrets
 import sys
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 from sqlalchemy import Engine, delete, insert, select
 from sqlalchemy.engine import make_url
@@ -42,12 +43,15 @@ from api.main import (  # noqa: E402
     HISTORY_PATH,
     MAP_STATIC_PATH,
     SINGAPORE,
+    business_quote,
     cover_dates,
     load_history,
     policy_values,
 )
 from api.models import Tariff  # noqa: E402
-from api.payouts import payout_accounts, payout_events, payouts, sms_codes, sms_messages  # noqa: E402
+from api.payouts import (  # noqa: E402
+    payout_accounts, payout_events, payouts, sms_codes, sms_messages,
+)
 from api.underwriting import underwriting_decisions  # noqa: E402
 
 DEMO_POLICIES = 200
@@ -189,7 +193,9 @@ def platform_worker(rng: random.Random, number: int, centres: list[dict]) -> dic
     }
 
 
-MAKE_BUSINESS = {"hawker": hawker_business, "shop": shop_business, "platform_worker": platform_worker}
+MAKE_BUSINESS = {
+    "hawker": hawker_business, "shop": shop_business, "platform_worker": platform_worker,
+}
 
 
 def demo_records(centres: list[dict], today: date) -> list[dict]:
@@ -237,7 +243,9 @@ def underwriter_id(db, password_hash: str) -> int:
     return db.execute(insert(users).values(**values).returning(users.c.id)).scalar_one()
 
 
-def add_record(db, record: dict, tariff: Tariff, history, password_hash: str, underwriter: int) -> None:
+def add_record(
+    db, record: dict, tariff: Tariff, history, places, password_hash: str, underwriter: int
+) -> None:
     """One demo business: its account, its accepted application and its priced policy."""
     user = {
         "email": record["email"], "name": record["name"], "role": "sme",
@@ -248,9 +256,14 @@ def add_record(db, record: dict, tariff: Tariff, history, password_hash: str, un
     user_id = db.execute(
         insert(accounts.users).values(**user).returning(accounts.users.c.id)
     ).scalar_one()
+    centre = record.get("centre")
+    priced_by_postcode = not centre and record["business_class"] == "shop"
+    priced = business_quote(
+        places, tariff, history, record["product"], record["region"], centre=centre,
+        postcode=record["postcode"] if priced_by_postcode else None,
+    )
     policy = policy_values(
-        tariff, history, user_id, record["region"], record.get("centre"), record["product"],
-        record["tier"],
+        priced, user_id, record["region"], centre, record["product"], record["tier"]
     )
     policy["started_at"] = record["started_at"]
     db.execute(insert(accounts.policies).values(**policy))
@@ -285,22 +298,38 @@ def add_record(db, record: dict, tariff: Tariff, history, password_hash: str, un
         ))
 
 
+def priced_places(map_static: dict, sites) -> SimpleNamespace:
+    """What api.main.business_quote reads from the running app, so each demo business is priced
+    where the buy flow would price it: a hawker at its centre, a shop at its postcode's area, a
+    platform worker by region."""
+    state = SimpleNamespace(
+        sites=sites,
+        map_static=map_static,
+        centres_by_name={c["name"]: c for c in map_static["hawker_centres"]},
+        centres_by_sector=postcodes.centres_by_sector(map_static["hawker_centres"]),
+    )
+    return SimpleNamespace(app=SimpleNamespace(state=state))
+
+
 def seed(engine: Engine) -> int:
     """Add the demo records that are missing. Returns how many it added."""
     tariff = current_tariff(engine)
-    history, _ = load_history(HISTORY_PATH)
-    centres = json.loads(MAP_STATIC_PATH.read_text())["hawker_centres"]
+    history, sites = load_history(HISTORY_PATH)
+    map_static = json.loads(MAP_STATIC_PATH.read_text())
+    centres = map_static["hawker_centres"]
+    places = priced_places(map_static, sites)
     records = demo_records(centres, datetime.now(SINGAPORE).date())
     # Nobody signs in as a demo business, so one unguessable password serves them all.
     password_hash = accounts.hash_password(secrets.token_urlsafe(32))
     with engine.begin() as db:
         existing = set(db.execute(
-            select(accounts.users.c.email).where(accounts.users.c.email.like(f"%@{DEMO_EMAIL_DOMAIN}"))
+            select(accounts.users.c.email)
+            .where(accounts.users.c.email.like(f"%@{DEMO_EMAIL_DOMAIN}"))
         ).scalars())
         missing = [record for record in records if record["email"] not in existing]
         underwriter = underwriter_id(db, password_hash)
         for record in missing:
-            add_record(db, record, tariff, history, password_hash, underwriter)
+            add_record(db, record, tariff, history, places, password_hash, underwriter)
     return len(missing)
 
 

@@ -91,6 +91,11 @@ def region_of(postcode: str) -> str:
     return SECTOR_REGION[sector]
 
 
+def is_known(postcode: str) -> bool:
+    """True for a 6-digit postcode in a postal sector URA lists, the ones region_of accepts."""
+    return bool(POSTCODE.match(postcode)) and postcode[:2] in SECTOR_REGION
+
+
 def centres_by_sector(hawker_centres: list[dict]) -> Places:
     """Location of every hawker centre whose address ends in a postcode, by postal sector."""
     places: Places = {}

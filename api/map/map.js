@@ -50,6 +50,7 @@ const state = {
   sim: { psi: 0, rain: 0, heat: 0, flood: false },
   simExtra: {},                    // readings for tariff hazards beyond the four built-in ones
   simAssessment: null,             // latest POST /api/assess result for the sim readings
+  replay: null,                    // a replayed past day: /api/map/day with every centre's own loss
   circles: [],                     // scenario circles: {id, lat, lng, radiusKm, product, place, readings, extraDays, scn}
   shopId: null,                    // the circle placed from the "Tell us about your shop" box
   shopDraft: null,                 // the box's answer, waiting for the owner to confirm it
@@ -127,6 +128,9 @@ function tierLabel(key) { return OPTIONS.tiers.find((t) => t.key === key)?.label
 
 /* ---------- pricing views (all numbers come from the API) ---------- */
 function regionQuote(region) { return QUOTES.quotes[region]; }
+// A hawker centre is priced from its nearest NEA stations, as a stall there is charged.
+function centreQuote(centre) { return QUOTES.centres?.[centre.name] ?? regionQuote(centre.region); }
+function centreParts(centre) { return QUOTES.centre_loss_day_parts?.[centre.name] ?? QUOTES.loss_day_parts[centre.region]; }
 function recommendedTier(quote) {
   const affordable = quote.tiers.filter((t) => t.weekly_premium_sgd <= AFFORDABLE_WEEKLY_SGD);
   return affordable.length ? affordable[affordable.length - 1] : quote.tiers[0];
@@ -140,7 +144,7 @@ function verdict(quote) {
     return { cls: "warning", word: "Offer with co-pay", tier,
       detail: `Cheapest tier is ${SGD(tier.weekly_premium_sgd)}/wk here - needs an operator, platform or NTUC co-payment to stay affordable.` };
   return { cls: "serious", word: "Refer to underwriter", tier,
-    detail: `${quote.expected_loss_days.toFixed(1)} expected loss-days/yr price every tier above ${SGD0(COPAY_WEEKLY_SGD)}/wk in this region.` };
+    detail: `${quote.expected_loss_days.toFixed(1)} expected loss-days/yr price every tier above ${SGD0(COPAY_WEEKLY_SGD)}/wk here.` };
 }
 function activeCircle() { return state.circles.find((c) => c.id === state.activeId) || null; }
 function circlesAt(point) {
@@ -154,6 +158,7 @@ function currentLossFraction(index) {
         if (circle.scn) worst = Math.max(worst, circle.scn.assessment.loss_percent / 100);
       return worst;
     }
+    if (state.replay) return state.replay.hawker_losses[index].loss_percent / 100;
     return state.simAssessment ? state.simAssessment.loss_percent / 100 : 0;
   }
   if (state.mode === "live" && state.live?.hawker_losses) return state.live.hawker_losses[index].loss_percent / 100;
@@ -179,6 +184,7 @@ const REGION_TINT = {
   north: [46, 56, 52], south: [56, 48, 52], east: [46, 52, 60], west: [56, 52, 44], central: [52, 50, 58],
 };
 function hazeLift(region) {
+  if (state.mode === "sim" && state.replay) return Math.max(0, (state.replay.haze_by_region?.[region] ?? 0) - 50) * 28;
   if (state.mode === "sim") return Math.max(0, state.sim.psi - 50) * 28;
   if (state.mode === "live") return Math.max(0, (state.live?.haze?.[region]?.max_today ?? 0) - 50) * 28;
   return (QUOTES.loss_day_parts[region]?.haze ?? 0) * 900;
@@ -220,7 +226,7 @@ function smeColor(centre, index) {
     const day = dayColour(currentLossFraction(index) * 100);
     return COLORS[PIN_BY_DAY[day.key]].concat(235);
   }
-  return COLORS[verdict(regionQuote(centre.region)).cls].concat(235);
+  return COLORS[verdict(centreQuote(centre)).cls].concat(235);
 }
 
 function buildLayers() {
@@ -230,6 +236,13 @@ function buildLayers() {
 
   if (state.layers.base) layers.push(new TileLayer({
     id: "base", data: ONEMAP_TILES, minZoom: 9, maxZoom: 18, tileSize: 256, opacity: 0.5,
+    getTileData: async ({ url, signal }) => {
+      // OneMap answers tiles outside Singapore with an empty body, which is not an image.
+      try {
+        const blob = await (await fetch(url, { signal })).blob();
+        return blob.size ? await createImageBitmap(blob) : null;
+      } catch { return null; }
+    },
     renderSubLayers: (props) => {
       const { west, south, east, north } = props.tile.bbox;
       return new BitmapLayer(props, { data: null, image: props.data, bounds: [west, south, east, north] });
@@ -338,7 +351,7 @@ function redraw() { state.rev += 1; deckgl.setProps({ layers: buildLayers() }); 
 function tooltip({ object, layer, index }) {
   if (!object) return null;
   if (layer.id === "sme") {
-    const quote = regionQuote(object.region), tier = recommendedTier(quote);
+    const quote = centreQuote(object), tier = recommendedTier(quote);
     const live = state.mode !== "history"
       ? ` · today's loss ${(currentLossFraction(index) * 100).toFixed(0)}% ${dayChip(currentLossFraction(index) * 100)}` : "";
     const rent = rentOf(object);
@@ -542,7 +555,7 @@ function buildExtraHazardControls() {
       state.simExtra[input.dataset.extra] = value;
       const out = el(`xv-${input.dataset.extra}`);
       if (out) out.textContent = input.value;
-      applyControlChange();
+      setSim({});
     }));
 }
 
@@ -677,10 +690,13 @@ function dayDetail(index, tier) {
     : null;
   const readings = state.mode === "live"
     ? state.live?.hawker_losses?.[index]?.readings
-    : best ? best.readings : { haze: state.sim.psi, rain: state.sim.rain, heat: state.sim.heat };
+    : best ? best.readings
+    : state.replay ? state.replay.hawker_losses[index].readings
+    : { haze: state.sim.psi, rain: state.sim.rain, heat: state.sim.heat };
   if (state.mode === "history" || !readings) return "";
-  const label = state.mode === "live" ? `Live today (${state.live?.date ?? ""})` : "On the simulated day";
-  const stressed = best ? best.scn.regions[centre.region] : null;
+  const label = state.mode === "live" ? `Live today (${state.live?.date ?? ""})`
+    : !best && state.replay ? `NEA readings here on ${state.replay.date}` : "On the simulated day";
+  const stressed = best ? best.scn.centres?.[centre.name] ?? null : null;
   // Inside a circle the payout is the one the API priced for that circle's product and tier.
   const paid = best
     ? { tier: tierLabel(state.tier), perStall: best.scn.assessment.payout_sgd }
@@ -718,8 +734,8 @@ function renderDetail() {
 
   if (type === "sme") {
     const centre = STATIC.hawker_centres[value];
-    const quote = regionQuote(centre.region), v = verdict(quote), rec = v.tier;
-    const parts = QUOTES.loss_day_parts[centre.region];
+    const quote = centreQuote(centre), v = verdict(quote), rec = v.tier;
+    const parts = centreParts(centre);
     const nearHeat = nearest(STATIC.wbgt_stations, centre), nearRain = nearest(STATIC.rain_stations, centre);
     const basisFar = Math.min(nearHeat.km, nearRain.km) > 3;
     kind.textContent = "SME · hawker centre";
@@ -738,7 +754,7 @@ function renderDetail() {
         <p class="sms">"SafeDay: we pay ${SGD0(rec.daily_payout_sgd)}/day (max ${SGD0(rec.max_payout_per_year_sgd)}/yr) when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${centre.name}. ${SGD(rec.weekly_premium_sgd)}/wk. No payout below these levels."</p></div>
       <div class="sec"><p class="cap">Expected loss · ${quote.expected_loss_days.toFixed(2)} full-loss days a year</p>
         ${stackBar(parts)}
-        <p class="note">Day-weighted severity of every NEA reading in the ${centre.region} zone's history × 365.25 × peril weight × product factor (cooked food keeps nothing overnight).</p></div>
+        <p class="note">Day-weighted severity of the NEA readings at the stations nearest this centre (haze: the ${centre.region} zone), blended with the zone's history where a station's record is short, × 365.25 × peril weight × product factor (cooked food keeps nothing overnight).</p></div>
       <div class="sec"><p class="cap">All tiers · weekly premium per stall</p>
         <table class="tiers"><tr><th>Tier</th><th>Payout/day</th><th>Cap</th><th>Max/yr</th><th>Weekly</th></tr>
         ${quote.tiers.map((t) => `<tr class="${t.tier === rec.tier ? "rec" : ""}"><td>${t.label}</td><td>${SGD0(t.daily_payout_sgd)}</td><td>${t.max_paid_days_per_year ?? Math.round(t.max_payout_per_year_sgd / t.daily_payout_sgd)} d</td><td>${SGD0(t.max_payout_per_year_sgd)}</td><td>${SGD(t.weekly_premium_sgd)}</td></tr>`).join("")}
@@ -769,7 +785,7 @@ function renderDetail() {
       <div class="kv"><span class="k">Days with 20 mm in one hour</span><span class="v">${(s.share_days_ge_20 * 100).toFixed(1)}% of ${s.days} days</span></div>
       <div class="kv"><span class="k">Days with 30 mm in one hour</span><span class="v">${(s.share_days_ge_30 * 100).toFixed(1)}% of ${s.days} days</span></div>
       <div class="kv"><span class="k">Average wet work-hours per day</span><span class="v">${s.wet_hours_per_day.toFixed(2)} h</span></div>
-      <p class="note">The trigger is 20 mm of rain falling within one working hour (7am to 7pm): a downpour hard enough to empty a hawker centre. The percentages count how many of this gauge's recorded days had such an hour. Rain is local, so the policy watches the gauge nearest each business, not an island average.</p>`;
+      <p class="note">The trigger is 20 mm of rain falling within one working hour (7am to 7pm): a downpour hard enough to empty a hawker centre. The percentages count how many of this gauge's recorded days had such an hour. Rain is local, so the policy reads the 3 rain gauges nearest each business and takes the middle reading of those that reported, not an island average.</p>`;
   } else if (type === "flood") {
     kind.textContent = "Hazard · flood hotspot";
     body.innerHTML = `<p class="title">${value.name}</p>
@@ -801,7 +817,7 @@ function renderPortfolio() {
   const tierKey = state.tier;
   let stalls = 0, premiumPool = 0, expectedPayouts = 0, dayPayout = 0;
   STATIC.hawker_centres.forEach((centre, index) => {
-    const tier = regionQuote(centre.region).tiers.find((t) => t.tier === tierKey);
+    const tier = centreQuote(centre).tiers.find((t) => t.tier === tierKey);
     stalls += centre.food_stalls;
     premiumPool += tier.yearly_premium_sgd * centre.food_stalls;
     expectedPayouts += tier.expected_paid_days * tier.daily_payout_sgd * centre.food_stalls;
@@ -858,6 +874,13 @@ function refreshSimAssessment() {
   }, 150);
 }
 function setSim(partial) {
+  // Moving a slider turns a replayed day back into one what-if day for every centre.
+  if (state.replay) {
+    el("day-note").textContent = `The sliders now set one what-if day for every centre. `
+      + `Pick a date to replay a real day again.`;
+    el("s-date").value = "";
+  }
+  state.replay = null;
   Object.assign(state.sim, partial);
   el("s-psi").value = state.sim.psi; el("s-rain").value = state.sim.rain; el("s-heat").value = state.sim.heat;
   el("s-flood").checked = state.sim.flood;
@@ -1198,7 +1221,7 @@ function aboutHtml() {
   <p>Swiss Re's CatNet and Munich Re's Location Risk Intelligence price a location by layering
   hazard frequency over geocoded exposure, applying a damage function, then adding the money
   terms. SafeDay runs the same four steps, with every input public:</p>
-  <p>Every number on this page comes from the pricing API (<code>/api/quote</code>, <code>/api/assess</code>) - the same engine the tariff desk edits. For a stall, the engine computes expected loss-days (day-weighted severity of every NEA reading in the region's history × 365.25 × peril weight × product factor - classical burning-cost rating), caps paid days per tier, then loads: +15% uncertainty, +10% catastrophe (modest next to the 2-4× expected-loss multiples of the cat-bond market), ÷ (1-25%) expenses (the documented microinsurance average), +9% GST (IRAS).</p>
+  <p>Every number on this page comes from the pricing API (<code>/api/quote</code>, <code>/api/assess</code>) - the same engine the tariff desk edits. For a stall, the engine computes expected loss-days (day-weighted severity of the NEA readings at the stations nearest the stall, blended with its region where a record is short, × 365.25 × peril weight × product factor - classical burning-cost rating), caps paid days per tier, then loads: +15% uncertainty, +10% catastrophe (modest next to the 2-4× expected-loss multiples of the cat-bond market), ÷ (1-25%) expenses (the documented microinsurance average), +9% GST (IRAS).</p>
   <h4>Why a payout is insurance, not a bet</h4>
   <p>Insurance Act 1966 s151 voids cover without insurable interest. Tier payouts (S$20-100/day) sit below a stall's normal daily takings (triangulated S$400-800/day gross), so each payout is a pre-estimate of lost income, sold only to operating businesses. Every price can be explained, as MAS's FEAT rules require: it comes from a public formula over public weather data, we can show a customer exactly why they pay what they pay, and no personal data goes into any price.</p>
   <h4>The protection gap</h4>
@@ -1309,15 +1332,25 @@ function wireUi() {
         note.textContent = `No NEA readings for ${dateInput.value}. Data runs ${day.available.min} to ${day.available.max}.`;
         return;
       }
+      state.replay = null;
+      state.simExtra = {};
+      document.querySelectorAll("#extra-hazards [data-extra]").forEach((input) => {
+        if (input.type === "checkbox") input.checked = false;
+        else { input.value = 0; const out = el(`xv-${input.dataset.extra}`); if (out) out.textContent = 0; }
+      });
       setSim({
         psi: Math.round(day.haze.value), rain: Math.round(day.rain.value),
         heat: day.heat.value, flood: false,
       });
-      note.textContent = `Worst readings on ${dateInput.value}: PSI ${Math.round(day.haze.value)}`
+      state.replay = day;
+      redraw(); renderPortfolio(); renderDetail();
+      note.textContent = `On ${dateInput.value} each centre is scored on its own NEA readings: its zone's PSI, `
+        + "the middle of its 3 nearest rain gauges that reported, and its nearest heat station. "
+        + `Worst on the island: PSI ${Math.round(day.haze.value)}`
         + (day.haze.site ? ` (${day.haze.site} zone)` : "")
         + `, ${day.rain.value} mm rain` + (day.rain.site ? ` (gauge ${day.rain.site})` : "")
         + `, ${day.heat.value} h of dangerous heat` + (day.heat.site ? ` (${day.heat.site})` : "")
-        + ". The sliders are set to them; adjust freely.";
+        + ". The sliders show these; moving one applies it to every centre.";
     } catch (error) { console.error(error); }
   });
   const productSelect = el("kyc-product");

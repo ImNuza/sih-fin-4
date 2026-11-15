@@ -123,24 +123,43 @@ Append-only, one row per status change. A payout's history can always be read ba
 
 ## When a station's feed is missing (added 15 Nov 2026)
 
-The brief asks for "a fallback if the feed fails". A payout run from NEA history now reads each
-policy at its place (hawker centre, else its postcode area, else its region's middle) and, per
-hazard, takes the first of:
+The brief asks for "a fallback if the feed fails". Payouts, the live score on the map, the
+ten-year replay and the day replay now all read a place by one rule (`api/readings.py`).
 
-1. the nearest station's own reading;
-2. the median of up to 3 stations within 5 km that did report (90% of rain gauges and WBGT
-   stations have another station within 3.1 km and 4.1 km);
-3. rain only: MSS's published highest 60-minute rain for the nearest gauge that day;
-4. nothing: the policy counts as `awaiting_data`. No payout row is made, so running the same day
+The place is where the policy is priced: the hawker centre, else the shop's postcode area,
+else the middle of the region (platform workers, who work across an area). A centre that has
+left the map or a postcode with no postal sector also falls back to the region's middle.
+
+Stations are the ones the price reads (`data/processed/site_hazard_readings.csv`: 116 rain
+gauges, 31 WBGT stations), ranked by distance from the place. A place may read its nearest
+station and any other station within 5 km (90% of these gauges and WBGT stations have another
+station within 2.9 km and 4.1 km). Per hazard:
+
+1. rain: the median of the first 3 of those gauges that reported (3 is the rain hazard's
+   `sites_used` in the tariff, so the payout reads as many gauges as the price);
+2. rain, if none of them reported: MSS's published highest 60-minute rain for the nearest gauge
+   that day;
+3. heat: the first of those WBGT stations that reported (heat `sites_used` is 1; with more, the
+   median of that many). Heat has no MSS record to fall back on;
+4. haze: the region's PSI, else the median of the regions that reported;
+5. nothing: the policy counts as `awaiting_data`. No payout row is made, so running the same day
    again once the data arrives can still pay it. Late, never refused.
 
-Haze takes the region's PSI, else the median of the regions that reported. A station that sent
-under half its work-hour data counts as not reported (`scripts/build_day_readings.py` writes
-`rain_missing`, `heat_missing` and `rain_mss` rows; the readings rows themselves are unchanged).
+A station that sent under half its work-hour data counts as not reported.
+`scripts/build_day_readings.py` writes a `rain_missing` or `heat_missing` row for each priced
+station that did not report on a day the feed covers (a day the whole feed was down included),
+and a `rain_mss` row where MSS has a record for a missing gauge. Rain rows are kept from 1 mm
+and heat rows above 0, so a station that reported with no row read 0.
+
 Each payout keeps its readings and, in the `assessed` event, the rule that gave each one, for
-example `median of S187, S150, S130 (S138 did not report)`. `GET /api/payouts` returns it as
-`basis`. Code: `api/day_history.py`. Before this, a missing station read as 0, so a broken feed
-meant no payout, and the nearest WBGT station of many centres had reported on few days.
+example `median of S72, S118, S79`, `median of S118, S79 (S72 did not report)`,
+`S145 (S144 did not report)`, `MSS daily record for S72 (no gauge within 5 km reported)` or
+`median of east, north (south did not report)`. `GET /api/payouts` returns it as `basis`.
+
+The live score uses the same rule on today's snapshot, with no MSS record live: a hazard with
+no eligible station reporting reads 0. A replay reads a hazard that would wait as 0 too. Before
+this, a missing station read as 0, so a broken feed meant no payout, and the nearest WBGT station
+of many centres had reported on few days.
 
 ## Example SMS (English, 1 segment)
 

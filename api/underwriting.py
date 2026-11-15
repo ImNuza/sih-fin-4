@@ -17,7 +17,6 @@ from sqlalchemy import Column, Connection, DateTime, Integer, String, Table, ins
 
 from api import accounts, store
 from api.accounts import InsurerDep, SmeDep
-from api.calculator import History
 from api.models import Tariff
 from api.store import metadata
 
@@ -160,10 +159,10 @@ def cover_starts_at(cover_start: date | None) -> datetime:
 
 
 def start_policy(
-    db: Connection, application: dict, tariff: Tariff, history: History
+    db: Connection, application: dict, tariff: Tariff, request: Request
 ) -> dict | None:
     """The approved owner's SafeDay policy, priced as the buy flow does. None when not wanted."""
-    from api.main import policy_values
+    from api.main import business_quote, policy_values
 
     policies, users = accounts.policies, accounts.users
     user_id = application["user_id"]
@@ -173,8 +172,18 @@ def start_policy(
         return None
     owner = db.execute(select(users).where(users.c.id == user_id)).first()
     product = owner.product or "cooked_food"
+    profile = accounts.application_profile
+    place = db.execute(
+        select(profile.c.business_class, profile.c.postcode).where(
+            profile.c.application_id == application["id"]
+        )
+    ).first()
+    postcode = place.postcode if place and place.business_class == "shop" else None
+    priced = business_quote(
+        request, tariff, request.app.state.history, product, owner.region, owner.centre, postcode
+    )
     policy = policy_values(
-        tariff, history, user_id, owner.region, owner.centre, product, application["tier"]
+        priced, user_id, owner.region, owner.centre, product, application["tier"]
     )
     policy["started_at"] = cover_starts_at(application["cover_start"])
     policy["id"] = db.execute(
@@ -194,7 +203,7 @@ def decide(application_id: int, body: Decision, user: InsurerDep, request: Reque
         application = claim_referral(db, application_id, new_status)
         policy = None
         if body.decision == "approve":
-            policy = start_policy(db, application, tariff, request.app.state.history)
+            policy = start_policy(db, application, tariff, request)
         db.execute(
             insert(underwriting_decisions).values(
                 application_id=application_id,

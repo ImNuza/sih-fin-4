@@ -7,9 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
-from api import accounts, calculator, store
+from api import accounts, store
 from api.main import DEMO_EMAIL_DOMAIN, app
-from api.models import Tariff
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
@@ -45,21 +44,34 @@ def test_seed_adds_200_priced_demo_policies_once(database):
     with TestClient(app) as client:
         client.post("/api/auth/register", json=INSURER)
         book = client.get("/api/insurer/policies").json()
-        tariff = client.get("/api/admin/tariff", auth=ADMIN).json()
-        history = client.app.state.history
+        quotes = {kind: client.post("/api/quote", json=quote_request(policy)).json()
+                  for kind, policy in first_of_each_class(book).items()}
     assert len(book) == seed_demo_policies.DEMO_POLICIES
     assert all(policy["demo"] for policy in book)
     assert {policy["business_class"] for policy in book} == {"hawker", "shop", "platform_worker"}
     assert len({policy["region"] for policy in book}) == 5
     assert all(policy["term_months"] in (12, 24) for policy in book)
 
-    policy = book[0]
-    priced = calculator.quote(
-        Tariff.model_validate(tariff["tariff"]), history, policy["region"], policy["product"]
-    )
-    tier = next(t for t in priced.tiers if t.tier == policy["tier"])
-    assert policy["weekly_premium_sgd"] == tier.weekly_premium_sgd
-    assert policy["daily_payout_sgd"] == tier.daily_payout_sgd
+    for kind, policy in first_of_each_class(book).items():
+        tier = next(t for t in quotes[kind]["tiers"] if t["tier"] == policy["tier"])
+        assert policy["weekly_premium_sgd"] == tier["weekly_premium_sgd"], kind
+        assert policy["daily_payout_sgd"] == tier["daily_payout_sgd"], kind
+
+
+def first_of_each_class(book: list[dict]) -> dict[str, dict]:
+    firsts: dict[str, dict] = {}
+    for policy in book:
+        firsts.setdefault(policy["business_class"], policy)
+    return firsts
+
+
+def quote_request(policy: dict) -> dict:
+    """The /api/quote body for where the buy flow prices this business."""
+    if policy["business_class"] == "hawker":
+        return {"centre": policy["centre"], "product": policy["product"]}
+    if policy["business_class"] == "shop":
+        return {"postcode": policy["postcode"], "product": policy["product"]}
+    return {"region": policy["region"], "product": policy["product"]}
 
 
 def test_remove_deletes_only_demo_records(database):
