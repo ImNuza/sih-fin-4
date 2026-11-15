@@ -370,7 +370,7 @@ def suggestion(tiers: list[TierQuote], full_loss_day_sgd: float | None) -> tuple
     best = max(offered, key=lambda t: t.daily_payout_sgd)
     return best.tier, (
         f"Suggested for your sales: {best.label}, the biggest tier that pays no more than this "
-        f"business loses on a day with no sales (about S${full_loss_day_sgd:,.0f})."
+        "business loses on a day with no sales."
     )
 
 

@@ -18,7 +18,8 @@ KYC_PHOTO_MAX_BYTES = 5 * 1024 * 1024
 KYC_PHOTO_MAX_BASE64_CHARS = KYC_PHOTO_MAX_BYTES // 3 * 4 + 4
 # A business's normal sales on a weekday, as the owner declares it: from a small drinks stall to
 # a busy shop.
-DailySales = Annotated[float, Field(ge=20, le=50_000)]
+DAILY_SALES_MIN_SGD, DAILY_SALES_MAX_SGD = 20, 50_000
+DailySales = Annotated[float, Field(ge=DAILY_SALES_MIN_SGD, le=DAILY_SALES_MAX_SGD)]
 
 
 def unique_keys(items: list[BaseModel], kind: str) -> None:

@@ -297,17 +297,51 @@ def hide_tier_1_at_maxwell(client) -> dict:
 
 def test_a_tier_not_offered_is_never_suggested_and_the_reason_is_the_weather(client):
     hidden = tier_of(hide_tier_1_at_maxwell(client), "tier_1")
-    result = assistant.tool_describe_business(context(), f"I sell chicken rice at {MAXWELL}")
+    result = assistant.tool_describe_business(
+        context(), f"I sell chicken rice at {MAXWELL}, about $150 a day"
+    )
     row = next(r for r in result["tiers"] if r["tier"] == "tier_1")
     assert row["offered_here"] is False
     assert row["not_offered_because"] == hidden["not_offered_reason"]
-    assert result["recommended_tier"] != "tier_1"
+    assert result["suggested_tier"] is None
     reply = chat(client, f"I sell chicken rice at {MAXWELL}")["reply"]
     monthly = round(hidden["yearly_premium_sgd"] / 12, 2)
     assert f"S${monthly:,.2f}/month" not in reply
     assert "Tier 1 is not offered here." in reply and "weather history" in reply
     price = assistant.tool_explain_price(context(), centre=MAXWELL, tier="tier_1")
     assert price["not_offered_because"] == hidden["not_offered_reason"]
+
+
+@pytest.mark.parametrize("sales, suggested, offered", [
+    (150, "tier_1", ["tier_1"]),
+    (500, "tier_2", ["tier_1", "tier_2"]),
+    (1500, "tier_4", ["tier_1", "tier_2", "tier_3", "tier_4"]),
+])
+def test_the_suggestion_follows_the_business_daily_sales(client, sales, suggested, offered):
+    result = assistant.tool_describe_business(
+        context(), f"I sell chicken rice at {MAXWELL}", daily_sales_sgd=sales
+    )
+    assert result["suggested_tier"] == suggested
+    assert [r["tier"] for r in result["tiers"] if r["offered_here"]] == offered
+    assert result["a_day_with_no_sales_costs_this_business_sgd"] == sales
+
+
+def test_without_daily_sales_the_assistant_asks_for_them_and_suggests_nothing(client):
+    result = assistant.tool_describe_business(context(), f"I sell chicken rice at {MAXWELL}")
+    assert result["suggested_tier"] is None
+    reply = chat(client, f"I sell chicken rice at {MAXWELL}")["reply"]
+    assert "Tell me your normal sales on a weekday" in reply
+    assert "suggest" not in reply.lower()
+
+
+def test_the_assistant_never_suggests_a_tier_above_the_loss(client):
+    reply = chat(client, f"I sell chicken rice at {MAXWELL}, about $500 a day")["reply"]
+    assert "A day with no sales costs this business about S$500." in reply
+    assert "Suggested for your sales: Tier 2" in reply
+    assert "Tier 3 pays S$630 for a day with no sales, more than this business loses" in reply
+    monthly_tier_3 = round(tier_of(quote(client, centre=MAXWELL), "tier_3")["yearly_premium_sgd"]
+                           / 12, 2)
+    assert f"S${monthly_tier_3:,.2f}/month" not in reply
 
 
 def test_chat_in_another_language_still_answers(client):

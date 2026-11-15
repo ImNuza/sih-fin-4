@@ -42,7 +42,9 @@ from api import (
     accounts, calculator, kyc, payout_flow, readings, store, translate, underwriting,
 )
 from api.day_history import day_readings
-from api.models import HazeBonusQuote, KycRequest, Quote, Tariff, TierQuote
+from api.models import (
+    DAILY_SALES_MAX_SGD, DAILY_SALES_MIN_SGD, HazeBonusQuote, KycRequest, Quote, Tariff, TierQuote,
+)
 from api.payouts import payouts
 
 log = logging.getLogger(__name__)
@@ -66,11 +68,16 @@ MONTHS_PER_YEAR = 12
 # The lockdown example every page uses (api/site/tier-proof.js).
 LOCKDOWN_EXAMPLE_DAYS = 40
 POSTCODE_IN_TEXT = re.compile(r"\b(\d{6})\b")
+# "S$500 a day", "$1,500": a dollar amount in an owner's words is their daily sales.
+SALES_IN_TEXT = re.compile(r"\$\s?(\d[\d,]*(?:\.\d+)?)")
+# The ten-year record's daily sales when the person gave none and has declared none.
+DEFAULT_DAILY_SALES_SGD = 500.0
 # Fields of the buy form (api/site/buy/index.html) the assistant may fill from what a person
 # says. Identity and payment fields stay with the person, so a password is never among them.
 FORM_FIELDS = (
     "business_class", "business_name", "centre", "stall_unit", "licence_no", "postcode",
-    "product", "name", "designation", "phone", "email", "sms_language", "term_months",
+    "product", "daily_sales_sgd", "name", "designation", "phone", "email", "sms_language",
+    "term_months",
 )
 
 router = APIRouter(prefix="/api/assistant")
@@ -239,17 +246,37 @@ def policy_place(ctx: Context, policy) -> Where | None:
     return region_place(ctx, policy.region)
 
 
-def place_quote(ctx: Context, where: Where, product: str) -> Quote:
-    """The quote POST /api/quote gives this place: what a business there is shown and charged."""
+def place_quote(
+    ctx: Context, where: Where, product: str, daily_sales_sgd: float | None = None
+) -> Quote:
+    """The quote POST /api/quote gives this place: what a business there is shown and charged.
+    With its daily sales, only the tiers that fit the business are offered."""
     from api import main as app_main
 
     if where.centre or where.postcode or where.whole_region:
         return app_main.business_quote(
-            ctx.request, ctx.tariff, product, where.region, where.centre, where.postcode
+            ctx.request, ctx.tariff, product, where.region, where.centre, where.postcode,
+            daily_sales_sgd,
         )
     return app_main.place_quote(
-        ctx.request, ctx.tariff, product, where.region, where.lat, where.lng
+        ctx.request, ctx.tariff, product, where.region, where.lat, where.lng, daily_sales_sgd
     )
+
+
+def declared_sales(ctx: Context) -> float | None:
+    """The signed-in owner's normal weekday sales, as declared when they applied, or None."""
+    from api import main as app_main
+
+    if ctx.user is None or ctx.user.role != "sme":
+        return None
+    application = app_main.latest_application(ctx.state.db, ctx.user.id)
+    return application["daily_sales_sgd"] if application else None
+
+
+def sales_in(text: str) -> float | None:
+    """The first dollar amount in an owner's words, read as their daily sales, or None."""
+    found = SALES_IN_TEXT.search(text)
+    return float(found.group(1).replace(",", "")) if found else None
 
 
 def chosen_tier(quote: Quote, tier: str) -> TierQuote:
@@ -489,8 +516,11 @@ def readings_on(ctx: Context, where: Where, day: date) -> tuple[dict[str, float]
 # ---------- tools ----------
 
 
-def tool_describe_business(ctx: Context, description: str, postcode: str | None = None) -> dict:
-    """Read a business from the owner's words into a product, a place and cover options."""
+def tool_describe_business(ctx: Context, description: str, postcode: str | None = None,
+                           daily_sales_sgd: float | None = None) -> dict:
+    """Read a business from the owner's words into a product, a place and cover options. With
+    its normal weekday sales, only the tiers that pay no more than it loses on a day with no
+    sales are offered, and the biggest of them is suggested."""
     shop = kyc.read_shop(KycRequest(text=description), ctx.tariff.products, ctx.state.places)
     postcode = postcode or next(iter(POSTCODE_IN_TEXT.findall(description)), None)
     if shop.product is None or (shop.place is None and postcode is None):
@@ -500,37 +530,36 @@ def tool_describe_business(ctx: Context, description: str, postcode: str | None 
                                        ("where (the hawker centre or the shop's postcode)",
                                         shop.place or postcode)) if v is None],
         }
-    from api import main as app_main
-
+    sales = daily_sales_sgd or sales_in(description) or declared_sales(ctx)
+    if sales is not None and not DAILY_SALES_MIN_SGD <= sales <= DAILY_SALES_MAX_SGD:
+        return {"error": f"Normal sales on a weekday must be S${DAILY_SALES_MIN_SGD} to "
+                         f"S${DAILY_SALES_MAX_SGD:,}."}
     if postcode:
         where = postcode_place(ctx, postcode)
     elif shop.place.match == "hawker_centre":
         where = centre_place(ctx.state.centres_by_name[shop.place.name])
     else:
         where = point_place(ctx, shop.place.name, shop.place.lat, shop.place.lng)
-    quote = place_quote(ctx, where, shop.product)
-    rents = app_main.rent_table(ctx.tariff, ctx.state.rent).centres
-    rent = rents.get(where.centre) if where.centre else None
+    quote = place_quote(ctx, where, shop.product, sales)
     product = calculator.find(ctx.tariff.products, shop.product, "product")
     fields = {"business_class": "hawker" if where.centre else "shop", "product": shop.product}
     if where.centre:
         fields["centre"] = where.centre
     if where.postcode:
         fields["postcode"] = where.postcode
+    if sales is not None:
+        fields["daily_sales_sgd"] = f"{sales:g}"
     ctx.actions.append(Action(type="start_signup", label="Start sign-up with these details",
                               url="/buy/?via=adviser", fields=fields))
     facts = product_facts(ctx.tariff)
-    offered = [t.tier for t in quote.tiers if t.offered]
-    wanted = rent.recommended_tier if rent and rent.recommended_tier in offered else None
     return {
         "product": product.label, "place": where.name, "region": where.region,
         "expected_full_loss_days_a_year": quote.expected_loss_days,
         "tiers": tier_rows(quote, where.who),
-        "recommended_tier": wanted or next(iter(offered), None),
-        "why_recommended": (
-            f"the smallest tier that pays a day's rent at this centre (about "
-            f"S${rent.rent_per_day_sgd:.0f} a day)" if wanted else "the lowest-cost tier offered here"
-        ),
+        "normal_weekday_sales_sgd": sales,
+        "a_day_with_no_sales_costs_this_business_sgd": quote.full_loss_day_sgd,
+        "suggested_tier": quote.suggested_tier,
+        "suggestion": quote.suggestion,
         "triggers": trigger_levels(ctx.tariff),
         "cover_rules": [facts[k] for k in ("daily_amounts", "partial_days", "yearly_limit",
                                            "lockdown", "higher_tiers", "waiting_period")
@@ -671,7 +700,7 @@ def tool_weather_now(ctx: Context, centre: str | None = None, region: str | None
 
 
 def tool_ten_year_record(ctx: Context, centre: str | None = None, product: str | None = None,
-                         tier: str | None = None, daily_sales_sgd: float = 500.0,
+                         tier: str | None = None, daily_sales_sgd: float | None = None,
                          postcode: str | None = None) -> dict:
     """What this cover would have paid a business here, year by year, since 2017."""
     from api import main as app_main
@@ -690,7 +719,8 @@ def tool_ten_year_record(ctx: Context, centre: str | None = None, product: str |
     record = app_main.map_burn(
         ctx.request, ctx.tariff, **place,
         product=product or (policy.product if policy else DEFAULT_PRODUCT),
-        tier=tier or (policy.tier if policy else DEFAULT_TIER), takings=daily_sales_sgd,
+        tier=tier or (policy.tier if policy else DEFAULT_TIER),
+        takings=daily_sales_sgd or declared_sales(ctx) or DEFAULT_DAILY_SALES_SGD,
     )
     return {"place": where.name, "tier": record["tier_label"], "totals": record["totals"],
             "years": [{k: y[k] for k in ("year", "trigger_days", "paid_sgd", "est_lost_sgd")}
@@ -838,8 +868,11 @@ TOOLS: dict[str, Tool] = {
         "Read an owner's description of their business (what they sell, and the hawker centre "
         "or the shop's 6-digit postcode) and return the matching product, the place and every "
         "tier as POST /api/quote prices it there: monthly price, what it pays for a day with no "
-        "sales, the yearly day limit, proof lines and the optional severe haze payout.",
-        params(["description"], description=STRING, postcode=STRING)),
+        "sales, the yearly day limit, proof lines and the optional severe haze payout. With the "
+        "business's normal sales on a weekday (daily_sales_sgd), only the tiers that pay no "
+        "more than it loses on a day with no sales are offered, and one is suggested.",
+        params(["description"], description=STRING, postcode=STRING,
+               daily_sales_sgd=NUMBER)),
     "explain_price": Tool(
         tool_explain_price,
         "Explain why cover at a hawker centre or a shop's postcode costs what it does: stations "
@@ -893,7 +926,8 @@ TOOLS: dict[str, Tool] = {
         tool_fill_buy_form,
         "Fill the sign-up form with details the person has said. Field names: "
         + ", ".join(FORM_FIELDS) + ". business_class is hawker or shop; product is a product "
-        "key; sms_language is en, zh, ms or ta; term_months is 12 or 24.",
+        "key; daily_sales_sgd is the normal sales on a weekday in S$; sms_language is en, zh, "
+        "ms or ta; term_months is 12 or 24.",
         params(["fields"], fields={"type": "object"}),
         pages=("buy",)),
 }
@@ -943,14 +977,17 @@ def system_prompt(ctx: Context) -> str:
         "owners are over 60. Keep a reply under 120 words: lists of tiers as short lines. No emoji.\n"
         "- Read places generously: 'the Indian market' or 'Little India market' is Tekka "
         "Centre; pass the real centre name to tools.\n"
-        "- When someone asks for the most cover, show the highest tier and what it pays, and "
-        "say the top tiers suit businesses with higher takings.\n"
+        "- When someone asks for the most cover, show the highest tier offered to them and what "
+        "it pays, and say the top tiers suit businesses with higher takings.\n"
         "- When someone describes their business, call describe_business and lay out the tiers "
         "as choices with the monthly price and what each pays for a day with no sales. Use a "
         "tier's proof lines as worded; never call a past year's payout a promise.\n"
-        "- A tier with offered_here false cannot be bought at that place. Never offer it; say it "
-        "is not offered here and give its not_offered_because, which is the place's weather "
-        "history, never anything about the person.\n"
+        "- To suggest a tier you need the business's normal sales on a weekday. If you do not "
+        "have them, ask, then pass them to describe_business as daily_sales_sgd. Suggest only "
+        "the suggested_tier it returns, with its suggestion. Never suggest a tier that pays more "
+        "than the business loses on a day with no sales.\n"
+        "- A tier with offered_here false cannot be bought. Never offer it; give its "
+        "not_offered_because as worded.\n"
         "- Never say a model predicts or forecasts bad days.\n"
         "- On the buy page, when the person tells you their details, call fill_buy_form with "
         "only what they said, then ask them to check the form.\n"
@@ -1072,16 +1109,25 @@ def cover_reply(ctx: Context, r: dict, low: str) -> str:
     limit and the add-on, then why any other tier is not offered there."""
     offered = [t for t in r["tiers"] if t["offered_here"]]
     hidden = " ".join(f"{t['not_offered_because']}." for t in r["tiers"] if not t["offered_here"])
+    sales_known = r["normal_weekday_sales_sgd"] is not None
     if not offered:
-        return f"{r['product']} at {r['place']}: {hidden}"
+        return f"{r['product']} at {r['place']}: {r['suggestion'] if sales_known else hidden}"
     lines = "; ".join(f"{t['label']} {money(t['monthly_premium_sgd'])}/month, pays "
                       f"{amount(t['pays_for_a_day_with_no_sales_sgd'])} for a day with no sales"
                       for t in offered)
-    suggested = next(t for t in offered if t["tier"] == r["recommended_tier"])
+    suggested = next((t for t in offered if t["tier"] == r["suggested_tier"]), None)
     facts = product_facts(ctx.tariff)
+    if not sales_known:
+        advice = "Tell me your normal sales on a weekday and I'll say which tier fits."
+    elif suggested is None:
+        advice = r["suggestion"]
+    else:
+        cost = r["a_day_with_no_sales_costs_this_business_sgd"]
+        advice = (f"A day with no sales costs this business about {amount(round(cost))}. "
+                  f"{r['suggestion']}")
     reply = (f"{r['product']} at {r['place']}: {lines}. {facts['partial_days']} "
-             f"{facts['yearly_limit']} I'd suggest {suggested['label']}, {r['why_recommended']}.")
-    if bonus := suggested["severe_haze_payout_add_on"]:
+             f"{facts['yearly_limit']} {advice}")
+    if bonus := (suggested or offered[0])["severe_haze_payout_add_on"]:
         reply += (f" Optional severe haze payout: {money(bonus['monthly_sgd'])}/month more, pays "
                   f"{amount(bonus['pays_once_sgd'])} once if there are {bonus['pays_when']}.")
         if not bonus["can_be_added_now"]:
@@ -1173,6 +1219,8 @@ def rules_reply(ctx: Context, text: str) -> str:
         any(w in low for w in ("shop", "stall", "sell"))
     if describes_business or wants_cover:
         r = tool_describe_business(ctx, text)
+        if "error" in r:
+            return r["error"]
         if "missing" in r:
             return (f"I understood: {r['understood']}. Please also tell me "
                     f"{' and '.join(r['missing'])}.")
@@ -1196,6 +1244,8 @@ def rules_reply(ctx: Context, text: str) -> str:
         return reply
     if any(w in low for w in ("sell", "stall", "shop", "hawker", "卖", "jual", "கடை")):
         r = tool_describe_business(ctx, text)
+        if "error" in r:
+            return r["error"]
         if "missing" in r:
             return f"I understood: {r['understood']}. Please also tell me {' and '.join(r['missing'])}."
         return cover_reply(ctx, r, low)
