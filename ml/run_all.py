@@ -74,6 +74,8 @@ def already_done(board: pd.DataFrame, job: str, model: str) -> bool:
 
 
 def save_row(board: pd.DataFrame, row: dict) -> pd.DataFrame:
+    # Re-read the file first: another run_all may have written rows since this one started.
+    board = load_leaderboard()
     if not board.empty:
         board = board[~((board["job"] == row["job"]) & (board["model"] == row["model"]))]
     board = pd.concat([board, pd.DataFrame([row])], ignore_index=True)
