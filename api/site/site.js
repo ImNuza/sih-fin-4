@@ -5,6 +5,7 @@
 const el = (id) => document.getElementById(id);
 const SGD = (v) => "S$" + (v >= 1000 ? Math.round(v).toLocaleString("en-SG") : Number(v).toFixed(2));
 const PRODUCT_LABELS = {};
+const SG_DATE = (value) => new Date(value).toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
 const MONTH = (ym) => ym ? new Date(ym + "-01").toLocaleDateString("en-SG", { month: "short", year: "numeric" }) : "";
 
 /* One sentence on where a centre's rent figure comes from. */
@@ -155,7 +156,7 @@ async function renderSme(user) {
         ${rent ? `<div class="kv"><span class="k">Share of a day's rent</span><span class="v">${rentShare(policy.daily_payout_sgd)}%</span></div>` : ""}
         <div class="kv"><span class="k">Cap</span><span class="v">${policy.max_paid_days_per_year} days / yr</span></div>
         <div class="kv"><span class="k">Weekly premium</span><span class="v">${SGD(policy.weekly_premium_sgd)}</span></div>
-        <div class="kv"><span class="k">Started</span><span class="v">${String(policy.started_at).slice(0, 10)}</span></div>
+        <div class="kv"><span class="k">Started</span><span class="v">${SG_DATE(policy.started_at)}</span></div>
         <p class="fine">Pays when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${user.centre}. Below those levels nothing is paid.</p>
         <button class="btn small" id="cancel-policy" type="button">Cancel cover</button>`
         : `<div class="tiers-row">${quote.tiers.map((t) => `
@@ -277,7 +278,7 @@ async function renderInsurer(user) {
           <td>${p.business_name || p.name}</td><td>${p.centre || "–"}</td><td>${p.region}</td>
           <td>${rentOf(p.centre)?.rent_class_label || "–"}</td>
           <td>${p.tier_label}</td><td class="num">${SGD(p.weekly_premium_sgd)}</td>
-          <td class="num">${SGD(p.daily_payout_sgd)}</td><td class="num">${rentOf(p.centre) ? SGD(rentOf(p.centre).rent_per_day_sgd) : "–"}</td><td class="num">${String(p.started_at).slice(0, 10)}</td></tr>`).join("")}
+          <td class="num">${SGD(p.daily_payout_sgd)}</td><td class="num">${rentOf(p.centre) ? SGD(rentOf(p.centre).rent_per_day_sgd) : "–"}</td><td class="num">${SG_DATE(p.started_at)}</td></tr>`).join("")}
       </table>` : `<p class="fine">No policies sold yet. When a business owner signs up and picks a tier, it lands here with its region and accumulation.</p>`}
       ${Object.keys(portfolio.by_region).length ? `<p class="fine" style="margin-top:10px">By region: ${Object.entries(portfolio.by_region)
         .map(([region, r]) => `${region} ${r.policies} (${SGD(r.weekly_premium_sgd)}/wk)`).join(" · ")}</p>` : ""}

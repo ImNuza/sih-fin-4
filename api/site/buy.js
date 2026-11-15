@@ -1,7 +1,9 @@
 /* SafeDay guided buy flow (/buy/): a SmartBiz 360-style application with SafeDay as an add-on.
    Steps: business, cover, details, confirm, pay. Pay is skipped when SafeDay is not added or a
    past decline sends the application to an underwriter. Prices and rent come from the API;
-   nothing is saved until POST /api/buy at the last step. Needs site.js (el, api, post, SGD). */
+   nothing is saved until POST /api/buy at the last step. Needs site.js (el, api, post, SGD).
+   For the demo every field starts filled with made-up details (fillRandom), so the whole flow is
+   Next, Next, Next. "New random details" draws a new set. */
 "use strict";
 
 const STEPS = ["business", "cover", "details", "confirm", "pay", "done"];
@@ -24,6 +26,67 @@ async function quoteFor(centreName, product) {
   const key = `${centre.region}/${product}`;
   buyState.quotes[key] ??= post("/api/quote", { region: centre.region, product });
   return buyState.quotes[key];
+}
+
+/* ---------- made-up details for the demo ---------- */
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+const digits = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("");
+const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const OWNERS = [
+  ["Tan Wei Ming", "Ah Ming"], ["Lim Mei Ling", "Mei Ling"], ["Siti Aminah binte Rahman", "Siti"],
+  ["Rajesh s/o Kumar", "Raj"], ["Wong Kai Xin", "Kai Xin"], ["Muhammad Faiz bin Ismail", "Faiz"],
+  ["Goh Ah Hock", "Ah Hock"], ["Priya d/o Ramasamy", "Priya"], ["Ng Boon Keat", "Boon Keat"],
+];
+const DISHES = {
+  cooked_food: ["Chicken Rice", "Fishball Noodles", "Nasi Lemak", "Prata House", "Wanton Mee", "Char Kway Teow", "Mee Rebus", "Kopi & Teh"],
+  fresh_produce: ["Fresh Fish", "Vegetables", "Poultry", "Fruits"],
+  flowers: ["Florist", "Flowers & Plants"],
+  packaged_food: ["Provision Shop", "Drinks Stall"],
+  general_goods: ["Trading", "Sundries"],
+};
+const ROLES = ["Owner", "Owner", "Director", "Partner", "Manager"];
+
+function todayIso() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function setRadio(name, value) {
+  const input = buyForm().querySelector(`[name="${name}"][value="${value}"]`);
+  if (input) input.checked = true;
+}
+
+function fillRandom() {
+  const [name, short] = pick(OWNERS);
+  const products = [...el("buy-product").options].map((o) => o.value);
+  // Most stalls at a hawker centre sell cooked food; keep it the usual answer.
+  const product = Math.random() < 0.7 && products.includes("cooked_food") ? "cooked_food" : pick(products);
+  const company = Math.random() < 0.4;
+  setRadio("applicant_type", company ? "company" : "individual");
+  // UEN formats: 9 digits + letter for a company (year first), 8 digits + letter for a business.
+  field("uen").value = company ? `20${pick(["15", "18", "19", "21", "23"])}${digits(5)}${pick(LETTERS)}` : "";
+  field("business_name").value = `${short} ${pick(DISHES[product] || ["Stall"])}`;
+  field("centre").value = pick(buyState.centres).name;
+  field("stall_unit").value = `01-${String(Math.floor(Math.random() * 180) + 1).padStart(2, "0")}`;
+  field("product").value = product;
+  el("add-safeday").checked = true;
+  field("cover_start").value = todayIso();
+  field("cover_start").min = todayIso();
+  field("name").value = name;
+  field("designation").value = pick(ROLES);
+  field("phone").value = `${pick(["8", "9"])}${digits(3)} ${digits(4)}`;
+  const slug = short.toLowerCase().replace(/[^a-z]+/g, "");
+  field("email").value = `${slug}.${digits(5)}@example.test`;
+  field("password").value = `demo-${digits(6)}`;
+  setRadio("declined_before", "no");
+  el("declined-box").hidden = true;
+  field("declined_details").value = "";
+  field("accept_declaration").checked = true;
+  field("accept_pdpa").checked = true;
+  buyState.tier = null;
+  toggleUen();
+  showRentHint();
+  renderTiers();
 }
 
 /* ---------- step 1: business ---------- */
@@ -76,11 +139,12 @@ async function renderSummary() {
   el("summary").innerHTML = [
     row("Applying as", chosen("applicant_type") === "company" ? `Company · UEN ${field("uen").value.toUpperCase()}` : "Individual"),
     row("Business", `${field("business_name").value} · ${productLabel}`),
-    row("Hawker centre", centre),
+    row("Hawker centre", `${centre}${field("stall_unit").value ? ` · #${field("stall_unit").value}` : ""}`),
     rent ? row("Rent class", `${rent.rent_class_label} · about ${SGD(rent.rent_per_day_sgd)} a trading day`) : "",
     row("SmartBiz 360", "Priced by Income"),
     row("SafeDay", tier ? `${tier.label} · ${SGD(tier.weekly_premium_sgd)} a week · ${SGD(tier.daily_payout_sgd)} a bad day` : "Not added"),
-    row("Contact", `${field("name").value} · ${field("phone").value} · ${field("email").value}`),
+    row("Cover starts", field("cover_start").value ? new Date(field("cover_start").value).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : "Today"),
+    row("Contact", `${field("name").value}${field("designation").value ? ` (${field("designation").value})` : ""} · ${field("phone").value} · ${field("email").value}`),
   ].join("");
   if (tier) el("due-amount").textContent = SGD(tier.weekly_premium_sgd);
 }
@@ -127,6 +191,8 @@ function requestBody() {
   return {
     name: data.name, email: data.email, password: data.password,
     business_name: data.business_name, centre: data.centre, product: data.product,
+    stall_unit: data.stall_unit || null, designation: data.designation || null,
+    cover_start: data.cover_start || null,
     applicant_type: data.applicant_type, uen: data.applicant_type === "company" ? data.uen : null,
     phone: data.phone, add_safeday: addsSafeDay(), tier: addsSafeDay() ? buyState.tier : null,
     declined_before: referred(), declined_details: referred() ? data.declined_details : null,
@@ -146,7 +212,10 @@ function doneHtml({ application, policy }) {
     return `<h2>Application received</h2>
       <p>Income will send your SmartBiz 360 quote. You did not add SafeDay. You can add it any time from your dashboard.</p>
       <a class="btn primary" href="/dashboard/">Go to your dashboard</a>`;
-  return `<h2>You are covered from today</h2>
+  const starts = application.cover_start && application.cover_start > todayIso()
+    ? `from ${new Date(application.cover_start).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}`
+    : "from today";
+  return `<h2>You are covered ${starts}</h2>
     <p>SafeDay ${policy.tier_label} pays up to ${SGD(policy.daily_payout_sgd)} on a bad day at ${policy.centre}, for ${SGD(policy.weekly_premium_sgd)} a week. There is nothing to claim: we pay when NEA readings cross the trigger levels.</p>
     <div class="kv"><span class="k">Payment reference (prototype)</span><span class="v">${application.payment_ref}</span></div>
     <div class="kv"><span class="k">Paid by</span><span class="v">${application.payment_method === "giro" ? "GIRO, every week" : "PayNow"}</span></div>
@@ -213,7 +282,8 @@ async function wireBuy() {
     buyState.tier = card.dataset.tier;
     renderTiers();
   });
-  toggleUen();
+  el("refill").addEventListener("click", fillRandom);
+  fillRandom();
   showStep("business");
 }
 

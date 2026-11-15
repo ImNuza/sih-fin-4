@@ -199,6 +199,7 @@ table.list td.num { color: var(--ink); }
 .stepper li.skip { text-decoration: line-through; opacity: 0.6; }
 .buy-card { padding: var(--s-6); }
 .buy-card h2 { font: 700 var(--t-xl)/1.2 var(--sans); margin-bottom: var(--s-4); }
+.step-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; }
 .buy-card textarea {
   display: block; width: 100%; margin-top: var(--s-1); background: var(--bg); color: var(--ink);
   border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; font: var(--t-base) var(--sans);
