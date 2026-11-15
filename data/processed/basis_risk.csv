@@ -1,0 +1,13 @@
+hazard,band,reading_at_least,option,hit,missed_loss,false_alarm,quiet,missed_loss_share,false_alarm_share_of_paid,false_alarm_share_of_good_days,days,stall_years,bad_days_per_stall_year,missed_losses_per_stall_year,false_alarms_per_stall_year
+rain,first band (pays part of the day),20,nearest station (today's rule),6986,4222,4368,200004,0.377,0.385,0.0214,3582,590.2,18.99,7.15,7.4
+rain,first band (pays part of the day),20,worst of 2 nearest,8591,2617,8047,196325,0.233,0.484,0.0394,3582,590.2,18.99,4.43,13.63
+rain,first band (pays part of the day),20,median of 3 nearest,6389,4819,3208,201164,0.43,0.334,0.0157,3582,590.2,18.99,8.16,5.44
+rain,top band (pays the full day),50,nearest station (today's rule),371,498,503,214208,0.573,0.576,0.0023,3582,590.2,1.47,0.84,0.85
+rain,top band (pays the full day),50,worst of 2 nearest,508,361,1021,213690,0.415,0.668,0.0048,3582,590.2,1.47,0.61,1.73
+rain,top band (pays the full day),50,median of 3 nearest,261,608,248,214463,0.7,0.487,0.0012,3582,590.2,1.47,1.03,0.42
+heat,first band (pays part of the day),2,nearest station (today's rule),69,411,349,10543,0.856,0.835,0.032,660,31.1,15.42,13.2,11.21
+heat,first band (pays part of the day),2,worst of 2 nearest,102,378,543,10349,0.787,0.842,0.0499,660,31.1,15.42,12.14,17.44
+heat,first band (pays part of the day),2,median of 3 nearest,35,445,73,10819,0.927,0.676,0.0067,660,31.1,15.42,14.29,2.34
+heat,top band (pays the full day),6,nearest station (today's rule),0,9,1,11362,1.0,1.0,0.0001,660,31.1,0.29,0.29,0.03
+heat,top band (pays the full day),6,worst of 2 nearest,0,9,1,11362,1.0,1.0,0.0001,660,31.1,0.29,0.29,0.03
+heat,top band (pays the full day),6,median of 3 nearest,0,9,0,11363,1.0,0.0,0.0,660,31.1,0.29,0.29,0.0
