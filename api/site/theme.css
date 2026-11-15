@@ -249,3 +249,8 @@ a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; 
 .day-green { color: var(--good); }
 .day-yellow { color: var(--warning); }
 .day-red { color: var(--critical); }
+
+/* ---------- phones and tablets: the smallest text is 14px ---------- */
+@media (max-width: 1024px) {
+  :root { --t-xs: 14px; }
+}

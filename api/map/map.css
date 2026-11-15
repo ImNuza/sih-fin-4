@@ -348,9 +348,10 @@ table.tiers tr.rec td { background: var(--accent-soft); color: var(--ink); font-
   .ccard .x:hover { color: var(--critical); }
   #kyc-photo::file-selector-button:hover { border-color: var(--ink-2); }
 }
-@media (pointer: coarse) {
-  .help { width: 32px; height: 32px; }
+@media (pointer: coarse), (max-width: 1024px) {
   .layer label { min-height: 44px; }
+  .kv select, .ccard :is(.ctoggle, .x) { min-height: 40px; }
+  .minichart text { font-size: 14px; }
 }
 
 /* ---------- embedded in a dashboard: brand and tools stay small, panels start folded ---------- */

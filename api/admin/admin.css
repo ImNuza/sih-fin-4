@@ -276,3 +276,8 @@ table.changes td.after { color: var(--ink); font-weight: var(--w-medium); }
   .setting { grid-template-columns: minmax(0, 1fr); gap: var(--s-2); }
   .toast { bottom: 88px; }
 }
+
+@media (max-width: 1024px) {
+  .sections button { min-height: 40px; }
+  .chart text { font-size: 14px; }
+}

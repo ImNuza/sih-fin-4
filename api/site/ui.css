@@ -370,3 +370,14 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer;
 }
 .sms-langs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* ---------- phones and tablets: every control is at least 40px tall to tap ---------- */
+@media (max-width: 1024px) {
+  .btn.small, .btn-link, .segmented :is(button, a), .topnav .brand, .topnav nav > a, .navlink { min-height: 40px; }
+  .sort, input[type="range"] { min-height: 40px; }
+  summary { padding-block: 10px; }
+  .sms-langs { gap: var(--s-2); }
+  .sms-langs button { min-height: 40px; padding: 0 var(--s-4); }
+  /* The icon stays 15px; the negative margin lets the tap area grow without moving the layout. */
+  .help { flex: none; width: 40px; height: 40px; margin: -11px; }
+}

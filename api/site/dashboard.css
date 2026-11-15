@@ -229,3 +229,9 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
 }
 
 .sms.welcome { background: var(--bg); border: 1px solid var(--line); }
+
+@media (max-width: 1024px) {
+  /* Side room so the first and last year labels, wider than their bars, are not clipped. */
+  .burn-chart.dense { padding-inline: var(--s-2); }
+  .burn-chart.dense .burn-label { min-height: 14px; font-size: var(--t-xs); }
+}
