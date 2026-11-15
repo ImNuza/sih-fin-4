@@ -23,15 +23,16 @@ A rerun skips finished work, so a stopped run continues where it stopped. Other 
 
 | Option | Default | What it does |
 |---|---|---|
-| `--budget smoke / standard / full` | `standard` | Trials and folds per model: 2/2, 40/4, 150/5. Time cap per model and job: 1, 15, 60 minutes. |
+| `--budget smoke / standard / full` | `standard` | Trials and folds per model: 2/2, 40/4, 150/5. Time cap per model and job: 1 minute, none, 60 minutes. |
 | `--tasks ...` | all | `haze rain heat haze_season rain_season` |
 | `--models ...` | all | `climatology persistence linear random_forest hist_gbm xgboost lightgbm catboost mlp` |
 | `--device auto / cuda / cpu` | `auto` | `cuda` stops with an error if no GPU is found. |
 | `--skip-backtest` | off | Train only. The back-test alone: `uv run --group ml python -m ml.backtest` |
 
-Run time has not been measured on a GPU yet. The upper bound for `standard` is 14 jobs × 7 tuned
-models × 15 minutes, about 24 hours. Most models end well before their cap, because the haze,
-heat and monthly tables are small. Rain (212,000 rows) takes longest.
+`standard` has no time cap, so every model runs all 40 trials. On an RTX 4050 laptop GPU the
+same run with a 15-minute cap took 7.2 hours, and 12 models hit the cap. Without it, CatBoost is
+by far the slowest: about 8 minutes a trial on each haze classification job, about 5 hours per
+job. Plan on a day or more for a run from scratch.
 
 ## What it trains
 

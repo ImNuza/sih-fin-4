@@ -6,7 +6,7 @@ Usage (on the GPU machine, from the repo root):
     uv run --group ml python -m ml.run_all --tasks haze heat --models xgboost catboost
 
 Budgets: smoke (a minute per model, to check the setup), standard (40 trials, 4 folds,
-up to 15 minutes per model and job), full (150 trials, 5 folds, up to an hour).
+no time limit), full (150 trials, 5 folds, up to an hour).
 A rerun skips every job and model already in the leaderboard and resumes Optuna studies,
 so a stopped run continues where it stopped. Delete ml/output/ to start again.
 

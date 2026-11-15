@@ -112,12 +112,12 @@ SEASONAL_TASKS = {
 class Budget:
     trials: int
     folds: int
-    timeout_seconds: int
+    timeout_seconds: int | None  # None runs every trial, however long the search takes
     max_train_rows: int | None
 
 
 BUDGETS = {
     "smoke": Budget(trials=2, folds=2, timeout_seconds=60, max_train_rows=20_000),
-    "standard": Budget(trials=40, folds=4, timeout_seconds=900, max_train_rows=None),
+    "standard": Budget(trials=40, folds=4, timeout_seconds=None, max_train_rows=None),
     "full": Budget(trials=150, folds=5, timeout_seconds=3600, max_train_rows=None),
 }
