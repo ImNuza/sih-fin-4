@@ -7,7 +7,7 @@ dependencies = []
 
 [tool.uv]
 package = false
-default-groups = ["analysis", "api", "dev"]
+default-groups = ["analysis", "api", "dev", "voice"]
 
 [dependency-groups]
 analysis = [
@@ -44,6 +44,11 @@ ml = [
     "scikit-learn>=1.9.1",
     "torch>=2.14.1",
     "xgboost>=3.2.0",
+]
+voice = [
+    "edge-tts>=7.3.1",
+    "faster-whisper>=1.2.1",
+    "sentencepiece>=0.2.3",
 ]
 
 [[tool.uv.index]]
