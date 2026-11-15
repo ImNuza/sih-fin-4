@@ -720,12 +720,19 @@ def model_centre_history(
         "tier_label": tier_quote.label,
         "daily_payout_sgd": tier_quote.daily_payout_sgd,
         "max_payout_per_year_sgd": tier_quote.max_payout_per_year_sgd,
+        "weekly_premium_sgd": tier_quote.weekly_premium_sgd,
         **model_history.centre_years(
-            filled, place["name"], tariff, product, tier, tier_quote.yearly_premium_sgd
+            filled, place["name"], tariff, product, tier, tier_quote.yearly_premium_sgd,
+            set(insights["haze"]["el_nino_years"]), outlook_start(),
         ),
         "haze_facts": insights["haze"],
         "data_to": insights["data_to"],
     }
+
+
+def outlook_start() -> date:
+    """The first day the outlooks look at: tomorrow, Singapore time."""
+    return datetime.now(ZoneInfo("Asia/Singapore")).date() + timedelta(days=1)
 
 
 @app.get("/api/model/book")
@@ -750,10 +757,19 @@ def model_book(
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown tier: {tier}")
         premium_by_centre[c["name"]] = tier_quote.yearly_premium_sgd
     stalls = {c["name"]: c["food_stalls"] for c in centres}
+    insights = model_insights_data(request)
     book = model_history.book_years(
-        filled_history(request), tariff, product, tier, stalls, premium_by_centre
+        filled_history(request), tariff, product, tier, stalls, premium_by_centre,
+        set(insights["haze"]["el_nino_years"]), outlook_start(),
     )
-    return {"product": product, "tier": tier, "tier_label": tier_quote.label, **book}
+    return {
+        "product": product,
+        "tier": tier,
+        "tier_label": tier_quote.label,
+        "daily_payout_sgd": tier_quote.daily_payout_sgd,
+        "haze_facts": insights["haze"],
+        **book,
+    }
 
 
 @app.get("/api/model/insights")
