@@ -235,3 +235,11 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
   .burn-chart.dense { padding-inline: var(--s-2); }
   .burn-chart.dense .burn-label { min-height: 14px; font-size: var(--t-xs); }
 }
+
+/* ---------- support tickets ---------- */
+.support-form { display: grid; gap: var(--s-3); max-width: 640px; }
+.tickets { display: grid; gap: var(--s-3); }
+.ticket { border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); display: grid; gap: var(--s-2); }
+.ticket-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.ticket p { margin: 0; }
+.ticket-reply { background: var(--surface-2); border-radius: var(--r-sm); padding: var(--s-2) var(--s-3); }
