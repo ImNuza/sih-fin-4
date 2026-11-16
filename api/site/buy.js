@@ -407,7 +407,7 @@ function showRentHint() {
   const hint = el("buy-rent");
   const rent = currentRent();
   hint.hidden = !rent;
-  if (rent) hint.innerHTML = `<b>${rent.rent_class_label} centre.</b> ${rentSource(rent, buyState.rent)} About ${SGD(rent.rent_per_day_sgd)} per trading day.`;
+  if (rent) hint.innerHTML = `<b>${rent.rent_class_label} centre</b> · rent about ${SGD(rent.rent_per_day_sgd)} a trading day`;
 }
 function toggleUen() {
   const company = !isPlatformWorker() && chosen("applicant_type") === "company";
@@ -438,10 +438,9 @@ async function renderTiers() {
   el("addon").classList.toggle("on", addsSafeDay());
   body.hidden = !addsSafeDay();
   if (!addsSafeDay()) { buyState.tierQuote = null; return; }
-  let quote, examples = {};
+  let quote;
   try {
     quote = await quoteFor(businessPlace(), businessProduct(), dailySales());
-    if (quote) examples = await partialExamples(quote.product, quote.product_factor, quote.tiers.map((t) => t.tier));
     if (run !== renderTiers.latest) return; // a newer change is drawing the tiers
   } catch (error) {
     buyState.tierQuote = null;
@@ -453,7 +452,6 @@ async function renderTiers() {
     el("tier-retry").addEventListener("click", renderTiers);
     return;
   }
-  const rent = currentRent();
   if (!quote) {
     buyState.tierQuote = null;
     el("buy-tiers").innerHTML = "";
@@ -477,20 +475,11 @@ async function renderTiers() {
   const suggested = quote.suggested_tier;
   if (!offered.some((t) => t.tier === buyState.tier)) buyState.tier = suggested ?? offered[0].tier;
   buyState.tierQuote = offered.find((t) => t.tier === buyState.tier);
-  el("buy-tiers").innerHTML = offered.map((t) => `
-    <button class="tier-card ${t.tier === suggested ? "rec" : ""}" type="button" role="radio"
-      aria-checked="${t.tier === buyState.tier}" data-tier="${t.tier}">
-      <span class="tier-check">${SafeUI.icon("check")}</span>
-      <span class="t">${t.label}${t.tier === suggested ? ' <span class="chip accent">Suggested for your sales</span>' : ""}${t.best_value ? ' <span class="chip good">Best value</span>' : ""}</span>
-      <span class="p">${SGD(monthlyPrice(t))}<small>/mo</small></span>
-      <span class="d">${[`${SGD(t.weekly_premium_sgd)} a week`, dayPrice(t)].filter(Boolean).join(" · ")}</span>
-      <span class="d">${fullLossLine(t, examples[t.tier])}</span>
-      <span class="d">${lockdownLine(t)}</span>
-      ${t.tier === buyState.tier ? `<span class="d">${lockdownExample(t)}</span>` : ""}
-      ${rent ? `<span class="d">A full bad day pays ${rentShare(t.daily_payout_sgd, rent.rent_per_day_sgd)} here.</span>` : ""}
-    </button>`).join("");
-  el("tier-note").textContent = [lossLine, quote.suggestion, bestValueLine(quote, suggested), priceBasis(),
-    notOfferedLine(quote)].filter(Boolean).join(" ");
+  el("buy-tiers").innerHTML = quote.tiers.map((t) => tierBox(t, suggested)).join("");
+  const suggestedTier = quote.tiers.find((t) => t.tier === suggested);
+  el("tier-note").textContent = suggestedTier
+    ? `${suggestedTier.label} is suggested: the most cover that does not pay more than you lose on a day with no sales.`
+    : "Pick a tier. Your price comes from the NEA weather stations nearest you.";
   const tier = buyState.tierQuote;
   showCoverBoxes(proofBox(tier), hazeBonusBox(tier), whatPays(quote, buyState.tier));
   el("why-price").innerHTML = whyPrice(quote, buyState.tier);
@@ -513,10 +502,41 @@ function showCoverBoxes(proofHtml, hazeHtml, paysHtml) {
   el("what-pays").innerHTML = paysHtml;
 }
 
-/* The chosen tier's detail: what it gives for the price, then what it would have paid here. */
+/* One small tier box: name, monthly price and payout. Hover or focus shows the rest. A tier
+   that is not offered here stays visible, greyed, with the reason in a few words. */
+function tierBox(t, suggested) {
+  const offered = t.offered !== false;
+  const days = tierDays(t);
+  const why = t.fits_business === false ? "Pays more than you lose on a day with no sales" : "Not offered at your place";
+  const details = offered ? [
+    `${SGD(t.weekly_premium_sgd)} a week`,
+    `Up to ${days} bad days a year (${proofMoney(t.max_payout_per_year_sgd)})`,
+    `A ${LOCKDOWN_EXAMPLE_DAYS}-day lockdown pays ${proofMoney(Math.min(LOCKDOWN_EXAMPLE_DAYS, days) * t.daily_payout_sgd)}`,
+    t.proof ? `A haze year like 2015 pays about ${proofMoney(t.proof.haze_2015_like_sgd)}` : "",
+  ].filter(Boolean) : [why];
+  return `<button class="tier-card tier-box${t.tier === suggested ? " rec" : ""}${offered ? "" : " off"}" type="button"
+      role="radio" aria-checked="${offered && t.tier === buyState.tier}" ${offered ? "" : 'aria-disabled="true"'}
+      data-tier="${t.tier}" aria-describedby="pop-${t.tier}">
+    <span class="tier-check">${SafeUI.icon("check")}</span>
+    <span class="t">${t.label}</span>
+    ${t.tier === suggested ? '<span class="chip accent">Suggested</span>' : offered ? "" : '<span class="chip">Not for you</span>'}
+    <span class="p">${SGD(monthlyPrice(t))}<small>/mo</small></span>
+    <span class="d"><b>${proofMoney(t.daily_payout_sgd)}</b> per bad day</span>
+    <span class="tier-pop" id="pop-${t.tier}" role="tooltip">${details.map((d) => `<span>${d}</span>`).join("")}</span>
+  </button>`;
+}
+
+/* The chosen tier at a glance, as bullets. */
 function proofBox(tier) {
-  const lines = [coverLine(tier), centsBack(tier), ...proofLines(tier, businessClass())].filter(Boolean);
-  return `<h3>What ${tier.label} gives you here</h3>
+  const days = tierDays(tier);
+  const lines = [
+    `<b>${SGD(tier.weekly_premium_sgd)} a week</b> (${SGD(monthlyPrice(tier))} a month)`,
+    `<b>${proofMoney(tier.daily_payout_sgd)}</b> for a day with no sales, a share of it on a partly bad day`,
+    `Up to <b>${days} bad days a year</b>, at most ${proofMoney(tier.max_payout_per_year_sgd)}`,
+    `A ${LOCKDOWN_EXAMPLE_DAYS}-day lockdown pays <b>${proofMoney(Math.min(LOCKDOWN_EXAMPLE_DAYS, days) * tier.daily_payout_sgd)}</b>`,
+    tier.proof ? `A haze year like 2015 would pay about <b>${proofMoney(tier.proof.haze_2015_like_sgd)}</b>` : "",
+  ].filter(Boolean);
+  return `<h3>${tier.label} at a glance</h3>
     <ul>${lines.map((line) => `<li>${line}</li>`).join("")}</ul>`;
 }
 
@@ -526,13 +546,9 @@ function hazeBonusBox(tier) {
   if (!bonus) return "";
   const onSale = bonus.on_sale_now;
   const ticked = onSale && buyState.hazeBonus;
-  const total = onSale
-    ? `<p class="fine">Weekly total: ${SGD(tier.weekly_premium_sgd)} without the add-on, ${SGD(tier.weekly_premium_sgd + bonus.weekly_sgd)} with it.</p>`
-    : "";
   return `<label class="addon-head"><input type="checkbox" name="add_haze_bonus" id="add-haze-bonus" ${ticked ? "checked" : ""} ${onSale ? "" : "disabled"} />
-      <span><b>Add severe haze payout</b>
-      <span class="fine">${hazeBonusPitch(tier)}${onSale ? "" : " You can add this from November to April."}</span></span></label>
-    ${total}`;
+      <span><b>Add severe haze payout: +${SGD(bonus.weekly_sgd)} a week</b>
+      <span class="fine">Pays ${proofMoney(bonus.lump_sum_sgd)} at once if your area has ${bonus.trigger_days} or more unhealthy-haze days in a year. ${hazeBonusHistory(bonus)}${onSale ? "" : " You can add this from November to April."}</span></span></label>`;
 }
 
 const HAZARD_WORDS = { haze: "haze", rain: "heavy rain", heat: "extreme heat", flood: "flash floods", closure: "closure orders" };
@@ -541,28 +557,28 @@ const DAYS = (days) => days.toFixed(1);
 // The first level that pays, per hazard, from /api/options. Closure orders are left out: they are
 // not a climate trigger and are paid only by an insurer's manual run.
 const TRIGGER_WORDS = {
-  haze: (level) => `24-hour PSI of ${level} or more in your region`,
-  rain: (level) => `${level} mm of rain or more in one work hour at your nearest rain gauges (the middle reading)`,
-  heat: (level) => `${level} work hours or more at WBGT 32 °C at the nearest station`,
-  flood: () => "a PUB flood alert at your place",
+  haze: (level) => `PSI ${level}+`,
+  rain: (level) => `${level} mm of rain in a work hour`,
+  heat: (level) => `${level} hours of extreme heat (WBGT 32 °C)`,
+  flood: () => "a PUB flood alert",
 };
 
+/* The terms in short, folded under "Good to know". */
 function whatPays(quote, tierKey) {
-  const tier = quote.tiers.find((t) => t.tier === tierKey) || quote.tiers[0];
   const triggers = buyState.options.hazards.filter((h) => TRIGGER_WORDS[h.key])
     .map((h) => TRIGGER_WORDS[h.key](h.first_band));
   const wait = buyState.options.waiting_period_days;
-  return `<h3>What it pays, and what it does not</h3>
+  return `<details class="fold">
+    <summary>${SafeUI.icon("chevron-right")}Good to know</summary>
     <ul>
-      <li>${tier.label} pays up to ${SGD(tier.daily_payout_sgd)} for a bad day, and up to ${SGD(tier.max_payout_per_year_sgd)} a year.</li>
-      <li>A bad day starts at ${triggers.slice(0, -1).join(", ")} or ${triggers.at(-1)}. Higher readings pay a bigger share of the day.</li>
-      <li>No payout for a bad day in the first ${wait} days of cover.</li>
-      <li>A move to a higher tier starts a new ${wait}-day wait for the whole cover. A move to a lower tier keeps your start date.</li>
-      <li>Cover stops if the weekly premium is not paid. If you buy again later, the new cover waits ${wait} days, and the yearly limit still counts what was paid in the last ${buyState.options.cap_window_days} days.</li>
-      <li>Payouts already made are yours to keep.</li>
-      <li><b>You can lose sales and receive nothing if the readings stay below these levels.</b></li>
-      <li>There is no claim form. Injury, medical costs and damaged goods are not covered by Payung.</li>
-    </ul>`;
+      <li>A bad day: ${triggers.join("; ")}.</li>
+      <li>No payout in the first ${wait} days of cover.</li>
+      <li><b>Below those levels nothing is paid, even if your sales were down.</b></li>
+      <li>Cover stops if a weekly premium is missed. Payouts already made are yours to keep.</li>
+      <li>Moving to a higher tier restarts the ${wait}-day wait.</li>
+      <li>Not covered: injury, medical costs, damaged goods.</li>
+    </ul>
+  </details>`;
 }
 
 // The quote's own build-up, in words: no number here is worked out in the browser.
@@ -588,11 +604,9 @@ function whyPrice(quote, tierKey) {
 function placeRows(row) {
   const region = businessRegion();
   if (isHawker()) {
-    const rent = currentRent();
     return [
       row("Hawker centre", `${field("centre").value}${field("stall_unit").value ? ` · #${field("stall_unit").value}` : ""}`),
       row("Licence number", field("licence_no").value.toUpperCase()),
-      rent ? row("Rent class", `${rent.rent_class_label} · about ${SGD(rent.rent_per_day_sgd)} a trading day`) : "",
     ];
   }
   if (isPlatformWorker())
@@ -613,25 +627,27 @@ async function renderSummary() {
   const productLabel = buyState.options.productLabels[businessProduct()] || "";
   const dates = coverDates();
   const row = (k, v) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
-  el("summary").innerHTML = [
-    row("Filled in with", escapeHtml(channelText())),
-    row("Applying as", isPlatformWorker() ? "Individual platform worker"
-      : chosen("applicant_type") === "company" ? `Company · UEN ${field("uen").value.toUpperCase()}` : "Individual"),
-    row("Business", isPlatformWorker() ? productLabel : `${field("business_name").value} · ${productLabel}`),
-    isPlatformWorker() ? "" : row("Normal sales on a weekday", SGD(dailySales())),
+  const group = (title, rows) => `<section class="sum-group"><h3>${title}</h3>${rows.filter(Boolean).join("")}</section>`;
+  el("summary").innerHTML = group("Your business", [
+    row("Business", isPlatformWorker() ? productLabel : `${escapeHtml(field("business_name").value)} · ${productLabel}`),
     ...placeRows(row),
-    isPlatformWorker() ? "" : row("People in the business", STAFF_LABELS[field("staff_band").value]),
-    row("SmartBiz 360", "Priced by Income"),
-    row("Payung", tier ? `${tier.label} · ${SGD(tier.weekly_premium_sgd)} a week · ${SGD(tier.daily_payout_sgd)} a bad day` : "Not added"),
-    tier && addsHazeBonus() ? row("Severe haze payout", `${SGD(tier.haze_bonus.weekly_sgd)} a week · ${proofMoney(tier.haze_bonus.lump_sum_sgd)} at once in a year with ${tier.haze_bonus.trigger_days} or more unhealthy-haze days`) : "",
+    isPlatformWorker() ? "" : row("Weekday sales", SGD(dailySales())),
+    row("Applying as", isPlatformWorker() ? "Platform worker"
+      : chosen("applicant_type") === "company" ? `Company · UEN ${field("uen").value.toUpperCase()}` : "Individual"),
+    row("Filled in with", escapeHtml(channelText())),
+  ]) + group("Your cover", [
+    row("Payung", tier ? `${tier.label} · ${SGD(tier.weekly_premium_sgd)} a week` : "Not added"),
+    tier ? row("Pays per bad day", `${SGD(tier.daily_payout_sgd)}, up to ${tierDays(tier)} days a year`) : "",
+    tier && addsHazeBonus() ? row("Severe haze payout", `+${SGD(tier.haze_bonus.weekly_sgd)} a week`) : "",
     tier && addsHazeBonus() ? row("Weekly total", SGD(weeklyDue(tier))) : "",
-    row("Cover starts", dates ? DATE(dates.start) : "Today"),
-    row("Term", `${chosen("term_months")} months`),
-    dates ? row("Payouts from", `${DATE(dates.payoutsFrom)} (after the ${buyState.options.waiting_period_days}-day waiting period)`) : "",
-    dates ? row("Cover ends", DATE(dates.ends)) : "",
+    row("Cover", dates ? `${DATE(dates.start)} to ${DATE(dates.ends)} (${chosen("term_months")} months)` : `${chosen("term_months")} months`),
+    dates ? row("Payouts from", DATE(dates.payoutsFrom)) : "",
+  ]) + group("Contact", [
+    row("Name", `${escapeHtml(field("name").value)}${field("designation").value ? ` (${escapeHtml(field("designation").value)})` : ""}`),
+    row("Mobile", escapeHtml(field("phone").value)),
+    row("Email", escapeHtml(field("email").value)),
     row("Texts in", SMS_LANGUAGES[chosen("sms_language")] || "English"),
-    row("Contact", `${field("name").value}${field("designation").value ? ` (${field("designation").value})` : ""} · ${field("phone").value} · ${field("email").value}`),
-  ].join("") + (tier ? `<p class="fine">What you are buying, in the SMS we will send you:</p>
+  ]) + (tier ? `<p class="fine">Your cover in one SMS:</p>
     <div class="cover-sms" id="buy-cover-sms"></div>` : "");
   if (tier) {
     showDue(weeklyDue(tier));
@@ -1041,7 +1057,7 @@ async function wireBuy() {
   el("buy-back").addEventListener("click", onBack);
   el("buy-tiers").addEventListener("click", async (event) => {
     const card = event.target.closest("[data-tier]");
-    if (!card) return;
+    if (!card || card.getAttribute("aria-disabled") === "true") return;
     buyState.tier = card.dataset.tier;
     await renderTiers();
     showStep(buyState.step, false);

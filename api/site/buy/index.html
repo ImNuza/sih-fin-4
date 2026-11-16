@@ -14,11 +14,11 @@
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/theme.css?v=9" />
     <link rel="stylesheet" href="/ui.css?v=8" />
-    <link rel="stylesheet" href="/buy.css?v=6" />
+    <link rel="stylesheet" href="/buy.css?v=8" />
     <script src="/ui.js?v=4" defer></script>
-    <script src="/site.js?v=34" defer></script>
-    <script src="/tier-proof.js?v=7" defer></script>
-    <script src="/buy.js?v=19" defer></script>
+    <script src="/site.js?v=35" defer></script>
+    <script src="/tier-proof.js?v=9" defer></script>
+    <script src="/buy.js?v=22" defer></script>
     <link rel="stylesheet" href="/assistant.css?v=9" />
     <script src="/assistant.js?v=5" defer></script>
   </head>
@@ -36,7 +36,7 @@
       <div class="buy-main">
         <p class="notice prototype">
           <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg>
-          <span>Prototype. Your Income adviser or your hawker or merchants' association fills in this form with you, or you fill it in yourself online. Payung is an add-on to SmartBiz 360 by Income. This is not an Income page, and no money moves.</span>
+          <span>Prototype: not an Income page, and no money moves.</span>
         </p>
         <p class="notice warning" id="insurer-note" hidden>
           <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#triangle-alert"/></svg>
@@ -74,15 +74,15 @@
             </fieldset>
             <p class="notice" id="self-note" hidden>
               <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg>
-              <span>No adviser or code needed. Fill in the form, pay, and your cover starts just as it would with an adviser.</span>
+              <span>No adviser or code needed. Your cover starts as soon as you pay.</span>
             </p>
             <label id="adviser-field" hidden>Adviser code
               <input name="adviser_code" autocomplete="off" autocapitalize="characters" required pattern="\s*[A-Za-z0-9]{4,12}\s*" maxlength="14" placeholder="e.g. DEMO1234" />
-              <span class="hint">Your adviser types their Income adviser code. Income sells SmartBiz 360 and Payung through its advisers.</span></label>
+              <span class="hint">Your adviser types their code.</span></label>
             <label id="association-field" hidden>Association
               <input name="association" list="association-list" autocomplete="off" required minlength="3" maxlength="120" placeholder="e.g. Tiong Bahru Market Hawkers' Association" />
               <datalist id="association-list"></datalist>
-              <span class="hint">The association that offers Payung to its members as a group scheme. You still pay your own premium.</span></label>
+              <span class="hint">You still pay your own premium.</span></label>
             <fieldset class="choice kinds">
               <legend>What kind of business is it?</legend>
               <div class="kind-grid">
@@ -113,15 +113,16 @@
                 <select name="centre" id="buy-centre" required><option value="">Loading centres…</option></select>
               </label>
               <p class="rent-hint" id="buy-rent" hidden></p>
-              <label>Stall unit (optional) <input name="stall_unit" placeholder="e.g. 01-23" /></label>
-              <label>Licence number
-                <input name="licence_no" autocomplete="off" autocapitalize="characters" required pattern="[A-Za-z0-9\/\-]{5,20}" placeholder="e.g. FS12345X" />
-                <span class="hint">Your SFA food stall licence or NEA stall tenancy number. A licensed hawker needs no UEN.</span></label>
+              <div class="pair">
+                <label>Stall unit (optional) <input name="stall_unit" placeholder="e.g. 01-23" /></label>
+                <label>SFA or NEA licence number
+                  <input name="licence_no" autocomplete="off" autocapitalize="characters" required pattern="[A-Za-z0-9\/\-]{5,20}" placeholder="e.g. FS12345X" /></label>
+              </div>
             </div>
             <div id="shop-box" hidden>
               <label>SSIC code
                 <select name="ssic_choice" id="buy-ssic" required></select>
-                <span class="hint">The industry code you gave ACRA (SSIC 2025, SingStat).</span></label>
+                <span class="hint">The industry code you gave ACRA.</span></label>
               <label id="ssic-other-field" hidden>Your 5-digit SSIC code
                 <input name="ssic_other" inputmode="numeric" required pattern="\d{5}" maxlength="5" placeholder="e.g. 47219" /></label>
             </div>
@@ -129,15 +130,16 @@
               <label>Platform <select name="platform" id="buy-platform" required></select></label>
               <label>Driver or rider ID
                 <input name="platform_worker_id" autocomplete="off" required minlength="3" maxlength="40" />
-                <span class="hint">The ID the platform shows in your driver or rider app.</span></label>
+</label>
             </div>
             <label id="postcode-field" hidden><span id="postcode-label">Postcode</span>
               <input name="postcode" inputmode="numeric" autocomplete="postal-code" required pattern="\d{6}" maxlength="6" placeholder="e.g. 560123" />
               <span class="hint" id="postcode-region"></span></label>
-            <label id="product-field">What you sell <select name="product" id="buy-product" required></select></label>
-            <label id="daily-sales-field">Normal sales on a weekday (S$)
-              <input name="daily_sales_sgd" type="number" inputmode="numeric" min="20" max="50000" step="1" required placeholder="e.g. 500" />
-              <span class="hint">What the business sells on a normal weekday. Payung never pays more for a bad day than the business loses.</span></label>
+            <div class="pair">
+              <label id="product-field">What you sell <select name="product" id="buy-product" required></select></label>
+              <label id="daily-sales-field">Normal weekday sales (S$)
+                <input name="daily_sales_sgd" type="number" inputmode="numeric" min="20" max="50000" step="1" required placeholder="e.g. 500" /></label>
+            </div>
             <div id="staff-box">
               <label>How many people work in the business, you included?
                 <select name="staff_band" id="buy-staff" required></select></label>
@@ -153,15 +155,15 @@
             <h2>Your cover</h2>
             <div class="package">
               <p class="package-head"><span class="tick" aria-hidden="true"><svg class="i"><use href="/vendor/icons.svg#check"/></svg></span>SmartBiz 360 · base package</p>
-              <p class="fine">All-risk cover for your stock and equipment, a daily payout when an insured loss stops your business, and public liability. Income sets this price from your business details. This prototype does not price it.</p>
+              <p class="fine">Stock, equipment and public liability. Priced by Income.</p>
             </div>
             <div class="addon" id="addon">
               <label class="addon-head"><input type="checkbox" name="add_safeday" id="add-safeday" checked />
                 <span><b><span id="addon-who">Your adviser adds</span> Payung climate income cover to your SmartBiz 360 policy</b>
-                <span class="fine" id="addon-pitch">Pays a fixed amount on days when NEA readings show haze, heavy rain, extreme heat or a flood alert near your stall. No claim form and no proof of damage.</span></span></label>
+                <span class="fine" id="addon-pitch">Paid automatically on bad haze, rain, heat or flood days near you. No claim form.</span></span></label>
               <div id="addon-body" hidden>
-                <div class="tiers-row" id="buy-tiers" role="radiogroup" aria-label="Payung tier"></div>
                 <p class="fine" id="tier-note" aria-live="polite"></p>
+                <div class="tiers-row tier-boxes" id="buy-tiers" role="radiogroup" aria-label="Payung tier"></div>
                 <div class="what-pays" id="what-pays"></div>
                 <details class="why-price">
                   <summary><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#chevron-right"/></svg>Why this price?</summary>
@@ -173,7 +175,7 @@
               <legend>How long do you want cover?</legend>
               <label><input type="radio" name="term_months" value="12" required /> 12 months</label>
               <label><input type="radio" name="term_months" value="24" /> 24 months</label>
-              <span class="hint">Same weekly price for both terms.</span>
+              <span class="hint">Same price either way.</span>
             </fieldset>
             <label>Cover starts on <input name="cover_start" type="date" id="cover-start" required />
               <span class="hint" id="waiting-note"></span></label>
@@ -181,8 +183,10 @@
 
           <section data-step="details" hidden>
             <h2>Your details</h2>
+            <div class="pair">
             <label>Your name <input name="name" autocomplete="name" maxlength="120" required /></label>
-            <label>Your role in the business (optional) <input name="designation" autocomplete="organization-title" placeholder="e.g. Owner" /></label>
+            <label>Your role (optional) <input name="designation" autocomplete="organization-title" placeholder="e.g. Owner" /></label>
+            </div>
             <label>Mobile number
               <input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="e.g. 9123 4567" required pattern="(\+65)?\s*[3689]\d{3}\s*-?\d{4}" />
               <span class="hint">We send payout alerts here.</span></label>
@@ -192,11 +196,12 @@
               <label lang="zh"><input type="radio" name="sms_language" value="zh" /> 中文 (Chinese)</label>
               <label lang="ms"><input type="radio" name="sms_language" value="ms" /> Bahasa Melayu</label>
               <label lang="ta"><input type="radio" name="sms_language" value="ta" /> தமிழ் (Tamil)</label>
-              <span class="hint">Your cover SMS and every payout alert come in this language.</span>
+
             </fieldset>
+            <div class="pair">
             <label>Email <input name="email" type="email" inputmode="email" autocomplete="email" required /></label>
-            <label>Password <input name="password" type="password" autocomplete="new-password" required />
-              <span class="hint">You sign in to your dashboard with it.</span></label>
+            <label>Password <input name="password" type="password" autocomplete="new-password" required /></label>
+            </div>
           </section>
 
           <section data-step="confirm" hidden>
@@ -214,9 +219,15 @@
             </div>
             <div class="declare">
               <label class="check"><input type="checkbox" name="accept_declaration" required />
-                <span>I declare that what I have told you is true and complete. Cover starts only after the application is accepted and the first premium is paid, and runs for the term I chose (12 or 24 months). No payout is due for a bad day in the first 30 days after cover starts (the waiting period). Payung pays on NEA readings near my business, not on my actual loss, so a bad day can pay more or less than I lost.</span></label>
+                <span>I declare that:
+                  <ul class="declare-list">
+                    <li>what I told you is true and complete</li>
+                    <li>cover starts once accepted and the first premium is paid, for the term I chose</li>
+                    <li>nothing is paid for a bad day in the first 30 days</li>
+                    <li>Payung pays on NEA readings, not my actual loss, so a bad day can pay more or less than I lost</li>
+                  </ul></span></label>
               <label class="check"><input type="checkbox" name="accept_pdpa" required />
-                <span>I agree that the insurer may collect, use and disclose my personal data to assess this application, run the policy and make payouts, as its data protection policy describes.</span></label>
+                <span>I agree the insurer may use my personal data to assess this application, run the policy and make payouts (PDPA).</span></label>
               <p class="fine optins-title">Optional: send me news and offers by</p>
               <div class="optins">
                 <label class="check"><input type="checkbox" name="marketing_email" /> <span>Email</span></label>
@@ -238,7 +249,7 @@
               <label><input type="radio" name="payment_method" value="giro" /> GIRO, every week</label>
             </fieldset>
             <div class="paynow-box" id="paynow-box" hidden></div>
-            <p class="fine">Demo: no real money moves. PayNow shows a QR that opens a "payment successful" page; GIRO gets a made-up reference.</p>
+            <p class="fine">Demo: no real money moves.</p>
           </section>
 
           <section data-step="done" hidden>
@@ -257,15 +268,10 @@
         <p class="side-time"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#clock"/></svg>About 5 minutes</p>
         <h2>What you need</h2>
         <ul>
-          <li>Your Income adviser's code or the name of your association, if one helps you</li>
-          <li>Hawker stall: your centre and your SFA or NEA licence number</li>
-          <li>Neighbourhood shop: its postcode and SSIC code</li>
+          <li>Your licence number, or your shop's postcode</li>
+          <li>Your normal weekday sales</li>
+          <li>A Singapore mobile number</li>
           <li>Your UEN, if you apply as a company</li>
-          <li>A Singapore mobile number for payout alerts</li>
-        </ul>
-        <h2>When an underwriter looks first</h2>
-        <ul>
-          <li>An insurer has declined, cancelled or refused to renew your cover before</li>
         </ul>
         <p class="fine side-signin">Already have an account? <a class="linklike" href="/login/">Sign in</a></p>
       </aside>
