@@ -38,6 +38,7 @@ OUTLOOK_PERIODS = (2, 5, 10)
 HAZE_YEAR = 2015
 MONTHS = 12
 COLOUR_FROM_SHARE = {colour: percent / 100 for colour, percent in DAY_COLOUR_FROM_PERCENT}
+COLOURS = tuple(COLOUR_FROM_SHARE)
 
 
 @dataclass(frozen=True)
@@ -94,11 +95,14 @@ def day_losses(
 
 
 def colour_days(combined: np.ndarray) -> dict[str, np.ndarray]:
-    """1 where a day is red, yellow or green (the dashboards' day colours), else 0."""
-    red = combined >= COLOUR_FROM_SHARE["red"]
-    yellow = (combined >= COLOUR_FROM_SHARE["yellow"]) & ~red
-    green = (combined > 0) & ~red & ~yellow
-    return {"red": red.astype(float), "yellow": yellow.astype(float), "green": green.astype(float)}
+    """1 where a day falls in each payout band (the dashboards' day colours), else 0."""
+    flags = {}
+    taken = np.zeros(combined.shape, dtype=bool)
+    for colour, share in COLOUR_FROM_SHARE.items():
+        in_band = (combined > 0) & (combined >= share) & ~taken
+        flags[colour] = in_band.astype(float)
+        taken |= in_band
+    return flags
 
 
 def yearly_sums(history: ModelHistory, values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -158,9 +162,8 @@ def window_outlook(
                 float(np.mean([r["trigger_days"] > 0 for r in part])), 3
             ),
             "average_trigger_days": round(float(np.mean([r["trigger_days"] for r in part])), 2),
-            "average_red_days": round(float(np.mean([r["red"] for r in part])), 2),
-            "average_yellow_days": round(float(np.mean([r["yellow"] for r in part])), 2),
-            "average_green_days": round(float(np.mean([r["green"] for r in part])), 2),
+            **{f"average_{colour}_days": round(float(np.mean([r[colour] for r in part])), 2)
+               for colour in COLOURS},
             "average_paid_sgd": round(float(paid.mean()), 2),
             "highest_paid_sgd": round(highest["paid_sgd"], 2),
             "highest_year": highest["year"],
@@ -186,8 +189,7 @@ def spread(rows: list[dict], premium_yearly_sgd: float) -> dict:
     """Typical, bad (1 year in 10) and worst year of a run of years, and the day colours."""
     paid = np.array([r["paid_sgd"] for r in rows])
     worst = rows[int(np.argmax(paid))]
-    colours = {colour: np.array([r[f"{colour}_days"] for r in rows])
-               for colour in ("red", "yellow", "green")}
+    colours = {colour: np.array([r[f"{colour}_days"] for r in rows]) for colour in COLOURS}
     return {
         "from_year": rows[0]["year"],
         "to_year": rows[-1]["year"],
@@ -225,7 +227,7 @@ def period_outlook(rows: list[dict], length: int, premium_yearly_sgd: float) -> 
     worst = int(np.argmax(paid))
     days = {
         key: window_sums(np.array([r[key] for r in rows], dtype=float), length)
-        for key in ("trigger_days", "red_days", "yellow_days", "green_days")
+        for key in ("trigger_days", *(f"{colour}_days" for colour in COLOURS))
     }
     return {
         "years": length,
@@ -282,9 +284,7 @@ def centre_years(
             "complete": bool(year <= history.last_full_year),
             "el_nino": int(year) in el_nino_years,
             "trigger_days": int(trigger_days[i]),
-            "red_days": int(colours["red"][i]),
-            "yellow_days": int(colours["yellow"][i]),
-            "green_days": int(colours["green"][i]),
+            **{f"{colour}_days": int(colours[colour][i]) for colour in COLOURS},
             "paid_sgd": round(float(paid_sgd[i]), 2),
             "capped": bool(loss_days[i] > tier.max_paid_days_per_year),
             "by_hazard_sgd": {key: round(float(paid_sgd[i] * share[key]), 2) for key in HAZARDS},
@@ -349,16 +349,14 @@ def book_years(
         "years": [
             {"year": int(year), "complete": bool(done), "paid_sgd": round(float(p), 2),
              "loss_ratio": round(float(r), 3), "el_nino": int(year) in el_nino_years,
-             "red_days": round(float(colours["red"][i]), 1),
-             "yellow_days": round(float(colours["yellow"][i]), 1),
-             "green_days": round(float(colours["green"][i]), 1)}
+             **{f"{colour}_days": round(float(colours[colour][i]), 1) for colour in COLOURS}}
             for i, (year, done, p, r) in enumerate(zip(years, complete, book_paid, ratios))
         ],
         "average_loss_ratio": round(float(ratios[complete].mean()), 3),
         "years_losing_money": int((ratios[complete] > 1).sum()),
         "complete_years": int(complete.sum()),
-        "typical_red_days": round(float(np.median(colours["red"][complete])), 1),
-        "typical_yellow_days": round(float(np.median(colours["yellow"][complete])), 1),
+        **{f"typical_{colour}_days": round(float(np.median(colours[colour][complete])), 1)
+           for colour in COLOURS},
         "worst_year": {
             "year": int(years[worst_year]),
             "paid_sgd": round(float(book_paid[worst_year]), 2),

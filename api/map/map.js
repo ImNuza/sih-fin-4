@@ -16,7 +16,7 @@ const COLORS = {
   rentLow: [96, 110, 128], rentHigh: [244, 196, 78], rentNone: [70, 74, 80],
 };
 // Pins on a live or simulated day take the colour of the day's label from /day-colour.js.
-const PIN_BY_DAY = { none: "muted", green: "good", yellow: "warning", red: "critical" };
+const PIN_BY_DAY = { none: "muted", yellow: "warning", red: "critical" };
 const CSS_BY_HAZARD = { haze: "var(--haze)", rain: "var(--rain)", heat: "var(--heat)", flood: "var(--flood)", closure: "var(--closure)" };
 const AFFORDABLE_WEEKLY_SGD = 3;   // the brief's "a few dollars a week"
 const COPAY_WEEKLY_SGD = 6;        // above this even a co-payer is a stretch

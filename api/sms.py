@@ -30,13 +30,13 @@ MAX_CODE_ATTEMPTS = 5
 LANGUAGES = ("en", "zh", "ms", "ta")
 SmsLanguage = Literal["en", "zh", "ms", "ta"]
 # The day colour bands set by the team on 15 Nov 2026, the same as api/site/day-colour.js.
-DAY_COLOUR_FROM_PERCENT = (("red", 70), ("yellow", 30), ("green", 0))
+DAY_COLOUR_FROM_PERCENT = (("red", 30), ("yellow", 0))
 
 DAY_NAMES = {
-    "en": {"green": "Green day", "yellow": "Yellow day", "red": "Red day"},
-    "zh": {"green": "绿色日", "yellow": "黄色日", "red": "红色日"},
-    "ms": {"green": "Hari hijau", "yellow": "Hari kuning", "red": "Hari merah"},
-    "ta": {"green": "பச்சை நாள்", "yellow": "மஞ்சள் நாள்", "red": "சிவப்பு நாள்"},
+    "en": {"yellow": "Yellow day", "red": "Red day"},
+    "zh": {"yellow": "黄色日", "red": "红色日"},
+    "ms": {"yellow": "Hari kuning", "red": "Hari merah"},
+    "ta": {"yellow": "மஞ்சள் நாள்", "red": "சிவப்பு நாள்"},
 }
 
 HAZARD_NAMES = {
@@ -180,7 +180,7 @@ def day_text(language: str, day: date) -> str:
 
 
 def day_colour(loss_percent: float) -> str:
-    """'none' for a day with no loss, else 'green', 'yellow' or 'red'. A green day still pays."""
+    """'none' for a day with no loss, else 'yellow' or 'red'. A yellow day still pays."""
     if loss_percent <= 0:
         return "none"
     return next(colour for colour, start in DAY_COLOUR_FROM_PERCENT if loss_percent >= start)

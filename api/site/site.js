@@ -585,7 +585,9 @@ const PCT = (share) => `${Math.round(share * 100)}%`;
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY_RANGE = (from, to) => `${new Date(from).toLocaleDateString("en-SG", { day: "numeric", month: "short" })} to ${new Date(to).toLocaleDateString("en-SG", { day: "numeric", month: "short" })}`;
 const ONE_DP = (v) => Number(v).toFixed(1).replace(/\.0$/, "");
-const colourDays = (r, y, g) => `<span class="day-chip day-red">${ONE_DP(r)} red</span> <span class="day-chip day-yellow">${ONE_DP(y)} yellow</span> <span class="day-chip day-green">${ONE_DP(g)} green</span>`;
+/* "3 red 12 yellow": the payout days of a row by colour, reading the bands from /day-colour.js. */
+const colourDays = (row, prefix = "") => DAY_COLOURS.map((band) =>
+  `<span class="day-chip day-${band.key}">${ONE_DP(row[`${prefix}${band.key}_days`] ?? 0)} ${band.key}</span>`).join(" ");
 const TIER_KEYS = ["tier_1", "tier_2", "tier_3", "tier_4"];
 
 /* One thin bar per year since 1980, labelled every fifth year; hover or tap shows the year. */
@@ -620,7 +622,7 @@ function yearDetail(h, year) {
   const hz = y.by_hazard_sgd;
   return `
     ${kv(`Paid in ${y.year}${y.complete ? "" : " so far"}`, `<b class="num">${SGD(y.paid_sgd)}</b>${y.capped ? " (yearly cap reached)" : ""}`)}
-    ${kv("Payout days", `<span class="num">${y.trigger_days}</span>: ${colourDays(y.red_days, y.yellow_days, y.green_days)}`)}
+    ${kv("Payout days", `<span class="num">${y.trigger_days}</span>: ${colourDays(y)}`)}
     ${kv("From haze / rain / heat", `<span class="num">${SGD(hz.haze)} / ${SGD(hz.rain)} / ${SGD(hz.heat)}</span>`)}
     ${kv("Premium at this tier", `<span class="num">${SGD(h.since_1980.premium_sgd)}</span> a year`)}
     ${kv("Readings", `${sourceNote(y)}${y.el_nino ? " · El Niño year" : ""}`)}`;
@@ -636,7 +638,7 @@ function tenDaysText(h, todays) {
     <p class="burn-headline">${DAY_RANGE(w.from, w.to)}: in <b>${Math.round(a.share_years_with_payout * a.years_checked)} of the last
       ${a.years_checked} years</b> these ten days brought at least one payout day here. On average they paid
       <b>${SGD(a.average_paid_sgd)}</b> at ${h.tier_label} over ${ONE_DP(a.average_trigger_days)} payout days
-      (${colourDays(a.average_red_days, a.average_yellow_days, a.average_green_days)}). The most was ${SGD(a.highest_paid_sgd)} in ${a.highest_year}.</p>
+      (${colourDays(a, "average_")}). The most was ${SGD(a.highest_paid_sgd)} in ${a.highest_year}.</p>
     <p class="fine">Over the last ${r.years_checked} years alone: ${SGD(r.average_paid_sgd)} on average, a payout day in
       ${PCT(r.share_years_with_payout)} of them.</p>
     ${psiNow != null && psiNow >= haze.trigger_psi
@@ -655,7 +657,7 @@ function outlookYearsText(h) {
     <td class="num">${SGD(o.typical_sgd)}</td>
     <td class="num">${SGD(o.bad_sgd)}</td>
     <td class="num">${SGD(o.highest_sgd)}<br><span class="fine">${o.highest_from_year} to ${o.highest_to_year}</span></td>
-    <td>${colourDays(o.typical_red_days, o.typical_yellow_days, o.typical_green_days)}</td>
+    <td>${colourDays(o, "typical_")}</td>
     <td class="num">${o.windows_paid_more_than_premium} of ${o.windows}</td>
   </tr>`).join("");
   return `
@@ -669,8 +671,8 @@ function outlookYearsText(h) {
     </table></div>
     ${kv(`El Niño years (${e.years.join(", ")})`, `<span class="num">${SGD(e.average_paid_sgd)}</span> a year on average`)}
     ${kv("Other years", `<span class="num">${SGD(e.average_paid_other_sgd)}</span> a year on average`)}
-    <p class="fine">Every coloured day pays: a green day pays up to a third of ${SGD(h.daily_payout_sgd)}, a yellow day a third to
-      two thirds, a red day more. ${hazeOutlook(h.haze_facts)}</p>
+    <p class="fine">Both colours pay: a yellow day lost under a third of the day's sales and pays that share of
+      ${SGD(h.daily_payout_sgd)}; a red day lost a third or more. ${hazeOutlook(h.haze_facts)}</p>
     <p class="fine card-foot">Only this stall's location is used. This is history, not a promise: Payung pays only when the
       readings reach a payout level, so a year can bring losses and no payout. The cover earns its keep in the bad stretches.</p>`;
 }
@@ -716,8 +718,8 @@ async function renderModelHistory(target, place, tier, todays) {
         ${kpi("Worst year", `<span class="num">${SGD(all.worst_sgd)}</span>`, `${all.worst_year}${big && big.year === all.worst_year ? ", the big haze" : ""}`)}
         ${kpi("Your premium", `<span class="num">${SGD(recent.premium_sgd)}</span>`, `a year, ${SGD(h.weekly_premium_sgd)} a week`)}
       </div>
-      ${kv("Payout days in a typical year", colourDays(recent.typical_red_days, recent.typical_yellow_days, recent.typical_green_days))}
-      ${kv("In a bad year (1 in 10)", colourDays(recent.bad_year_red_days, recent.bad_year_yellow_days, recent.bad_year_green_days))}
+      ${kv("Payout days in a typical year", colourDays(recent, "typical_"))}
+      ${kv("In a bad year (1 in 10)", colourDays(recent, "bad_year_"))}
       <p class="fine card-foot">In ${recent.years_paid_more_than_premium} of the last ${recent.years} years the cover paid
         back more than its premium.${big ? ` A year like ${big.year} would pay you ${SGD(big.paid_sgd)}:
         ${SGD(big.by_hazard_sgd.haze)} for haze, ${SGD(big.by_hazard_sgd.rain)} for rain and
@@ -754,7 +756,6 @@ function bookFigures(book, m) {
   const worst = complete.reduce((a, y) => (y.paid_sgd > a.paid_sgd ? y : a), complete[0]);
   const shortfall = Math.max(0, worst.paid_sgd - premium);
   const decade = book.next_10_years;
-  const typical = complete[Math.floor(complete.length / 2)];
   const busiest = book.month_share.map((share, i) => [share, MONTH_NAMES[i]])
     .sort((a, b) => b[0] - a[0]).slice(0, 3);
   const e = book.el_nino;
@@ -768,14 +769,14 @@ function bookFigures(book, m) {
       ${kpi("Worst single day", `<span class="num">${SGD_KPI(book.worst_day.paid_sgd)}</span>`, `${SG_DATE(book.worst_day.day)}, ${PCT(book.worst_day.share_of_centres_paying)} of centres paid`)}
     </div>
     ${yearBars(years, (y) => y.loss_ratio, (y) => `loss ratio ${PCT(y.loss_ratio)}, ${SGD(y.paid_sgd)} paid, `
-      + `${ONE_DP(y.yellow_days)} yellow and ${ONE_DP(y.green_days)} green days per stall${y.complete ? "" : " (year so far)"}`)}
+      + `${DAY_COLOURS.map((band) => `${ONE_DP(y[`${band.key}_days`])} ${band.key}`).join(", ")} days per stall${y.complete ? "" : " (year so far)"}`)}
     <div class="burn-legend"><span><i class="burn-paid"></i>Loss ratio that year</span><span><i class="burn-paid elnino"></i>El Niño year</span></div>
     <p class="fine">${shortfall > 0
       ? `In ${worst.year} payouts beat the premium by ${SGD(shortfall)}: that is the capital or reinsurance to hold.`
       : `Even ${worst.year} stayed within the premium${worst.loss_ratio > 0.85 ? ", but only just" : ""}: a worse year needs reinsurance.`}
       Haze hits every centre on the same day, so the worst day sets the cash you need at once.</p>
     ${kv("El Niño years against other years", `loss ratio <span class="num">${PCT(e.average_loss_ratio / m)}</span> against <span class="num">${PCT(e.average_loss_ratio_other / m)}</span>`)}
-    ${kv("Payout days per stall in a typical year", colourDays(book.typical_red_days, book.typical_yellow_days, typical.green_days))}
+    ${kv("Payout days per stall in a typical year", colourDays(book, "typical_"))}
     ${kv("Any ten years since 1980, loss ratio", `<span class="num">${PCT(decade.lowest_loss_ratio / m)}</span> to <span class="num">${PCT(decade.highest_loss_ratio / m)}</span>, typically ${PCT(decade.typical_loss_ratio / m)}`)}
     ${kv("When payouts come", `${busiest.map(([share, month]) => `${month} ${PCT(share)}`).join(", ")} of a year's`)}`;
 }

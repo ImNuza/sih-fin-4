@@ -246,7 +246,6 @@ a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; 
   background: currentColor;
 }
 .day-none { color: var(--muted); }
-.day-green { color: var(--good); }
 .day-yellow { color: var(--warning); }
 .day-red { color: var(--critical); }
 

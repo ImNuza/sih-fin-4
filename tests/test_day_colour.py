@@ -7,7 +7,7 @@ from api import sms
 
 @pytest.mark.parametrize(
     ("loss_percent", "colour"),
-    [(0, "none"), (0.1, "green"), (29.9, "green"), (30, "yellow"), (69.9, "yellow"),
+    [(0, "none"), (0.1, "yellow"), (29.9, "yellow"), (30, "red"), (69.9, "red"),
      (70, "red"), (100, "red")],
 )
 def test_day_colour_bands(loss_percent, colour):
