@@ -917,7 +917,7 @@ TOOLS: dict[str, Tool] = {
         "Fill the sign-up form with details the person has said. Field names: "
         + ", ".join(FORM_FIELDS) + ". business_class is hawker or shop; product is a product "
         "key; daily_sales_sgd is the normal sales on a weekday in S$; sms_language is en, zh, "
-        "ms or ta; term_months is 12 or 24.",
+        "ms or ta; term_months is 12, 24 or 60 (1, 2 or 5 years; a longer term saves more, off the final payments).",
         params(["fields"], fields={"type": "object"}),
         pages=("buy",)),
 }

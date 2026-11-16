@@ -1292,7 +1292,7 @@ class BuyRequest(SellerFields):
     sales_under_100m: bool | None = None
     designation: str | None = Field(default=None, max_length=60)
     cover_start: date | None = Field(default=None, description="Singapore date. Empty: today.")
-    term_months: Literal[12, 24] = 12
+    term_months: Literal[12, 24, 60] = 12
     applicant_type: Literal["individual", "company"]
     uen: str | None = None
     phone: str
@@ -1473,6 +1473,7 @@ def buy_options() -> dict:
         "staff_bands": onboarding.STAFF_BANDS,
         "not_an_sme": onboarding.NOT_AN_SME,
         "terms_months": accounts.TERMS_MONTHS,
+        "term_saving_share": accounts.TERM_SAVING_SHARE,
         "waiting_period_days": accounts.WAITING_PERIOD_DAYS,
         "cap_window_days": payout_flow.CAP_WINDOW_DAYS,
         "postal_sector_regions": postcodes.SECTOR_REGION,
@@ -1620,6 +1621,9 @@ def buy(
             referral_reason=None,
         )
     accounts.start_session(engine, user_id, response)
+    if policy:
+        application["term_saving"] = accounts.term_saving(
+            policy["weekly_premium_sgd"], body.term_months, application.get("cover_ends"))
     return {
         "application": {k: v for k, v in application.items() if k != "user_id"},
         "policy": {k: v for k, v in policy.items() if k != "user_id"} if policy else None,
@@ -1683,8 +1687,19 @@ def my_application(user: SmeDep, request: Request) -> dict | None:
         if application["postcode"]
         else {}
     )
+    with request.app.state.db.connect() as db:
+        weekly = db.execute(
+            sa_select(accounts.policies.c.weekly_premium_sgd)
+            .where(accounts.policies.c.user_id == user.id)
+            .order_by(accounts.policies.c.id.desc())
+        ).scalar()
+    saving = (
+        accounts.term_saving(weekly, application["term_months"], application["cover_ends"])
+        if weekly and application.get("term_months") else None
+    )
     return {
         **application,
+        "term_saving": saving,
         "area_lat": area.get("lat"),
         "area_lng": area.get("lng"),
         "area_basis": area.get("basis"),

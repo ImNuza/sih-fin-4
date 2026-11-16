@@ -8,8 +8,9 @@ session token in an HttpOnly cookie. Tables share the tariff database (api/store
 from __future__ import annotations
 
 import hashlib
+import math
 import secrets
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -36,7 +37,26 @@ SESSION_DAYS = 7
 SCRYPT = {"n": 2**14, "r": 8, "p": 1}
 INSURERS = ("Income Insurance",)
 WAITING_PERIOD_DAYS = 30
-TERMS_MONTHS = (12, 24)
+TERMS_MONTHS = (12, 24, 60)
+# The share of a term's Payung premium given back for committing to the whole term. It comes
+# off the final weekly payments, last month first, so it is earned only by staying to the end.
+TERM_SAVING_SHARE = {12: 0.02, 24: 0.04, 60: 0.06}
+WEEKS_PER_YEAR = 52
+
+
+def term_saving(weekly_premium_sgd: float, term_months: int, cover_ends: date | None) -> dict:
+    """What committing to the term saves on the Payung premium, and from which day the saving
+    is taken off the final weekly payments (free_weeks of them in full, then part of one)."""
+    share = TERM_SAVING_SHARE.get(term_months, 0.0)
+    weeks = round(term_months * WEEKS_PER_YEAR / 12)
+    saving = round(weekly_premium_sgd * weeks * share, 2)
+    credit_weeks = math.ceil(saving / weekly_premium_sgd) if weekly_premium_sgd > 0 else 0
+    return {
+        "share": share,
+        "saving_sgd": saving,
+        "free_weeks": int(saving // weekly_premium_sgd) if weekly_premium_sgd > 0 else 0,
+        "applies_from": cover_ends - timedelta(weeks=credit_weeks) if cover_ends and saving else None,
+    }
 
 users = Table(
     "users",
