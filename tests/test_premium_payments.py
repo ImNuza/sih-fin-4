@@ -59,7 +59,7 @@ def test_payment_starts_pending_for_the_first_weeks_premium(client):
     payment = start(client)
     assert payment["status"] == "pending"
     assert payment["amount_sgd"] > 0
-    assert payment["reference"].startswith("SDP-")
+    assert payment["reference"].startswith("PYP-")
     assert len(payment["token"]) >= 20
     assert "/paynow-demo/" in payment["bank_url"] and payment["token"] in payment["bank_url"]
 

@@ -1,12 +1,13 @@
 """The welcome SMS: one SMS in every language, and the cover text shown at the point of sale.
 
-The brief: the trigger, the payout and the exclusions must fit in one SMS in the customer's
-language. English and Malay fit one 160-character SMS; Chinese and Tamil one 70-character
+The brief: the trigger, the payout and "no alert, no pay" must fit in one SMS in the customer's
+language, with a link to the site for the rest. English and Malay fit one 160-character SMS; Chinese and Tamil one 70-character
 Unicode SMS. The payout texts are tested in tests/test_day_colour.py.
 """
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 
@@ -20,16 +21,20 @@ from api.models import Tariff
 ROOT = Path(__file__).resolve().parent.parent
 TARIFF = Tariff.model_validate_json((ROOT / "api/default_tariff.json").read_text())
 WAIT_DAYS = 30
+LINK = "https://payung.nuza.dev"
 # The cheapest and dearest weekly prices a tier can carry, and a preview with no place.
 PRICES = (None, 3.44, 99.99)
 APPROVED = {
-    "en": "Payung Tier 2: S$9.11/wk, cover from day 30. Haze, heavy rain or heat "
-    "near your stall: up to S$40/day, S$1,400/yr. No alert, no pay even if sales drop.",
-    "zh": "Payung第2级每周S$9.11，买后30天生效。摊位附近烟霾、大雨或酷热：日赔≤S$40，"
-    "年≤S$1,400。无警报不赔，生意差也不赔",
-    "ms": "Payung Tahap 2: S$9.11/mgu, mula hari ke-30. Jerebu, hujan lebat atau panas "
-    "dekat gerai: hingga S$40/hari, S$1,400/thn. Tiada amaran, tiada bayaran walau rugi.",
+    "en": "Payung: S$9.11/wk, covered from day 30. Pays up to S$40 a day for abnormal weather "
+    "near your stall. No alert, no pay. Details: https://payung.nuza.dev",
+    "zh": "Payung：每周S$9.11，买后30天起，摊位附近天气异常日赔最高S$40。无警报不赔。"
+    "\nhttps://payung.nuza.dev",
+    "ms": "Payung: S$9.11/mgu, lindungan dari hari ke-30. Bayar hingga S$40 sehari untuk "
+    "cuaca luar biasa. Tiada amaran, tiada bayaran. Info: https://payung.nuza.dev",
+    "ta": "அசாதாரண வானிலை: ≤S$40/நாள். அலர்ட் இல்லையேல் 0 https://payung.nuza.dev",
 }
+NO_ALERT_NO_PAY = {"en": "No alert, no pay", "zh": "无警报不赔",
+                   "ms": "Tiada amaran, tiada bayaran", "ta": "அலர்ட் இல்லையேல் 0"}
 
 
 @pytest.fixture
@@ -42,10 +47,7 @@ def client(tmp_path, monkeypatch):
 
 
 def welcome(language: str, tier, weekly: float | None = 9.11) -> str:
-    return sms.welcome_text(
-        language, int(tier.key[-1]), weekly, tier.daily_payout_sgd,
-        tier.max_paid_days_per_year, WAIT_DAYS,
-    )
+    return sms.welcome_text(language, weekly, tier.daily_payout_sgd, WAIT_DAYS)
 
 
 def test_plain_text_fits_160_characters_a_part():
@@ -67,27 +69,25 @@ def test_welcome_text_fits_one_sms_for_every_tier_and_price(language, weekly):
         assert sms.segments(body) == 1, (tier.key, weekly, len(body), body)
 
 
-@pytest.mark.parametrize("language", sorted(APPROVED))
+@pytest.mark.parametrize("language", sms.LANGUAGES)
 def test_welcome_text_is_the_approved_wording(language):
-    """Tier 2 at Maxwell in the proposal: S$9.11 a week, S$40 a day, 35 days a year."""
-    assert sms.welcome_text(language, 2, 9.11, 40, 35, WAIT_DAYS) == APPROVED[language]
-
-
-def test_tamil_welcome_names_the_wait_the_triggers_and_the_payout():
-    body = sms.welcome_text("ta", 2, 9.11, 40, 35, WAIT_DAYS)
-    for phrase in ("30நாள் பின்", "புகை/மழை/வெயில்:", "S$40/நாள்", "S$1,400", "அலர்ட் இல்லையேல் 0"):
-        assert phrase in body
-
-
-def test_a_long_price_shortens_the_wording_rather_than_send_two_sms():
-    body = sms.welcome_text("en", 4, 99.99, 100, 45, WAIT_DAYS)
-    assert sms.segments(body) == 1
-    assert "up to S$100/day" in body
+    """Tier 2 at Maxwell in the proposal: S$9.11 a week, up to S$40 a day."""
+    assert sms.welcome_text(language, 9.11, 40, WAIT_DAYS) == APPROVED[language]
 
 
 def test_a_preview_without_a_place_leaves_the_price_out():
-    body = sms.welcome_text("en", 1, None, 20, 10, WAIT_DAYS)
-    assert body.startswith("Payung Tier 1: cover from day 30.")
+    body = sms.welcome_text("en", None, 20, WAIT_DAYS)
+    assert body.startswith("Payung: covered from day 30.")
+
+
+@pytest.mark.parametrize("language", sms.LANGUAGES)
+@pytest.mark.parametrize("weekly", PRICES)
+def test_welcome_text_says_no_alert_no_pay_and_links_the_details(language, weekly):
+    for tier in TARIFF.tiers:
+        body = welcome(language, tier, weekly)
+        assert NO_ALERT_NO_PAY[language] in body
+        assert body.endswith(LINK)
+        assert body[-len(LINK) - 1].isspace(), "a phone only makes the link tappable after a space"
 
 
 def test_malay_texts_use_malay_month_names():
@@ -130,10 +130,57 @@ def test_welcome_text_never_says_only_a_red_day_pays(language):
 
 
 @pytest.mark.parametrize("language", sms.LANGUAGES)
-@pytest.mark.parametrize("weekly", PRICES)
-def test_welcome_text_does_not_mention_flood(language, weekly):
+def test_welcome_text_does_not_mention_flood(language):
     """The team left the flood alert out of the welcome SMS; a flood alert still pays."""
     for tier in TARIFF.tiers:
-        body = welcome(language, tier, weekly).lower()
+        body = welcome(language, tier, None).lower()
         for flood in ("flood", "水灾", "banjir", "வெள்ளம்"):
             assert flood not in body
+
+
+CENTRES = [
+    c["name"] for c in json.loads((ROOT / "data/processed/map_static.json").read_text())["hawker_centres"]
+]
+
+
+@pytest.mark.parametrize("hazard", ["haze", "rain", "heat", "flood", "closure"])
+def test_chinese_payment_text_fits_one_sms_at_every_hawker_centre(hazard):
+    for centre in CENTRES:
+        body = sms.payout_text(
+            "payout_paid", "zh", hazard, day_colour="红色日", loss="100", amount="100.00",
+            proxy="+65 ****2428", centre=centre, day=sms.day_text("zh", date(2026, 12, 31)),
+            ref="PY-999999",
+        )
+        assert sms.segments(body) == 1, (centre, len(body), body)
+        assert body.startswith("Payung：") and "无需索赔" in body
+        assert body.endswith("\n" + LINK)
+
+
+@pytest.mark.parametrize("hazard", ["haze", "rain", "heat", "flood", "closure"])
+def test_english_payment_text_fits_one_sms_with_the_link_at_every_hawker_centre(hazard):
+    for centre in CENTRES:
+        body = sms.payout_text(
+            "payout_paid", "en", hazard, day_colour="Yellow day", loss="100", amount="100.00",
+            proxy="+65 ****2428", centre=centre, day="31 Dec", ref="PY-999999",
+        )
+        assert sms.segments(body) == 1, (centre, len(body), body)
+        assert "Ref PY-999999. No claim needed." in body
+        assert body.endswith(" " + LINK)
+
+
+def test_chinese_payment_text_keeps_the_loss_share_when_it_fits():
+    body = sms.payout_text(
+        "payout_paid", "zh", "haze", day_colour="红色日", loss="48", amount="19.20",
+        proxy="+65 ****2428", centre="Maxwell Food Centre", day="10月18日", ref="PY-001042",
+    )
+    assert body == "Payung：10月18日烟霾红色日，损失48%，S$19.20已转PayNow，无需索赔\nhttps://payung.nuza.dev"
+
+
+def test_english_payment_text_names_a_short_hawker_centre():
+    body = sms.payout_text(
+        "payout_paid", "en", "haze", day_colour="Red day", loss="48", amount="19.20",
+        proxy="+65 ****2428", centre="Tekka Centre", day="18 Oct", ref="PY-001042",
+    )
+    assert body == ("Payung: Red day, 48% loss. S$19.20 sent to PayNow +65 ****2428 for haze at "
+                    "Tekka Centre on 18 Oct. Ref PY-001042. No claim needed. "
+                    "https://payung.nuza.dev")

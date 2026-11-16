@@ -430,9 +430,7 @@ def cover_text(
     if chosen is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No tier {tier}")
     first_day = payout_flow.first_day_if_bought_now()
-    body = payout_flow.cover_text(
-        language, chosen.key, weekly, chosen.daily_payout_sgd, chosen.max_paid_days_per_year
-    )
+    body = payout_flow.cover_text(language, weekly, chosen.daily_payout_sgd)
     return {
         "tier": chosen.key,
         "language": language,

@@ -100,6 +100,11 @@ and predicted outcome on the test years, both as trigger or no trigger and as th
 band. The best model is the one with the best validation score, so the test years play no part
 in choosing it. Loading a model needs the `ml` group, and `ml.models` for the neural network.
 
+`uv run --group ml python -m ml.plots` draws five charts from `ml/results/` into
+`docs/figures/ml_*.png`: the two shipped models against every algorithm, every job against its
+simple guess, the tuning spread, payout days caught against false alarms, and energy per answer
+against an LLM (timings measured on 16 Nov 2026, assumptions on the chart).
+
 ## Use them in the product (`data/processed/`, in git)
 
 The API image has numpy but no ML libraries, so the models run once, offline:

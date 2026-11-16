@@ -115,7 +115,7 @@ def find(db: Connection, token: str):
 
 def new_reference(db: Connection) -> str:
     while True:
-        reference = f"SDP-{secrets.token_hex(3).upper()}"
+        reference = f"PYP-{secrets.token_hex(3).upper()}"
         taken = db.execute(
             select(premium_payments.c.id).where(premium_payments.c.reference == reference)
         ).first()

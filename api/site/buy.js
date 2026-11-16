@@ -16,7 +16,15 @@ const STEPS = ["business", "cover", "details", "confirm", "pay", "done"];
 const buyState = {
   step: "business", centres: [], rent: null, options: null, quotes: {}, tier: null, tierQuote: null,
   hazeBonus: false, paymentRef: null, demoPhone: null,
+  // What the last lookup found: { kind: "uen" | "licence", number, state, record }. state is
+  // "found", "missing" (not listed), "closed" (ACRA lists it as no longer trading) or "offline".
+  lookup: null,
 };
+// UEN formats from ACRA, as api/registry.py checks them. 8 digits + letter: a sole proprietorship
+// or partnership; 9 digits + letter: a local company; T/S/R...: other entities.
+const UEN_FORMAT = /^(\d{8}[A-Z]|\d{9}[A-Z]|[TSR]\d{2}[A-Z]{2}\d{4}[A-Z])$/;
+const BUSINESS_UEN = /^\d{8}[A-Z]$/;
+const LICENCE_FORMAT = /^[A-Z0-9/-]{5,20}$/;
 const STAFF_LABELS = {
   "1-4": "1 to 4", "5-9": "5 to 9", "10-49": "10 to 49", "50-200": "50 to 200", "over-200": "More than 200",
 };
@@ -106,11 +114,10 @@ const FIELD_PROBLEMS = {
   adviser_code: "Enter the Income adviser code: 4 to 12 letters or digits, for example DEMO1234.",
   association: "Enter the name of the association, at least 3 characters.",
   business_class: "Pick the kind of business.",
-  applicant_type: "Say whether you apply as an individual or a company.",
   uen: "Enter the UEN as ACRA shows it, for example 53123456A or 201912345K.",
   business_name: "Enter the business name.",
   centre: "Pick your hawker centre.",
-  licence_no: "Enter your licence number: 5 to 20 letters, digits, / or -, for example FS12345X.",
+  licence_no: "Enter your licence number: 5 to 20 letters, digits, / or -, for example DEMO10231K.",
   ssic_choice: "Pick your SSIC code, or pick Other and type it.",
   ssic_other: "Enter your 5-digit SSIC code, for example 47219.",
   platform: "Pick your platform.",
@@ -240,7 +247,6 @@ const SHOP_KINDS = {
    Jurong, Bukit Panjang, Woodlands, Yishun, Punggol). */
 const TOWN_SECTORS = ["31", "38", "46", "52", "54", "56", "60", "64", "67", "73", "76", "82"];
 const ROLES = ["Owner", "Owner", "Director", "Partner", "Manager"];
-const COMPANY_SHARE = { hawker: 0.25, shop: 0.5, platform_worker: 0 };
 /* The form opens on this applicant, so the demo shows the same price in every run. */
 const DEMO_APPLICANT = {
   business_class: "hawker", centre: "Maxwell Food Centre (Kim Hua Market)", product: "cooked_food", tier: "tier_2",
@@ -252,6 +258,8 @@ const SALES_RANGE = {
   packaged_food: [800, 4000], general_goods: [800, 4000],
 };
 const ADVISER_SHARE = 0.7;
+/* The demo fills in a real Income adviser code: Devnavin's, used with his consent (16 Nov 2026). */
+const DEMO_ADVISER_CODE = "689124";
 
 function setRadio(name, value) {
   const input = buyForm().querySelector(`[name="${name}"][value="${value}"]`);
@@ -265,8 +273,14 @@ function townPostcode() {
   const sectors = TOWN_SECTORS.filter((s) => s in buyState.options.postal_sector_regions);
   return `${pick(sectors)}${digits(4)}`;
 }
-// UEN formats: 9 digits + letter for a company (year first), 8 digits + letter for a business.
-function demoUen() { return `20${pick(["15", "18", "19", "21", "23"])}${digits(5)}${pick(LETTERS)}`; }
+/* A demo licence (at the fixed centre, when one is given) and a demo company: real live
+   companies from ACRA, saved in data/registry/demo_companies.json, so every lookup finds one. */
+function demoLicence(centre) {
+  const all = buyState.options.demo_licences;
+  const here = all.filter((l) => l.centre === centre);
+  return pick(here.length ? here : all).licence_no;
+}
+function demoUen() { return pick(buyState.options.demo_uens); }
 
 function fillHawker(short, fixedProduct) {
   const products = [...el("buy-product").options].map((o) => o.value).filter(Boolean);
@@ -296,7 +310,7 @@ function fillChannel() {
   const via = new URLSearchParams(location.search).get("via");
   const sold = via in buyState.options.sold_by ? via : Math.random() < ADVISER_SHARE ? "adviser" : "association";
   setRadio("sold_by", sold);
-  field("adviser_code").value = `DEMO${digits(4)}`;
+  field("adviser_code").value = DEMO_ADVISER_CODE;
 }
 /* The association a stall joins through: its centre's own, else the federation (FMAS). */
 function fillAssociation() {
@@ -312,7 +326,7 @@ function fillRandom(applicant = {}) {
   setRadio("business_class", kind);
   field("centre").value = applicant.centre ?? pick(buyState.centres).name;
   field("stall_unit").value = `01-${String(Math.floor(Math.random() * 180) + 1).padStart(2, "0")}`;
-  field("licence_no").value = `DEMO${digits(5)}${pick(LETTERS)}`;
+  field("licence_no").value = demoLicence(applicant.centre);
   field("ssic_other").value = "";
   field("platform").value = pick(buyState.options.platforms.filter((p) => p !== "Other"));
   field("platform_worker_id").value = `DEMO-${pick(["DRV", "RDR"])}-${digits(6)}`;
@@ -322,9 +336,9 @@ function fillRandom(applicant = {}) {
   other(short);
   own(short, applicant.product);
   field("daily_sales_sgd").value = applicant.daily_sales_sgd ?? demoSales(field("product").value);
-  const company = Math.random() < COMPANY_SHARE[kind];
-  setRadio("applicant_type", company ? "company" : "individual");
-  field("uen").value = company ? demoUen() : "";
+  // A shop gives its UEN; a demo hawker is a licensee with none.
+  field("hawker_has_uen").checked = false;
+  field("uen").value = demoUen();
   for (const input of buyForm().querySelectorAll('[name="sales_under_100m"]')) input.checked = false;
   el("add-safeday").checked = true;
   setRadio("term_months", pick(["12", "12", "12", "24", "24", "60"]));
@@ -345,6 +359,7 @@ function fillRandom(applicant = {}) {
   fillAssociation();
   afterRefill();
   if (applicant.tier) { buyState.tier = applicant.tier; renderTiers(); }
+  lookUpForClass();
 }
 
 function clearAll() {
@@ -355,6 +370,7 @@ function clearAll() {
   }
   el("declined-box").hidden = true;
   afterRefill();
+  showLookup(null);
 }
 
 function afterRefill() {
@@ -393,7 +409,9 @@ function showClassFields() {
   el("platform-box").hidden = kind !== "platform_worker";
   el("postcode-field").hidden = !placed;
   el("postcode-label").textContent = kind === "shop" ? "Shop postcode" : "Home postcode";
-  el("applicant-box").hidden = kind === "platform_worker";
+  el("id-box").hidden = kind === "platform_worker";
+  el("licence-box").hidden = kind !== "hawker";
+  el("business-name-field").hidden = kind === "platform_worker";
   el("product-field").hidden = kind === "platform_worker";
   el("daily-sales-field").hidden = kind === "platform_worker";
   el("staff-box").hidden = kind === "platform_worker";
@@ -409,10 +427,14 @@ function showRentHint() {
   hint.hidden = !rent;
   if (rent) hint.innerHTML = `<b>${rent.rent_class_label} centre</b> · rent about ${SGD(rent.rent_per_day_sgd)} a trading day`;
 }
+/* A shop always gives its UEN. A hawker gives one only when a company or a registered business
+   runs the stall. A platform worker gives none. */
+function needsUen() {
+  return businessClass() === "shop" || (isHawker() && field("hawker_has_uen").checked);
+}
 function toggleUen() {
-  const company = !isPlatformWorker() && chosen("applicant_type") === "company";
-  el("uen-field").hidden = !company;
-  field("uen").required = company;
+  el("uen-field").hidden = !needsUen();
+  field("uen").required = needsUen();
 }
 function checkPostcode() {
   const input = field("postcode"), postcode = input.value.trim();
@@ -422,6 +444,173 @@ function checkPostcode() {
   el("postcode-region").textContent = region
     ? `NEA region: ${region}. ${isPlatformWorker() ? "Your price comes from this region's weather history." : "Your price comes from the NEA stations nearest your shop's area."}`
     : "";
+}
+
+/* ---------- step 1: look up the licence or the UEN ---------- */
+/* The number goes first: what the registry knows fills in the rest, and every field stays
+   editable. A UEN is checked against ACRA's records on data.gov.sg (GET /api/lookup/uen/...).
+   A licence is checked against the made-up demo register, since SFA has no open lookup. The
+   server checks the UEN again when the application is sent. */
+buyState.checks = { uen: null, licence: null };
+const lookupRuns = { uen: 0, licence: 0 };
+
+/** { status, body } from a lookup endpoint. status 0: Payung could not be reached. */
+async function lookupFetch(url) {
+  try {
+    const response = await fetch(url);
+    return { status: response.status, body: await response.json().catch(() => ({})) };
+  } catch {
+    return { status: 0, body: {} };
+  }
+}
+
+/* The fields a new centre, postcode or product reprices, to reset the tier only when they move. */
+const priceKey = () => [businessClass(), field("centre").value, field("postcode").value, field("product").value].join("|");
+
+function afterLookupFill(before) {
+  for (const name of ["business_name", "centre", "stall_unit", "postcode", "ssic_choice", "ssic_other", "product", "name"])
+    clearInvalid(field(name));
+  const typed = field("association").value.trim();
+  if (!typed || buyState.options.associations.includes(typed)) fillAssociation();
+  showClassFields();
+  if (priceKey() !== before) { buyState.tier = null; renderTiers(); }
+}
+
+function applyLicence(licence) {
+  const before = priceKey();
+  field("centre").value = licence.centre;
+  field("stall_unit").value = licence.stall_unit || "";
+  field("business_name").value = licence.business_name;
+  field("product").value = licence.product;
+  field("name").value = licence.licensee_name;
+  afterLookupFill(before);
+}
+
+/* A shop takes its name, postcode and SSIC code from ACRA. A hawker keeps its stall details. */
+function applyBusiness(business) {
+  if (businessClass() !== "shop") return;
+  const before = priceKey();
+  field("business_name").value = business.name;
+  if (business.postcode && sectorRegion(business.postcode)) field("postcode").value = business.postcode;
+  const code = business.ssic_code;
+  if (code) {
+    const listed = [...field("ssic_choice").options].some((o) => o.value === code);
+    field("ssic_choice").value = listed ? code : "other";
+    field("ssic_other").value = listed ? "" : code;
+    if (SHOP_KINDS[code]) field("product").value = SHOP_KINDS[code][0];
+  }
+  afterLookupFill(before);
+}
+
+async function lookUpLicence() {
+  const input = field("licence_no");
+  const number = input.value.trim().toUpperCase();
+  if (!LICENCE_FORMAT.test(number)) { buyState.checks.licence = null; showLookup(null); return; }
+  const run = ++lookupRuns.licence;
+  showLookup({ kind: "licence", number, state: "busy" });
+  const { status, body } = await lookupFetch(`/api/lookup/licence?licence_no=${encodeURIComponent(number)}`);
+  if (run !== lookupRuns.licence) return;
+  const state = status === 200 ? "found" : status === 404 ? "missing" : "offline";
+  if (state === "found") applyLicence(body);
+  buyState.checks.licence = { kind: "licence", number, state, record: state === "found" ? body : null };
+  showLookup(buyState.checks.licence);
+}
+
+async function lookUpUen() {
+  const input = field("uen");
+  const number = input.value.trim().toUpperCase();
+  input.setCustomValidity("");
+  if (!needsUen() || !UEN_FORMAT.test(number)) {
+    buyState.checks.uen = null;
+    showLookup(isHawker() ? buyState.checks.licence : null);
+    return;
+  }
+  const run = ++lookupRuns.uen;
+  showLookup({ kind: "uen", number, state: "busy" });
+  const { status, body } = await lookupFetch(`/api/lookup/uen/${encodeURIComponent(number)}`);
+  if (run !== lookupRuns.uen) return;
+  let state = status === 200 ? "found" : status === 404 ? "missing" : "offline";
+  if (state === "found" && !body.live) state = "closed";
+  if (state === "found") applyBusiness(body);
+  if (state === "missing") input.setCustomValidity(`ACRA has no business with UEN ${number}. Check the number.`);
+  if (state === "closed") input.setCustomValidity(`ACRA lists UEN ${number} as ${body.status}. Payung covers businesses that still trade.`);
+  buyState.checks.uen = { kind: "uen", number, state, record: status === 200 ? body : null };
+  showLookup(buyState.checks.uen);
+}
+
+function lookUpForClass() {
+  const kind = businessClass();
+  if (kind === "shop") return lookUpUen();
+  if (kind === "hawker") return lookUpLicence().then(() => (needsUen() ? lookUpUen() : null));
+  showLookup(null);
+  return null;
+}
+
+/* The card under the number: what the registry found, or why nothing was filled in. */
+function showLookup(lookup) {
+  const card = el("lookup-card");
+  card.hidden = !lookup;
+  card.className = "lookup-card";
+  if (!lookup) { card.innerHTML = ""; return; }
+  const row = (k, v) => (v ? `<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(v)}</span></div>` : "");
+  const head = (icon, text) => `<div class="lookup-head">${SafeUI.icon(icon)}<span>${escapeHtml(text)}</span></div>`;
+  const fine = (text) => `<p class="fine">${escapeHtml(text)}</p>`;
+  const { kind, number, state, record } = lookup;
+  const views = {
+    "uen/busy": ["", head("search", `Looking up UEN ${number} in ACRA's records…`)],
+    "licence/busy": ["", head("search", `Looking up licence ${number}…`)],
+    "uen/found": ["found", record && head("shield-check", "Found in ACRA") +
+      row("Name", record.name) + row("Type", record.entity_type) + row("Status", record.status) +
+      row("Address", record.address || (record.postcode && `Singapore ${record.postcode}`)) +
+      row("SSIC code", record.ssic_code && [record.ssic_code, record.ssic_title].filter(Boolean).join(" · ")) +
+      fine(`${businessClass() === "shop"
+        ? "We filled in the business name, postcode and SSIC code. The postcode is ACRA's registered address: change it if the shop trades somewhere else."
+        : "The stall details stay as the licence gives them."} Source: ${record.source}.`)],
+    "uen/closed": ["problem", record && head("circle-alert", `ACRA lists ${record.name} as ${record.status}`) +
+      fine("Payung covers businesses that still trade. Check the UEN.")],
+    "uen/missing": ["problem", head("circle-alert", `ACRA has no business with UEN ${number}`) +
+      fine("Check the number on the business's ACRA BizFile profile.")],
+    "uen/offline": ["unchecked", head("triangle-alert", "Could not reach ACRA's records") +
+      fine("Type the business details yourself. The application notes that the UEN was not checked.")],
+    "licence/found": ["found", record && head("shield-check", "Found in the demo licence register") +
+      row("Licensee", record.licensee_name) + row("Business", record.business_name) +
+      row("Hawker centre", `${record.centre}${record.stall_unit ? ` · #${record.stall_unit}` : ""}`) +
+      fine("We filled in the stall, the business name and your name. Prototype: this register is made up, since SFA has no open lookup.")],
+    "licence/missing": ["unchecked", head("triangle-alert", "Not in the demo licence register") +
+      fine("Type the stall details yourself. The application notes that the licence was not checked. Prototype: only the made-up licences that start with DEMO are listed.")],
+    "licence/offline": ["unchecked", head("triangle-alert", "Could not check the licence") +
+      fine("Type the stall details yourself. The application notes that the licence was not checked.")],
+  };
+  const [tone, html] = views[`${kind}/${state}`];
+  if (tone) card.classList.add(tone);
+  card.innerHTML = html;
+}
+
+/* "Local Company · UEN 201912345K", or how a licensee or platform worker applies. */
+function applyingAs() {
+  if (isPlatformWorker()) return "Individual platform worker";
+  if (!needsUen()) return "Individual licensee (no UEN)";
+  const uen = field("uen").value.trim().toUpperCase();
+  const check = buyState.checks.uen?.number === uen ? buyState.checks.uen : null;
+  const type = check?.record?.entity_type || (BUSINESS_UEN.test(uen) ? "Sole proprietorship or partnership" : "Company");
+  return `${type} · UEN ${uen}`;
+}
+
+/* What the registries said, for the summary. */
+function checkRow(row) {
+  if (isPlatformWorker()) return "";
+  const said = [];
+  if (isHawker()) {
+    const licence = buyState.checks.licence;
+    const listed = licence?.state === "found" && licence.number === field("licence_no").value.trim().toUpperCase();
+    said.push(listed ? "Licence found in the demo register" : "Licence not checked");
+  }
+  if (needsUen()) {
+    const uen = buyState.checks.uen;
+    const found = uen?.state === "found" && uen.number === field("uen").value.trim().toUpperCase();
+    said.push(found ? "UEN live in ACRA" : "UEN not checked yet: we check it when you submit");
+  }
+  return row("Checked", escapeHtml(said.join(" · ")));
 }
 
 /* ---------- step 2: cover ---------- */
@@ -633,11 +822,11 @@ async function renderSummary() {
   const row = (k, v) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
   const group = (title, rows) => `<section class="sum-group"><h3>${title}</h3>${rows.filter(Boolean).join("")}</section>`;
   el("summary").innerHTML = group("Your business", [
+    checkRow(row),
     row("Business", isPlatformWorker() ? productLabel : `${escapeHtml(field("business_name").value)} · ${productLabel}`),
     ...placeRows(row),
     isPlatformWorker() ? "" : row("Weekday sales", SGD(dailySales())),
-    row("Applying as", isPlatformWorker() ? "Platform worker"
-      : chosen("applicant_type") === "company" ? `Company · UEN ${field("uen").value.toUpperCase()}` : "Individual"),
+    row("Applying as", escapeHtml(applyingAs())),
     row("Filled in with", escapeHtml(channelText())),
   ]) + group("Your cover", [
     row("Payung", tier ? `${tier.label} · ${SGD(tier.weekly_premium_sgd)} a week` : "Not added"),
@@ -729,7 +918,6 @@ function requestBody() {
   const data = Object.fromEntries(new FormData(buyForm()).entries());
   const kind = businessClass(), hawker = kind === "hawker", shop = kind === "shop";
   const platformWorker = kind === "platform_worker";
-  const applicantType = platformWorker ? "individual" : data.applicant_type;
   return {
     business_class: kind,
     sold_by: soldBy(),
@@ -752,7 +940,7 @@ function requestBody() {
     designation: data.designation || null,
     cover_start: data.cover_start || null,
     term_months: Number(data.term_months),
-    applicant_type: applicantType, uen: applicantType === "company" ? data.uen : null,
+    uen: needsUen() ? data.uen.trim().toUpperCase() : null,
     phone: data.phone, add_safeday: addsSafeDay(), tier: addsSafeDay() ? buyState.tier : null,
     add_haze_bonus: addsHazeBonus(),
     declined_before: referred(), declined_details: referred() ? data.declined_details : null,
@@ -993,7 +1181,11 @@ function onChange(event) {
   // A new centre suggests its own association, unless someone typed a name not on the list.
   const typed = field("association").value.trim();
   if (["business_class", "centre"].includes(name) && (!typed || buyState.options.associations.includes(typed))) fillAssociation();
-  if (["business_class", "applicant_type", "ssic_choice", "staff_band", "centre", "postcode"].includes(name)) showClassFields();
+  if (["business_class", "hawker_has_uen", "ssic_choice", "staff_band", "centre", "postcode"].includes(name)) showClassFields();
+  if (name === "business_class") lookUpForClass();
+  if (name === "hawker_has_uen") lookUpUen();
+  if (name === "uen") lookUpUen();
+  if (name === "licence_no") lookUpLicence();
   if (["business_class", "centre", "postcode", "product", "daily_sales_sgd"].includes(name)) { buyState.tier = null; renderTiers(); }
   if (name === "add_safeday") renderTiers();
   if (name === "add_haze_bonus") { buyState.hazeBonus = event.target.checked; renderTiers(); }
@@ -1069,6 +1261,8 @@ async function wireBuy() {
     await renderTiers();
     showStep(buyState.step, false);
   });
+  el("uen-lookup").addEventListener("click", () => lookUpUen());
+  el("licence-lookup").addEventListener("click", () => lookUpLicence());
   el("refill").addEventListener("click", () => fillRandom());
   el("clear").addEventListener("click", clearAll);
   fillRandom(DEMO_APPLICANT);

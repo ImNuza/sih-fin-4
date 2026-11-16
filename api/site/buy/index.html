@@ -14,11 +14,11 @@
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/theme.css?v=9" />
     <link rel="stylesheet" href="/ui.css?v=8" />
-    <link rel="stylesheet" href="/buy.css?v=10" />
+    <link rel="stylesheet" href="/buy.css?v=11" />
     <script src="/ui.js?v=4" defer></script>
-    <script src="/site.js?v=37" defer></script>
+    <script src="/site.js?v=38" defer></script>
     <script src="/tier-proof.js?v=9" defer></script>
-    <script src="/buy.js?v=26" defer></script>
+    <script src="/buy.js?v=27" defer></script>
     <link rel="stylesheet" href="/assistant.css?v=9" />
     <script src="/assistant.js?v=5" defer></script>
   </head>
@@ -97,27 +97,33 @@
                 <span class="kind-text"><b>Platform worker</b><span class="kind-soon" hidden>Coming in the next phase</span><span class="kind-today">Ride-hail or delivery</span></span></label>
               </div>
             </fieldset>
-            <div id="applicant-box">
-              <fieldset class="choice">
-                <legend>Are you applying as an individual or a company?</legend>
-                <label><input type="radio" name="applicant_type" value="individual" required /> Individual</label>
-                <label><input type="radio" name="applicant_type" value="company" /> Company</label>
-              </fieldset>
-              <label id="uen-field" hidden>UEN
-                <input name="uen" autocomplete="off" autocapitalize="characters" pattern="\s*(\d{8}[A-Za-z]|\d{9}[A-Za-z]|[TSRtsr]\d{2}[A-Za-z]{2}\d{4}[A-Za-z])\s*" placeholder="e.g. 53123456A" />
-                <span class="hint">Your business registration number from ACRA.</span></label>
-              <label>Business name <input name="business_name" autocomplete="organization" maxlength="120" placeholder="e.g. Ah Hock Chicken Rice" required /></label>
+            <div id="id-box">
+              <div id="licence-box" hidden>
+                <div class="lookup-row">
+                  <label>Licence number
+                    <input name="licence_no" autocomplete="off" autocapitalize="characters" required pattern="\s*[A-Za-z0-9\/\-]{5,20}\s*" placeholder="e.g. DEMO10231K" /></label>
+                  <button class="btn ghost small" id="licence-lookup" type="button">Look up</button>
+                </div>
+                <p class="hint lookup-hint">Your SFA or NEA licence. We fill in the stall from it. Demo: licences starting DEMO are found.</p>
+                <label class="check"><input type="checkbox" name="hawker_has_uen" id="hawker-has-uen" /> <span>A company or a registered business runs this stall (it has a UEN)</span></label>
+              </div>
+              <div id="uen-field" hidden>
+                <div class="lookup-row">
+                  <label>UEN
+                    <input name="uen" autocomplete="off" autocapitalize="characters" pattern="\s*(\d{8}[A-Za-z]|\d{9}[A-Za-z]|[TSRtsr]\d{2}[A-Za-z]{2}\d{4}[A-Za-z])\s*" placeholder="e.g. 201912345K" /></label>
+                  <button class="btn ghost small" id="uen-lookup" type="button">Look up</button>
+                </div>
+                <p class="hint lookup-hint">Your ACRA number. We fill in the name, address and SSIC code.</p>
+              </div>
+              <div class="lookup-card" id="lookup-card" role="status" aria-live="polite" hidden></div>
             </div>
+            <label id="business-name-field">Business name <input name="business_name" autocomplete="organization" maxlength="120" placeholder="e.g. Ah Hock Chicken Rice" required /></label>
             <div id="hawker-box" hidden>
               <label>Hawker centre
                 <select name="centre" id="buy-centre" required><option value="">Loading centres…</option></select>
               </label>
               <p class="rent-hint" id="buy-rent" hidden></p>
-              <div class="pair">
-                <label>Stall unit (optional) <input name="stall_unit" placeholder="e.g. 01-23" /></label>
-                <label>SFA or NEA licence number
-                  <input name="licence_no" autocomplete="off" autocapitalize="characters" required pattern="[A-Za-z0-9\/\-]{5,20}" placeholder="e.g. FS12345X" /></label>
-              </div>
+              <label>Stall unit (optional) <input name="stall_unit" placeholder="e.g. 01-23" /></label>
             </div>
             <div id="shop-box" hidden>
               <label>SSIC code
@@ -265,10 +271,10 @@
         <p class="side-time"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#clock"/></svg>About 5 minutes</p>
         <h2>What you need</h2>
         <ul>
-          <li>Your licence number, or your shop's postcode</li>
+          <li>Hawker stall: your licence number. We fill in the stall</li>
+          <li>Shop: its UEN. We fill in the name, postcode and SSIC code</li>
           <li>Your normal weekday sales</li>
           <li>A Singapore mobile number</li>
-          <li>Your UEN, if you apply as a company</li>
         </ul>
         <p class="fine side-signin">Already have an account? <a class="linklike" href="/login/">Sign in</a></p>
       </aside>

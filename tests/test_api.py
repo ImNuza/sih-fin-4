@@ -54,6 +54,14 @@ def test_perishable_food_costs_more_than_general_goods(client):
     assert tier_1_price("cooked_food") > tier_1_price("general_goods")
 
 
+@pytest.mark.parametrize("path", ["/map", "/admin"])
+def test_a_mounted_page_opens_without_its_final_slash(client, path):
+    response = client.get(path, follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == f"{path}/"
+    assert client.get(path).status_code == 200
+
+
 def test_unknown_product_is_404(client):
     response = client.post("/api/quote", json={"region": "east", "product": "fish"})
     assert response.status_code == 404
@@ -184,8 +192,7 @@ def test_past_decline_is_referred_and_cannot_buy_from_the_dashboard(client):
 @pytest.mark.parametrize(
     "changes",
     [
-        {"applicant_type": "company", "uen": None},
-        {"applicant_type": "company", "uen": "NOT-A-UEN"},
+        {"uen": "NOT-A-UEN"},
         {"phone": "1234"},
         {"accept_pdpa": False},
         {"declined_before": True, "declined_details": ""},
@@ -237,8 +244,9 @@ def test_buy_options_name_the_two_channels(client):
 
 
 def test_company_uen_is_stored_in_capitals(client):
-    result = client.post("/api/buy", json=buy_body(applicant_type="company", uen="201912345k")).json()
+    result = client.post("/api/buy", json=buy_body(uen="201912345k")).json()
     assert result["application"]["uen"] == "201912345K"
+    assert result["application"]["applicant_type"] == "company"
 
 
 def test_a_place_is_priced_from_its_nearest_stations(client):
@@ -475,6 +483,7 @@ def shop_body(**changes) -> dict:
         "centre": None,
         "stall_unit": None,
         "licence_no": None,
+        "uen": "197100340K",
         "postcode": "560123",
         "ssic_code": "47102",
         "business_name": "Ah Kow Minimart",
@@ -548,6 +557,7 @@ def test_a_platform_worker_is_an_individual_covered_for_platform_work(client, ri
         platform_worker_body(postcode=None),
         platform_worker_body(product="cooked_food"),
         shop_body(ssic_code="4710"),
+        shop_body(uen=None),
         shop_body(postcode="12345"),
     ],
 )

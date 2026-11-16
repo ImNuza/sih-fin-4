@@ -100,8 +100,12 @@ def referral_query():
     if profile is None:
         return query
     profile_columns = [column for column in profile.c if column.name != "application_id"]
-    return query.add_columns(*profile_columns).outerjoin(
-        profile, profile.c.application_id == applications.c.id
+    checks = accounts.application_checks
+    check_columns = [column for column in checks.c if column.name != "application_id"]
+    return (
+        query.add_columns(*profile_columns, *check_columns)
+        .outerjoin(profile, profile.c.application_id == applications.c.id)
+        .outerjoin(checks, checks.c.application_id == applications.c.id)
     )
 
 

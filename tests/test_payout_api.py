@@ -119,7 +119,7 @@ def test_closure_day_pays_by_paynow_and_texts_the_stallholder(client):
     assert payout["status"] == "paid"
     assert payout["loss_percent"] == 100
     assert payout["amount_sgd"] == payout["daily_payout_sgd"]
-    assert payout["reference"].startswith("SD-")
+    assert payout["reference"].startswith("PY-")
 
     [text] = [m for m in client.get("/api/sms").json() if m["kind"] == "payout_paid"]
     assert f"S${payout['amount_sgd']:.2f} " in text["body"]
@@ -414,16 +414,13 @@ def test_insurer_sees_the_text_sent_with_each_payout(client):
 def test_welcome_text_explains_the_cover_with_the_customers_numbers(client):
     stallholder_with_cover(client)
     [welcome] = texts_of_kind(client, "welcome")
-    [policy] = client.get("/api/policies").json()
     body = welcome["body"]
-    yearly = round(policy["daily_payout_sgd"] * policy["max_paid_days_per_year"])
-    phrases = ("Payung Tier 1:", f"S${policy['weekly_premium_sgd']:.2f}/wk", "cover from day 30",
-               "Haze", "heat near your stall", f"up to S${policy['daily_payout_sgd']:g}/day",
-               "No alert, no pay even if sales drop")
+    [policy] = client.get("/api/policies").json()
+    phrases = (f"Payung: S${policy['weekly_premium_sgd']:.2f}/wk", "covered from day 30",
+               f"up to S${policy['daily_payout_sgd']:g} a day for abnormal weather", "No alert, no pay.",
+               "https://payung.nuza.dev")
     for phrase in phrases:
         assert phrase in body
-    # The yearly amount drops its thousands comma when that is what fits one SMS.
-    assert f"S${yearly:,}/yr" in body or f"S${yearly}/yr" in body
     assert len(body) <= SMS_LIMIT
 
 
@@ -442,11 +439,8 @@ def test_buying_cover_with_a_verified_mobile_sends_the_welcome_text(client):
 
     client.post("/api/policies", json={"tier": "tier_2", **SELLER})
     [welcome] = texts_of_kind(client, "welcome")
-    assert "Payung Tier 2:" in welcome["body"]
     [policy] = client.get("/api/policies").json()
-    yearly = round(policy["daily_payout_sgd"] * policy["max_paid_days_per_year"])
-    assert f"up to S${policy['daily_payout_sgd']:g}/day" in welcome["body"]
-    assert f"S${yearly:,}/yr" in welcome["body"] or f"S${yearly}/yr" in welcome["body"]
+    assert f"up to S${policy['daily_payout_sgd']:g} a day for abnormal weather" in welcome["body"]
 
 
 def test_welcome_text_is_sent_once_per_cover(client):
@@ -713,8 +707,9 @@ def test_paying_in_the_buy_flow_texts_the_welcome_in_the_chosen_language(client)
     [welcome] = welcomes(client)
     assert welcome["to"] == "+65 ****4567"
     assert welcome["language"] == "zh"
-    assert "日赔≤S$" in welcome["body"]
-    assert "买后30天生效" in welcome["body"]
+    assert "日赔最高S$" in welcome["body"]
+    assert "天气异常" in welcome["body"]
+    assert "无警报不赔" in welcome["body"]
 
 
 def test_a_landline_given_at_sign_up_gets_no_welcome_text(client):
@@ -738,3 +733,19 @@ def test_verifying_paynow_later_does_not_resend_the_welcome(client):
     code = client.post("/api/payout-account/verify/start").json()["demo_code"]
     assert client.post("/api/payout-account/verify", json={"code": code}).status_code == 200
     assert len(welcomes(client)) == 1
+
+
+
+def test_a_chinese_payment_text_writes_the_date_in_chinese(client):
+    register(client, "sme", "tan@example.com")
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 200
+    start_cover_on(client, LONG_AGO)
+    account = {"paynow_proxy_type": "mobile", "paynow_proxy": GOOD_MOBILE, "sms_language": "zh"}
+    client.put("/api/payout-account", json=account)
+    code = client.post("/api/payout-account/verify/start").json()["demo_code"]
+    client.post("/api/payout-account/verify", json={"code": code})
+    run_as_insurer(client, FLOOD_DAY)
+    sign_in(client, "tan@example.com")
+    [paid] = [t for t in client.get("/api/sms").json() if t["kind"] == "payout_paid"]
+    assert "11月14日" in paid["body"]
+    assert paid["body"].endswith("\nhttps://payung.nuza.dev")

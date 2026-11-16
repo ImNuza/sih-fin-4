@@ -924,6 +924,17 @@ async function renderModelBook(target, live, staticData, tier = "tier_2") {
 }
 
 /* ---------- insurer: underwriter queue ---------- */
+/* What ACRA and the demo licence register said when the application came in (api/registry.py). */
+const UEN_CHECKS = { acra: "UEN live in ACRA", not_checked: "UEN not checked: ACRA could not be reached" };
+const LICENCE_CHECKS = {
+  demo_register: "Licence in the demo register",
+  not_checked: "Licence not in the register: check it with SFA",
+};
+function registryChecks(application) {
+  return [UEN_CHECKS[application.uen_check], LICENCE_CHECKS[application.licence_check]]
+    .filter(Boolean).join(" · ");
+}
+
 /* One referred application, with what an underwriter needs to approve or decline it. */
 function referralCard(application, quotes) {
   const tier = quotes[application.region]?.tiers.find((t) => t.tier === application.tier);
@@ -934,7 +945,9 @@ function referralCard(application, quotes) {
     : "Business account only, no Payung";
   const place = [application.centre, application.stall_unit && `unit ${application.stall_unit}`,
     `${titleCase(application.region)} region`, application.postcode && `postcode ${application.postcode}`].filter(Boolean).join(" · ");
-  const applicant = application.applicant_type === "company" ? `Company, UEN ${application.uen}` : "Individual";
+  const applicant = application.uen
+    ? `${application.entity_type || (application.applicant_type === "company" ? "Company" : "Business")}, UEN ${application.uen}${application.registered_name ? ` (${application.registered_name})` : ""}`
+    : "Individual licensee";
   const row = (key, value) => value ? kv(key, escapeHtml(value)) : "";
   return `<article class="referral" data-application="${application.id}">
     <div class="referral-head"><h3>${escapeHtml(application.business_name || application.name)}</h3>
@@ -945,6 +958,7 @@ function referralCard(application, quotes) {
         ${row("Business", businessProof(application))}
         ${row("Where", place)}
         ${row("Applicant", applicant)}
+        ${row("Checked", registryChecks(application))}
         ${row("Staff", application.staff_band)}
         ${row("Normal weekday sales", application.daily_sales_sgd != null ? SGD(application.daily_sales_sgd) : "")}
         ${row("Cover asked for", cover)}

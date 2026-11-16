@@ -1,0 +1,226 @@
+{
+  "source": "ACRA via data.gov.sg: 'Entities Registered with ACRA' and 'ACRA Information on Corporate Entities', Singapore Open Data Licence. Built by scripts/build_demo_registry.py.",
+  "fetched_on": "2026-11-16",
+  "companies": [
+    {
+      "uen": "197100340K",
+      "name": "AL-TRICIA MARKETING PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "330027",
+      "address": "27 BENDEMEER ROAD #02-655 BENDEMEER VILLE Singapore 330027",
+      "ssic_code": "47102",
+      "ssic_title": "Mini-marts, convenience stores and provision shops"
+    },
+    {
+      "uen": "200300430E",
+      "name": "BRITISH ESSENTIAL (S) PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "416200",
+      "address": "22 KAKI BUKIT PLACE EUNOS TECHPARK Singapore 416200",
+      "ssic_code": "47102",
+      "ssic_title": "Mini-marts, convenience stores and provision shops"
+    },
+    {
+      "uen": "200415408W",
+      "name": "AEROGREEN PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "679037",
+      "address": "7 DAIRY FARM ROAD #08-02 THE DAIRY FARM Singapore 679037",
+      "ssic_code": "47211",
+      "ssic_title": "Retail sale of fruits and vegetables"
+    },
+    {
+      "uen": "198502224G",
+      "name": "BAMBOO VEGETABLE TRADER PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "110011",
+      "address": "11 WHOLESALE CENTRE #01-580 PASIR PANJANG WHOLESALE CENTRE Singapore 110011",
+      "ssic_code": "47211",
+      "ssic_title": "Retail sale of fruits and vegetables"
+    },
+    {
+      "uen": "200407734K",
+      "name": "AGRI DEVELOPMENT PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "079903",
+      "address": "10 ANSON ROAD #31-01 INTERNATIONAL PLAZA Singapore 079903",
+      "ssic_code": "47212",
+      "ssic_title": "Retail sale of meat, poultry, eggs and seafood"
+    },
+    {
+      "uen": "201436664W",
+      "name": "BEE CHENG HIANG STAR PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "328241",
+      "address": "1359 SERANGOON ROAD Singapore 328241",
+      "ssic_code": "47212",
+      "ssic_title": "Retail sale of meat, poultry, eggs and seafood"
+    },
+    {
+      "uen": "199704913K",
+      "name": "ART TREE PTE LTD",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "159471",
+      "address": "3791 JALAN BUKIT MERAH #09-21 E-CENTRE @ REDHILL Singapore 159471",
+      "ssic_code": "47213",
+      "ssic_title": "Retail sale of confectionery and bakery products (not manufactured on site)"
+    },
+    {
+      "uen": "199708195D",
+      "name": "BEGA INDUSTRIES PTE LTD",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "486350",
+      "address": "3015 BEDOK NORTH STREET 5 #02-05 SHIMEI EAST KITCHEN Singapore 486350",
+      "ssic_code": "47213",
+      "ssic_title": "Retail sale of confectionery and bakery products (not manufactured on site)"
+    },
+    {
+      "uen": "200010025R",
+      "name": "ALPHA METALS & MARKETING PTE LTD",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "629013",
+      "address": "12 JOO KOON CRESCENT Singapore 629013",
+      "ssic_code": "47522",
+      "ssic_title": "Retail sale of hardware"
+    },
+    {
+      "uen": "198205240G",
+      "name": "BOON KOON HARDWARE PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "209520",
+      "address": "45 DICKSON ROAD Singapore 209520",
+      "ssic_code": "47522",
+      "ssic_title": "Retail sale of hardware"
+    },
+    {
+      "uen": "198902797R",
+      "name": "A'ZONE CORPORATION PTE LTD",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "508941",
+      "address": "14 LOYANG DRIVE LOYANG INDUSTRIAL ESTATE Singapore 508941",
+      "ssic_code": "47610",
+      "ssic_title": "Retail sale of books, newspapers and stationery"
+    },
+    {
+      "uen": "198501622G",
+      "name": "BETALAND COMMERCIAL SUPPLIES PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "598829",
+      "address": "48 HIGHGATE CRESCENT Singapore 598829",
+      "ssic_code": "47610",
+      "ssic_title": "Retail sale of books, newspapers and stationery"
+    },
+    {
+      "uen": "199408620C",
+      "name": "ANGLIA CLOTHIERS PRIVATE LIMITED",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "199773",
+      "address": "76 ARAB STREET Singapore 199773",
+      "ssic_code": "47711",
+      "ssic_title": "Retail sale of clothing for adults"
+    },
+    {
+      "uen": "199403730G",
+      "name": "BEGA CREATION PTE LTD",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "629841",
+      "address": "10Q ENTERPRISE ROAD ENTERPRISE 10 Singapore 629841",
+      "ssic_code": "47711",
+      "ssic_title": "Retail sale of clothing for adults"
+    },
+    {
+      "uen": "197400754R",
+      "name": "BUN AUN CHAN (PTE) LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "338766",
+      "address": "208 LAVENDER STREET HIN FAH HOUSE Singapore 338766",
+      "ssic_code": "47723",
+      "ssic_title": "Chinese medicine shops"
+    },
+    {
+      "uen": "199605817M",
+      "name": "CHWEE SONG SUPPLIES PTE LTD",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "567760",
+      "address": "5 ANG MO KIO INDUSTRIAL PARK 2A #07-14 AMK TECH II Singapore 567760",
+      "ssic_code": "47723",
+      "ssic_title": "Chinese medicine shops"
+    },
+    {
+      "uen": "200208047D",
+      "name": "ACE'S OF VASE PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "547767",
+      "address": "20 LIM TUA TOW ROAD Singapore 547767",
+      "ssic_code": "47743",
+      "ssic_title": "Retail sale of cut flowers"
+    },
+    {
+      "uen": "201105602W",
+      "name": "BEAUTIFUL THOUGHTS PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "730357",
+      "address": "357 WOODLANDS AVENUE 5 #05-392 Singapore 730357",
+      "ssic_code": "47743",
+      "ssic_title": "Retail sale of cut flowers"
+    },
+    {
+      "uen": "198701527N",
+      "name": "AROMA FOOD SERVICES PTE LTD",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "199591",
+      "address": "7500A BEACH ROAD #25-312 THE PLAZA Singapore 199591",
+      "ssic_code": "56111",
+      "ssic_title": "Restaurants"
+    },
+    {
+      "uen": "196300046N",
+      "name": "BLUESTAR BANANA LEAF RESTAURANT PTE. LTD.",
+      "entity_type": "Local Company",
+      "status": "Live Company",
+      "live": true,
+      "postcode": "728654",
+      "address": "5 MANDAI LINK #01-03 MANDAI FOODLINK Singapore 728654",
+      "ssic_code": "56111",
+      "ssic_title": "Restaurants"
+    }
+  ]
+}
