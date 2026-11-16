@@ -42,7 +42,7 @@ PAYEE = "Payung by Income (demo)"
 BANK_PAGE = "/paynow-demo/"
 # The phone that scans the QR opens the success page on the public demo site, so it shows on any
 # network with internet, even when the buy flow runs on a laptop the phone cannot reach.
-DEFAULT_PUBLIC_SITE_URL = "https://safeday.nuza.dev"
+DEFAULT_PUBLIC_SITE_URL = "https://payung.nuza.dev"
 
 premium_payments = Table(
     "premium_payments",

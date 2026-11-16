@@ -1,4 +1,5 @@
 # Image for the hosted dashboard. It has no API key, so the Live tab is off. See deploy/README.md.
+# It serves under /sih, because the tunnel sends payung.nuza.dev/sih to it and the rest to the API.
 FROM ghcr.io/astral-sh/uv:0.11.26 AS uv
 
 FROM python:3.12.16-slim-trixie
@@ -21,10 +22,11 @@ ENV PATH=/opt/venv/bin:$PATH \
     STREAMLIT_SERVER_HEADLESS=true \
     STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
     STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_SERVER_BASE_URL_PATH=sih \
     STREAMLIT_SERVER_FILE_WATCHER_TYPE=none \
     STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD \
     ["python", "-c", \
-     "import urllib.request as u; u.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=4)"]
+     "import urllib.request as u; u.urlopen('http://127.0.0.1:8501/sih/_stcore/health', timeout=4)"]
 CMD ["streamlit", "run", "app/app.py"]

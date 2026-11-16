@@ -1,6 +1,6 @@
 # Hosted dashboard and pricing API
 
-The team dashboard and the pricing API also run on a small home server, behind a Cloudflare Tunnel. Ask Dewa for the link.
+The team dashboard and the pricing API also run on a small home server, behind a Cloudflare Tunnel, on one hostname: https://payung.nuza.dev is the platform (`api`), and https://payung.nuza.dev/sih/ is the Streamlit dashboard (`dashboard`). The tunnel sends paths that start with `/sih` to the dashboard, and everything else to the API. The dashboard image sets `STREAMLIT_SERVER_BASE_URL_PATH=sih` to match.
 
 ## How it works
 

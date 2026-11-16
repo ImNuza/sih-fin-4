@@ -157,7 +157,7 @@ def test_giro_buy_needs_no_paynow_payment(client):
 def test_the_qr_opens_the_success_page_on_the_public_site(client, monkeypatch):
     monkeypatch.delenv("PUBLIC_SITE_URL", raising=False)
     payment = start(client)
-    assert payment["bank_url"].startswith("https://safeday.nuza.dev/paynow-demo/?")
+    assert payment["bank_url"].startswith("https://payung.nuza.dev/paynow-demo/?")
     assert payment["bank_url"].endswith(payment["bank_path"])
 
 
@@ -180,4 +180,4 @@ def test_public_site_url_moves_the_qr_to_another_site(client, monkeypatch):
 def test_a_public_site_url_without_http_is_ignored(client, monkeypatch):
     monkeypatch.setenv("PUBLIC_SITE_URL", "safeday.example.test")
     payment = start(client)
-    assert payment["bank_url"].startswith("https://safeday.nuza.dev/paynow-demo/?")
+    assert payment["bank_url"].startswith("https://payung.nuza.dev/paynow-demo/?")
