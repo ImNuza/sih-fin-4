@@ -101,9 +101,10 @@ band. The best model is the one with the best validation score, so the test year
 in choosing it. Loading a model needs the `ml` group, and `ml.models` for the neural network.
 
 `uv run --group ml python -m ml.plots` draws five charts from `ml/results/` into
-`docs/figures/ml_*.png`: the two shipped models against every algorithm, every job against its
-simple guess, the tuning spread, payout days caught against false alarms, and energy per answer
-against an LLM (timings measured on 16 Nov 2026, assumptions on the chart).
+`docs/figures/ml_*.png`: the rain rebuild against every algorithm and the simple guess, its
+precision, recall and accuracy per algorithm, its tuning spread, every job against its simple
+guess, and energy per answer against an LLM (timings measured on 16 Nov 2026, assumptions on
+the chart).
 
 ## Use them in the product (`data/processed/`, in git)
 

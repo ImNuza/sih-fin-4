@@ -5,13 +5,14 @@ Usage:
 
 Reads  ml/results/leaderboard.csv, ml/results/model_notes.md, ml/results/confusion_metrics.csv,
        ml/results/models/index.csv
-Writes docs/figures/ml_shipped_models.png     the two models in the product: every algorithm
-                                              against the simple guess
+Writes docs/figures/ml_rain_models.png        the rain rebuild, the model in the product: every
+                                              algorithm against the simple guess
+       docs/figures/ml_rain_payout_days.png   the rain rebuild's precision, recall and accuracy
+                                              on payout days, per algorithm
+       docs/figures/ml_rain_tuning.png        how far tuning moved each algorithm on the rain
+                                              rebuild, worst to best trial
        docs/figures/ml_all_jobs.png           every job: the chosen model against the best
                                               simple guess, on one scale
-       docs/figures/ml_tuning_spread.png      how far tuning moved each algorithm, worst to
-                                              best trial
-       docs/figures/ml_payout_days.png        payout days caught against false alarms
        docs/figures/ml_energy_per_answer.png  energy per answer: this product against an LLM
 The timings behind the energy chart were measured on 16 Nov 2026 (see ENERGY_ROWS).
 """
@@ -34,6 +35,7 @@ OTHER = "#c3c2b7"       # algorithms that were not chosen: a de-emphasis tone, l
 LLM = "#eb6834"         # the comparison series in the energy chart (categorical slot 2)
 BASELINES = ("climatology", "persistence")
 SHIPPED = ("heat_h0_regression", "rain_h0_regression")
+RAIN_JOBS = ("rain_h0_regression", "rain_h0_classification")
 METRIC = {
     "regression": ("test_rmse", False, "error (RMSE), lower is better"),
     "classification": ("test_average_precision", True, "average precision, higher is better"),
@@ -90,40 +92,47 @@ def bar_chart(ax: plt.Axes, rows: pd.DataFrame, chosen: str, column: str, higher
     ax.set_yticks(range(len(learned)))
     ax.set_yticklabels([ALGORITHM_LABELS[m] for m in learned["model"]])
     for bar, value in zip(bars, learned[column]):
-        ax.text(bar.get_width(), bar.get_y() + bar.get_height() / 2, f" {value:.3g}",
-                va="center", ha="left", color=INK_2, fontsize=9)
+        ax.text(bar.get_width(), bar.get_y() + bar.get_height() / 2,
+                f" {score_text(value, higher)}", va="center", ha="left", color=INK_2, fontsize=9)
     guess = best_baseline(rows, column, higher)
     ax.axvline(guess, color=INK, linewidth=1)
-    ax.text(guess, -0.75, f" simple guess {guess:.3g}", color=INK, fontsize=9, va="center",
-            ha="left")
+    ax.text(guess, -0.75, f" simple guess {score_text(guess, higher)}", color=INK, fontsize=9,
+            va="center", ha="left")
     ax.set_ylim(-1.1, len(learned) - 0.4)
     ax.set_xlim(0, max(learned[column].max(), guess) * 1.25)
     ax.grid(axis="y", visible=False)
     ax.grid(axis="x", color=GRID, linewidth=0.8)
 
 
-def plot_shipped(board: pd.DataFrame, chosen: dict[str, str]) -> None:
+def score_text(value: float, higher: bool) -> str:
+    """Scores that run 0 to 1 (average precision) read as percentages; errors keep their unit."""
+    return f"{value:.0%}" if higher else f"{value:.3g}"
+
+
+def plot_rain_models(board: pd.DataFrame, chosen: dict[str, str]) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.4), facecolor=SURFACE)
     titles = {
-        "heat_h0_regression": "Heat rebuild: error in hours at WBGT 32 °C or more",
-        "rain_h0_regression": "Rain rebuild: error in mm of the wettest hour",
+        "rain_h0_regression": "The reading: error in mm of the wettest hour",
+        "rain_h0_classification": "Payout day or not: average precision",
     }
-    for ax, job in zip(axes, SHIPPED):
+    labels = {
+        "rain_h0_regression": "Error on the test years (RMSE), mm, lower is better",
+        "rain_h0_classification": "Average precision on the test years, higher is better",
+    }
+    for ax, job in zip(axes, RAIN_JOBS):
         style_axes(ax)
         rows = board[board["job"] == job]
         column, higher, _ = METRIC[job.rsplit("_", 1)[1]]
         bar_chart(ax, rows, chosen[job], column, higher)
         ax.set_title(titles[job], loc="left", color=INK, fontsize=11, fontweight="bold")
-        ax.set_xlabel("Error on the test years (RMSE), lower is better", color=INK_2)
-    fig.suptitle(
-        "The two models in the product, against every other algorithm and the simple guess",
-        x=0.01, ha="left", color=INK, fontsize=12,
-    )
+        ax.set_xlabel(labels[job], color=INK_2)
+    fig.suptitle("The rain rebuild, the model in the product: every algorithm against the simple "
+                 "guess", x=0.01, ha="left", color=INK, fontsize=12)
     fig.text(0.01, 0.01, "Blue: the model chosen on its validation score, before the test years "
              "were seen. Black line: the same-month average. Source: ml/results/leaderboard.csv.",
              color=MUTED, fontsize=8.5)
     fig.tight_layout(rect=(0, 0.04, 1, 0.95))
-    fig.savefig(FIG_DIR / "ml_shipped_models.png", dpi=160, facecolor=SURFACE)
+    fig.savefig(FIG_DIR / "ml_rain_models.png", dpi=160, facecolor=SURFACE)
     plt.close(fig)
 
 
@@ -195,76 +204,92 @@ def tuning_table() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def plot_tuning(chosen: dict[str, str]) -> None:
+def plot_rain_tuning(chosen: dict[str, str]) -> None:
     tuning = tuning_table()
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.4), facecolor=SURFACE)
-    for ax, job in zip(axes, SHIPPED):
+    titles = {
+        "rain_h0_regression": "The reading: validation error, best to worst trial",
+        "rain_h0_classification": "Payout day or not: precision across the trials",
+    }
+    for ax, job in zip(axes, RAIN_JOBS):
         style_axes(ax)
-        rows = tuning[tuning["job"] == job].sort_values("best", ascending=False)
+        _, higher, _ = METRIC[job.rsplit("_", 1)[1]]
+        rows = tuning[tuning["job"] == job].sort_values("best", ascending=higher)
         rows = rows.reset_index(drop=True)
         for y, row in rows.iterrows():
             colour = BAR if row["model"] == chosen[job] else OTHER
-            ax.plot([row["best"], row["worst"]], [y, y], color=colour, linewidth=2,
-                    solid_capstyle="round", zorder=2)
+            low, high = sorted((row["best"], row["worst"]))
+            ax.plot([low, high], [y, y], color=colour, linewidth=2, solid_capstyle="round",
+                    zorder=2)
             ax.scatter([row["median"]], [y], s=64, color=colour, zorder=3, edgecolor=SURFACE,
                        linewidth=1.5)
-            ax.text(row["worst"], y, f"  {row['best']:.3g} to {row['worst']:.3g}",
-                    va="center", ha="left", color=INK_2, fontsize=8.5)
+            ax.text(high, y, f"  {score_text(row['best'], higher)} to "
+                    f"{score_text(row['worst'], higher)}", va="center", ha="left", color=INK_2,
+                    fontsize=8.5)
         ax.set_yticks(range(len(rows)))
         ax.set_yticklabels([ALGORITHM_LABELS[m] for m in rows["model"]])
-        ax.set_xlim(rows["best"].min() * 0.9, rows["worst"].max() * 1.3)
+        lows = rows[["best", "worst"]].min(axis=1)
+        highs = rows[["best", "worst"]].max(axis=1)
+        if higher:
+            ax.set_xlim(lows.min() * 0.9, 1.15)
+            ax.set_xticks([0.8, 0.9, 1.0])
+            ax.set_xticklabels(["80%", "90%", "100%"])
+        else:
+            ax.set_xlim(lows.min() * 0.9, highs.max() * 1.3)
         ax.grid(axis="y", visible=False)
         ax.grid(axis="x", color=GRID, linewidth=0.8)
-        ax.set_title(job_label(job).split(" (")[0] + ": validation error, best to worst trial",
-                     loc="left", color=INK, fontsize=11, fontweight="bold")
-        ax.set_xlabel("RMSE across the tuning trials (dot: median trial)", color=INK_2)
-    fig.suptitle("What tuning did: 40 Optuna trials per algorithm, scored on time-ordered folds",
-                 x=0.01, ha="left", color=INK, fontsize=12)
+        ax.set_title(titles[job], loc="left", color=INK, fontsize=11, fontweight="bold")
+        ax.set_xlabel("Score across the 40 tuning trials (dot: median trial)", color=INK_2)
+    fig.suptitle("What tuning did on the rain rebuild: 40 Optuna trials per algorithm, "
+                 "time-ordered folds", x=0.01, ha="left", color=INK, fontsize=12)
     fig.text(0.01, 0.01, "A short bar means the algorithm barely cares about its settings; a long "
              "one means tuning mattered. Source: ml/results/model_notes.md.",
              color=MUTED, fontsize=8.5)
     fig.tight_layout(rect=(0, 0.04, 1, 0.95))
-    fig.savefig(FIG_DIR / "ml_tuning_spread.png", dpi=160, facecolor=SURFACE)
+    fig.savefig(FIG_DIR / "ml_rain_tuning.png", dpi=160, facecolor=SURFACE)
     plt.close(fig)
 
 
-def plot_payout_days(chosen: dict[str, str]) -> None:
+def plot_rain_payout_days(chosen: dict[str, str]) -> None:
     metrics = pd.read_csv(RESULTS_DIR / "confusion_metrics.csv")
-    picks = metrics[[chosen.get(j) == m for j, m in zip(metrics["job"], metrics["model"])]]
-    picks = picks[picks["job"].str.contains("_h")]
-    flagged = picks[picks["TP"] + picks["FP"] > 0]
-    silent = picks[picks["TP"] + picks["FP"] == 0]
-    fig, ax = plt.subplots(figsize=(8.5, 5.6), facecolor=SURFACE)
-    style_axes(ax)
-    ax.grid(axis="x", color=GRID, linewidth=0.8)
-    points = [(float(r["recall"]), float(r["precision"]), r["job"]) for _, r in flagged.iterrows()]
-    placed: list[tuple[float, float]] = []
-    for x, y, job in sorted(points):
-        colour = BAR if job in SHIPPED else OTHER
-        ax.scatter([x], [y], s=90, color=colour, zorder=3, edgecolor=SURFACE, linewidth=1.5)
-        # Labels sit beside their dot, unless a neighbour on the same line is in the way: then
-        # the label goes under the dot when the neighbour is to the right, above it otherwise.
-        on_line = [(px, py) for px, py, _ in points if (px, py) != (x, y) and abs(y - py) < 0.06]
-        if any(0 < px - x < 0.35 for px, _ in on_line):
-            ax.text(x, y - 0.03, job_label(job), va="top", ha="center", color=INK_2, fontsize=9)
-        elif any(abs(x - px) < 0.4 for px, py in placed if abs(y - py) < 0.06):
-            ax.text(x, y + 0.03, job_label(job), va="bottom", ha="right" if x > 0.8 else "center",
-                    color=INK_2, fontsize=9)
-        else:
-            ax.text(x + 0.015, y, job_label(job), va="center", ha="left", color=INK_2, fontsize=9)
-        placed.append((x, y))
-    ax.set_xlim(0, 1.05)
-    ax.set_ylim(0, 1.05)
-    ax.set_xlabel("Payout days caught (recall)", color=INK_2)
-    ax.set_ylabel("Flagged days that really paid (precision)", color=INK_2)
-    ax.set_title("Payout days on the test years, chosen daily models at the 0.5 cut-off",
-                 loc="left", color=INK, fontsize=12, fontweight="bold")
-    quiet = ", ".join(job_label(j) for j in silent["job"])
-    fig.text(0.01, 0.01, f"Blue: the two models in the product. Not shown, flagged no day at "
-             f"this cut-off: {quiet}. Source: ml/results/confusion_metrics.csv.",
-             color=MUTED, fontsize=8.5, wrap=True)
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
-    fig.savefig(FIG_DIR / "ml_payout_days.png", dpi=160, facecolor=SURFACE)
+    rows = metrics[(metrics["job"] == "rain_h0_classification")
+                   & ~metrics["model"].isin(BASELINES)]
+    always_no = float(rows["always_no_accuracy"].iloc[0])
+    panels = (
+        ("precision", "Precision: flagged days that really paid"),
+        ("recall", "Recall: payout days caught"),
+        ("accuracy", "Accuracy: all days called right"),
+    )
+    fig, axes = plt.subplots(1, 3, figsize=(12.5, 4.4), facecolor=SURFACE)
+    for ax, (column, title) in zip(axes, panels):
+        style_axes(ax)
+        ordered = rows.sort_values(column).reset_index(drop=True)
+        pick = chosen["rain_h0_classification"]
+        colours = [BAR if m == pick else OTHER for m in ordered["model"]]
+        bars = ax.barh(range(len(ordered)), ordered[column], color=colours, height=0.55)
+        for bar, value in zip(bars, ordered[column]):
+            ax.text(bar.get_width(), bar.get_y() + bar.get_height() / 2, f" {value:.1%}",
+                    va="center", ha="left", color=INK_2, fontsize=9)
+        ax.set_yticks(range(len(ordered)))
+        ax.set_yticklabels([ALGORITHM_LABELS[m] for m in ordered["model"]])
+        ax.set_xlim(0, 1.22)
+        ax.set_xticks([0, 0.25, 0.5, 0.75, 1])
+        ax.set_xticklabels(["0", "25%", "50%", "75%", "100%"])
+        ax.grid(axis="y", visible=False)
+        ax.grid(axis="x", color=GRID, linewidth=0.8)
+        ax.set_title(title, loc="left", color=INK, fontsize=10.5, fontweight="bold")
+        if column == "accuracy":
+            ax.axvline(always_no, color=INK, linewidth=1)
+            ax.text(always_no, -0.75, f"always \"no\": {always_no:.1%} ", color=INK, fontsize=9,
+                    va="center", ha="right")
+            ax.set_ylim(-1.1, len(ordered) - 0.4)
+    fig.suptitle("Rain rebuild, payout day or not: how each algorithm did on the test years "
+                 "(2023 on, 72,239 gauge-days)", x=0.01, ha="left", color=INK, fontsize=12)
+    fig.text(0.01, 0.01, "Blue: XGBoost, the model in the product. A payout day is a gauge-day "
+             "whose wettest work hour reached 20 mm. Source: ml/results/confusion_metrics.csv.",
+             color=MUTED, fontsize=8.5)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.94))
+    fig.savefig(FIG_DIR / "ml_rain_payout_days.png", dpi=160, facecolor=SURFACE)
     plt.close(fig)
 
 
@@ -314,10 +339,10 @@ def plot_energy() -> None:
 
 def main() -> None:
     board, chosen = load()
-    plot_shipped(board, chosen)
+    plot_rain_models(board, chosen)
+    plot_rain_payout_days(chosen)
+    plot_rain_tuning(chosen)
     plot_all_jobs(board, chosen)
-    plot_tuning(chosen)
-    plot_payout_days(chosen)
     plot_energy()
     print(f"Wrote 5 charts to {FIG_DIR.relative_to(REPO_ROOT)}/ml_*.png")
 
