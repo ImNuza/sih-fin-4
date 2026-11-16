@@ -10,6 +10,8 @@ Writes data/processed/day_readings.csv.gz   one row per day, kind and site:
        haze          the day's highest 24-hour PSI per region
        rain          the wettest work hour per gauge, mm (rows under RAIN_KEEP_MM are left out)
        heat          work hours at WBGT 32°C or more per station (zero rows left out)
+       heat_peak     the day's highest WBGT per station, °C (shown beside the heat reading;
+                     no payout reads it)
        rain_missing  a priced gauge that reported under half the work hours that day (value 1)
        heat_missing  a priced WBGT station that reported under half the work-hour readings
                      (value 1)
@@ -111,7 +113,12 @@ def heat_rows() -> list[tuple[str, str, str, float]]:
         (record.day.date().isoformat(), "heat", record.station_id, float(record.hours_ge_32))
         for record in hot.itertuples()
     ]
-    return values + missing_rows(reported, "heat_missing", priced_station_ids("heat"))
+    peaks = [
+        (record.day.date().isoformat(), "heat_peak", record.station_id,
+         round(float(record.max_wbgt), 1))
+        for record in days.dropna(subset=["max_wbgt"]).itertuples()
+    ]
+    return values + peaks + missing_rows(reported, "heat_missing", priced_station_ids("heat"))
 
 
 def main() -> None:

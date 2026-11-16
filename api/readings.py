@@ -16,7 +16,8 @@ reading waits for data: a payout run pays the day once the data arrives, and a r
 score reads it as 0. Every reading keeps its basis, the rule that gave it in plain words.
 
 A day is {kind: {site: value}} as in data/processed/day_readings.csv.gz: haze, rain and heat
-values, rain_missing and heat_missing for the stations that did not report, and rain_mss. A
+values, rain_missing and heat_missing for the stations that did not report, rain_mss, and
+heat_peak (the day's highest WBGT, shown beside the heat reading and never paid on). A
 station that reported but has no value row read 0. The stations are the ones the price reads
 (site_hazard_readings.csv), so a place is priced and paid from the same network.
 """
@@ -98,6 +99,29 @@ def described(chosen: list[str], passed_over: list[str]) -> str:
     return f"{named} (nearest)" if len(chosen) == 1 else named
 
 
+def reporting_stations(
+    day: Day, kind: str, stations: tuple[str, ...], count: int
+) -> tuple[list[str], list[str]]:
+    """The first count stations that reported, nearest first, and the silent ones passed over."""
+    silent = day.get(f"{kind}_missing", {})
+    chosen: list[str] = []
+    passed_over: list[str] = []
+    for station_id in stations:
+        if len(chosen) == count:
+            break
+        (passed_over if station_id in silent else chosen).append(station_id)
+    return chosen, passed_over
+
+
+def heat_peak(day: Day, where: Place, heat_read: int) -> float | None:
+    """The day's highest WBGT, °C, at the stations the heat reading used. Shown beside the
+    reading only: a payout counts work hours at 32°C or more. None: no peak was recorded."""
+    peaks = day.get("heat_peak", {})
+    chosen, _ = reporting_stations(day, "heat", where.heat_stations, heat_read)
+    found = [peaks[station_id] for station_id in chosen if station_id in peaks]
+    return max(found) if found else None
+
+
 def station_reading(
     day: Day, kind: str, stations: tuple[str, ...], count: int
 ) -> tuple[float | None, str]:
@@ -105,13 +129,8 @@ def station_reading(
     name = STATION_NAMES[kind]
     if not stations:
         return None, f"no {name} in the network"
-    values, silent = day.get(kind, {}), day.get(f"{kind}_missing", {})
-    chosen: list[str] = []
-    passed_over: list[str] = []
-    for station_id in stations:
-        if len(chosen) == count:
-            break
-        (passed_over if station_id in silent else chosen).append(station_id)
+    values = day.get(kind, {})
+    chosen, passed_over = reporting_stations(day, kind, stations, count)
     if chosen:
         value = statistics.median(values.get(station_id, 0.0) for station_id in chosen)
         return value, described(chosen, passed_over)

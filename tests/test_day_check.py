@@ -51,6 +51,28 @@ def test_a_quiet_day_says_it_pays_nothing_and_shows_each_reading(client):
     assert rain["basis"].startswith("median of ")
 
 
+def test_the_heat_row_shows_the_days_peak_wbgt_at_the_station_read(client):
+    stallholder_with_cover(client)
+    check = my_day(client, QUIET_DAY)
+    centre = client.app.state.centres_by_name[CENTRE]
+    where = readings.history_place(
+        centre["region"], centre["lat"], centre["lng"], client.app.state.sites
+    )
+    peak = hazard(check, "heat")["peak"]
+    assert peak == readings.heat_peak(burn.load_day_table()[QUIET_DAY], where, 1)
+    assert 20 < peak < 40
+    assert hazard(check, "rain")["peak"] is None
+
+
+def test_a_paid_day_shows_the_heat_peak_too(client):
+    stallholder_with_cover(client)
+    run_as_insurer(client, {"loss_date": HAZE_DAY, "source": "nea_history"})
+    sign_in(client, "tan@example.com")
+    check = my_day(client, HAZE_DAY)
+    assert check["outcome"] == "paid"
+    assert hazard(check, "heat")["peak"] is not None
+
+
 def test_a_day_the_readings_would_pay_but_no_run_has_assessed_yet(client):
     stallholder_with_cover(client)
     check = my_day(client, HAZE_DAY)

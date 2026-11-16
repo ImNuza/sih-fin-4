@@ -34,21 +34,51 @@ function outcomeNotice(check) {
 }
 
 const reading = (value) => value.toLocaleString("en-SG");
+const NOT_REPORTED = `<span class="fine">not reported yet</span>`;
+
+/* Each hazard's unit, so a number never reads as the wrong thing. Heat counts work hours at WBGT
+   32°C or more (scripts/heat_stats.py), not degrees. Flood and closure are yes or no. */
+const UNITS = {
+  haze: () => "PSI",
+  rain: () => "mm",
+  heat: (value) => (value === 1 ? "hr" : "hrs"),
+};
+const UNIT_AFTER = { heat: " at 32°C+" };
+const YES_NO = { flood: ["No flood alert", "PUB flood alert"], closure: ["No closure order", "Closure order"] };
+
+const withUnit = (hazard, value) => `${reading(value)} ${UNITS[hazard]?.(value) ?? ""}`.trim();
+const levelColour = (level) => `${dayColour(level.loss_percent).label.toLowerCase()} (${level.loss_percent.toFixed(0)}% of the day)`;
+
+/* "0 of 2 hrs at 32°C+", "45 of 101 PSI", "No flood alert": the reading against the next level. */
+function readingLine(h, next) {
+  const yesNo = YES_NO[h.hazard];
+  if (yesNo) return h.value === null ? NOT_REPORTED : `<b>${yesNo[h.value >= 1 ? 1 : 0]}</b>`;
+  const after = UNIT_AFTER[h.hazard] || "";
+  const target = next ? `${withUnit(h.hazard, next.at_least)}${after}` : null;
+  if (h.value === null) return target ? `${NOT_REPORTED} <span class="trigger">/ ${target}</span>` : NOT_REPORTED;
+  if (!target) return `<b class="num">${withUnit(h.hazard, h.value)}${after}</b>`;
+  return `<b class="num">${reading(h.value)}</b> <span class="trigger">of ${target}</span>`;
+}
+
+/* What the next level brings: "2 hrs or more at 32°C+: yellow (30% of the day)". */
+function aheadLine(h, next) {
+  if (!next) return "the highest level";
+  const yesNo = YES_NO[h.hazard];
+  if (yesNo) return `${yesNo[1]}: ${levelColour(next)}`;
+  return `${withUnit(h.hazard, next.at_least)} or more${UNIT_AFTER[h.hazard] || ""}: ${levelColour(next)}`;
+}
 
 /* The reading next to the next level up, so the gap reads at a glance: the first trigger until
    it is reached, then each higher level (yellow, then red) in turn. The chip is the day colour of
    the level reached; the line under it is what the next level brings. Levels score one hazard
-   alone, so several hazards on one day can make it redder. */
+   alone, so several hazards on one day can make it redder. Heat also shows the day's peak WBGT,
+   which says how close a day came; only the hours pay. */
 function readingCell(h) {
   const reached = h.value === null ? null : h.levels.filter((l) => h.value >= l.at_least).at(-1);
   const next = h.levels.find((l) => h.value === null || h.value < l.at_least);
-  const value = h.value === null ? `<span class="fine">not reported yet</span>` : `<b class="num">${reading(h.value)}</b>`;
-  const target = next ? `<span class="trigger">/ ${reading(next.at_least)}</span>` : "";
   const now = reached ? dayChip(reached.loss_percent) : pill("muted", "below");
-  const ahead = next
-    ? `${reading(next.at_least)} or more: ${dayColour(next.loss_percent).label.toLowerCase()} (${next.loss_percent.toFixed(0)}% of the day)`
-    : "the highest level";
-  return `${value} ${target} ${now}<span class="fine block">${ahead}</span>`;
+  const peak = h.peak == null ? "" : `<span class="fine block">Peak WBGT ${h.peak.toFixed(1)}°C</span>`;
+  return `${readingLine(h, next)} ${now}<span class="fine block">${aheadLine(h, next)}</span>${peak}`;
 }
 
 function readingRows(hazards) {

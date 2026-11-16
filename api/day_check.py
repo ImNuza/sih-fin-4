@@ -38,8 +38,9 @@ def service_reference(request_id: int) -> str:
 
 
 def hazard_rows(tariff: Tariff, values: dict[str, float | None], basis: dict[str, str],
-                product: str, tier: str) -> list[dict]:
-    """One row per hazard that was read: its value, the rule behind it and its trigger."""
+                product: str, tier: str, peaks: dict[str, float | None]) -> list[dict]:
+    """One row per hazard that was read: its value, the rule behind it and its trigger. peak is
+    the day's highest WBGT beside the heat hours, never what pays."""
     found = {key: value for key, value in values.items() if value is not None}
     losses = {
         hazard.hazard: hazard.loss_percent
@@ -61,6 +62,7 @@ def hazard_rows(tariff: Tariff, values: dict[str, float | None], basis: dict[str
             "crossed": value is not None and value >= pays_from,
             "basis": basis.get(hazard.key),
             "loss_percent": losses.get(hazard.key),
+            "peak": peaks.get(hazard.key),
         })
     return rows
 
@@ -100,21 +102,23 @@ def my_day(user: SmeDep, request: Request, day: date) -> dict:
         "cover_pays_from": payout_flow.first_covered_day(policy.started_at).isoformat(),
         "payout": None,
     }
+    recorded = day_readings(request).get(check["date"])
+    where = payout_api.policy_place(policy, payout_api.shop_postcodes(engine), request)
+    stations_read = readings.stations_read(tariff)
+    peaks = {"heat": readings.heat_peak(recorded, where, stations_read[1])} if recorded else {}
     paid = [p for p in payout_api.load_payouts(engine, user.id) if p["loss_date"] == check["date"]]
     if paid:
         payout = paid[0]
         rows = hazard_rows(tariff, payout["readings"], payout["basis"] or {}, policy.product,
-                           policy.tier)
+                           policy.tier, peaks)
         return check | {"outcome": payout["status"], "hazards": rows, "payout": payout}
-    recorded = day_readings(request).get(check["date"])
     if recorded is None:
         return check | {"outcome": "no_record", "hazards": []}
-    where = payout_api.policy_place(policy, payout_api.shop_postcodes(engine), request)
-    site = readings.site_readings(recorded, where, *readings.stations_read(tariff))
+    site = readings.site_readings(recorded, where, *stations_read)
     values = {hazard: site.readings.get(hazard) for hazard in readings.HAZARDS}
     with engine.connect() as db:
         outcome = unpaid_outcome(db, policy, tariff, day, site)
-    rows = hazard_rows(tariff, values, site.basis, policy.product, policy.tier)
+    rows = hazard_rows(tariff, values, site.basis, policy.product, policy.tier, peaks)
     return check | {"outcome": outcome, "hazards": rows}
 
 

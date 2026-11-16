@@ -61,6 +61,21 @@ def test_heat_takes_the_middle_when_the_tariff_reads_more_than_one_station():
     assert readings.day_readings_at(day, PLACE, THREE_GAUGES, 2)["heat"] == 3.0
 
 
+def test_the_heat_peak_is_the_highest_wbgt_at_the_stations_the_reading_used():
+    day = {"heat_peak": {"hot_near": 31.4, "hot_far": 33.0}}
+    assert readings.heat_peak(day, PLACE, 1) == 31.4
+    assert readings.heat_peak(day, PLACE, 2) == 33.0
+
+
+def test_the_heat_peak_skips_a_station_that_did_not_report():
+    day = {"heat_peak": {"hot_near": 35.0, "hot_far": 30.2}, "heat_missing": {"hot_near": 1}}
+    assert readings.heat_peak(day, PLACE, 1) == 30.2
+
+
+def test_a_day_with_no_peak_recorded_has_no_heat_peak():
+    assert readings.heat_peak({"heat": {"hot_near": 2.0}}, PLACE, 1) is None
+
+
 def test_haze_is_the_places_region():
     assert read({"haze": {"central": 230.0, "west": 300.0}}) == {
         "haze": 230.0, "rain": 0.0, "heat": 0.0,
