@@ -3,7 +3,6 @@
 "use strict";
 
 const OFFER_PRODUCT = "cooked_food";
-const OFFER_REGIONS = ["central", "east", "north", "south", "west"];
 const LOCKDOWN_DAYS = 40;
 
 const money = (v) => "S$" + (v >= 100 || Number.isInteger(v)
@@ -14,19 +13,15 @@ const median = (values) => {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 };
 
-/* Each tier: the cheapest region's weekly premium ("from"), its payout, a 40-day lockdown, a
-   2015-like haze year at the middle region, and the yearly cap. */
+/* Each tier: the cheapest hawker centre's weekly premium ("from"), its payout, a 40-day lockdown,
+   a 2015-like haze year at the middle centre, and the yearly cap. A hawker pays its own centre's
+   price, so the figures come from the 103 centre quotes, as the proposal's do. */
 async function fillOffer() {
   const grid = document.getElementById("offer-grid");
   if (!grid) return;
-  const quotes = await Promise.all(OFFER_REGIONS.map(async (region) => {
-    const response = await fetch("/api/quote", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product: OFFER_PRODUCT, region }),
-    });
-    if (!response.ok) throw new Error(`quote ${response.status}`);
-    return response.json();
-  }));
+  const response = await fetch(`/api/map/quotes?product=${OFFER_PRODUCT}`);
+  if (!response.ok) throw new Error(`quotes ${response.status}`);
+  const quotes = Object.values((await response.json()).centres);
   for (const card of grid.querySelectorAll("[data-tier]")) {
     const tiers = quotes.map((q) => q.tiers.find((t) => t.tier === card.dataset.tier)).filter(Boolean);
     if (!tiers.length) continue;

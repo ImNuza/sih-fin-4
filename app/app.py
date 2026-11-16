@@ -282,7 +282,8 @@ with tabs[3]:
 with tabs[4]:
     st.markdown(
         "Pick a trigger and a payout. The app counts how often the trigger fired in the real data, "
-        "then prices it. **Indicative only, not an actuarial price.**"
+        "then prices it. **A sandbox for one trigger, not the Payung tariff.** It starts at Tier 1's "
+        "S$35 a day and 45 days a year. Payung's own prices, per hawker centre, are on the risk atlas."
     )
     a, b, c = st.columns(3)
     peril = a.radio("Peril", ["Heat", "Rain", "Haze"], horizontal=True)
@@ -319,8 +320,8 @@ with tabs[4]:
         d = regions[regions["region"] == place].assign(hit=lambda f: f["psi_max"] > lvl)
         rule = f"24-hour PSI above {lvl} in the {place} region"
 
-    payout = b.number_input("Payout per trigger day (S$)", 10, 500, 50, 10)
-    cap = b.number_input("Max payable days per year", 1, 60, 10)
+    payout = b.number_input("Payout per trigger day (S$)", 10, 1500, 35, 5)
+    cap = b.number_input("Max payable days per year", 1, 60, 45)
     expense = b.slider(
         "Expenses, % of premium",
         5,
