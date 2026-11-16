@@ -120,7 +120,7 @@ const FIELD_PROBLEMS = {
   daily_sales_sgd: "Enter the normal sales on a weekday in S$, from 20 to 50,000.",
   staff_band: "Pick how many people work in the business.",
   sales_under_100m: "Say whether annual sales were under S$100 million.",
-  term_months: "Pick 12 or 24 months.",
+  term_months: "Pick 1, 2 or 5 years.",
   cover_start: "Pick the day cover starts: today or a later day.",
   name: "Enter your name.",
   phone: "Enter a Singapore mobile number: 8 digits that start with 3, 6, 8 or 9.",
@@ -327,7 +327,7 @@ function fillRandom(applicant = {}) {
   field("uen").value = company ? demoUen() : "";
   for (const input of buyForm().querySelectorAll('[name="sales_under_100m"]')) input.checked = false;
   el("add-safeday").checked = true;
-  setRadio("term_months", Math.random() < 0.7 ? "12" : "24");
+  setRadio("term_months", pick(["12", "12", "12", "24", "24", "60"]));
   field("cover_start").value = todayIso();
   field("cover_start").min = todayIso();
   field("name").value = name;
@@ -425,7 +425,34 @@ function checkPostcode() {
 }
 
 /* ---------- step 2: cover ---------- */
+/* What committing to a term saves on the Payung premium, as the API works it out
+   (accounts.term_saving): the term's weekly premiums times its share, taken off the last payments. */
+const termWords = (months) => (Number(months) === 12 ? "1-year" : `${Number(months) / 12}-year`);
+const termLength = (months) => (Number(months) === 12 ? "1 year" : `${Number(months) / 12} years`);
+function termSaving(weekly, months) {
+  const share = buyState.options.term_saving_share?.[months] ?? 0;
+  const saving = Math.round(weekly * Math.round((months * WEEKS_PER_YEAR) / 12) * share * 100) / 100;
+  return { share, saving, freeWeeks: weekly > 0 ? Math.floor(saving / weekly) : 0 };
+}
+const freeWeeksText = (weeks) => weeks >= 4 ? `about your last ${Math.round(weeks / 4.33)} month${Math.round(weeks / 4.33) === 1 ? "" : "s"} free`
+  : weeks >= 1 ? `your last ${weeks === 1 ? "week" : `${weeks} weeks`} free` : "off your last payment";
+
+/* Each term's saving beside it, for the chosen tier. */
+function showTermSavings() {
+  const weekly = buyState.tierQuote?.weekly_premium_sgd;
+  for (const tag of document.querySelectorAll(".term-save")) {
+    const { share, saving } = termSaving(weekly || 0, Number(tag.dataset.term));
+    tag.textContent = !share ? "" : weekly ? `save ${SGD(saving)}` : `save ${Math.round(share * 100)}%`;
+  }
+  const months = Number(chosen("term_months") || 12);
+  const chosenSaving = weekly ? termSaving(weekly, months) : null;
+  el("term-note").textContent = chosenSaving?.saving
+    ? `You save ${SGD(chosenSaving.saving)} on ${months / 12 === 1 ? "1 year" : `${months / 12} years`}: ${freeWeeksText(chosenSaving.freeWeeks)}. It comes off your last payments automatically, so it is yours if you stay to the end.`
+    : "The longer you commit, the more you save. The saving comes off your last payments automatically.";
+}
+
 function showWaitingNote() {
+  showTermSavings();
   const dates = coverDates();
   el("waiting-note").textContent = dates
     ? `Payouts can start from ${DATE(dates.payoutsFrom)}, after the ${buyState.options.waiting_period_days}-day waiting period.`
@@ -479,6 +506,7 @@ async function renderTiers() {
     : "Pick a tier. Your price comes from the NEA weather stations nearest you.";
   const tier = buyState.tierQuote;
   showCoverBoxes(proofBox(tier), hazeBonusBox(tier), whatPays(quote, buyState.tier));
+  showTermSavings();
 }
 
 /* The proof, the severe haze payout and "what it pays" each sit in their own what-pays box, in
@@ -569,6 +597,7 @@ function whatPays(quote, tierKey) {
       <li>No payout in the first ${wait} days of cover.</li>
       <li><b>Below those levels nothing is paid, even if your sales were down.</b></li>
       <li>Cover stops if a weekly premium is missed. Payouts already made are yours to keep.</li>
+      <li>Your long-term saving comes off your last payments, so cancelling early forfeits it.</li>
       <li>Moving to a higher tier restarts the ${wait}-day wait.</li>
       <li>Not covered: injury, medical costs, damaged goods.</li>
     </ul>
@@ -615,7 +644,9 @@ async function renderSummary() {
     tier ? row("Pays per bad day", `${SGD(tier.daily_payout_sgd)}, up to ${tierDays(tier)} days a year`) : "",
     tier && addsHazeBonus() ? row("Severe haze payout", `+${SGD(tier.haze_bonus.weekly_sgd)} a week`) : "",
     tier && addsHazeBonus() ? row("Weekly total", SGD(weeklyDue(tier))) : "",
-    row("Cover", dates ? `${DATE(dates.start)} to ${DATE(dates.ends)} (${chosen("term_months")} months)` : `${chosen("term_months")} months`),
+    row("Cover", dates ? `${DATE(dates.start)} to ${DATE(dates.ends)} (${termLength(chosen("term_months"))})` : termLength(chosen("term_months"))),
+    tier && termSaving(tier.weekly_premium_sgd, Number(chosen("term_months"))).saving
+      ? row("Long-term saving", `${SGD(termSaving(tier.weekly_premium_sgd, Number(chosen("term_months"))).saving)}, off your last payments`) : "",
     dates ? row("Payouts from", DATE(dates.payoutsFrom)) : "",
   ]) + group("Contact", [
     row("Name", `${escapeHtml(field("name").value)}${field("designation").value ? ` (${escapeHtml(field("designation").value)})` : ""}`),
@@ -770,7 +801,8 @@ function doneHtml({ application, policy }) {
   const starts = application.cover_start > todayIso() ? `on ${DATE(localDate(application.cover_start))}` : "today";
   return `<span class="done-mark">${SafeUI.icon("check", "i-lg")}</span>
     <h2>Your Payung cover starts ${starts}</h2>
-    <p>The first ${buyState.options.waiting_period_days} days are a waiting period: Payung pays for bad days from ${DATE(localDate(application.waiting_ends))}. Your ${application.term_months}-month cover ends on ${DATE(localDate(application.cover_ends))}.</p>
+    <p>The first ${buyState.options.waiting_period_days} days are a waiting period: Payung pays for bad days from ${DATE(localDate(application.waiting_ends))}. Your ${termWords(application.term_months)} cover ends on ${DATE(localDate(application.cover_ends))}.</p>
+    ${application.term_saving?.saving_sgd ? `<p>Your ${termWords(application.term_months)} saving of <b>${SGD(application.term_saving.saving_sgd)}</b> comes off your payments from ${DATE(localDate(application.term_saving.applies_from))}, automatically.</p>` : ""}
     <p>Payung ${policy.tier_label} pays up to ${SGD(policy.daily_payout_sgd)} on a bad day ${coverPlace(application, policy)}, for ${SGD(policy.weekly_premium_sgd)} a week. There is nothing to claim: we pay when NEA readings cross the trigger levels.</p>
     ${policy.haze_bonus ? `<p>Severe haze payout added: ${proofMoney(policy.haze_bonus.lump_sum_sgd)} at once${buyState.tierQuote?.haze_bonus ? ` in a year with ${buyState.tierQuote.haze_bonus.trigger_days} or more unhealthy-haze days` : ""}, for ${SGD(policy.haze_bonus.weekly_sgd)} a week more (${SGD(policy.weekly_premium_sgd + policy.haze_bonus.weekly_sgd)} a week in total). Haze days are counted from ${DATE(localDate(String(policy.haze_bonus.starts_on).slice(0, 10)))}.</p>` : ""}
     <div class="done-facts">

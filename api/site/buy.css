@@ -313,3 +313,7 @@ form .check {
 .declare-list li { margin: 2px 0; }
 .tier-box.off:hover { border-color: var(--line-strong); }
 
+
+/* A term's saving beside its name */
+.term-save { margin-left: var(--s-1); padding: 1px 8px; border-radius: var(--r-pill); background: var(--good-soft); color: var(--good); font-size: var(--t-xs); font-weight: var(--w-bold); }
+.term-save:empty { display: none; }

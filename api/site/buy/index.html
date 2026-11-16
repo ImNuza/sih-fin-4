@@ -14,11 +14,11 @@
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/theme.css?v=9" />
     <link rel="stylesheet" href="/ui.css?v=8" />
-    <link rel="stylesheet" href="/buy.css?v=9" />
+    <link rel="stylesheet" href="/buy.css?v=10" />
     <script src="/ui.js?v=4" defer></script>
-    <script src="/site.js?v=35" defer></script>
+    <script src="/site.js?v=36" defer></script>
     <script src="/tier-proof.js?v=9" defer></script>
-    <script src="/buy.js?v=23" defer></script>
+    <script src="/buy.js?v=26" defer></script>
     <link rel="stylesheet" href="/assistant.css?v=9" />
     <script src="/assistant.js?v=5" defer></script>
   </head>
@@ -169,9 +169,10 @@
             </div>
             <fieldset class="choice">
               <legend>How long do you want cover?</legend>
-              <label><input type="radio" name="term_months" value="12" required /> 12 months</label>
-              <label><input type="radio" name="term_months" value="24" /> 24 months</label>
-              <span class="hint">Same price either way.</span>
+              <label><input type="radio" name="term_months" value="12" required /> 1 year <span class="term-save" data-term="12"></span></label>
+              <label><input type="radio" name="term_months" value="24" /> 2 years <span class="term-save" data-term="24"></span></label>
+              <label><input type="radio" name="term_months" value="60" /> 5 years <span class="term-save" data-term="60"></span></label>
+              <span class="hint" id="term-note">The longer you commit, the more you save. The saving comes off your last payments automatically.</span>
             </fieldset>
             <label>Cover starts on <input name="cover_start" type="date" id="cover-start" required />
               <span class="hint" id="waiting-note"></span></label>

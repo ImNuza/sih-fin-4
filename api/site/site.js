@@ -504,6 +504,8 @@ function policyCover({ user, policy, policyQuote, application, decision }) {
     ${kv("Weekly premium", `<span class="num">${SGD(policy.weekly_premium_sgd)}</span>`)}
     ${hazeBonusRows(policy, policyQuote)}
     ${kv("Cover dates", dates)}
+    ${application?.term_saving?.saving_sgd ? kv("Long-term saving",
+      `<span class="num">${SGD(application.term_saving.saving_sgd)}</span> off your payments from ${LONG_DATE(application.term_saving.applies_from)}`) : ""}
     ${decision?.decision === "approve" && decision.note ? `<p class="fine">Underwriter's note: ${escapeHtml(decision.note)}</p>` : ""}
     <p class="fine card-foot">Pays when NEA shows PSI above 100, 20 mm of rain in a work hour, 2 hours at WBGT 32 °C, or a PUB flood alert near ${escapeHtml(user.centre) || `you, in the ${titleCase(user.region)} region`}. Below those levels nothing is paid.</p>
     <div class="cancel-row" id="cancel-row">
@@ -1267,7 +1269,7 @@ function policyDrawer(p, status) {
     </section>
     <section><h3>Cover</h3>
       ${kv("Tier", escapeHtml(p.tier_label))}
-      ${kv("Term", p.term_months ? `${p.term_months} months` : "Not recorded")}
+      ${kv("Term", p.term_months ? `${p.term_months / 12} year${p.term_months === 12 ? "" : "s"}` : "Not recorded")}
       ${kv("Start date", dateValue(p.started_at))}
       ${kv(`End of the ${WAITING_PERIOD_DAYS}-day waiting period`, dateValue(p.waiting_ends))}
       ${p.cover_ends ? kv("Cover ends", dateValue(p.cover_ends)) : ""}
