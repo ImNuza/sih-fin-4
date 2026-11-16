@@ -446,7 +446,6 @@ async function renderTiers() {
     buyState.tierQuote = null;
     el("buy-tiers").innerHTML = "";
     showCoverBoxes("", "", "");
-    el("why-price").innerHTML = "";
     el("tier-note").innerHTML = `<span class="tier-problem">${SafeUI.icon("circle-alert")}<span>Could not load the prices. ${escapeHtml(problemText(error))}</span>
       <button class="btn small" id="tier-retry" type="button">Try again</button></span>`;
     el("tier-retry").addEventListener("click", renderTiers);
@@ -456,7 +455,6 @@ async function renderTiers() {
     buyState.tierQuote = null;
     el("buy-tiers").innerHTML = "";
     showCoverBoxes("", "", "");
-    el("why-price").innerHTML = "";
     el("tier-note").textContent = "Tell us where the business is and what it does to see the prices.";
     return;
   }
@@ -466,7 +464,6 @@ async function renderTiers() {
     buyState.tier = buyState.tierQuote = null;
     el("buy-tiers").innerHTML = "";
     showCoverBoxes("", "", "");
-    el("why-price").innerHTML = "";
     const nothingFits = quote.tiers.every((t) => t.fits_business === false);
     el("tier-note").textContent = [lossLine, quote.suggestion, nothingFits ? "" : notOfferedLine(quote)]
       .filter(Boolean).join(" ");
@@ -482,7 +479,6 @@ async function renderTiers() {
     : "Pick a tier. Your price comes from the NEA weather stations nearest you.";
   const tier = buyState.tierQuote;
   showCoverBoxes(proofBox(tier), hazeBonusBox(tier), whatPays(quote, buyState.tier));
-  el("why-price").innerHTML = whyPrice(quote, buyState.tier);
 }
 
 /* The proof, the severe haze payout and "what it pays" each sit in their own what-pays box, in
@@ -551,8 +547,6 @@ function hazeBonusBox(tier) {
       <span class="fine">Pays ${proofMoney(bonus.lump_sum_sgd)} at once if your area has ${bonus.trigger_days} or more unhealthy-haze days in a year. ${hazeBonusHistory(bonus)}${onSale ? "" : " You can add this from November to April."}</span></span></label>`;
 }
 
-const HAZARD_WORDS = { haze: "haze", rain: "heavy rain", heat: "extreme heat", flood: "flash floods", closure: "closure orders" };
-const DAYS = (days) => days.toFixed(1);
 
 // The first level that pays, per hazard, from /api/options. Closure orders are left out: they are
 // not a climate trigger and are paid only by an insurer's manual run.
@@ -579,25 +573,6 @@ function whatPays(quote, tierKey) {
       <li>Not covered: injury, medical costs, damaged goods.</li>
     </ul>
   </details>`;
-}
-
-// The quote's own build-up, in words: no number here is worked out in the browser.
-function whyPrice(quote, tierKey) {
-  const tier = quote.tiers.find((t) => t.tier === tierKey) || quote.tiers[0];
-  const product = buyState.options.productLabels[quote.product] || quote.product;
-  const parts = Object.entries(quote.loss_day_parts).filter(([, days]) => days > 0)
-    .map(([hazard, days]) => `${HAZARD_WORDS[hazard] || hazard} ${DAYS(days)}`).join(", ");
-  const records = quote.local_risks.length
-    ? `NEA's records from the stations nearest ${isHawker() ? "your hawker centre" : "your shop's area"} in the ${quote.region} region`
-    : `NEA's records for the ${quote.region} region`;
-  const steps = tier.build_up.map((step, at) => `<tr><td>${at ? "+ " : ""}${step.label}</td><td class="num">${SGD(step.amount_sgd)}</td></tr>`).join("");
-  return `
-    <p>1. In an average year, ${records} show ${DAYS(quote.expected_loss_days)} days of full loss for ${product.toLowerCase()} (${parts}). The count already allows for what you sell: on a full bad day it loses about ${Math.round(quote.product_factor * 100)}% of its normal sales for good.</p>
-    <p>2. ${tier.label} pays ${SGD(tier.daily_payout_sgd)} a day, for up to ${SGD(tier.max_payout_per_year_sgd)} a year. In an average year that is ${DAYS(tier.expected_paid_days)} paid days.</p>
-    <table class="list why-steps">${steps}
-      <tr class="total"><td>Yearly premium</td><td class="num">${SGD(tier.yearly_premium_sgd)}</td></tr>
-      <tr><td>Weekly premium</td><td class="num">${SGD(tier.weekly_premium_sgd)}</td></tr></table>
-    <p class="fine">No personal data goes into this price: only where the business is, what you sell and the tier you pick. The same inputs give the same price for everyone.</p>`;
 }
 
 /* ---------- step 4: confirm ---------- */

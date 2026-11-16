@@ -178,17 +178,6 @@ details.fold ul { margin-top: var(--s-2); }
 .what-pays li { margin: var(--s-1) 0; }
 .what-pays b { color: var(--ink); }
 
-.why-price summary {
-  display: inline-flex; align-items: center; gap: var(--s-1); min-height: 44px; list-style: none; cursor: pointer;
-  font-weight: var(--w-medium); color: var(--accent);
-}
-.why-price summary::-webkit-details-marker { display: none; }
-.why-price summary .i { transition: transform var(--dur-base) var(--ease-out); }
-.why-price[open] summary .i { transform: rotate(90deg); }
-#why-price { font-size: var(--t-sm); color: var(--ink-2); }
-#why-price p { margin: var(--s-2) 0; max-width: 70ch; }
-.why-steps { margin: var(--s-3) 0; }
-.why-steps .total td { font-weight: var(--w-bold); color: var(--ink); border-top: 1px solid var(--line-strong); }
 
 /* ---------- confirm ---------- */
 #summary { margin-bottom: var(--s-3); }
@@ -258,7 +247,6 @@ form .check {
 
 @media (hover: hover) and (pointer: fine) {
   :is(.choice, .kind-grid) > label:hover:not(:has(input:checked)) { border-color: var(--ink-2); }
-  .why-price summary:hover { color: var(--accent-hover); }
 }
 
 @media (max-width: 639px) {
@@ -324,3 +312,4 @@ form .check {
 .declare-list { margin: var(--s-1) 0 0; padding-left: 18px; }
 .declare-list li { margin: 2px 0; }
 .tier-box.off:hover { border-color: var(--line-strong); }
+
