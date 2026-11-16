@@ -52,61 +52,113 @@
 .skyline .sun { fill: var(--sky-far); }
 
 /* ---------- roles ---------- */
-.roles { padding-top: var(--s-7); }
+.roles { padding-top: var(--s-8); }
 .roles-grid { display: grid; gap: var(--s-4); margin-top: var(--s-4); }
 .role { display: flex; flex-direction: column; align-items: flex-start; }
 .role h3 { display: flex; align-items: center; gap: var(--s-2); font: var(--w-bold) var(--t-lg)/1.25 var(--sans); }
 .role .facts { margin: var(--s-3) 0 var(--s-5); padding-left: 20px; color: var(--ink-2); }
 .role .facts li { margin: var(--s-2) 0; max-width: 62ch; }
 .role .facts li::marker { color: var(--faint); }
-.role .btn { margin-top: auto; }
+.role-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: auto; padding-top: var(--s-4); }
+.role > .btn { margin-top: auto; }
 .role-owner { padding: var(--s-5); }
 .role-owner h3 { gap: var(--s-3); font-size: var(--t-xl); }
 .role-icon {
   display: inline-grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: var(--r-md);
   background: var(--accent-soft); color: var(--accent);
 }
-.role-owner .btn { min-width: 180px; }
-.role-others { display: grid; padding: 0; }
+
+.role-others { display: grid; grid-auto-rows: 1fr; padding: 0; }
 .role-others .role { padding: var(--s-5); }
 .role-others .role + .role { border-top: 1px solid var(--line); }
 .role-others h3 .i { color: var(--muted); }
 .role-others .facts { font-size: var(--t-sm); }
 
-/* ---------- how the payout is made ---------- */
-.how { display: grid; gap: var(--s-5); padding-top: var(--s-8); }
-.how-intro .fine { margin-top: var(--s-3); max-width: 60ch; }
-.how-intro .btn { margin-top: var(--s-2); margin-left: calc(-1 * var(--s-3)); }
-.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; }
-.steps > li {
-  counter-increment: step; position: relative; display: grid; gap: var(--s-1);
-  padding: 0 0 var(--s-6) 64px; color: var(--ink-2);
+/* ---------- what you pay, what you get ---------- */
+.offer { padding-top: var(--s-8); }
+.offer-head .lede, .how-head .lede { margin-top: var(--s-2); }
+.offer-grid { display: grid; gap: var(--s-4); margin-top: var(--s-5); }
+.offer-card {
+  display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-5);
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
-.steps > li::before {
-  content: counter(step); position: absolute; left: 0; top: -2px;
-  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
-  border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
-  font: var(--w-bold) var(--t-lg)/1 var(--sans);
+@media (hover: hover) and (pointer: fine) {
+  .offer-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
 }
-.steps > li::after {
-  content: ""; position: absolute; left: 22px; top: 46px; bottom: 4px; width: 1px; background: var(--line);
+.offer-tier {
+  align-self: flex-start; padding: 2px var(--s-3); border-radius: var(--r-pill);
+  background: var(--accent-soft); color: var(--accent); font: var(--w-bold) var(--t-sm)/1.6 var(--sans);
 }
-.steps > li:last-child { padding-bottom: 0; }
-.steps > li:last-child::after { display: none; }
-.steps > li:last-child::before { background: var(--ink); border-color: var(--ink); color: var(--surface); }
-.steps b { font: var(--w-bold) var(--t-md)/1.3 var(--sans); color: var(--ink); }
-.steps span { max-width: 60ch; }
-.triggers { list-style: none; display: grid; gap: var(--s-2); margin: var(--s-2) 0 0; padding: 0; }
-.triggers li {
-  display: flex; align-items: center; gap: var(--s-3);
-  padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--surface);
-  border: 1px solid var(--line); color: var(--ink); font-weight: var(--w-medium);
+.offer-pay { margin-top: var(--s-3); color: var(--ink-2); font-size: var(--t-sm); }
+.offer-pay b {
+  display: block; color: var(--ink); font: var(--w-bold) var(--t-2xl)/1.1 var(--sans);
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
 }
-.triggers .i { flex: none; width: 20px; height: 20px; }
-.triggers .haze .i { color: var(--haze); }
-.triggers .rain .i { color: var(--rain); }
-.triggers .heat .i { color: var(--heat); }
-.triggers .flood .i { color: var(--flood); }
+.offer-price { color: var(--muted); font-size: var(--t-sm); }
+.offer-price b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.offer-rows { display: grid; margin: var(--s-4) 0 0; padding-top: var(--s-3); border-top: 1px solid var(--line); }
+.offer-rows div { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); padding: 6px 0; }
+.offer-rows dt { color: var(--ink-2); font-size: var(--t-sm); }
+.offer-rows dd { margin: 0; color: var(--ink); font-weight: var(--w-bold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.offer-band {
+  display: flex; align-items: center; gap: var(--s-4); margin-top: var(--s-4); padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-lg); background: var(--ink); color: var(--surface);
+}
+.offer-band p { max-width: 72ch; line-height: 1.5; }
+.offer-band b { color: var(--orange-300); }
+.offer-band-icon {
+  display: inline-grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 12%, transparent); color: var(--orange-300);
+}
+.offer-note { margin-top: var(--s-3); }
+
+/* ---------- how you get paid: three steps that light up in turn (landing.js) ---------- */
+.how { padding-top: var(--s-8); }
+.flow { list-style: none; display: grid; gap: 0; margin: var(--s-5) 0 0; padding: 0; }
+.flow-step {
+  position: relative; display: grid; gap: var(--s-1); align-content: start; padding: var(--s-5);
+  border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); color: var(--ink-2);
+  opacity: 0.55; transform: translateY(6px);
+  transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out),
+    border-color 400ms var(--ease-out), box-shadow 400ms var(--ease-out);
+}
+.flow-step b { color: var(--ink); font: var(--w-bold) var(--t-md)/1.3 var(--sans); margin-top: var(--s-2); }
+.flow-step > span:not([class]) { font-size: var(--t-sm); max-width: 40ch; }
+.flow-icon {
+  display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-md);
+  background: var(--sunken); color: var(--muted);
+  transition: background-color 400ms var(--ease-out), color 400ms var(--ease-out);
+}
+.flow-num {
+  position: absolute; top: var(--s-4); right: var(--s-4); display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line-strong);
+  color: var(--muted); font: var(--w-bold) var(--t-sm)/1 var(--sans);
+}
+.flow-paid {
+  justify-self: start; display: inline-flex; align-items: center; gap: var(--s-1); margin-top: var(--s-3);
+  padding: 4px var(--s-3); border-radius: var(--r-pill); background: var(--green-100); color: var(--green-700);
+  font: var(--w-bold) var(--t-sm)/1.4 var(--sans);
+  opacity: 0; transform: scale(0.95);
+  transition: opacity 300ms var(--ease-out) 200ms, transform 300ms var(--ease-out) 200ms;
+}
+.flow.s1 [data-step="1"], .flow.s2 [data-step="2"], .flow.s3 [data-step="3"] {
+  opacity: 1; transform: none; border-color: var(--accent); box-shadow: var(--shadow-1);
+}
+.flow.s1 [data-step="1"] .flow-icon, .flow.s2 [data-step="2"] .flow-icon, .flow.s3 [data-step="3"] .flow-icon {
+  background: var(--accent-soft); color: var(--accent);
+}
+.flow.s3 .flow-paid { opacity: 1; transform: none; }
+/* The link between two steps: a line that fills from the earlier step to the later one. */
+.flow-link { position: relative; justify-self: center; width: 2px; height: var(--s-6); background: var(--line); overflow: hidden; }
+.flow-fill {
+  position: absolute; inset: 0; background: var(--accent);
+  transform: scaleY(0); transform-origin: top; transition: transform 560ms var(--ease-in-out);
+}
+.flow.l1 .flow-link:nth-of-type(2) .flow-fill, .flow.l2 .flow-link:nth-of-type(4) .flow-fill { transform: none; }
+.flow.still .flow-step, .flow.still .flow-paid, .flow.still .flow-fill { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .flow-step, .flow-paid { transform: none; }
+}
 
 /* ---------- closing action ---------- */
 .closer { margin-block: var(--s-8); }
@@ -119,6 +171,16 @@
 .sitefoot { padding-inline: 0; }
 .sitefoot .inner { padding-inline: var(--s-4); }
 
+/* Phones: the four tiers swipe sideways instead of stacking four cards deep. */
+@media (max-width: 639px) {
+  .offer-grid {
+    grid-auto-flow: column; grid-auto-columns: 82%; overflow-x: auto; scroll-snap-type: x mandatory;
+    margin-inline: calc(-1 * var(--s-4)); padding: 2px var(--s-4) var(--s-2); scrollbar-width: none;
+  }
+  .offer-grid::-webkit-scrollbar { display: none; }
+  .offer-card { scroll-snap-align: center; }
+}
+
 @media (max-width: 479px) {
   /* Full-width buttons; a long label wraps instead of pushing the page wider than the phone. */
   :is(.hero-actions, .closer) .btn {
@@ -128,7 +190,7 @@
 
 @media (min-width: 640px) {
   .wrap, .sitefoot .inner { padding-inline: var(--s-5); }
-  .triggers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .offer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Tablet portrait: copy and the SMS side by side, so the hero does not leave half the screen empty. */
@@ -144,8 +206,14 @@
   }
   .phone { justify-self: end; }
   .skyline { width: max(100%, 1200px); }
-  .roles-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+  .roles-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: stretch; }
   .role-owner { padding: var(--s-6); }
-  .how { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--s-7); }
-  .how-intro { position: sticky; top: calc(var(--nav-h) + var(--s-5)); align-self: start; }
+  /* Three steps in a row, a horizontal line between each pair. */
+  .flow { grid-template-columns: minmax(0, 1fr) var(--s-7) minmax(0, 1fr) var(--s-7) minmax(0, 1fr); align-items: stretch; }
+  .flow-link { align-self: center; width: 100%; height: 2px; }
+  .flow-fill { transform: scaleX(0); transform-origin: left; }
+}
+
+@media (min-width: 1100px) {
+  .offer-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }

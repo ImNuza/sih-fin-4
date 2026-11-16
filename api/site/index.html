@@ -15,9 +15,10 @@
     <link rel="preload" href="/vendor/fonts/ubuntu-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/theme.css?v=9" />
     <link rel="stylesheet" href="/ui.css?v=8" />
-    <link rel="stylesheet" href="/landing.css?v=4" />
+    <link rel="stylesheet" href="/landing.css?v=5" />
     <script src="/ui.js?v=4" defer></script>
     <script src="/site.js?v=29" defer></script>
+    <script src="/landing.js?v=1" defer></script>
     <link rel="stylesheet" href="/assistant.css?v=8" />
     <script src="/assistant.js?v=4" defer></script>
   </head>
@@ -106,6 +107,90 @@
         </svg>
       </section>
 
+      <section class="wrap offer" aria-labelledby="offer-title">
+        <div class="offer-head">
+          <h2 id="offer-title" class="section-title">What you pay. What you get.</h2>
+          <p class="lede">Pick a tier. Every bad day pays its amount straight to you by PayNow, for up to 45 days a year.</p>
+        </div>
+        <div class="offer-grid" id="offer-grid">
+          <article class="card offer-card" data-tier="tier_1">
+            <span class="offer-tier">Tier 1</span>
+            <span class="offer-pay"><b data-f="daily">S$35</b> per bad day</span>
+            <span class="offer-price">from <b data-f="weekly">S$9.44</b> a week</span>
+            <dl class="offer-rows">
+              <div><dt>A 40-day lockdown</dt><dd data-f="lockdown">S$1,400</dd></div>
+              <div><dt>A 2015-style haze year</dt><dd data-f="haze">about S$538</dd></div>
+              <div><dt>Most in a year</dt><dd data-f="year">S$1,575</dd></div>
+            </dl>
+          </article>
+          <article class="card offer-card" data-tier="tier_2">
+            <span class="offer-tier">Tier 2</span>
+            <span class="offer-pay"><b data-f="daily">S$195</b> per bad day</span>
+            <span class="offer-price">from <b data-f="weekly">S$48.20</b> a week</span>
+            <dl class="offer-rows">
+              <div><dt>A 40-day lockdown</dt><dd data-f="lockdown">S$7,800</dd></div>
+              <div><dt>A 2015-style haze year</dt><dd data-f="haze">about S$3,000</dd></div>
+              <div><dt>Most in a year</dt><dd data-f="year">S$8,775</dd></div>
+            </dl>
+          </article>
+          <article class="card offer-card" data-tier="tier_3">
+            <span class="offer-tier">Tier 3</span>
+            <span class="offer-pay"><b data-f="daily">S$630</b> per bad day</span>
+            <span class="offer-price">from <b data-f="weekly">S$144</b> a week</span>
+            <dl class="offer-rows">
+              <div><dt>A 40-day lockdown</dt><dd data-f="lockdown">S$25,200</dd></div>
+              <div><dt>A 2015-style haze year</dt><dd data-f="haze">about S$9,691</dd></div>
+              <div><dt>Most in a year</dt><dd data-f="year">S$28,350</dd></div>
+            </dl>
+          </article>
+          <article class="card offer-card" data-tier="tier_4">
+            <span class="offer-tier">Tier 4</span>
+            <span class="offer-pay"><b data-f="daily">S$1,355</b> per bad day</span>
+            <span class="offer-price">from <b data-f="weekly">S$287</b> a week</span>
+            <dl class="offer-rows">
+              <div><dt>A 40-day lockdown</dt><dd data-f="lockdown">S$54,200</dd></div>
+              <div><dt>A 2015-style haze year</dt><dd data-f="haze">about S$20,844</dd></div>
+              <div><dt>Most in a year</dt><dd data-f="year">S$60,975</dd></div>
+            </dl>
+          </article>
+        </div>
+        <div class="offer-band">
+          <span class="offer-band-icon" aria-hidden="true"><svg class="i i-lg"><use href="/vendor/icons.svg#cloud-fog"/></svg></span>
+          <p><b>Haze like 2015, or a 40-day lockdown?</b> Payung keeps paying every bad day, up to 45 days a year. No forms, no assessor, no waiting for a claim.</p>
+        </div>
+        <p class="fine offer-note">Prices are for a cooked-food stall. Your own price depends on your area's weather history and what you sell.</p>
+      </section>
+
+      <section class="wrap how" aria-labelledby="how-title">
+        <div class="how-head">
+          <h2 id="how-title" class="section-title">How you get paid</h2>
+          <p class="lede">Three steps, and none of them is yours.</p>
+        </div>
+        <ol class="flow" id="pay-flow">
+          <li class="flow-step" data-step="1">
+            <span class="flow-icon" aria-hidden="true"><svg class="i i-lg"><use href="/vendor/icons.svg#cloud-rain"/></svg></span>
+            <span class="flow-num">1</span>
+            <b>NEA publishes the readings</b>
+            <span>Haze, rain, heat and PUB flood alerts near your stall. Public data, every hour.</span>
+          </li>
+          <li class="flow-link" aria-hidden="true"><span class="flow-fill"></span></li>
+          <li class="flow-step" data-step="2">
+            <span class="flow-icon" aria-hidden="true"><svg class="i i-lg"><use href="/vendor/icons.svg#shield-check"/></svg></span>
+            <span class="flow-num">2</span>
+            <b>Payung checks your trigger</b>
+            <span>PSI above 100, 20 mm of rain in a work hour, 2 hours of extreme heat, or a flood alert.</span>
+          </li>
+          <li class="flow-link" aria-hidden="true"><span class="flow-fill"></span></li>
+          <li class="flow-step" data-step="3">
+            <span class="flow-icon" aria-hidden="true"><svg class="i i-lg"><use href="/vendor/icons.svg#banknote"/></svg></span>
+            <span class="flow-num">3</span>
+            <b>PayNow pays you</b>
+            <span>Usually the same day, with an SMS. No claim to make.</span>
+            <span class="flow-paid" aria-hidden="true"><svg class="i"><use href="/vendor/icons.svg#check"/></svg>S$195 paid</span>
+          </li>
+        </ol>
+      </section>
+
       <section class="wrap roles" aria-labelledby="roles-title">
         <h2 id="roles-title" class="section-title">Where to start</h2>
         <div class="roles-grid">
@@ -113,14 +198,15 @@
             <h3><span class="role-icon" aria-hidden="true"><svg class="i i-lg"><use href="/vendor/icons.svg#store"/></svg></span>I run a small business</h3>
             <ul class="facts">
               <li>One cover for haze, heavy rain, extreme heat and flash-flood alerts.</li>
-              <li>Pays up to S$35, S$195, S$630 or S$1,355 for a bad day, by your tier: the worse the reading, the bigger the share. Up to 45 days a year, so a 40-day lockdown is paid in full.</li>
-              <li>Tier 1 at a middle-priced place: about S$16 a month (S$3.60 a week) for packaged food or general goods, S$24 to S$28 a month for fresh produce or flowers, and S$48 a month (S$11 a week) for cooked food. Your own price depends on your area's weather history.</li>
-              <li>Payment is automatic when NEA readings cross the trigger levels, which are public. <b>If readings stay below them, nothing is paid, even if your sales were down.</b></li>
-              <li>Cover starts paying 30 days after you buy. Injury, medical costs and damaged goods are not covered.</li>
+              <li>Paid automatically when NEA's public readings cross the trigger. No claim forms.</li>
+              <li>Up to 45 paid days a year, so a 40-day lockdown is paid in full.</li>
+              <li>Cover starts paying 30 days after you buy. <b>If readings stay below the trigger, nothing is paid, even if your sales were down.</b></li>
             </ul>
-            <p class="fine">Sold as an add-on to SmartBiz 360 by your Income adviser, or as a group scheme by your hawker or merchants' association. You pay your own premium either way.</p>
-            <a class="btn primary" href="/buy/?via=adviser">Ask your Income adviser</a>
-            <a class="btn" href="/buy/?via=association">Join through your association</a>
+            <p class="fine">Add it to SmartBiz 360 with your Income adviser, or join through your hawker or merchants' association.</p>
+            <div class="role-actions">
+              <a class="btn primary" href="/buy/?via=adviser">Ask your Income adviser</a>
+              <a class="btn" href="/buy/?via=association">Join through your association</a>
+            </div>
           </article>
 
           <div class="card role-others">
@@ -144,42 +230,6 @@
             </article>
           </div>
         </div>
-      </section>
-
-      <section class="wrap how" aria-labelledby="how-title">
-        <div class="how-intro">
-          <h2 id="how-title" class="section-title">How the payout is made</h2>
-          <p class="fine">
-            The premium comes from the same four parts insurers like Swiss Re and Munich Re use to price
-            catastrophe risk: where the hazard strikes, who is exposed, how much it hurts them, and the
-            money terms on top. Open the Method and data panel on the risk atlas for every step.
-          </p>
-          <a class="btn quiet small" href="/map/">Open the risk atlas</a>
-        </div>
-        <ol class="steps">
-          <li>
-            <b>NEA publishes the reading.</b>
-            <span>The 24-hour PSI, the rain at the 3 gauges nearest you (the middle reading of those that reported), the hours of dangerous heat, or a PUB flood alert.</span>
-          </li>
-          <li>
-            <b>The reading crosses a trigger level.</b>
-            <span>The levels are fixed and public:</span>
-            <ul class="triggers">
-              <li class="haze"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#cloud-fog"/></svg><span>PSI above 100</span></li>
-              <li class="rain"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#cloud-rain"/></svg><span>20 mm of rain in a work hour</span></li>
-              <li class="heat"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#thermometer-sun"/></svg><span>2 hours at WBGT 32 °C</span></li>
-              <li class="flood"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#waves"/></svg><span>an active flood alert</span></li>
-            </ul>
-          </li>
-          <li>
-            <b>The day gets a loss score.</b>
-            <span>How much of a normal day's sales that reading costs your kind of business, from 0% to 100%.</span>
-          </li>
-          <li>
-            <b>You get paid.</b>
-            <span>Your tier's daily amount times the loss score, usually the same day. No claim form, no assessor.</span>
-          </li>
-        </ol>
       </section>
 
       <section class="wrap closer" aria-label="Get covered">
