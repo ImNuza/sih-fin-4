@@ -677,6 +677,61 @@ function outlookYearsText(h, takings) {
       readings reach a payout level, so a year can bring losses and no payout. The cover earns its keep in the bad stretches.</p>`;
 }
 
+
+/* "If the bad days come": the payout for a chosen number of red and yellow days a year, from what
+   each colour paid at this stall on average, capped by the tier's yearly cap. */
+const WHATIF_PERIODS = [1, 2, 5, 10];
+function whatIfResult(h, red, yellow) {
+  const perDay = h.payout_per_day_sgd;
+  const uncapped = red * perDay.red + yellow * perDay.yellow;
+  const yearly = Math.min(uncapped, h.max_payout_per_year_sgd);
+  const capped = uncapped > h.max_payout_per_year_sgd;
+  const premium = h.since_1980.premium_sgd;
+  return `
+    <p class="burn-headline">At this stall a red day paid <b>${SGD(perDay.red)}</b> on average and a yellow day <b>${SGD(perDay.yellow)}</b>
+      at ${h.tier_label}. With <b>${red} red</b> and <b>${yellow} yellow</b> days a year, Payung pays <b>${SGD(yearly)}</b> a year${capped
+        ? `, the yearly cap (${h.max_paid_days_per_year} full days)` : ""}.</p>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th>Over</th><th class="num">Payung pays</th><th class="num">You pay</th><th class="num">Paid back per S$1 of premium</th></tr></thead>
+      <tbody>${WHATIF_PERIODS.map((n) => `<tr><td>${n} year${n > 1 ? "s" : ""}</td>
+        <td class="num">${SGD(yearly * n)}</td><td class="num">${SGD(premium * n)}</td>
+        <td class="num">${(yearly / premium).toFixed(2)}</td></tr>`).join("")}</tbody>
+    </table></div>
+    <p class="fine card-foot">Payouts follow NEA's measured readings, so this is what the insurer pays if that many days come,
+      and less if fewer come. The presets are this stall's own record; "twice 2015" is worse than anything on record.</p>`;
+}
+
+function whatIfCard(h) {
+  const recent = h.recent;
+  const big = h.haze_year;
+  const presets = [
+    ["Typical year", recent.typical_red_days, recent.typical_yellow_days],
+    ["Bad year (1 in 10)", recent.bad_year_red_days, recent.bad_year_yellow_days],
+    big ? [`${big.year}, the big haze`, big.red_days, big.yellow_days] : null,
+    big ? [`Twice ${big.year}`, big.red_days * 2, big.yellow_days * 2] : null,
+  ].filter(Boolean);
+  return `
+    <div class="table-tools model-controls">
+      <label class="tool-select">Red days a year <input type="number" id="whatif-red" min="0" max="365" step="1" value="${Math.round(recent.typical_red_days)}" inputmode="numeric" /></label>
+      <label class="tool-select">Yellow days a year <input type="number" id="whatif-yellow" min="0" max="365" step="1" value="${Math.round(recent.typical_yellow_days)}" inputmode="numeric" /></label>
+    </div>
+    <div class="row-actions">${presets.map(([label, r, y]) =>
+      `<button class="btn small" type="button" data-whatif-red="${Math.round(r)}" data-whatif-yellow="${Math.round(y)}">${label}</button>`).join("")}</div>
+    <div id="whatif-result">${whatIfResult(h, Math.round(recent.typical_red_days), Math.round(recent.typical_yellow_days))}</div>`;
+}
+
+function wireWhatIf(target, h) {
+  const show = () => {
+    el("whatif-result").innerHTML = whatIfResult(h, +el("whatif-red").value || 0, +el("whatif-yellow").value || 0);
+  };
+  ["whatif-red", "whatif-yellow"].forEach((id) => el(id).addEventListener("input", show));
+  target.querySelectorAll("[data-whatif-red]").forEach((button) => button.addEventListener("click", () => {
+    el("whatif-red").value = button.dataset.whatifRed;
+    el("whatif-yellow").value = button.dataset.whatifYellow;
+    show();
+  }));
+}
+
 async function renderModelHistory(target, place, tier, todays) {
   const takings = +el("burn-takings")?.value || 500;
   const h = await api(`/api/model/history?${place}&tier=${tier}&takings=${takings}`);
@@ -734,6 +789,10 @@ async function renderModelHistory(target, place, tier, todays) {
     <section class="card dash-section">
       <h2>The next 2, 5 and 10 years at your stall</h2>
       ${outlookYearsText(h, takings)}
+    </section>
+    <section class="card dash-section" id="model-whatif">
+      <h2>If the bad days come</h2>
+      ${whatIfCard(h)}
     </section>`;
   const pick = (year) => {
     picked = year;
@@ -746,6 +805,7 @@ async function renderModelHistory(target, place, tier, todays) {
     bar.addEventListener("click", () => pick(+bar.dataset.year)));
   el("model-year").addEventListener("change", (event) => pick(+event.target.value));
   wireBars();
+  wireWhatIf(target, h);
   el("burn-takings")?.addEventListener("change", () => renderModelHistory(target, place, tier, todays), { once: true });
 }
 

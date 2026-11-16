@@ -279,8 +279,14 @@ def centre_years(
     paid_days = np.minimum(loss_days, tier.max_paid_days_per_year)
     paid_sgd = paid_days * tier.daily_payout_sgd
     trigger_days, _ = yearly_sums(history, (combined[0] > 0).astype(float))
-    colours = {colour: yearly_sums(history, flags[0])[0]
-               for colour, flags in colour_days(combined).items()}
+    day_flags = colour_days(combined)
+    colours = {colour: yearly_sums(history, flags[0])[0] for colour, flags in day_flags.items()}
+    # What a day of each colour paid here on average: the what-if calculator prices from it.
+    payout_per_day = {
+        colour: float(combined[0][flags[0] > 0].mean()) * tier.daily_payout_sgd
+        if flags[0].any() else 0.0
+        for colour, flags in day_flags.items()
+    }
     hazard_days = {key: yearly_sums(history, part[0])[0] for key, part in parts.items()}
     measured = {
         key: yearly_sums(history, np.isin(history.sources[key][row[0]], (MEASURED, MATCHED))
@@ -308,6 +314,8 @@ def centre_years(
     complete = [r for r in rows if r["complete"]]
     return {
         "years": rows,
+        "payout_per_day_sgd": {colour: round(value, 2) for colour, value in payout_per_day.items()},
+        "max_paid_days_per_year": tier.max_paid_days_per_year,
         "since_1980": spread(complete, premium_yearly_sgd),
         "recent": spread(complete[-RECENT_YEARS:], premium_yearly_sgd),
         "haze_year": next((r for r in rows if r["year"] == HAZE_YEAR), None),
