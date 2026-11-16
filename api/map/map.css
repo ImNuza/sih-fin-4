@@ -389,3 +389,6 @@ table.tiers tr.rec td { background: var(--accent-soft); color: var(--ink); font-
   .portfolio { margin-top: 0; }
   .t-controls { grid-template-columns: 1fr; }
 }
+
+/* Insurer tools (method, time machine, market portfolio) show only to an insurer account. */
+html:not(.insurer-view) .insurer-only { display: none !important; }

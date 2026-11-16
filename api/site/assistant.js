@@ -9,6 +9,8 @@
 "use strict";
 
 (() => {
+  // Inside a map preview on a dashboard, the page around it already has the assistant.
+  if (window.self !== window.top) return;
   const LANGS = [
     { key: "en", label: "English", speech: "en-SG" },
     { key: "zh", label: "中文", speech: "zh-CN" },

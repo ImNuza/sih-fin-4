@@ -1322,11 +1322,13 @@ function trackTopbarHeight() {
   new ResizeObserver(() => document.documentElement.style.setProperty("--topbar-h", `${topbar.offsetHeight}px`))
     .observe(topbar);
 }
-async function showDashboardLink() {
-  if (EMBEDDED) return;
+/* Who is looking. The method, the time machine and the market portfolio are for the insurer;
+   an owner, or anyone signed out, sees their stall and the hazards without them. */
+async function showViewerTools() {
   try {
-    await getJson("/api/auth/me");
-    el("dashboard-link").hidden = false;
+    const me = await getJson("/api/auth/me");
+    document.documentElement.classList.toggle("insurer-view", me.role === "insurer");
+    if (!EMBEDDED) el("dashboard-link").hidden = false;
   } catch { /* signed out: the brand link is the way back */ }
 }
 
@@ -1452,7 +1454,7 @@ function wireUi() {
 /* ---------- boot ---------- */
 async function boot() {
   trackTopbarHeight();
-  showDashboardLink();
+  showViewerTools();
   try {
     if (!window.deck) throw new Error("deck.gl failed to load (vendor/deck.min.js)");
     [STATIC, QUOTES, OPTIONS, RENT] = await Promise.all([api.static(), api.quotes(), api.options(), api.rent()]);
