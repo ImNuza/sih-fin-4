@@ -155,7 +155,7 @@ function wireLogin() {
       return "An account with this email already exists. Sign in with it instead, or use another email.";
     if (/wrong email or password/i.test(error.message))
       return formId === "sme-login"
-        ? "The email or password is wrong. Check both and try again. No account yet? Apply with your Income adviser first."
+        ? "The email or password is wrong. Check both and try again. No account yet? Sign up online yourself or apply with your Income adviser first."
         : "The email or password is wrong. Check both and try again, or set up insurer access.";
     return `Could not sign in: ${escapeHtml(error.message)}. Try again.`;
   };
@@ -534,7 +534,7 @@ function chooseCover({ quote, rent, rentTable, rec, kind, examples }) {
     <p class="fine"><b>What ${shownTier.label} gives you here</b></p>${fineLines(proof)}
     <p class="fine">${escapeHtml([sales, lossLine, quote.suggestion, bestValueLine(quote, rec)].filter(Boolean).join(" "))}${hidden ? ` ${escapeHtml(hidden)}` : ""}</p>
     ${rentNote ? `<p class="fine">${rentNote}</p>` : ""}
-    ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add Payung to your policy with you. Payung is not sold directly.")}
+    ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add Payung to your policy with you.")}
     <p class="fine">${shownTier.label} in one SMS, as we would text it to you:</p>
     <div class="cover-sms" data-cover-tier="${shown}" data-cover-weekly="${shownTier.weekly_premium_sgd ?? ""}"></div>`;
 }
@@ -1276,11 +1276,12 @@ function wireTiers(slot) {
 
 /* ---------- insurer: policies table and drawer ---------- */
 let bookPolicies = [];
-const SOLD_BY = { adviser: "Income adviser", association: "Association" };
-/* Who filled in the application with the customer: an adviser's code or an association's name. */
+const SOLD_BY = { adviser: "Income adviser", association: "Association", self: "Signed up online" };
+/* Who filled in the application with the customer: an adviser's code, an association's name, or the owner online. */
 function channelOf(p) {
   if (p.sold_by === "adviser") return `Income adviser · ${p.adviser_code}`;
   if (p.sold_by === "association") return p.association;
+  if (p.sold_by === "self") return SOLD_BY.self;
   return "Not recorded";
 }
 
