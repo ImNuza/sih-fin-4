@@ -651,7 +651,7 @@ function outlookYearsText(h) {
   const first = h.outlooks[0];
   const rows = h.outlooks.map((o) => `<tr>
     <td>Next ${o.years} years</td>
-    <td class="num">${SGD(o.premium_sgd)}</td>
+    <td class="num">${SGD(o.premium_sgd / (o.years * 12))}<span class="fine">/month</span></td>
     <td class="num">${SGD(o.typical_sgd)}</td>
     <td class="num">${SGD(o.bad_sgd)}</td>
     <td class="num">${SGD(o.highest_sgd)}<br><span class="fine">${o.highest_from_year} to ${o.highest_to_year}</span></td>
@@ -660,17 +660,17 @@ function outlookYearsText(h) {
   </tr>`).join("");
   return `
     <p class="burn-headline">Every stretch of the last ${first.basis_years} years (${first.basis_from_year} to ${first.basis_to_year})
-      at this stall, at ${h.tier_label}: what you would pay, what a typical, a bad and the worst stretch paid back, and the payout
-      days to expect. These years run hotter and wetter than the decades before, so they are the best guide to what is coming.</p>
+      at this stall, at ${h.tier_label}: what you pay each month, what a typical, a bad and the worst stretch paid back, and the
+      payout days to expect. These years run hotter and wetter than the decades before, so they are the best guide to what is coming.</p>
     <div class="table-wrap"><table class="data">
-      <thead><tr><th>Period</th><th class="num">You pay</th><th class="num">Typical payout</th><th class="num">Bad stretch (1 in 10)</th>
-        <th class="num">Worst stretch</th><th>Payout days, typical</th><th class="num">Stretches that paid back more than the premium</th></tr></thead>
+      <thead><tr><th>Period</th><th class="num">If you pay monthly</th><th class="num">Typical payout</th><th class="num">Bad stretch (1 in 10)</th>
+        <th class="num">Worst stretch</th><th>Payout days, typical (every colour pays)</th><th class="num">Stretches that paid back more than the premium</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
     ${kv(`El Niño years (${e.years.join(", ")})`, `<span class="num">${SGD(e.average_paid_sgd)}</span> a year on average`)}
     ${kv("Other years", `<span class="num">${SGD(e.average_paid_other_sgd)}</span> a year on average`)}
-    <p class="fine">A red day loses most of a day's sales, a yellow day a third to two thirds, a green day less; each pays that
-      share of ${SGD(h.daily_payout_sgd)}. ${hazeOutlook(h.haze_facts)}</p>
+    <p class="fine">Every coloured day pays: a green day pays up to a third of ${SGD(h.daily_payout_sgd)}, a yellow day a third to
+      two thirds, a red day more. ${hazeOutlook(h.haze_facts)}</p>
     <p class="fine card-foot">Only this stall's location is used. This is history, not a promise: Payung pays only when the
       readings reach a payout level, so a year can bring losses and no payout. The cover earns its keep in the bad stretches.</p>`;
 }
