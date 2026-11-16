@@ -135,24 +135,24 @@ WELCOME_PRICE = {"en": "S${price}/wk, ", "zh": "每周S${price}，", "ms": "S${p
 WELCOME = {
     "en": (
         "Payung Tier {tier}: {price}cover from day {wait}. Haze, heavy rain or heat "
-        "near your stall: up to S${daily}/day, S${year}/yr. Else no pay even if sales drop.",
+        "near your stall: up to S${daily}/day, S${year}/yr. No alert, no pay even if sales drop.",
         "Payung Tier {tier}: {price}cover from day {wait}. Haze, rain or heat "
-        "near your stall: up to S${daily}/day, S${year}/yr. Else no pay even if sales drop.",
+        "near your stall: up to S${daily}/day, S${year}/yr. No alert, no pay even if sales drop.",
     ),
     "zh": (
         "Payung第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨或酷热："
-        "日赔≤S${daily}，年≤S${year}。否则生意差也不赔",
+        "日赔≤S${daily}，年≤S${year}。无警报不赔，生意差也不赔",
         "第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨或酷热："
-        "日赔≤S${daily}，年≤S${year}。否则生意差也不赔",
+        "日赔≤S${daily}，年≤S${year}。无警报不赔，生意差也不赔",
     ),
     "ms": (
         "Payung Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan lebat atau panas "
-        "dekat gerai: hingga S${daily}/hari, S${year}/thn. Lain tiada bayaran walau rugi.",
+        "dekat gerai: hingga S${daily}/hari, S${year}/thn. Tiada amaran, tiada bayaran walau rugi.",
         "Payung Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan atau panas "
-        "dekat gerai: hingga S${daily}/hari, S${year}/thn. Lain tiada bayaran walau rugi.",
+        "dekat gerai: hingga S${daily}/hari, S${year}/thn. Tiada amaran, tiada bayaran walau rugi.",
     ),
     "ta": (
-        "{wait}நாள் பின் புகை/மழை/வெயில்: S${daily}/நாள், S${year}/ஆ. இல்லையேல் 0",
+        "{wait}நாள் பின் புகை/மழை/வெயில்: S${daily}/நாள், S${year}/ஆ. அலர்ட் இல்லையேல் 0",
     ),
 }
 

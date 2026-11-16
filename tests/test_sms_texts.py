@@ -24,11 +24,11 @@ WAIT_DAYS = 30
 PRICES = (None, 3.44, 99.99)
 APPROVED = {
     "en": "Payung Tier 2: S$9.11/wk, cover from day 30. Haze, heavy rain or heat "
-    "near your stall: up to S$40/day, S$1,400/yr. Else no pay even if sales drop.",
+    "near your stall: up to S$40/day, S$1,400/yr. No alert, no pay even if sales drop.",
     "zh": "Payung第2级每周S$9.11，买后30天生效。摊位附近烟霾、大雨或酷热：日赔≤S$40，"
-    "年≤S$1,400。否则生意差也不赔",
+    "年≤S$1,400。无警报不赔，生意差也不赔",
     "ms": "Payung Tahap 2: S$9.11/mgu, mula hari ke-30. Jerebu, hujan lebat atau panas "
-    "dekat gerai: hingga S$40/hari, S$1,400/thn. Lain tiada bayaran walau rugi.",
+    "dekat gerai: hingga S$40/hari, S$1,400/thn. Tiada amaran, tiada bayaran walau rugi.",
 }
 
 
@@ -75,7 +75,7 @@ def test_welcome_text_is_the_approved_wording(language):
 
 def test_tamil_welcome_names_the_wait_the_triggers_and_the_payout():
     body = sms.welcome_text("ta", 2, 9.11, 40, 35, WAIT_DAYS)
-    for phrase in ("30நாள் பின்", "புகை/மழை/வெயில்:", "S$40/நாள்", "S$1,400", "இல்லையேல் 0"):
+    for phrase in ("30நாள் பின்", "புகை/மழை/வெயில்:", "S$40/நாள்", "S$1,400", "அலர்ட் இல்லையேல் 0"):
         assert phrase in body
 
 
