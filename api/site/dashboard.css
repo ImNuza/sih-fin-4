@@ -175,6 +175,7 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
 .worth-fig { display: grid; gap: 2px; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
 .worth-fig span { font-size: var(--t-sm); color: var(--muted); }
 .worth-fig b { font: var(--w-bold) var(--t-lg)/1.2 var(--sans); color: var(--ink); }
+.worth-fig:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
 /* An empty list, one line high */
 .empty-row { display: flex; align-items: center; gap: var(--s-4); }
