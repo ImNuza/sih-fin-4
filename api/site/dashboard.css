@@ -321,3 +321,16 @@ details.disclosure > :not(summary) { padding: 0 var(--s-5) var(--s-5); }
   .burn-chart.dense { padding-inline: var(--s-2); }
   .burn-chart.dense .burn-label { min-height: 14px; font-size: var(--t-xs); }
 }
+
+/* ---------- support tickets ---------- */
+/* Topic and subject side by side, the message and button full width; labels keep no extra margin. */
+.support-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s-3) var(--s-4); align-items: end; }
+.support-form label { margin: 0; }
+.support-form :is(select, input, textarea) { width: 100%; margin-top: var(--s-2); }
+.support-form label:has(textarea), .support-form .row-actions, .support-form .error { grid-column: 1 / -1; }
+.support-form .error:empty { display: none; }
+.tickets { display: grid; gap: var(--s-3); }
+.ticket { border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); display: grid; gap: var(--s-2); }
+.ticket-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.ticket p { margin: 0; }
+.ticket-reply { background: var(--surface-2); border-radius: var(--r-sm); padding: var(--s-2) var(--s-3); }

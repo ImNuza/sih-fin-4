@@ -126,7 +126,8 @@ application_profile = Table(
     Column("cover_ends", Date, nullable=False),
 )
 # Who arranged the application with the customer, one row per application. sold_by is "adviser"
-# (with the adviser's code) or "association" (with its name). See api/onboarding.py.
+# (with the adviser's code), "association" (with its name) or "self" (the owner signed up online,
+# neither). See api/onboarding.py.
 application_channel = Table(
     "application_channel",
     metadata,
@@ -136,7 +137,7 @@ application_channel = Table(
     Column("association", String),
 )
 # Who started or changed a cover with the customer after the application, one row each time
-# (POST /api/policies). Same fields as application_channel: never sold to the customer directly.
+# (POST /api/policies). Same fields as application_channel.
 policy_channel = Table(
     "policy_channel",
     metadata,

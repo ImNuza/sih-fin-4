@@ -147,7 +147,7 @@ function wireLogin() {
       return "An account with this email already exists. Sign in with it instead, or use another email.";
     if (/wrong email or password/i.test(error.message))
       return formId === "sme-login"
-        ? "The email or password is wrong. Check both and try again. No account yet? Apply with your Income adviser first."
+        ? "The email or password is wrong. Check both and try again. No account yet? Sign up online yourself or apply with your Income adviser first."
         : "The email or password is wrong. Check both and try again, or set up insurer access.";
     return `Could not sign in: ${escapeHtml(error.message)}. Try again.`;
   };
@@ -371,6 +371,7 @@ async function renderSme(user) {
       </div>
     </div>
     <div id="payouts-panel" class="dash-section"></div>
+    <section class="dash-section" id="support-panel"></section>
     <section class="dash-section" aria-labelledby="sme-map-title">
       <div class="section-head"><div><h2 id="sme-map-title">Your stall on the map</h2>
         <p class="page-sub">The weather around you, live from NEA. Tap to open the full map.</p></div></div>
@@ -380,6 +381,9 @@ async function renderSme(user) {
     </section>
   </div>`;
   wireCoverSms();
+  renderSupport(el("support-panel")).catch((error) => {
+    el("support-panel").innerHTML = loadError("your support tickets", error);
+  });
   renderSmePayouts(el("payouts-panel"), Boolean(policy)).catch((error) => {
     el("payouts-panel").innerHTML = loadError("your payouts", error);
   });
@@ -550,7 +554,7 @@ function chooseCover({ quote, rec }) {
   return `<div class="card-head"><div><h2>Payung prices for your stall</h2>
       ${quote.suggestion ? `<p class="fine">${escapeHtml(quote.suggestion)}</p>` : ""}</div></div>
     <div class="tiers-row">${cards}</div>
-    ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add Payung to your policy with you.")}
+    ${notice("info", "users", '<b>To start cover, <a href="/buy/?via=self">sign up online</a>, or ask your Income adviser or hawker association.</b> No adviser is needed online.')}
     <p class="fine">${shownTier.label} in one SMS, as we would text it to you:</p>
     <div class="cover-sms" data-cover-tier="${shown}" data-cover-weekly="${shownTier.weekly_premium_sgd ?? ""}"></div>`;
 }
@@ -772,6 +776,82 @@ function wireReferrals(user) {
     }));
 }
 
+/* ---------- support tickets: owners raise them, the insurer desk answers ---------- */
+const TICKET_STATUS = { open: ["warning", "Open"], answered: ["good", "Answered"], closed: ["", "Closed"] };
+const ticketPill = (status) => pill(...(TICKET_STATUS[status] || ["", status]));
+
+async function renderSupport(slot) {
+  const [categories, tickets] = await Promise.all([api("/api/support/categories"), api("/api/support/tickets")]);
+  slot.innerHTML = `<div class="section-head"><div><h2>Help and support</h2>
+      <p class="page-sub">Price looks wrong, an application is stuck, or a day did not pay? Ask us. The Income desk replies here.</p></div></div>
+    <div class="card">
+      <form id="support-form" class="support-form" novalidate>
+        <label class="field">What is it about? <select name="category">${Object.entries(categories)
+          .map(([key, label]) => `<option value="${key}">${escapeHtml(label)}</option>`).join("")}</select></label>
+        <label class="field">Subject <input name="subject" minlength="3" maxlength="120" required placeholder="e.g. My premium looks high" /></label>
+        <label class="field">Tell us more <textarea name="message" rows="3" minlength="5" maxlength="2000" required></textarea></label>
+        <div class="row-actions"><button class="btn primary small" type="submit">Send to support</button></div>
+        <p class="error" role="alert"></p>
+      </form>
+      ${tickets.length ? `<h3 class="subhead">Your tickets</h3><div class="tickets">${tickets.map((t) => `
+        <article class="ticket">
+          <div class="ticket-head"><b>${escapeHtml(t.subject)}</b> ${ticketPill(t.status)}
+            <span class="fine">${escapeHtml(categories[t.category] || t.category)} · ${SG_DATE(t.created_at)}</span></div>
+          <p class="fine">${escapeHtml(t.message)}</p>
+          ${t.reply ? `<p class="ticket-reply"><b>Income:</b> ${escapeHtml(t.reply)}</p>` : ""}
+        </article>`).join("")}</div>` : ""}
+    </div>`;
+  el("support-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.target, error = form.querySelector(".error");
+    if (!form.checkValidity()) {
+      error.textContent = "Write a subject (at least 3 characters) and a message (at least 5).";
+      return;
+    }
+    try {
+      await post("/api/support/tickets", Object.fromEntries(new FormData(form)));
+      await renderSupport(slot);
+    } catch (e) {
+      error.textContent = `Could not send: ${e.message}`;
+    }
+  });
+}
+
+function supportDesk(tickets, categories) {
+  if (!tickets.length)
+    return `<div class="card flush"><div class="empty">${SafeUI.icon("shield-check")}<h3>No support tickets</h3>
+      <p>When an owner asks for help from their dashboard, the ticket waits here.</p></div></div>`;
+  return `<div class="card tickets">${tickets.map((t) => `
+    <article class="ticket" data-ticket="${t.id}">
+      <div class="ticket-head"><b>${escapeHtml(t.subject)}</b> ${ticketPill(t.status)}
+        <span class="fine">${escapeHtml(t.business_name || t.name)}${t.centre ? ` · ${escapeHtml(t.centre)}` : ""} · ${escapeHtml(categories[t.category] || t.category)} · ${SG_DATE(t.created_at)}</span></div>
+      <p>${escapeHtml(t.message)}</p>
+      ${t.reply ? `<p class="ticket-reply"><b>Reply:</b> ${escapeHtml(t.reply)}</p>` : ""}
+      ${t.status === "closed" ? "" : `<label class="field">Reply to the owner <textarea rows="2" maxlength="2000"></textarea></label>
+      <div class="row-actions">
+        <button class="btn small secondary" type="button" data-close="false">Reply</button>
+        <button class="btn small" type="button" data-close="true">Reply and close</button>
+      </div>
+      <p class="error" role="alert"></p>`}
+    </article>`).join("")}</div>`;
+}
+
+function wireSupportDesk(user) {
+  document.querySelectorAll("#support-desk .ticket [data-close]").forEach((button) =>
+    button.addEventListener("click", async () => {
+      const ticket = button.closest(".ticket");
+      const reply = ticket.querySelector("textarea").value.trim();
+      if (reply.length < 2) { ticket.querySelector(".error").textContent = "Write a reply first."; return; }
+      try {
+        await post(`/api/support/tickets/${ticket.dataset.ticket}/reply`,
+          { reply, close: button.dataset.close === "true" });
+        await renderInsurer(user);
+      } catch (e) {
+        ticket.querySelector(".error").textContent = `Could not send the reply: ${e.message}`;
+      }
+    }));
+}
+
 /* ---------- insurer: the book ---------- */
 const POLICY_STATUS = {
   waiting: { label: "Waiting period", tone: "warning", order: 1 },
@@ -822,6 +902,11 @@ function insurerShell(user) {
         <p class="page-sub">Applications from businesses that an insurer declined before, and for tiers that are not sold directly.</p></div></div>
       <div id="underwriting">${tableSkeleton(3)}</div>
     </section>
+    <section class="dash-section" aria-labelledby="support-title">
+      <div class="section-head"><div><h2 id="support-title">Support tickets</h2>
+        <p class="page-sub">Questions owners raised from their dashboard, open ones first. Your reply shows on their dashboard.</p></div></div>
+      <div id="support-desk">${tableSkeleton(3)}</div>
+    </section>
     <section class="dash-section" id="payouts-panel">${tableSkeleton(4)}</section>
     <section class="dash-section" aria-labelledby="model-title">
       <div class="section-head"><div><h2 id="model-title">Every year since 1980, and what comes next</h2>
@@ -863,6 +948,10 @@ async function renderInsurer(user) {
     fill("ins-book", "the policies", async () => bookSection(await data.book, await data.options), wireBook),
     fill("underwriting", "the underwriter queue", async () => underwriterQueue(await data.queue, (await data.quotes).quotes),
       () => wireReferrals(user)),
+    fill("support-desk", "the support tickets", async () => {
+      const [tickets, categories] = await Promise.all([api("/api/support/tickets"), api("/api/support/categories")]);
+      return supportDesk(tickets, categories);
+    }, () => wireSupportDesk(user)),
     renderInsurerPayouts(el("payouts-panel")).catch((error) => {
       el("payouts-panel").innerHTML = loadError("the payouts", error);
     }),
@@ -1021,11 +1110,12 @@ function wireTiers(slot) {
 
 /* ---------- insurer: policies table and drawer ---------- */
 let bookPolicies = [];
-const SOLD_BY = { adviser: "Income adviser", association: "Association" };
-/* Who filled in the application with the customer: an adviser's code or an association's name. */
+const SOLD_BY = { adviser: "Income adviser", association: "Association", self: "Signed up online" };
+/* Who filled in the application with the customer: an adviser's code, an association's name, or the owner online. */
 function channelOf(p) {
   if (p.sold_by === "adviser") return `Income adviser · ${p.adviser_code}`;
   if (p.sold_by === "association") return p.association;
+  if (p.sold_by === "self") return SOLD_BY.self;
   return "Not recorded";
 }
 
