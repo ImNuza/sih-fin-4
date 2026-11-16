@@ -128,30 +128,31 @@ HAZARD_LIST_SEPARATOR = {"en": ", ", "zh": "、", "ms": ", ", "ta": ", "}
 
 # The welcome SMS, as the team approved it (16 Nov 2026), from the fullest wording to the
 # shortest: welcome_text takes the first that fits one SMS with the customer's own numbers.
-# Payouts are graded, so it says "up to"; the PUB flood alert is the "flood" trigger. Tamil
-# leaves out the price and tier to fit 70 characters, so they are said at the sale.
+# Payouts are graded, so it says "up to". The PUB flood alert still pays, but the team left it
+# out of this text (16 Nov 2026). Tamil leaves out the price and tier to fit 70 characters, so
+# they are said at the sale.
 WELCOME_PRICE = {"en": "S${price}/wk, ", "zh": "每周S${price}，", "ms": "S${price}/mgu, ", "ta": ""}
 WELCOME = {
     "en": (
-        "Payung Tier {tier}: {price}cover from day {wait}. Haze, heavy rain, heat or flood alert "
+        "Payung Tier {tier}: {price}cover from day {wait}. Haze, heavy rain or heat "
         "near your stall: up to S${daily}/day, S${year}/yr. Else no pay even if sales drop.",
-        "Payung Tier {tier}: {price}cover from day {wait}. Haze, rain, heat or flood alert "
+        "Payung Tier {tier}: {price}cover from day {wait}. Haze, rain or heat "
         "near your stall: up to S${daily}/day, S${year}/yr. Else no pay even if sales drop.",
     ),
     "zh": (
-        "Payung第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨、酷热或水灾："
+        "Payung第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨或酷热："
         "日赔≤S${daily}，年≤S${year}。否则生意差也不赔",
-        "第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨、酷热或水灾："
+        "第{tier}级{price}买后{wait}天生效。摊位附近烟霾、大雨或酷热："
         "日赔≤S${daily}，年≤S${year}。否则生意差也不赔",
     ),
     "ms": (
-        "Payung Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan lebat, panas atau banjir "
+        "Payung Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan lebat atau panas "
         "dekat gerai: hingga S${daily}/hari, S${year}/thn. Lain tiada bayaran walau rugi.",
-        "Payung Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan, panas atau banjir "
+        "Payung Tahap {tier}: {price}mula hari ke-{wait}. Jerebu, hujan atau panas "
         "dekat gerai: hingga S${daily}/hari, S${year}/thn. Lain tiada bayaran walau rugi.",
     ),
     "ta": (
-        "{wait}நாள் பின் புகை/மழை/வெயில்/வெள்ளம்: S${daily}/நாள், S${year}/ஆ. இல்லையேல் 0",
+        "{wait}நாள் பின் புகை/மழை/வெயில்: S${daily}/நாள், S${year}/ஆ. இல்லையேல் 0",
     ),
 }
 

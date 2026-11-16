@@ -23,11 +23,11 @@ WAIT_DAYS = 30
 # The cheapest and dearest weekly prices a tier can carry, and a preview with no place.
 PRICES = (None, 3.44, 99.99)
 APPROVED = {
-    "en": "Payung Tier 2: S$9.11/wk, cover from day 30. Haze, heavy rain, heat or flood alert "
+    "en": "Payung Tier 2: S$9.11/wk, cover from day 30. Haze, heavy rain or heat "
     "near your stall: up to S$40/day, S$1,400/yr. Else no pay even if sales drop.",
-    "zh": "Payung第2级每周S$9.11，买后30天生效。摊位附近烟霾、大雨、酷热或水灾：日赔≤S$40，"
+    "zh": "Payung第2级每周S$9.11，买后30天生效。摊位附近烟霾、大雨或酷热：日赔≤S$40，"
     "年≤S$1,400。否则生意差也不赔",
-    "ms": "Payung Tahap 2: S$9.11/mgu, mula hari ke-30. Jerebu, hujan lebat, panas atau banjir "
+    "ms": "Payung Tahap 2: S$9.11/mgu, mula hari ke-30. Jerebu, hujan lebat atau panas "
     "dekat gerai: hingga S$40/hari, S$1,400/thn. Lain tiada bayaran walau rugi.",
 }
 
@@ -75,7 +75,7 @@ def test_welcome_text_is_the_approved_wording(language):
 
 def test_tamil_welcome_names_the_wait_the_triggers_and_the_payout():
     body = sms.welcome_text("ta", 2, 9.11, 40, 35, WAIT_DAYS)
-    for phrase in ("30நாள் பின்", "புகை/மழை/வெயில்/வெள்ளம்", "S$40/நாள்", "S$1,400", "இல்லையேல் 0"):
+    for phrase in ("30நாள் பின்", "புகை/மழை/வெயில்:", "S$40/நாள்", "S$1,400", "இல்லையேல் 0"):
         assert phrase in body
 
 
@@ -127,3 +127,13 @@ def test_welcome_text_never_says_only_a_red_day_pays(language):
     assert "S$20" in body
     for wrong in ("No Red Day", "no Red day", "无红色日", "Tiada Hari", "Red Day = no pay"):
         assert wrong not in body
+
+
+@pytest.mark.parametrize("language", sms.LANGUAGES)
+@pytest.mark.parametrize("weekly", PRICES)
+def test_welcome_text_does_not_mention_flood(language, weekly):
+    """The team left the flood alert out of the welcome SMS; a flood alert still pays."""
+    for tier in TARIFF.tiers:
+        body = welcome(language, tier, weekly).lower()
+        for flood in ("flood", "水灾", "banjir", "வெள்ளம்"):
+            assert flood not in body
