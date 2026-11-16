@@ -407,8 +407,10 @@ def test_welcome_text_explains_the_cover_with_the_customers_numbers(client):
     stallholder_with_cover(client)
     [welcome] = texts_of_kind(client, "welcome")
     body = welcome["body"]
-    phrases = ("Payung:", "covered from day 30", "Haze", "heat near your stall",
-               "up to S$20/day", "No alert, no pay.", "payung.nuza.dev")
+    [policy] = client.get("/api/policies").json()
+    phrases = (f"Payung: S${policy['weekly_premium_sgd']:.2f}/wk", "covered from day 30",
+               "up to S$20 a day for abnormal weather", "No alert, no pay.",
+               "https://payung.nuza.dev")
     for phrase in phrases:
         assert phrase in body
     assert len(body) <= SMS_LIMIT
@@ -429,7 +431,7 @@ def test_buying_cover_with_a_verified_mobile_sends_the_welcome_text(client):
 
     client.post("/api/policies", json={"tier": "tier_2", **SELLER})
     [welcome] = texts_of_kind(client, "welcome")
-    assert "up to S$40/day to your PayNow" in welcome["body"]
+    assert "up to S$40 a day for abnormal weather" in welcome["body"]
 
 
 def test_welcome_text_is_sent_once_per_cover(client):
@@ -697,7 +699,7 @@ def test_paying_in_the_buy_flow_texts_the_welcome_in_the_chosen_language(client)
     assert welcome["to"] == "+65 ****4567"
     assert welcome["language"] == "zh"
     assert "日赔最高S$" in welcome["body"]
-    assert "买后30天起" in welcome["body"]
+    assert "天气异常" in welcome["body"]
     assert "无警报不赔" in welcome["body"]
 
 

@@ -133,26 +133,30 @@ WARNING_TIPS = {
 HAZARD_LIST_SEPARATOR = {"en": ", ", "zh": "、", "ms": ", ", "ta": ", "}
 
 
-# The welcome SMS (16 Nov 2026): what pays, how much, the mandatory "no alert, no pay", and a
-# link to the site that explains the rest (tier, price, yearly cap, the flood alert). Payouts
-# are graded, so it says "up to". welcome_text takes the first wording that fits one SMS.
-# Tamil leaves out the wait to fit 70 characters; it is said at the sale and on the site.
-SITE_LINK = "payung.nuza.dev"
+# The welcome SMS (16 Nov 2026): the price, when cover starts, the most a day pays for abnormal
+# weather, the mandatory "no alert, no pay", and a link to the site that explains the rest
+# (which alerts count, the tier, the yearly cap). The link carries https:// so every phone
+# makes it tappable. Payouts are graded, so it says "up to". welcome_text takes the first
+# wording that fits one SMS. Tamil leaves out the price and the wait to fit 70 characters with
+# the link; they are said at the sale and on the site.
+SITE_LINK = "https://payung.nuza.dev"
+WELCOME_PRICE = {"en": "S${price}/wk, ", "zh": "每周S${price}，", "ms": "S${price}/mgu, ", "ta": ""}
 WELCOME = {
     "en": (
-        "Payung: covered from day {wait}. Haze, heavy rain or heat near your stall pays up to "
-        "S${daily}/day to your PayNow. No alert, no pay. Details: {link}",
+        "Payung: {price}covered from day {wait}. Pays up to S${daily} a day for abnormal "
+        "weather near your stall. No alert, no pay. Details: {link}",
     ),
     "zh": (
-        "Payung：买后{wait}天起，摊位附近烟霾、大雨或酷热，日赔最高S${daily}到PayNow。"
-        "无警报不赔。详情：{link}",
+        "Payung：{price}买后{wait}天起，摊位附近天气异常日赔最高S${daily}。无警报不赔。{link}",
+        "Payung：{price}{wait}天后生效。天气异常日赔最高S${daily}。无警报不赔。详情 {link}",
     ),
     "ms": (
-        "Payung: lindungan dari hari ke-{wait}. Jerebu, hujan lebat atau panas dekat gerai: "
-        "hingga S${daily}/hari ke PayNow. Tiada amaran, tiada bayaran. Info: {link}",
+        "Payung: {price}lindungan dari hari ke-{wait}. Bayar hingga S${daily} sehari untuk "
+        "cuaca luar biasa. Tiada amaran, tiada bayaran. Info: {link}",
     ),
     "ta": (
-        "புகை/மழை/வெயில்: S${daily}/நாள் வரை. அலர்ட் இல்லையேல் 0. {link}",
+        "அசாதாரண வானிலை: ≤S${daily}/நாள். அலர்ட் இல்லையேல் 0 {link}",
+        "அசாதாரண வானிலை ≤S${daily}/நாள். அலர்ட் இல்லையேல் 0 {link}",
     ),
 }
 
@@ -205,12 +209,16 @@ def payout_text(kind: str, language: str, hazard: str, **fields: str) -> str:
     return body
 
 
-def welcome_text(language: str, payout_sgd: float, wait_days: int) -> str:
-    """The cover in one SMS: when it starts, what pays, how much, that nothing else pays, and
-    the link for the details. The first wording that fits one SMS wins (WELCOME)."""
+def welcome_text(language: str, weekly_sgd: float | None, payout_sgd: float,
+                 wait_days: int) -> str:
+    """The cover in one SMS: the price, when it starts, the most a day pays, that nothing pays
+    without an alert, and the link for the details. The first wording that fits one SMS wins
+    (WELCOME). Without a price (a preview with no place yet) the price is left out."""
+    price = "" if weekly_sgd is None else WELCOME_PRICE[language].format(price=f"{weekly_sgd:.2f}")
     body = ""
     for wording in WELCOME[language]:
-        body = wording.format(wait=wait_days, daily=number(payout_sgd), link=SITE_LINK)
+        body = wording.format(price=price, wait=wait_days, daily=number(payout_sgd),
+                              link=SITE_LINK)
         if segments(body) == 1:
             return body
     return body

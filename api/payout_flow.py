@@ -164,14 +164,14 @@ def send_welcome_if_due(db: Connection, user_id: int, tariff: Tariff) -> None:
     if welcomed:
         return
     mobile, language = contact
-    body = cover_text(language, policy.daily_payout_sgd)
+    body = cover_text(language, policy.weekly_premium_sgd, policy.daily_payout_sgd)
     sms.send(db, user_id, "welcome", mobile, language, body)
 
 
-def cover_text(language: str, payout_sgd: float) -> str:
-    """The cover in one SMS. Sent after payment and shown wherever cover is sold. The tier,
-    price and yearly cap are on the site the SMS links to, not in the SMS."""
-    return sms.welcome_text(language, payout_sgd, WAITING_PERIOD_DAYS)
+def cover_text(language: str, weekly_sgd: float | None, payout_sgd: float) -> str:
+    """The cover in one SMS. Sent after payment and shown wherever cover is sold. The tier and
+    yearly cap are on the site the SMS links to, not in the SMS."""
+    return sms.welcome_text(language, weekly_sgd, payout_sgd, WAITING_PERIOD_DAYS)
 
 
 def first_day_if_bought_now() -> date:
