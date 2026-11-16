@@ -40,7 +40,7 @@ def to_cents(sgd: float) -> int:
 
 
 def reference(payout_id: int) -> str:
-    return f"SD-{payout_id:06d}"
+    return f"PY-{payout_id:06d}"
 
 
 def record(db: Connection, payout_id: int, from_status: str | None, to_status: str, actor: str,
@@ -107,7 +107,7 @@ def text(db: Connection, payout, account, kind: str) -> None:
         amount=f"{payout.amount_cents / 100:.2f}",
         proxy=paynow.mask(account.paynow_proxy_type, account.paynow_proxy),
         centre=payout.centre or payout.region,
-        day=f"{payout.loss_date.day} {payout.loss_date:%b}",
+        day=sms.day_text(account.sms_language, payout.loss_date),
         ref=reference(payout.id),
     )
     sms.send(db, payout.user_id, kind, account.sms_mobile, account.sms_language, body, payout.id)

@@ -7,6 +7,7 @@ Unicode SMS. The payout texts are tested in tests/test_day_colour.py.
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 
@@ -137,3 +138,28 @@ def test_welcome_text_does_not_mention_flood(language, weekly):
         body = welcome(language, tier, weekly).lower()
         for flood in ("flood", "水灾", "banjir", "வெள்ளம்"):
             assert flood not in body
+
+
+CENTRES = [
+    c["name"] for c in json.loads((ROOT / "data/processed/map_static.json").read_text())["hawker_centres"]
+]
+
+
+@pytest.mark.parametrize("hazard", ["haze", "rain", "heat", "flood", "closure"])
+def test_chinese_payment_text_fits_one_sms_at_every_hawker_centre(hazard):
+    for centre in CENTRES:
+        body = sms.payout_text(
+            "payout_paid", "zh", hazard, day_colour="红色日", loss="100", amount="100.00",
+            proxy="+65 ****2428", centre=centre, day=sms.day_text("zh", date(2026, 12, 31)),
+            ref="PY-999999",
+        )
+        assert sms.segments(body) == 1, (centre, len(body), body)
+        assert body.startswith("Payung：") and "无需索赔" in body
+
+
+def test_chinese_payment_text_keeps_the_loss_share_when_it_fits():
+    body = sms.payout_text(
+        "payout_paid", "zh", "haze", day_colour="红色日", loss="48", amount="19.20",
+        proxy="+65 ****2428", centre="Maxwell Food Centre", day="10月18日", ref="PY-001042",
+    )
+    assert body == "Payung：10月18日烟霾红色日，损失48%，S$19.20已转PayNow +65 ****2428，编号PY-001042，无需索赔"

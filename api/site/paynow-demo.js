@@ -13,7 +13,7 @@ const token = params.get("t") || "";
 const payUrl = `/api/premium-payments/${encodeURIComponent(token)}/pay`;
 const PAYEE = "Payung by Income";
 const MAX_AMOUNT_SGD = 500;
-const REFERENCE = /^SDP-[0-9A-F]{6}$/;
+const REFERENCE = /^PYP-[0-9A-F]{6}$/;
 
 function make(tag, className, text) {
   const node = document.createElement(tag);

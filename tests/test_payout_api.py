@@ -118,7 +118,7 @@ def test_closure_day_pays_by_paynow_and_texts_the_stallholder(client):
     assert payout["status"] == "paid"
     assert payout["loss_percent"] == 100
     assert payout["amount_sgd"] == payout["daily_payout_sgd"]
-    assert payout["reference"].startswith("SD-")
+    assert payout["reference"].startswith("PY-")
 
     [text] = [m for m in client.get("/api/sms").json() if m["kind"] == "payout_paid"]
     assert f"S${payout['amount_sgd']:.2f} " in text["body"]
@@ -725,3 +725,19 @@ def test_verifying_paynow_later_does_not_resend_the_welcome(client):
     code = client.post("/api/payout-account/verify/start").json()["demo_code"]
     assert client.post("/api/payout-account/verify", json={"code": code}).status_code == 200
     assert len(welcomes(client)) == 1
+
+
+
+def test_a_chinese_payment_text_writes_the_date_in_chinese(client):
+    register(client, "sme", "tan@example.com")
+    assert client.post("/api/policies", json={"tier": "tier_1", **SELLER}).status_code == 200
+    start_cover_on(client, LONG_AGO)
+    account = {"paynow_proxy_type": "mobile", "paynow_proxy": GOOD_MOBILE, "sms_language": "zh"}
+    client.put("/api/payout-account", json=account)
+    code = client.post("/api/payout-account/verify/start").json()["demo_code"]
+    client.post("/api/payout-account/verify", json={"code": code})
+    run_as_insurer(client, FLOOD_DAY)
+    sign_in(client, "tan@example.com")
+    [paid] = [t for t in client.get("/api/sms").json() if t["kind"] == "payout_paid"]
+    assert "11月14日" in paid["body"]
+    assert "PY-" in paid["body"]

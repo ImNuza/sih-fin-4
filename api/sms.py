@@ -67,8 +67,15 @@ TEMPLATES = {
     "payout_paid": {
         "en": "Payung: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
         "{hazard} at {centre} on {day}. Ref {ref}. No claim needed.",
-        "zh": "Payung：{day_colour}，损失{loss}%。因{day}{centre}{hazard}，S${amount}已转入您的"
-        "PayNow {proxy}。编号{ref}。无需索赔。",
+        # One 70-character SMS: payout_text takes the first that fits. Hawker centre names are
+        # long English, so the centre goes first, then the loss share.
+        "zh": (
+            "Payung：{day}{centre}{hazard}{day_colour}，损失{loss}%，S${amount}已转PayNow "
+            "{proxy}，编号{ref}，无需索赔",
+            "Payung：{day}{hazard}{day_colour}，损失{loss}%，S${amount}已转PayNow {proxy}，"
+            "编号{ref}，无需索赔",
+            "Payung：{day}{hazard}{day_colour}，S${amount}已转PayNow {proxy}，编号{ref}，无需索赔",
+        ),
         "ms": "Payung: {day_colour}, kerugian {loss}%. S${amount} dihantar ke PayNow {proxy} "
         "kerana {hazard} di {centre} pada {day}. Ruj {ref}. Tiada tuntutan diperlukan.",
         "ta": "Payung: {day_colour}, இழப்பு {loss}%. {day} {centre} {hazard} காரணமாக "
@@ -192,8 +199,17 @@ def day_name(language: str, loss_percent: float) -> str:
 
 
 def payout_text(kind: str, language: str, hazard: str, **fields: str) -> str:
+    """A payout text. Where a language has several wordings, the first that fits one SMS."""
     hazard_name = HAZARD_NAMES[language].get(hazard, hazard)
-    return TEMPLATES[kind][language].format(hazard=hazard_name, **fields)
+    wordings = TEMPLATES[kind][language]
+    if isinstance(wordings, str):
+        return wordings.format(hazard=hazard_name, **fields)
+    body = ""
+    for wording in wordings:
+        body = wording.format(hazard=hazard_name, **fields)
+        if segments(body) == 1:
+            return body
+    return body
 
 
 def welcome_text(language: str, tier: int, weekly_sgd: float | None, payout_sgd: float,
