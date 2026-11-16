@@ -54,6 +54,14 @@ def test_perishable_food_costs_more_than_general_goods(client):
     assert tier_1_price("cooked_food") > tier_1_price("general_goods")
 
 
+@pytest.mark.parametrize("path", ["/map", "/admin"])
+def test_a_mounted_page_opens_without_its_final_slash(client, path):
+    response = client.get(path, follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == f"{path}/"
+    assert client.get(path).status_code == 200
+
+
 def test_unknown_product_is_404(client):
     response = client.post("/api/quote", json={"region": "east", "product": "fish"})
     assert response.status_code == 404

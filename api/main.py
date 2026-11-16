@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
@@ -1715,6 +1715,15 @@ app.include_router(underwriting.router)
 app.include_router(premium.router)
 app.include_router(assistant.router)
 app.include_router(voice.router)
+
+
+@app.get("/admin", include_in_schema=False)
+@app.get("/map", include_in_schema=False)
+def add_the_final_slash(request: Request) -> RedirectResponse:
+    """A mounted folder answers only with its final slash; without it the site mount returns 404."""
+    return RedirectResponse(f"{request.url.path}/")
+
+
 app.mount("/admin", StaticFiles(directory=API_DIR / "admin", html=True), name="admin")
 app.mount("/map", StaticFiles(directory=API_DIR / "map", html=True), name="map")
 app.mount("/", StaticFiles(directory=API_DIR / "site", html=True), name="site")
