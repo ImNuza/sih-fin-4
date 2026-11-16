@@ -74,13 +74,16 @@ NOT_AN_SME = (
 )
 
 # Income sells SmartBiz 360 through intermediaries, and a sale around the customer's agent is not
-# allowed (Income product lead, private mentoring session, 15 Nov 2026). So every application
-# names who arranged it with the customer: their Income adviser, or an association that offers
-# Payung to its members as a group scheme.
-SoldBy = Literal["adviser", "association"]
+# allowed (Income product lead, private mentoring session, 15 Nov 2026). So an application names
+# who arranged it with the customer: their Income adviser, or an association that offers Payung
+# to its members as a group scheme. An owner with neither signs up online by themselves ("self",
+# team decision, 16 Nov 2026): no adviser or underwriter is assigned, and cover starts as on the
+# other two paths. Only a past decline goes to an underwriter.
+SoldBy = Literal["adviser", "association", "self"]
 SOLD_BY = {
     "adviser": "Income adviser",
     "association": "Hawker or merchants' association",
+    "self": "Signed up online",
 }
 # Income's adviser code format is not public, so only the characters and length are checked.
 ADVISER_CODE = re.compile(r"^[A-Z0-9]{4,12}$")

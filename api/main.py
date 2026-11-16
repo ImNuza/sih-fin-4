@@ -1038,9 +1038,9 @@ def live_loss(
 
 
 class SellerFields(BaseModel):
-    """Who arranges the cover with the customer: their Income adviser (with the adviser's code) or
-    an association (with its name). Payung is never sold to the customer directly, because Income
-    sells SmartBiz 360 through intermediaries. See api/onboarding.py."""
+    """Who arranges the cover with the customer: their Income adviser (with the adviser's code),
+    an association (with its name), or the owner online by themselves ("self", neither).
+    See api/onboarding.py."""
 
     sold_by: onboarding.SoldBy
     adviser_code: str | None = None
@@ -1057,6 +1057,9 @@ class SellerFields(BaseModel):
         return value
 
     def channel_complete(self) -> None:
+        if self.sold_by == "self":
+            self.adviser_code = self.association = None
+            return
         if self.sold_by == "adviser":
             if self.adviser_code is None:
                 raise ValueError("Enter the code of the Income adviser who helps the customer")
@@ -1071,8 +1074,8 @@ class SellerFields(BaseModel):
 
 
 class PolicyRequest(SellerFields):
-    """A cover started or changed after the application, always with the customer's adviser or
-    association, who is recorded in policy_channel."""
+    """A cover started or changed after the application, with the customer's adviser, their
+    association or the owner themselves, recorded in policy_channel."""
 
     tier: str
     product: str | None = None
@@ -1175,8 +1178,8 @@ def buy_policy(body: PolicyRequest, user: SmeDep, tariff: TariffDep, request: Re
     tier when a bad day is forecast. The same or a lower amount keeps the cover's start. A cover
     bought after a cancelled one is new and waits again. Payouts already made are never taken back.
 
-    The customer's Income adviser or association always arranges it (PolicyRequest), and is kept
-    in policy_channel: there is no self-serve sale from the dashboard.
+    Who arranged it (PolicyRequest: adviser, association or the owner online) is kept in
+    policy_channel.
     """
     application = latest_application(request.app.state.db, user.id)
     cover_ends = application["cover_ends"] if application else None
@@ -1259,8 +1262,10 @@ LATEST_COVER_START_DAYS = 90
 class BuyRequest(SellerFields):
     """Everything the guided buy flow (/buy/) collects, sent once at the pay step.
 
-    The form is filled in with the customer by their Income adviser or by an association
-    (sold_by), never sold to them directly. See api/onboarding.py.
+    The form is filled in with the customer by their Income adviser or by an association, or by
+    the owner online by themselves (sold_by "self"), which needs no adviser code and no approval:
+    cover starts as on the other paths. Only a past decline goes to an underwriter.
+    See api/onboarding.py.
 
     Email and password are only checked for being present: the demo fills them with made-up
     values. An email that already has an account is still refused. Each business class sends

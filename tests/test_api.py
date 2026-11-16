@@ -232,7 +232,7 @@ def test_an_association_sale_keeps_the_association_and_shows_on_the_insurer_desk
 
 def test_buy_options_name_the_two_channels(client):
     options = client.get("/api/buy/options").json()
-    assert set(options["sold_by"]) == {"adviser", "association"}
+    assert set(options["sold_by"]) == {"adviser", "association", "self"}
     assert options["associations"]
 
 
