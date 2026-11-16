@@ -1565,10 +1565,7 @@ async function coverSms(slot, tier, language = "en", weekly = null) {
     bubble.className = "sms";
     bubble.lang = language;
     bubble.textContent = cover.body;
-    const size = document.createElement("p");
-    size.className = "fine";
-    size.textContent = `${cover.characters} characters · ${cover.segments === 1 ? "one SMS" : `${cover.segments} SMS parts`}`;
-    slot.replaceChildren(switcher, bubble, size);
+    slot.replaceChildren(switcher, bubble);
   } catch (error) {
     slot.textContent = `Could not load the cover text: ${error.message}`;
   }
