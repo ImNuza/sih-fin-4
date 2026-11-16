@@ -597,6 +597,7 @@ const ONE_DP = (v) => Number(v).toFixed(1).replace(/\.0$/, "");
 const colourDays = (row, prefix = "") => DAY_COLOURS.map((band) =>
   `<span class="day-chip day-${band.key}">${ONE_DP(row[`${prefix}${band.key}_days`] ?? 0)} ${band.key}</span>`).join(" ");
 const TIER_KEYS = ["tier_1", "tier_2", "tier_3", "tier_4"];
+const PRICED_YEARS = 10;
 
 /* One thin bar per year since 1980, labelled every fifth year; hover or tap shows the year. */
 function yearBars(years, value, describe, selected) {
@@ -616,7 +617,14 @@ function bookFigures(book, m) {
   const years = book.years.map((y) => ({ ...y, loss_ratio: y.loss_ratio / m }));
   const complete = years.filter((y) => y.complete);
   const losing = complete.filter((y) => y.loss_ratio > 1).length;
-  const average = complete.reduce((a, y) => a + y.loss_ratio, 0) / complete.length;
+  const mean = (rows) => rows.reduce((a, y) => a + y.loss_ratio, 0) / rows.length;
+  const average = mean(complete);
+  // The tariff prices on the latest ten years, so that is the loss ratio it aims for.
+  const priced = complete.slice(-PRICED_YEARS);
+  const decades = [1980, 1990, 2000, 2010].map((from) => {
+    const rows = complete.filter((y) => y.year >= from && y.year < from + 10);
+    return rows.length ? `${String(from).slice(2)}s ${PCT(mean(rows))}` : "";
+  }).filter(Boolean);
   const worst = complete.reduce((a, y) => (y.paid_sgd > a.paid_sgd ? y : a), complete[0]);
   const shortfall = Math.max(0, worst.paid_sgd - premium);
   const decade = book.next_10_years;
@@ -626,8 +634,9 @@ function bookFigures(book, m) {
   return `
     <div class="kpis">
       ${kpi("Premium pool", `<span class="num">${SGD_KPI(premium)}</span><wbr>/yr`, `${SGD(book.weekly_premium_per_policy_sgd * m)} a week per stall`)}
-      ${kpi("Average loss ratio", `<span class="num">${PCT(average)}</span>`, "payouts ÷ premium, per year",
-        "Every food stall in every hawker centre with one policy, run through every day since 1980 with today's tariff. Below 100% the premium covered the year's payouts.")}
+      ${kpi("Loss ratio, priced years", `<span class="num">${PCT(mean(priced))}</span>`,
+        `${priced[0].year}–${priced.at(-1).year}; ${PCT(average)} since ${complete[0].year}`,
+        "Payouts ÷ premium, per year, for every food stall in every hawker centre with one policy. The tariff is priced on the latest ten years, so that is the ratio it aims for. Older decades had fewer hot, wet and hazy days, so the average since 1980 is lower.")}
       ${kpi("Years losing money", `<span class="num">${losing}</span> of ${complete.length}`, "loss ratio above 100%")}
       ${kpi("Worst year", `<span class="num">${worst.year}</span>`, `loss ratio ${PCT(worst.loss_ratio)}`)}
       ${kpi("Worst single day", `<span class="num">${SGD_KPI(book.worst_day.paid_sgd)}</span>`, `${SG_DATE(book.worst_day.day)}, ${PCT(book.worst_day.share_of_centres_paying)} of centres paid`)}
@@ -639,6 +648,7 @@ function bookFigures(book, m) {
       ? `In ${worst.year} payouts beat the premium by ${SGD(shortfall)}: that is the capital or reinsurance to hold.`
       : `Even ${worst.year} stayed within the premium${worst.loss_ratio > 0.85 ? ", but only just" : ""}: a worse year needs reinsurance.`}
       Haze hits every centre on the same day, so the worst day sets the cash you need at once.</p>
+    ${kv("Loss ratio by decade", `${decades.join(" · ")} · priced years ${PCT(mean(priced))}`)}
     ${kv("El Niño years against other years", `loss ratio <span class="num">${PCT(e.average_loss_ratio / m)}</span> against <span class="num">${PCT(e.average_loss_ratio_other / m)}</span>`)}
     ${kv("Payout days per stall in a typical year", colourDays(book, "typical_"))}
     ${kv("Any ten years since 1980, loss ratio", `<span class="num">${PCT(decade.lowest_loss_ratio / m)}</span> to <span class="num">${PCT(decade.highest_loss_ratio / m)}</span>, typically ${PCT(decade.typical_loss_ratio / m)}`)}
@@ -667,8 +677,9 @@ async function renderModelBook(target, live, staticData, tier = "tier_2") {
     <section class="card">
       <div class="card-head"><div><h2>The whole market, back-tested since 1980</h2>
         <p class="fine">Every food stall in every hawker centre (${book.policies.toLocaleString("en-SG")}) with one
-          cooked-food policy each, run through every day since 1980 with today's tariff. Measured readings where
-          they exist; older heat and rain filled in by our models.</p></div></div>
+          cooked-food policy each, run through every day since 1980 with today's tariff and tiers. Measured readings where
+          they exist; older heat and rain rebuilt by our models, and haze before April 2014 taken from the measured
+          year with the nearest El Niño strength.</p></div></div>
       <div class="table-tools model-controls">
         <label class="tool-select">Tier <select id="book-tier">${TIER_KEYS.map((t) =>
           `<option value="${t}"${t === tier ? " selected" : ""}>${t.replace("tier_", "Tier ")}</option>`).join("")}</select></label>
