@@ -739,4 +739,4 @@ def test_a_chinese_payment_text_writes_the_date_in_chinese(client):
     sign_in(client, "tan@example.com")
     [paid] = [t for t in client.get("/api/sms").json() if t["kind"] == "payout_paid"]
     assert "11月14日" in paid["body"]
-    assert "PY-" in paid["body"]
+    assert paid["body"].endswith("\nhttps://payung.nuza.dev")

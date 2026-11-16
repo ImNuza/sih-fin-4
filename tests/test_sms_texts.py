@@ -153,6 +153,19 @@ def test_chinese_payment_text_fits_one_sms_at_every_hawker_centre(hazard):
         )
         assert sms.segments(body) == 1, (centre, len(body), body)
         assert body.startswith("Payung：") and "无需索赔" in body
+        assert body.endswith("\n" + LINK)
+
+
+@pytest.mark.parametrize("hazard", ["haze", "rain", "heat", "flood", "closure"])
+def test_english_payment_text_fits_one_sms_with_the_link_at_every_hawker_centre(hazard):
+    for centre in CENTRES:
+        body = sms.payout_text(
+            "payout_paid", "en", hazard, day_colour="Yellow day", loss="100", amount="100.00",
+            proxy="+65 ****2428", centre=centre, day="31 Dec", ref="PY-999999",
+        )
+        assert sms.segments(body) == 1, (centre, len(body), body)
+        assert "Ref PY-999999. No claim needed." in body
+        assert body.endswith(" " + LINK)
 
 
 def test_chinese_payment_text_keeps_the_loss_share_when_it_fits():
@@ -160,4 +173,14 @@ def test_chinese_payment_text_keeps_the_loss_share_when_it_fits():
         "payout_paid", "zh", "haze", day_colour="红色日", loss="48", amount="19.20",
         proxy="+65 ****2428", centre="Maxwell Food Centre", day="10月18日", ref="PY-001042",
     )
-    assert body == "Payung：10月18日烟霾红色日，损失48%，S$19.20已转PayNow +65 ****2428，编号PY-001042，无需索赔"
+    assert body == "Payung：10月18日烟霾红色日，损失48%，S$19.20已转PayNow，无需索赔\nhttps://payung.nuza.dev"
+
+
+def test_english_payment_text_names_a_short_hawker_centre():
+    body = sms.payout_text(
+        "payout_paid", "en", "haze", day_colour="Red day", loss="48", amount="19.20",
+        proxy="+65 ****2428", centre="Tekka Centre", day="18 Oct", ref="PY-001042",
+    )
+    assert body == ("Payung: Red day, 48% loss. S$19.20 sent to PayNow +65 ****2428 for haze at "
+                    "Tekka Centre on 18 Oct. Ref PY-001042. No claim needed. "
+                    "https://payung.nuza.dev")

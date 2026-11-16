@@ -65,16 +65,20 @@ UCS2_SINGLE, UCS2_PART = 70, 67
 
 TEMPLATES = {
     "payout_paid": {
-        "en": "Payung: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
-        "{hazard} at {centre} on {day}. Ref {ref}. No claim needed.",
-        # One 70-character SMS: payout_text takes the first that fits. Hawker centre names are
-        # long English, so the centre goes first, then the loss share.
+        # One SMS with the site link at the end: payout_text takes the first that fits. A long
+        # hawker centre name is the first to go.
+        "en": (
+            "Payung: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
+            "{hazard} at {centre} on {day}. Ref {ref}. No claim needed. {link}",
+            "Payung: {day_colour}, {loss}% loss. S${amount} sent to PayNow {proxy} for "
+            "{hazard} on {day}. Ref {ref}. No claim needed. {link}",
+        ),
+        # One 70-character SMS with the link on its own line (a phone does not see a link
+        # straight after a Chinese character). The link leaves no room for the centre, the
+        # PayNow number or the reference; the site shows them. The loss share goes last.
         "zh": (
-            "Payung：{day}{centre}{hazard}{day_colour}，损失{loss}%，S${amount}已转PayNow "
-            "{proxy}，编号{ref}，无需索赔",
-            "Payung：{day}{hazard}{day_colour}，损失{loss}%，S${amount}已转PayNow {proxy}，"
-            "编号{ref}，无需索赔",
-            "Payung：{day}{hazard}{day_colour}，S${amount}已转PayNow {proxy}，编号{ref}，无需索赔",
+            "Payung：{day}{hazard}{day_colour}，损失{loss}%，S${amount}已转PayNow，无需索赔\n{link}",
+            "Payung：{day}{hazard}{day_colour}，S${amount}已转PayNow，无需索赔\n{link}",
         ),
         "ms": "Payung: {day_colour}, kerugian {loss}%. S${amount} dihantar ke PayNow {proxy} "
         "kerana {hazard} di {centre} pada {day}. Ruj {ref}. Tiada tuntutan diperlukan.",
@@ -204,7 +208,7 @@ def payout_text(kind: str, language: str, hazard: str, **fields: str) -> str:
         return wordings.format(hazard=hazard_name, **fields)
     body = ""
     for wording in wordings:
-        body = wording.format(hazard=hazard_name, **fields)
+        body = wording.format(hazard=hazard_name, link=SITE_LINK, **fields)
         if segments(body) == 1:
             return body
     return body
