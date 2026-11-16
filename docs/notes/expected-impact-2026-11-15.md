@@ -2,6 +2,8 @@
 
 Updated 15 Nov 2026 after Deval's commit `16ec056`: the burn numbers below come from the rebuilt burn files, and loss ratios divide by the premium before GST, as those files do.
 
+Updated 16 Nov 2026: the haze-year numbers (sections 0, A.2, C, E and F) now use the final tariff on Deval's branch `production-ready-pricing` (commit `b9aaced`). The Notion page "Payung pricing for review: loss, payout, premium and profit" uses the same tariff, and the team's cross-check row makes that page the reference. The branch is not merged yet, so `main` still runs the old tariff. The old figure of 106.7% for 2026 came from the old tariff (Tier 2 at S$40 a day for 15 days). Do not use it. The final tariff pays S$35 a day at Tier 1 and S$195 a day at Tier 2, for up to 45 days a year. Tier 1 comes first below, because Deval's burn files and the burn report now use Tier 1, the tier a stall is suggested.
+
 Research note for the SIH FIN-4 team, 15 Nov 2026. Payung, offered with Income Insurance. Brief: `/Users/dewa/Documents/Projects/SIH/sih-fin-4/docs/problem-statements.md`, section 1. This note covers the first half of deliverable 5: "Expected impact in terms of improved financial protection for groups". The affordability half (premium against income) is a separate parked task. This note quotes premium values only.
 
 This note changes no number in the product and does not edit the tariff.
@@ -20,14 +22,14 @@ How to read this note:
 |---|---|
 | A. Who is protected in year 1 | Low case 800 people, middle case 6,152, high case 16,722. These are Assumptions, not forecasts. |
 | B. Time to payout | Today's code: an insurer starts a run for one date, then PayNow and SMS. The design: automatic, same day. Today's alternative: days for a fast-track claim and weeks to years for a business-interruption claim. SmartBiz 360 pays nothing on a haze or heat day. |
-| C. Haze year | A 2026-type year pays S$436.95 a stall at Tier 2 (island average). A normal year pays S$145.61. The payout replaces 7.6% of the estimated lost sales in 2026 and 8.0% in a normal year. |
+| C. Haze year | On the final tariff, a 2026-type year pays S$375.33 a stall at Tier 1 (island average), against S$128.41 in a normal year. The island loss ratio is 71.8% in 2026 (Tier 2: 78.3%). The payout replaces 7.0% of the estimated lost sales at Tier 1 and 39.0% at Tier 2, in every year. |
 | D. Say-it-back test | Not tested yet. |
 
 Five warnings for the team:
-1. **The master list numbers for the haze year are stale.** The master list (Notion, "Pitch, Features & Proposal — Master List", edited 15 Nov 04:21 UTC) says the 2026 loss ratio is 68% for a stall and 76% for the island. Deval's commit `16ec056` rebuilt the burn files on the new payout rule and now divides by the premium before GST. They now say 94.2% for the hero stall (`data/processed/burn_yearly_hero.csv`, column `loss_ratio`) and 106.7% for the island (`data/processed/burn_yearly_island.csv`, column `loss_ratio`). The master list also says "up to S$200–600/stall" and "10-yr loss ratio 30%". The files now say 35.3% for the hero stall and 35.5% for the island over 2017 to 2025. Use the files. Sky should update the master list.
-2. **The share of lost sales that a payout replaces is fixed by the maths.** The payout is `loss share x tier amount`. The estimated lost sales are `loss share x S$500`. So a Tier 2 payout always replaces S$40 / S$500 = 8% of the estimate. It does not measure real losses. Nobody has sales data (master list, section 8, limitation 1).
+1. **The 2026 haze-year figure must be 71.8% (Tier 1) or 78.3% (Tier 2).** Three versions were in use: 76% in the old burn analysis, 147% on the pricing page (as the cross-check row quotes it), and 106.7% in this note (Notion TODO "Cross-check that the numbers in the PPT, the proposal and the live demo all tell the same story"). All three are out of date. On the final tariff, the island loss ratio in 2026 (to 8 Nov) is 71.8% at Tier 1 (`data/processed/burn_yearly_island.csv` on branch `production-ready-pricing`, column `loss_ratio`) and 78.3% at Tier 2 (the same script at Tier 2, appendix). The pricing page, section 7.1, gives the same two values. For the ten-year figure, use 29.3% at Tier 1 and 32.0% at Tier 2 (average a year, 2017 to 2026, pricing page section 7.2). Sky should put these in the master list and the deck.
+2. **The share of lost sales that a payout replaces is fixed by the maths.** The payout is `loss share x tier amount`. The estimated lost sales are `loss share x S$500`. So a Tier 1 payout always replaces S$35 / S$500 = 7% of the estimate, and a Tier 2 payout S$195 / S$500 = 39%. The 45-day limit never binds on weather alone, so the share does not change in a bad year. It does not measure real losses. Nobody has sales data (master list, section 8, limitation 1).
 3. **2026 is a part year.** The day table ends on 8 Nov 2026 (`data/processed/day_readings.csv.gz`, last `day` value). The 2026 figures cover 1 Jan to 8 Nov.
-4. **2026 pays more than the whole premium pool.** The island loss ratio is 106.7%. The pool is S$2,391,355 before GST (S$2,606,576 with GST, the sum of all 5,837 stalls at Tier 2). Payouts are S$2,550,484. That is before expenses and before reinsurance. The master list already lists this as limitation 7.
+4. **2026 no longer pays more than the premium pool, but a 2015-type year does.** On the final tariff, 2026 pays S$2,190,799 at Tier 1 against a pool of S$3,050,651 before GST (S$3,325,210 with GST, all 5,837 stalls at Tier 1): 71.8%. A 2015-type year (the 2015 haze plus average rain and heat) pays 104.8% at Tier 1 and 114.3% at Tier 2 (pricing page, section 7.2). That is before expenses and before reinsurance.
 5. **The stall counts in the team documents disagree.** The master list says "5,837 stalls", "~6,500 cooked-food stalls" and "14,600 total". The published figures are 11,446 all-type NEA hawker stalls at end 2025 and 6,665 cooked-food stalls (section A.1). The figure 14,600 has no match in the sources we found. Do not put 14,600 on a slide.
 
 ## A. Workers, stalls and households protected in year 1
@@ -81,7 +83,7 @@ Assumptions behind the cases:
 - **Assumption A7, year 1 means policies in force.** We count policies sold. We ignore the 30-day waiting period and the sale dates. A policy sold late in the year protects no one for part of the year.
 - **Assumption A8, households.** "Household" means the family of a covered stallholder or rider. We count one household per policyholder. We count persons as policyholders x 3.06. Reasoning: no source gives the household size of hawkers or riders (No source found). The national average is the only published figure. Two covered people in one household would reduce the household count. We expect this to be rare, and we have no data on it.
 
-Money that would reach stallholders (illustration, stalls only, Tier 2, island-average payout per stall from section C): low case S$43,683 in a normal year and S$131,085 in a 2026-type year. Middle case S$145,609 and S$436,951. High case S$283,354 and S$850,307. Source: script, section "A. Year-1 cases".
+Money that would reach stallholders (illustration, stalls only, Tier 1 on the final tariff, island-average payout per stall from section C): low case S$38,524 in a normal year and S$112,599 in a 2026-type year; middle case S$128,412 in a normal year and S$375,330 in a 2026-type year; high case S$249,890 in a normal year and S$730,391 in a 2026-type year. Source: section C.2 per-stall figures times the stalls in each case.
 
 ## B. Time to payout against today
 
@@ -134,13 +136,13 @@ Source: `scripts/burn_analysis.py`.
 | Setting | Value | Where in the script |
 |---|---|---|
 | Product | Cooked food | constant `PRODUCT` |
-| Tier | Tier 2: S$40 a day, 15 paid days a year, so a cap of S$600 a year | constant `TIER` and `cap_sgd`. Tariff `tiers`. |
+| Tier | Tier 1: S$35 a day, 45 paid days a year, so a limit of S$1,575 a year. Tier 2 (rerun, appendix): S$195 a day, 45 days, S$8,775. | constant `TIER` and `cap_sgd`. Tariff `tiers` on branch `production-ready-pricing`. |
 | Daily takings | S$500 a day | constant `DAILY_TAKINGS_SGD`. The comment says it is the mid-point of "the triangulated S$400-800/day gross takings of a viable cooked-food stall (no official figure exists)". This is an Assumption. |
 | Estimated lost sales on a trigger day | `loss share x S$500` | `entry["lost"] += loss * DAILY_TAKINGS_SGD` |
-| Payout on a trigger day | `loss share x S$40`, limited by the cap left that year | `calculator.assess` and `paid = min(assessment.payout_sgd, room)` |
+| Payout on a trigger day | `loss share x` the tier amount, limited by the limit left that year | `calculator.assess` and `paid = min(assessment.payout_sgd, room)` |
 | Centres | All 103 existing centres, 5,837 cooked-food stalls | `centres = static["hawker_centres"]` |
-| Premium | The Tier 2 cooked-food yearly premium at each centre's own place, times its stalls | `premiums` and `premium_pool` |
-| Period | 9 Mar 2016 to 8 Nov 2026. 2016 and 2026 are part years. | `data/processed/day_readings.csv.gz` |
+| Premium | The cooked-food yearly premium at the tier, at each centre's own place, times its stalls | `premiums` and `premium_pool` |
+| Period | 2014 to 8 Nov 2026 on the final tariff. 2014 (from 1 Apr) and 2026 are part years. Before Dec 2016 the years have haze only, and before 2025 they have no heat (pricing page, section 7.1). | `data/processed/day_readings.csv.gz` |
 
 The premium in the burn analysis is the place premium of each centre. Since Deval's commit `16ec056`, that is also what a hawker is charged (`business_quote` in `api/main.py`), so the pool is what these stallholders would pay.
 
@@ -148,49 +150,48 @@ The estimated lost sales are not measured losses. They are the tariff's own loss
 
 ### C.2 2026 against a normal year
 
-Source: `data/processed/burn_yearly_island.csv` and `data/processed/burn_yearly_hero.csv`, worked in the script, section "C1". "Normal year" means the average of 2017 to 2025. We leave out 2016 because it is a part year.
+Source: `data/processed/burn_yearly_island.csv` and `data/processed/burn_yearly_hero.csv` on branch `production-ready-pricing` (Tier 1), and the same files from a Tier 2 run of `scripts/burn_analysis.py` (appendix, "Rerun on the final tariff"). "Normal year" means the average of 2017 to 2025.
 
-| Measure (Tier 2, cooked food) | Normal year, island | 2026, island | Hero stall, normal | Hero stall, 2026 |
+| Measure (cooked food, final tariff) | Normal year, island | 2026, island | Hero stall, normal | Hero stall, 2026 |
 |---|---|---|---|---|
-| Total paid | S$849,917 (mean) | S$2,550,484 | | |
-| Paid per stall | S$145.61 (range S$102.46 to S$189.75) | S$436.95 | S$166.84 | S$445.36 |
-| Trigger days | | | 19.8 (mean) | 49 |
-| Estimated lost sales, total | | S$33,556,566 | | S$5,567 |
-| Share of estimated lost sales replaced | 8.0% | 7.6% | 8.0% | 8.0% |
-| Premium before GST (pool or one stall) | S$2,391,355 pool | S$2,391,355 pool | S$472.67 | S$472.67 |
-| Loss ratio (on the premium before GST) | 35.5% (range 25.0% to 46.3%) | 106.7% | 35.3% | 94.2% |
-| 2026 against normal | | 3.00 times the total paid | | |
+| Total paid, Tier 1 | S$749,543 (mean) | S$2,190,799 | | |
+| Paid per stall, Tier 1 | S$128.41 (range S$89.65 to S$173.39) | S$375.33 | S$130.59 | S$389.69 |
+| Paid per stall, Tier 2 | S$715.44 (range S$499.50 to S$966.01) | S$2,091.12 | S$727.57 | S$2,171.13 |
+| Trigger days | | | 17.2 (mean) | 49 |
+| Estimated lost sales, total | | S$31,297,022 | | S$5,567 |
+| Share of estimated lost sales replaced | Tier 1 7.0%, Tier 2 39.0% | Tier 1 7.0%, Tier 2 39.0% | the same | the same |
+| Premium before GST, Tier 1 (pool or one stall) | S$3,050,651 pool | S$3,050,651 pool | S$532.27 | S$532.27 |
+| Premium before GST, Tier 2 (pool or one stall) | S$15,580,111 pool | S$15,580,111 pool | S$2,718.34 | S$2,718.34 |
+| Loss ratio, Tier 1 (on the premium before GST) | 24.6% (range 17.2% to 33.2%) | 71.8% | 24.5% | 73.2% |
+| Loss ratio, Tier 2 | 26.8% (range 18.7% to 36.2%) | 78.3% | 26.8% | 79.9% |
+| 2026 against normal | | 2.92 times the total paid | | |
 
 Reading the table:
-- The island loss ratio in a normal year (35.5%) sits below the Singapore general-insurance claims ratio of 49.6% that the master list quotes (MAS returns 2021 to 2025, via the master list, section 5). We did not check the MAS returns.
-- The 2026 payout per stall (S$436.95) is 73% of the S$600 yearly cap for Tier 2.
-- The share replaced falls from 8.0% to 7.6% on the island in 2026 because the yearly cap limits payouts at some centres. At the hero stall the cap is not reached.
-- The share replaced is fixed by the tier amount over the takings assumption. At S$500 a day a full-loss day replaces 4% (Tier 1, S$20), 8% (Tier 2, S$40), 14% (Tier 3, S$70) and 20% (Tier 4, S$100). Do not describe 8% as a finding. It is a design property.
-- 2026 was not a "bad year for the pool only". Rain and heat added to the haze. At the hero stall, 2026 paid S$220.80 for haze, S$154.00 for rain and S$72.00 for heat (`burn_yearly_hero.csv`).
+- The ten-year figure for the deck is the average a year over 2017 to 2026: 29.3% at Tier 1 and 32.0% at Tier 2 (pricing page, section 7.2). The 2017 to 2025 mean leaves out 2026, so it is lower.
+- The island loss ratio in a normal year (24.6% at Tier 1) sits below the Singapore general-insurance claims ratio of 49.6% that the master list quotes (MAS returns 2021 to 2025, via the master list, section 5). We did not check the MAS returns.
+- The 2026 payout per stall at Tier 1 (S$375.33) is 24% of the S$1,575 yearly limit. The limit is not reached, so the share replaced is the same in every year.
+- The share replaced is fixed by the tier amount over the takings assumption: S$35 / S$500 = 7% at Tier 1 and S$195 / S$500 = 39% at Tier 2. Do not describe it as a finding. It is a design property.
+- 2026 was not a "bad year for the pool only". Rain and heat added to the haze. At the hero stall, 2026 paid S$193.20 for haze, S$134.75 for rain and S$63.00 for heat at Tier 1 (`burn_yearly_hero.csv` on the branch).
 
-Burn-analysis gap found while checking: the day table takes haze from the real-time PSI feed, which has gaps. In 2019 it has data for 280 days (`data/processed/psi_yearly.csv`, column `days_with_data`). The NEA 24-hour history has all 365 days. For the south region in 2019 the burn analysis pays S$57.60 for haze (6 days). The history gives S$105.60 (11 days). The 2016 value agrees (S$19.20 in both). So the burn analysis under-counts haze in years with feed gaps. The normal-year figures above are slightly low for that reason. We did not rerun the burn analysis, and this note leaves the files as they are.
+Burn-analysis gap found while checking: the day table takes haze from the real-time PSI feed, which has gaps. In 2019 it has data for 280 days (`data/processed/psi_yearly.csv`, column `days_with_data`). The NEA 24-hour history has all 365 days. For the south region in 2019 the burn analysis pays S$57.60 for haze (6 days). The history gives S$105.60 (11 days). The 2016 value agrees (S$19.20 in both). So the burn analysis under-counts haze in years with feed gaps. The normal-year figures above are slightly low for that reason. This check was made on the 15 Nov files. We did not repeat it on the final tariff.
 
-### C.3 2015, haze only, estimate
+### C.3 2015, haze only
 
-The burn analysis starts in 2016. It does not cover 2015. We estimated the 2015 haze alone. Label: **haze only, estimate**.
+On the final tariff the burn files start in 2014, so they cover 2015 directly. 2015 has haze only, because rain is recorded from Dec 2016 and heat from 2025.
 
-Method (script, section "C2"): take the highest hourly value of the 24-hour PSI per region and Singapore day from `data/psi/psi_history_24hr.parquet`. Run `calculator.assess` with the tariff, cooked food and Tier 2 for each day with PSI of 101 or more. Apply the S$600 yearly cap in date order. Weight each region by its cooked-food stalls from `map_static.json` (south 3,265, east 1,325, central 741, west 398, north 108).
+| Item (cooked food, island, final tariff) | Tier 1 | Tier 2 |
+|---|---|---|
+| Paid, 2015 (haze only) | S$2,296,048 | S$12,792,265 |
+| Paid per stall, 2015 | S$393.36 | S$2,191.58 |
+| Loss ratio, 2015 (haze only) | 75.3% | 82.1% |
+| Loss ratio, 2015-type year (2015 haze plus average rain and heat) | 104.8% | 114.3% |
 
-| Item (haze only, estimate) | 2015 | 2019 (a normal year with a small haze) | 2026 to 30 Sep (history ends 1 Oct) |
-|---|---|---|---|
-| Island paid | S$2,624,054 | S$517,862 | S$405,974 |
-| Paid per stall | S$449.56 | S$88.72 | S$69.55 |
-| Highest 24-hour PSI in any region | 322 | 154 | 167 |
-| Haze days at 101 or more, south region | 42 | 11 | 5 |
-| Data days, south region | 365 | 365 | 274 |
+Sources: `data/processed/burn_yearly_island.csv` on the branch (Tier 1) and the Tier 2 rerun (appendix). The 2015-type year is from the pricing page, section 7.2.
 
 For 2015:
-- The estimate is 2015 haze under the 2026 tariff and the Tier 2 cap. It is not what Payung would have paid in 2015, because the product did not exist and it adds no rain or heat.
-- The island total (S$2,624,054) equals 109.7% of the S$2,391,355 pool before GST.
-- The per-stall payout is 75% of the S$600 cap. The largest single-region payout is S$492.80.
-- The south region had 42 haze days and a peak of 322. The north had 43 days and a peak of 302. The west had 45 days and a peak of 321.
-- 2015 haze alone pays a little more than the whole of 2026 (S$449.56 against S$436.95 a stall). 2026 had 39 unhealthy days and a peak of 230 (`data/processed/psi_yearly.csv`). The 2015 peak is higher, and the daily figure is the tariff reading, so the two years are close in payout.
-- 2026 cannot be compared on haze alone with this file, because the file stops on 1 Oct 2026 and the main 2026 haze fell on 3 to 25 Oct.
+- It is 2015 weather under today's tariff. It is not what Payung would have paid in 2015, because the product did not exist.
+- 2015 haze alone pays a little more than the whole of 2026 (S$393.36 against S$375.33 a stall at Tier 1).
+- The 15 Nov version of this note estimated 2015 from the PSI history on the old tariff (S$449.56 a stall, 109.7% of the pool). Those figures are out of date. Do not use them.
 
 ## D. Percentage who pass the say-it-back test
 
@@ -229,22 +230,22 @@ The test to run (it covers Rafael's one-SMS TODO and the draft plan's week-4 ste
 | Time to payout, Singapore standard | Pay within 10 business days after settlement is agreed | GIA Code of Practice. Notion page "Insurance Payout Speed and Frictions". |
 | Time to payout, property damage today | Typically 30 to 60 days | Notion page, citing MoneySmart. Not checked. |
 | Haze, weather income cover today | Pays nothing: SmartBiz 360 business interruption needs physical damage | Distribution note, source S1. |
-| 2026 payout per stall, Tier 2 | S$436.95 (island average, 1 Jan to 8 Nov) | `data/processed/burn_yearly_island.csv`, script section C1. |
-| Normal-year payout per stall, Tier 2 | S$145.61 (2017 to 2025 mean) | Same file, script section C1. |
-| Share of estimated lost sales replaced | 7.6% in 2026, 8.0% in a normal year | Script section C1. Assumption: S$500 a day takings (`scripts/burn_analysis.py`, `DAILY_TAKINGS_SGD`). Fixed by the tier amount. |
-| Loss ratio, island (premium before GST) | 106.7% in 2026, 35.5% over 2017 to 2025 | `data/processed/burn_yearly_island.csv`, script section C1. |
-| Loss ratio, hero stall (Tiong Bahru) | 94.2% in 2026, 35.3% over 2017 to 2025 | `data/processed/burn_yearly_hero.csv`, script section C1. |
-| 2015 haze, per stall | S$449.56 (haze only, estimate) | Script section C2. `data/psi/psi_history_24hr.parquet`, `api/calculator.py`, tariff. |
-| 2015 haze, island loss ratio | 109.7% of the premium before GST (haze only, estimate) | Script section C2. |
+| 2026 payout per stall | S$375.33 at Tier 1, S$2,091.12 at Tier 2 (island average, 1 Jan to 8 Nov, final tariff) | `data/processed/burn_yearly_island.csv` on branch `production-ready-pricing`, and the Tier 2 rerun (appendix). |
+| Normal-year payout per stall | S$128.41 at Tier 1, S$715.44 at Tier 2 (2017 to 2025 mean) | Same files. |
+| Share of estimated lost sales replaced | 7.0% at Tier 1, 39.0% at Tier 2, in every year | Assumption: S$500 a day takings (`scripts/burn_analysis.py`, `DAILY_TAKINGS_SGD`). Fixed by the tier amount. |
+| Loss ratio, island (premium before GST) | 71.8% in 2026 at Tier 1 (78.3% at Tier 2); 29.3% a year over 2017 to 2026 at Tier 1 (32.0% at Tier 2) | Same files. Notion page "Payung pricing for review: loss, payout, premium and profit", sections 7.1 and 7.2. |
+| Loss ratio, hero stall (Tiong Bahru) | 73.2% in 2026 at Tier 1, 24.5% mean over 2017 to 2025 | `data/processed/burn_yearly_hero.csv` on the branch. |
+| 2015 haze, per stall | S$393.36 at Tier 1 (haze only) | `data/processed/burn_yearly_island.csv` on the branch. |
+| 2015 haze, island loss ratio | 75.3% at Tier 1, 82.1% at Tier 2 (haze only). A 2015-type year with average rain and heat: 104.8% and 114.3%. | Same files. Pricing page, section 7.2. |
 | Say-it-back pass rate | Not tested yet. Target 90% (draft plan, not tested). | SafeDay Hackathon Plan PDF, section 14. No test found in Notion or the repo. |
 
 ## F. Three sentences for the proposal
 
-Payung would protect about 800 to 16,700 hawkers, shop owners and riders in year 1 (middle case 6,152, an Assumption), which reaches about 2,400 to 51,000 people in their households. In a 2026-type haze year the Tier 2 cover pays about S$437 a stall against about S$146 in a normal year, which replaces about 8% of the estimated lost sales and takes the island loss ratio to 107% (haze alone in 2015, estimated, gives 110%). The payout is automatic by PayNow with no claim form and is designed for the same day, against days for a fast-track claim and nothing at all from SmartBiz 360 on a haze day, but the speed is not yet measured and the say-it-back test has not been run.
+Payung would protect about 800 to 16,700 hawkers, shop owners and riders in year 1 (middle case 6,152, an Assumption), which reaches about 2,400 to 51,000 people in their households. In a 2026-type haze year the Tier 1 cover pays about S$375 a stall against about S$128 in a normal year, and the island loss ratio reaches 72% (78% at Tier 2), against 29% a year over the last ten years. The payout is automatic by PayNow with no claim form and is designed for the same day, against days for a fast-track claim and nothing at all from SmartBiz 360 on a haze day, but the speed is not yet measured and the say-it-back test has not been run.
 
 ## G. Open items for the team
 
-1. Sky: update the master list (section 1 "Back-tested" row, section 5 "Hero stall" and "Island, 2026" rows) to the rebuilt burn numbers. Rerun `scripts/burn_analysis.py` first if the tariff changes again.
+1. Sky: put the final-tariff figures in the master list and the deck: 71.8% (Tier 1) or 78.3% (Tier 2) for 2026, and 29.3% or 32.0% for the ten-year average. Rerun `scripts/burn_analysis.py` first if the tariff changes again.
 2. Dewa or Deval: pick one source for the SEWA payout time (2 to 3 weeks or 6 to 8 weeks) and open the CGAP case study.
 3. Income: answer how many Stallholder Insurance and SmartBiz 360 policies are in force. The answer replaces the Assumptions in section A.2 for hawkers and shops.
 4. Dewa: decide whether to fix the haze gaps in the day table (section C.2) before the numbers go on a slide. A fix changes `data/processed/` files, so it is outside this note.
@@ -262,7 +263,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /path/to/impact_calc.py
 
 Save the code below as `impact_calc.py` anywhere outside the repo. The repo does not hold the script.
 
-The working copy of the script was kept at `/private/tmp/claude-501/-Users-dewa--claude-spares-spare-fqhk7Y/d3ed11b2-54b1-468a-92a5-82f010f17a46/scratchpad/impact_calc.py`. The full code follows, then its output on 15 Nov 2026.
+The working copy of the script was kept at `/private/tmp/claude-501/-Users-dewa--claude-spares-spare-fqhk7Y/d3ed11b2-54b1-468a-92a5-82f010f17a46/scratchpad/impact_calc.py`. The full code follows, then its output on 15 Nov 2026. That output is on the old tariff. Its sections C1, C2 and A (money that reaches stallholders) are replaced by the rerun at the end of this appendix.
 
 ### Script `impact_calc.py`
 
@@ -477,4 +478,80 @@ stalls with insurance (2/3 of 5,837): 3891
 == C2 extra. 2015 haze only against the same premium pool ==
 2015 haze-only island paid S$2,624,054 / pool S$2,391,355 = 1.097
 2015 haze-only per stall S$449.56, cap S$600.0, share of cap 75%
+```
+
+### Rerun on the final tariff, 16 Nov 2026
+
+The haze-year numbers in sections 0, A.2, C, E and F come from this rerun.
+
+1. Tier 1: the burn files as committed on branch `production-ready-pricing` (commit `ebe955a`, "Rerun the burn analysis on the final tariff, for a Tier 1 stall").
+2. Tier 2: in a scratch checkout of the same branch (commit `b9aaced`), set `TIER = "tier_2"` in `scripts/burn_analysis.py`, run it, copy `data/processed/burn_yearly_island.csv` and `burn_yearly_hero.csv` out, then discard the changes. The Tier 2 files are not committed.
+
+   ```
+   uv run python scripts/burn_analysis.py
+   ```
+
+   The run printed: "Island 2026: 5,837 stalls would have been paid S$12,205,895 against S$31,297,022 est. losses (pool S$16,982,321, loss ratio 78%)".
+3. Put the Tier 1 files in `<dir>/t1/` and the Tier 2 files in `<dir>/t2/`, then run the script below with `<dir>` as its argument.
+
+The results match the pricing page, sections 7.1 and 7.2: 71.8% and 78.3% for 2026, 75.3% and 82.1% for 2015, 29.3% and 32.0% a year over 2017 to 2026, and 17.2% to 33.2% and 18.7% to 36.2% in normal years.
+
+```python
+"""Haze-year numbers for the expected-impact note, on the final tariff (branch production-ready-pricing, b9aaced).
+Tier 1: data/processed/burn_yearly_*.csv as committed on the branch (ebe955a).
+Tier 2: the same scripts/burn_analysis.py with TIER = "tier_2", run in a scratch checkout, files not committed.
+"""
+import sys
+from pathlib import Path
+import pandas as pd
+
+base = Path(sys.argv[1])
+CAP = {"t1": (35, 45), "t2": (195, 45)}
+for t in ("t1", "t2"):
+    isl = pd.read_csv(base / t / "burn_yearly_island.csv").set_index("year")
+    hero = pd.read_csv(base / t / "burn_yearly_hero.csv").set_index("year")
+    n = isl.stalls.iloc[0]
+    d, days = CAP[t]
+    norm = isl.loc[2017:2025]
+    ten = isl.loc[2017:2026]
+    print(f"== {t}: S${d}/day x {days} days, cap S${d*days:,}")
+    print(f"pool before GST S${isl.premium_pool_before_gst_sgd.iloc[0]:,} (with GST S${isl.premium_pool_sgd.iloc[0]:,}), stalls {n}")
+    print(f"normal 2017-2025: mean paid S${norm.payout_sgd.mean():,.0f}, per stall mean S${norm.payout_sgd.mean()/n:.2f} "
+          f"(range S${norm.payout_sgd.min()/n:.2f} to S${norm.payout_sgd.max()/n:.2f}), "
+          f"loss ratio mean {norm.loss_ratio.mean():.1%} (range {norm.loss_ratio.min():.1%} to {norm.loss_ratio.max():.1%}), "
+          f"replaced {norm.payout_sgd.sum()/norm.est_lost_sgd.sum():.1%}")
+    print(f"average a year 2017-2026: loss ratio {ten.payout_sgd.sum()/ten.premium_pool_before_gst_sgd.sum():.1%}")
+    for y in (2015, 2026):
+        r = isl.loc[y]
+        print(f"{y}: paid S${r.payout_sgd:,}, per stall S${r.payout_sgd/n:.2f}, est lost S${r.est_lost_sgd:,}, "
+              f"replaced {r.payout_sgd/r.est_lost_sgd:.1%}, loss ratio {r.loss_ratio:.1%}")
+    print(f"2026 vs normal: {isl.loc[2026].payout_sgd/norm.payout_sgd.mean():.2f} times")
+    hn = hero.loc[2017:2025]; h = hero.loc[2026]
+    print(f"hero normal: paid mean S${hn.payout_sgd.mean():.2f}, trigger days mean {hn.trigger_days.mean():.1f}, "
+          f"loss ratio mean {hn.loss_ratio.mean():.1%}; premium before GST S${h.premium_before_gst_sgd}")
+    print(f"hero 2026: paid S${h.payout_sgd} (haze {h.payout_haze_sgd}, rain {h.payout_rain_sgd}, heat {h.payout_heat_sgd}), "
+          f"trigger days {h.trigger_days}, est lost S${h.est_lost_sgd}, replaced {h.payout_sgd/h.est_lost_sgd:.1%}, loss ratio {h.loss_ratio:.1%}")
+```
+
+Output:
+
+```
+== t1: S$35/day x 45 days, cap S$1,575
+pool before GST S$3,050,651 (with GST S$3,325,210), stalls 5837
+normal 2017-2025: mean paid S$749,543, per stall mean S$128.41 (range S$89.65 to S$173.39), loss ratio mean 24.6% (range 17.2% to 33.2%), replaced 7.0%
+average a year 2017-2026: loss ratio 29.3%
+2015: paid S$2,296,048.0, per stall S$393.36, est lost S$32,800,680.0, replaced 7.0%, loss ratio 75.3%
+2026: paid S$2,190,799.0, per stall S$375.33, est lost S$31,297,022.0, replaced 7.0%, loss ratio 71.8%
+2026 vs normal: 2.92 times
+hero normal: paid mean S$130.59, trigger days mean 17.2, loss ratio mean 24.5%; premium before GST S$532.27
+hero 2026: paid S$389.69 (haze 193.2, rain 134.75, heat 63.0), trigger days 49.0, est lost S$5567.0, replaced 7.0%, loss ratio 73.2%
+== t2: S$195/day x 45 days, cap S$8,775
+pool before GST S$15,580,111 (with GST S$16,982,321), stalls 5837
+normal 2017-2025: mean paid S$4,176,023, per stall mean S$715.44 (range S$499.50 to S$966.01), loss ratio mean 26.8% (range 18.7% to 36.2%), replaced 39.0%
+average a year 2017-2026: loss ratio 32.0%
+2015: paid S$12,792,265.0, per stall S$2191.58, est lost S$32,800,680.0, replaced 39.0%, loss ratio 82.1%
+2026: paid S$12,205,895.0, per stall S$2091.12, est lost S$31,297,022.0, replaced 39.0%, loss ratio 78.3%
+2026 vs normal: 2.92 times
+hero normal: paid mean S$727.57, trigger days mean 17.2, loss ratio mean 26.8%; premium before GST S$2718.34
+hero 2026: paid S$2171.13 (haze 1076.4, rain 750.75, heat 351.0), trigger days 49.0, est lost S$5567.0, replaced 39.0%, loss ratio 79.9%
 ```
