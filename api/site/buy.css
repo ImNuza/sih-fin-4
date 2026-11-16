@@ -87,6 +87,24 @@
 .rent-hint { margin: calc(-1 * var(--s-2)) 0 var(--s-4); padding: var(--s-3); border-radius: var(--r-sm); background: var(--surface-2); font-size: var(--t-sm); color: var(--ink-2); }
 .rent-hint b { color: var(--ink); }
 
+/* ---------- business: look up a licence or UEN, then show what the registry says ---------- */
+.lookup-row { display: flex; gap: var(--s-2); align-items: flex-end; margin: var(--s-4) 0 0; }
+.lookup-row > label { flex: 1; min-width: 0; margin: 0; }
+.lookup-row > .btn { flex: none; min-height: 44px; }
+.lookup-hint { margin: var(--s-1) 0 var(--s-3); }
+.lookup-card { margin: 0 0 var(--s-4); padding: var(--s-3) var(--s-4); border-radius: var(--r-sm); background: var(--surface-2); border-left: 3px solid var(--line); font-size: var(--t-sm); color: var(--ink-2); }
+.lookup-card.found { border-left-color: var(--good); }
+.lookup-card.problem { border-left-color: var(--critical); }
+.lookup-card.unchecked { border-left-color: var(--warning); }
+.lookup-card .lookup-head { display: flex; gap: var(--s-2); align-items: center; font-weight: var(--w-bold); color: var(--ink); margin-bottom: var(--s-1); }
+.lookup-card .lookup-head .i { flex: none; width: 16px; height: 16px; }
+.lookup-card.found .lookup-head .i { color: var(--good); }
+.lookup-card.problem .lookup-head .i { color: var(--critical); }
+.lookup-card.unchecked .lookup-head .i { color: var(--warning); }
+.lookup-card .kv { padding: 6px 0; }
+.lookup-card .kv .v { overflow-wrap: anywhere; }
+.lookup-card .fine { margin: var(--s-2) 0 0; }
+
 .field-error {
   display: flex; gap: var(--s-1); align-items: flex-start; width: 100%; margin-top: var(--s-2);
   font: var(--w-medium) var(--t-sm)/1.4 var(--sans); color: var(--critical);

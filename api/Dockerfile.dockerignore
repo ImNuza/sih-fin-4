@@ -11,6 +11,7 @@
 !data/processed/hawker_rent.csv
 !data/processed/model_history.npz
 !data/processed/model_insights.json
+!data/registry/
 api/tariff.db
 **/__pycache__/
 **/.DS_Store

@@ -19,6 +19,7 @@ COPY data/processed/site_hazard_readings.csv data/processed/map_static.json \
      data/processed/map_buildings.json data/processed/day_readings.csv.gz \
      data/processed/hawker_rent.csv data/processed/model_history.npz \
      data/processed/model_insights.json data/processed/
+COPY data/registry/ data/registry/
 
 RUN useradd --uid 10002 --no-create-home --shell /usr/sbin/nologin pricing
 USER 10002

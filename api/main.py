@@ -42,8 +42,8 @@ from sqlalchemy import select as sa_select
 
 from api import (
     accounts, assistant, burn, calculator, day_check, kyc, model_history, onboarding,
-    payout_api, payout_flow, paynow_qr, postcodes, premium, readings, sms, store, underwriting,
-    voice,
+    payout_api, payout_flow, paynow_qr, postcodes, premium, readings, registry, sms, store,
+    underwriting, voice,
 )
 from api.accounts import InsurerDep, Registration, SmeDep, UserDep
 from api.calculator import BidRecord, History, Readings, Site, Sites
@@ -1043,9 +1043,8 @@ def buy_policy(
     return {"id": policy_id, **{k: v for k, v in values.items() if k != "user_id"}}
 
 
-# UEN formats from ACRA: 8 digits + letter (businesses), 9 digits + letter (local companies),
-# or T/S/R + 2 digits + 2 letters + 4 digits + letter (other entities).
-UEN = re.compile(r"^(\d{8}[A-Z]|\d{9}[A-Z]|[TSR]\d{2}[A-Z]{2}\d{4}[A-Z])$")
+UEN = registry.UEN
+UEN_EXAMPLE = "That UEN does not look right, e.g. 53123456A or 201912345K"
 # Singapore mobile and fixed-line numbers: 8 digits starting with 3, 6, 8 or 9.
 SG_PHONE = re.compile(r"^[3689]\d{7}$")
 PAYMENT_REF = re.compile(r"^DEMO-[0-9A-F]{6}$")
@@ -1065,6 +1064,11 @@ class BuyRequest(SellerFields):
     Email and password are only checked for being present: the demo fills them with made-up
     values. An email that already has an account is still refused. Each business class sends
     only its own identifying fields; the others are dropped. See api/onboarding.py.
+
+    The form does not ask whether the applicant is an individual or a company. The server sets
+    applicant_type from the UEN (api/registry.py): a shop must give its UEN, a hawker may give
+    one when a company runs the stall, and a platform worker gives none. A value sent by the
+    client is ignored.
     """
 
     business_class: onboarding.BusinessClass
@@ -1085,7 +1089,7 @@ class BuyRequest(SellerFields):
     designation: str | None = Field(default=None, max_length=60)
     cover_start: date | None = Field(default=None, description="Singapore date. Empty: today.")
     term_months: Literal[12, 24] = 12
-    applicant_type: Literal["individual", "company"]
+    applicant_type: Literal["individual", "company"] | None = None
     uen: str | None = None
     phone: str
     sms_language: sms.SmsLanguage = Field(
@@ -1121,7 +1125,7 @@ class BuyRequest(SellerFields):
             return None
         value = value.strip().upper()
         if not UEN.match(value):
-            raise ValueError("That UEN does not look right, e.g. 53123456A or 201912345K")
+            raise ValueError(UEN_EXAMPLE)
         return value
 
     @field_validator("licence_no")
@@ -1173,8 +1177,7 @@ class BuyRequest(SellerFields):
                 raise ValueError("Say whether annual sales were under S$100 million")
             if not self.sales_under_100m:
                 raise ValueError(onboarding.NOT_AN_SME)
-        if self.applicant_type == "company" and self.uen is None:
-            raise ValueError("A company needs its UEN")
+        self.applicant_type = registry.applicant_type(self.uen)
         if not (self.accept_declaration and self.accept_pdpa):
             raise ValueError("Tick the declaration and the personal data consent to continue")
         if self.add_safeday and self.tier is None:
@@ -1189,6 +1192,8 @@ class BuyRequest(SellerFields):
         self.ssic_code = self.platform = self.platform_worker_id = self.postcode = None
 
     def shop_complete(self) -> None:
+        if self.uen is None:
+            raise ValueError("Enter the shop's UEN from ACRA")
         if self.postcode is None:
             raise ValueError("Enter the shop's 6-digit postcode")
         if not onboarding.SSIC_CODE.match(self.ssic_code or ""):
@@ -1204,8 +1209,8 @@ class BuyRequest(SellerFields):
             raise ValueError("Enter your driver or rider ID, 3 to 40 characters")
         if self.postcode is None:
             raise ValueError("Enter your 6-digit home postcode")
-        if self.applicant_type != "individual":
-            raise ValueError("A platform worker applies as an individual")
+        if self.uen is not None:
+            raise ValueError("A platform worker applies as an individual, without a UEN")
         self.platform_worker_id = worker_id
         self.staff_band = self.staff_band or onboarding.PLATFORM_WORKER_STAFF_BAND
         self.business_name = self.centre = self.stall_unit = None
@@ -1238,6 +1243,70 @@ def hawker_postcode(request: Request, centre: str) -> str | None:
     return match.group(1) if match else None
 
 
+def registry_checks(body: BuyRequest) -> dict:
+    """What ACRA and the demo licence register say about the numbers in an application.
+
+    Refuses (422) a UEN that ACRA does not list or lists as no longer live. When data.gov.sg
+    cannot be reached, the application goes on and the UEN is marked not_checked."""
+    checks = {"uen_check": None, "registered_name": None, "entity_type": None, "licence_check": None}
+    if body.uen:
+        try:
+            business = registry.lookup_uen(body.uen)
+        except registry.RegistryUnavailable:
+            checks["uen_check"] = "not_checked"
+        else:
+            if business is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    f"ACRA has no business with UEN {body.uen}. Check the number",
+                )
+            if not business.live:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    f"ACRA lists UEN {body.uen} as {business.status}. "
+                    "Payung covers businesses that still trade",
+                )
+            checks.update(
+                uen_check="acra", registered_name=business.name, entity_type=business.entity_type
+            )
+    if body.licence_no:
+        listed = registry.lookup_licence(body.licence_no) is not None
+        checks["licence_check"] = "demo_register" if listed else "not_checked"
+    return checks
+
+
+@app.get("/api/lookup/uen/{uen}")
+def lookup_uen(uen: str) -> registry.Business:
+    """ACRA's record for a UEN (data.gov.sg), to fill in the buy flow. 503 when data.gov.sg
+    cannot be reached: the form then takes the details as typed."""
+    uen = uen.strip().upper()
+    if not UEN.match(uen):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, UEN_EXAMPLE)
+    try:
+        business = registry.lookup_uen(uen)
+    except registry.RegistryUnavailable as error:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Could not reach ACRA's records on data.gov.sg. Type the details instead",
+        ) from error
+    if business is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"ACRA has no business with UEN {uen}")
+    return business
+
+
+@app.get("/api/lookup/licence")
+def lookup_licence(licence_no: Annotated[str, Query(max_length=40)]) -> registry.Licence:
+    """A hawker licence in the demo register (made up: SFA has no open lookup). A query
+    parameter, since a licence number may hold a '/'."""
+    licence = registry.lookup_licence(licence_no)
+    if licence is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "This licence is not in the demo register. Type the stall details instead",
+        )
+    return licence
+
+
 @app.get("/api/buy/options")
 def buy_options() -> dict:
     """The choices the buy flow offers each business class, and the postal sector regions."""
@@ -1258,6 +1327,12 @@ def buy_options() -> dict:
         "waiting_period_days": accounts.WAITING_PERIOD_DAYS,
         "cap_window_days": payout_flow.CAP_WINDOW_DAYS,
         "postal_sector_regions": postcodes.SECTOR_REGION,
+        # The demo's "New random details" draws from these, so every lookup finds a record.
+        "demo_uens": list(registry.demo_companies()),
+        "demo_licences": [
+            {"licence_no": licence.licence_no, "centre": licence.centre}
+            for licence in registry.demo_licences().values()
+        ],
     }
 
 
@@ -1297,6 +1372,7 @@ def buy(
     paynow = pays and body.payment_method == "paynow"
     if paynow and not body.payment_token:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pay with PayNow first")
+    checks = registry_checks(body)
     now = datetime.now(UTC)
     cover_start = body.cover_start or now.astimezone(SINGAPORE).date()
     starts_at = max(now, datetime.combine(cover_start, datetime.min.time(), SINGAPORE))
@@ -1374,9 +1450,14 @@ def buy(
         db.execute(
             sa_insert(accounts.application_channel).values(application_id=application["id"], **channel)
         )
+        db.execute(
+            sa_insert(accounts.application_checks).values(
+                application_id=application["id"], checked_at=now, **checks
+            )
+        )
         sms.set_preferred_language(db, user_id, body.sms_language)
         payout_flow.send_welcome_if_due(db, user_id, tariff)
-        application.update(details, **profile, **channel)
+        application.update(details, **profile, **channel, **checks)
     accounts.start_session(engine, user_id, response)
     return {
         "application": {k: v for k, v in application.items() if k != "user_id"},

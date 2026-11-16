@@ -135,6 +135,20 @@ application_channel = Table(
     Column("adviser_code", String),
     Column("association", String),
 )
+# What the registries said about the numbers the customer gave, one row per application.
+# uen_check is "acra" when ACRA listed the UEN as live, or "not_checked" when data.gov.sg could not
+# be reached (an underwriter checks it). licence_check is "demo_register" when the demo licence
+# register lists the number, else "not_checked". See api/registry.py.
+application_checks = Table(
+    "application_checks",
+    metadata,
+    Column("application_id", Integer, primary_key=True),
+    Column("uen_check", String),
+    Column("registered_name", String),
+    Column("entity_type", String),
+    Column("licence_check", String),
+    Column("checked_at", DateTime(timezone=True), nullable=False),
+)
 # Who started or changed a cover with the customer after the application, one row each time
 # (POST /api/policies). Same fields as application_channel: never sold to the customer directly.
 policy_channel = Table(
