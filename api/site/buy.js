@@ -1,7 +1,7 @@
 /* Payung guided buy flow (/buy/): a SmartBiz 360-style application with Payung as an add-on,
-   filled in with the customer by their Income adviser or by an association (sold_by). Income
-   sells SmartBiz 360 through intermediaries, so the flow never reads as a direct sale.
-   /buy/?via=adviser or ?via=association picks who fills it in.
+   filled in with the customer by their Income adviser or by an association (sold_by), or by the
+   owner online by themselves ("self": no code, no approval, cover starts the same way).
+   /buy/?via=adviser, ?via=association or ?via=self picks who fills it in.
    Steps: business, cover, details, confirm, pay. Pay is skipped when Payung is not added or a
    past decline sends the application to an underwriter. Three business classes, one path each:
    hawker stall, neighbourhood shop, platform worker (the choices come from /api/buy/options).
@@ -102,7 +102,7 @@ function priceBasis() {
 /* ---------- errors ---------- */
 /* What to do when a field is empty or wrong, by input name. A custom validity message wins. */
 const FIELD_PROBLEMS = {
-  sold_by: "Say who is filling in this form with you: your Income adviser or your association.",
+  sold_by: "Say who is filling in this form with you: your Income adviser, your association, or nobody.",
   adviser_code: "Enter the Income adviser code: 4 to 12 letters or digits, for example DEMO1234.",
   association: "Enter the name of the association, at least 3 characters.",
   business_class: "Pick the kind of business.",
@@ -375,9 +375,12 @@ function showChannelFields() {
   const sold = soldBy();
   el("adviser-field").hidden = sold !== "adviser";
   el("association-field").hidden = sold !== "association";
-  el("addon-who").textContent = sold === "association" ? "Your association" : "Your adviser";
+  el("self-note").hidden = sold !== "self";
+  el("addon-who").textContent = sold === "association" ? "Your association adds"
+    : sold === "self" ? "Add" : "Your adviser adds";
 }
 function channelText() {
+  if (soldBy() === "self") return "Signed up online by you";
   return soldBy() === "association"
     ? `${field("association").value.trim()} (group scheme)`
     : `Income adviser · code ${field("adviser_code").value.trim().toUpperCase()}`;

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Apply with your adviser or association · Payung</title>
+    <title>Apply with your adviser, your association or online · Payung</title>
     <link rel="icon" href="/favicon.ico?v=1" sizes="48x48" />
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png?v=1" />
     <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16.png?v=1" />
@@ -18,7 +18,7 @@
     <script src="/ui.js?v=4" defer></script>
     <script src="/site.js?v=29" defer></script>
     <script src="/tier-proof.js?v=7" defer></script>
-    <script src="/buy.js?v=18" defer></script>
+    <script src="/buy.js?v=19" defer></script>
     <link rel="stylesheet" href="/assistant.css?v=8" />
     <script src="/assistant.js?v=4" defer></script>
   </head>
@@ -36,14 +36,14 @@
       <div class="buy-main">
         <p class="notice prototype">
           <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg>
-          <span>Prototype. Your Income adviser or your hawker or merchants' association fills in this form with you. Payung is an add-on to SmartBiz 360 by Income. This is not an Income page, and no money moves.</span>
+          <span>Prototype. Your Income adviser or your hawker or merchants' association fills in this form with you, or you fill it in yourself online. Payung is an add-on to SmartBiz 360 by Income. This is not an Income page, and no money moves.</span>
         </p>
         <p class="notice warning" id="insurer-note" hidden>
           <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#triangle-alert"/></svg>
           <span><b>You are signed in as an insurer.</b> This flow is for business owners who buy cover. <a class="linklike" href="/dashboard/">Go to the portfolio desk</a></span>
         </p>
 
-        <h1 class="buy-title">SmartBiz 360 with Payung <span>filled in with your Income adviser or your association</span></h1>
+        <h1 class="buy-title">SmartBiz 360 with Payung <span>with your Income adviser, your association, or on your own</span></h1>
 
         <ol class="stepper" id="stepper" aria-label="Steps">
           <li data-for="business"><span class="dot" aria-hidden="true"><span class="n">1</span><svg class="i"><use href="/vendor/icons.svg#check"/></svg></span><span class="label">Business</span></li>
@@ -70,7 +70,12 @@
               <legend>Who is filling in this form with you?</legend>
               <label><input type="radio" name="sold_by" value="adviser" required /> Your Income adviser</label>
               <label><input type="radio" name="sold_by" value="association" /> Your hawker or merchants' association</label>
+              <label><input type="radio" name="sold_by" value="self" /> Nobody: I'll sign up myself online</label>
             </fieldset>
+            <p class="notice" id="self-note" hidden>
+              <svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#info"/></svg>
+              <span>No adviser or code needed. Fill in the form, pay, and your cover starts just as it would with an adviser.</span>
+            </p>
             <label id="adviser-field" hidden>Adviser code
               <input name="adviser_code" autocomplete="off" autocapitalize="characters" required pattern="\s*[A-Za-z0-9]{4,12}\s*" maxlength="14" placeholder="e.g. DEMO1234" />
               <span class="hint">Your adviser types their Income adviser code. Income sells SmartBiz 360 and Payung through its advisers.</span></label>
@@ -152,7 +157,7 @@
             </div>
             <div class="addon" id="addon">
               <label class="addon-head"><input type="checkbox" name="add_safeday" id="add-safeday" checked />
-                <span><b><span id="addon-who">Your adviser</span> adds Payung climate income cover to your SmartBiz 360 policy</b>
+                <span><b><span id="addon-who">Your adviser adds</span> Payung climate income cover to your SmartBiz 360 policy</b>
                 <span class="fine" id="addon-pitch">Pays a fixed amount on days when NEA readings show haze, heavy rain, extreme heat or a flood alert near your stall. No claim form and no proof of damage.</span></span></label>
               <div id="addon-body" hidden>
                 <div class="tiers-row" id="buy-tiers" role="radiogroup" aria-label="Payung tier"></div>
@@ -252,7 +257,7 @@
         <p class="side-time"><svg class="i" aria-hidden="true"><use href="/vendor/icons.svg#clock"/></svg>About 5 minutes</p>
         <h2>What you need</h2>
         <ul>
-          <li>Your Income adviser's code, or the name of your association</li>
+          <li>Your Income adviser's code or the name of your association, if one helps you</li>
           <li>Hawker stall: your centre and your SFA or NEA licence number</li>
           <li>Neighbourhood shop: its postcode and SSIC code</li>
           <li>Your UEN, if you apply as a company</li>
