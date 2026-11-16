@@ -1,7 +1,7 @@
 """The welcome SMS: one SMS in every language, and the cover text shown at the point of sale.
 
-The brief: the trigger, the payout and the exclusions must fit in one SMS in the customer's
-language. English and Malay fit one 160-character SMS; Chinese and Tamil one 70-character
+The brief: the trigger, the payout and "no alert, no pay" must fit in one SMS in the customer's
+language, with a link to the site for the rest. English and Malay fit one 160-character SMS; Chinese and Tamil one 70-character
 Unicode SMS. The payout texts are tested in tests/test_day_colour.py.
 """
 
@@ -21,16 +21,18 @@ from api.models import Tariff
 ROOT = Path(__file__).resolve().parent.parent
 TARIFF = Tariff.model_validate_json((ROOT / "api/default_tariff.json").read_text())
 WAIT_DAYS = 30
-# The cheapest and dearest weekly prices a tier can carry, and a preview with no place.
-PRICES = (None, 3.44, 99.99)
+LINK = "payung.nuza.dev"
 APPROVED = {
-    "en": "Payung Tier 2: S$9.11/wk, cover from day 30. Haze, heavy rain or heat "
-    "near your stall: up to S$40/day, S$1,400/yr. No alert, no pay even if sales drop.",
-    "zh": "Payung第2级每周S$9.11，买后30天生效。摊位附近烟霾、大雨或酷热：日赔≤S$40，"
-    "年≤S$1,400。无警报不赔，生意差也不赔",
-    "ms": "Payung Tahap 2: S$9.11/mgu, mula hari ke-30. Jerebu, hujan lebat atau panas "
-    "dekat gerai: hingga S$40/hari, S$1,400/thn. Tiada amaran, tiada bayaran walau rugi.",
+    "en": "Payung: covered from day 30. Haze, heavy rain or heat near your stall pays up to "
+    "S$40/day to your PayNow. No alert, no pay. Details: payung.nuza.dev",
+    "zh": "Payung：买后30天起，摊位附近烟霾、大雨或酷热，日赔最高S$40到PayNow。无警报不赔。"
+    "详情：payung.nuza.dev",
+    "ms": "Payung: lindungan dari hari ke-30. Jerebu, hujan lebat atau panas dekat gerai: "
+    "hingga S$40/hari ke PayNow. Tiada amaran, tiada bayaran. Info: payung.nuza.dev",
+    "ta": "புகை/மழை/வெயில்: S$40/நாள் வரை. அலர்ட் இல்லையேல் 0. payung.nuza.dev",
 }
+NO_ALERT_NO_PAY = {"en": "No alert, no pay", "zh": "无警报不赔",
+                   "ms": "Tiada amaran, tiada bayaran", "ta": "அலர்ட் இல்லையேல் 0"}
 
 
 @pytest.fixture
@@ -42,11 +44,8 @@ def client(tmp_path, monkeypatch):
         yield client
 
 
-def welcome(language: str, tier, weekly: float | None = 9.11) -> str:
-    return sms.welcome_text(
-        language, int(tier.key[-1]), weekly, tier.daily_payout_sgd,
-        tier.max_paid_days_per_year, WAIT_DAYS,
-    )
+def welcome(language: str, tier) -> str:
+    return sms.welcome_text(language, tier.daily_payout_sgd, WAIT_DAYS)
 
 
 def test_plain_text_fits_160_characters_a_part():
@@ -61,34 +60,24 @@ def test_unicode_text_fits_70_characters_a_part():
 
 
 @pytest.mark.parametrize("language", sms.LANGUAGES)
-@pytest.mark.parametrize("weekly", PRICES)
-def test_welcome_text_fits_one_sms_for_every_tier_and_price(language, weekly):
+def test_welcome_text_fits_one_sms_for_every_tier(language):
     for tier in TARIFF.tiers:
-        body = welcome(language, tier, weekly)
-        assert sms.segments(body) == 1, (tier.key, weekly, len(body), body)
+        body = welcome(language, tier)
+        assert sms.segments(body) == 1, (tier.key, len(body), body)
 
 
-@pytest.mark.parametrize("language", sorted(APPROVED))
+@pytest.mark.parametrize("language", sms.LANGUAGES)
 def test_welcome_text_is_the_approved_wording(language):
-    """Tier 2 at Maxwell in the proposal: S$9.11 a week, S$40 a day, 35 days a year."""
-    assert sms.welcome_text(language, 2, 9.11, 40, 35, WAIT_DAYS) == APPROVED[language]
+    """Tier 2: up to S$40 a day."""
+    assert sms.welcome_text(language, 40, WAIT_DAYS) == APPROVED[language]
 
 
-def test_tamil_welcome_names_the_wait_the_triggers_and_the_payout():
-    body = sms.welcome_text("ta", 2, 9.11, 40, 35, WAIT_DAYS)
-    for phrase in ("30நாள் பின்", "புகை/மழை/வெயில்:", "S$40/நாள்", "S$1,400", "அலர்ட் இல்லையேல் 0"):
-        assert phrase in body
-
-
-def test_a_long_price_shortens_the_wording_rather_than_send_two_sms():
-    body = sms.welcome_text("en", 4, 99.99, 100, 45, WAIT_DAYS)
-    assert sms.segments(body) == 1
-    assert "up to S$100/day" in body
-
-
-def test_a_preview_without_a_place_leaves_the_price_out():
-    body = sms.welcome_text("en", 1, None, 20, 10, WAIT_DAYS)
-    assert body.startswith("Payung Tier 1: cover from day 30.")
+@pytest.mark.parametrize("language", sms.LANGUAGES)
+def test_welcome_text_says_no_alert_no_pay_and_links_the_details(language):
+    for tier in TARIFF.tiers:
+        body = welcome(language, tier)
+        assert NO_ALERT_NO_PAY[language] in body
+        assert body.endswith(LINK)
 
 
 def test_malay_texts_use_malay_month_names():
@@ -97,16 +86,12 @@ def test_malay_texts_use_malay_month_names():
 
 
 def test_cover_text_is_public_and_matches_the_welcome_sms(client):
-    params = {"tier": "tier_2", "language": "en", "weekly": 9.11}
+    params = {"tier": "tier_2", "language": "en"}
     cover = client.get("/api/cover-text", params=params).json()
     tier = next(t for t in TARIFF.tiers if t.key == "tier_2")
-    assert cover["body"] == welcome("en", tier, 9.11)
+    assert cover["body"] == welcome("en", tier)
     assert cover["segments"] == 1
     assert cover["characters"] == len(cover["body"])
-
-
-def test_cover_text_refuses_a_price_out_of_range(client):
-    assert client.get("/api/cover-text", params={"weekly": -1}).status_code == 422
 
 
 def test_cover_text_comes_in_every_language(client):
@@ -131,11 +116,10 @@ def test_welcome_text_never_says_only_a_red_day_pays(language):
 
 
 @pytest.mark.parametrize("language", sms.LANGUAGES)
-@pytest.mark.parametrize("weekly", PRICES)
-def test_welcome_text_does_not_mention_flood(language, weekly):
+def test_welcome_text_does_not_mention_flood(language):
     """The team left the flood alert out of the welcome SMS; a flood alert still pays."""
     for tier in TARIFF.tiers:
-        body = welcome(language, tier, weekly).lower()
+        body = welcome(language, tier).lower()
         for flood in ("flood", "水灾", "banjir", "வெள்ளம்"):
             assert flood not in body
 
