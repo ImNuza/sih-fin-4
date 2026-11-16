@@ -307,6 +307,14 @@ function scoringSite(user, application, staticData, product) {
   };
 }
 
+/* One sentence on where a centre's rent figure comes from. Used by the buy flow. */
+function rentSource(rent, table) {
+  if (rent.estimated)
+    return `No NEA bid on record for this centre, so we use the median of all centres, ${SGD(table.all_centre_median_sgd)} a month.`;
+  const span = rent.first_month === rent.last_month ? MONTH(rent.first_month) : `${MONTH(rent.first_month)} to ${MONTH(rent.last_month)}`;
+  return `Median winning NEA bid for a cooked-food stall: ${SGD(rent.median_bid_sgd)} a month (${rent.bids} bid${rent.bids === 1 ? "" : "s"}, ${span}).`;
+}
+
 /* Where the business is priced, as the server charges it: a hawker at its centre, a shop at its
    postcode's area, anyone else (a platform worker) by region. */
 function pricedPlace(user, application) {
