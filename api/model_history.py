@@ -188,10 +188,13 @@ def window_sums(values: np.ndarray, length: int) -> np.ndarray:
 def spread(rows: list[dict], premium_yearly_sgd: float) -> dict:
     """Typical, bad (1 year in 10) and worst year of a run of years, and the day colours."""
     paid = np.array([r["paid_sgd"] for r in rows])
+    lost = np.array([r["lost_sgd"] for r in rows])
     worst = rows[int(np.argmax(paid))]
     colours = {colour: np.array([r[f"{colour}_days"] for r in rows]) for colour in COLOURS}
     return {
         "from_year": rows[0]["year"],
+        "typical_lost_sgd": round(float(np.median(lost)), 2),
+        "bad_year_lost_sgd": round(float(np.quantile(lost, BAD_YEAR_QUANTILE)), 2),
         "to_year": rows[-1]["year"],
         "typical_sgd": round(float(np.median(paid)), 2),
         "average_sgd": round(float(paid.mean()), 2),
@@ -223,6 +226,7 @@ def el_nino_split(rows: list[dict], el_nino_years: set[int]) -> dict:
 def period_outlook(rows: list[dict], length: int, premium_yearly_sgd: float) -> dict:
     """What every run of `length` years in these rows paid, as a guide to the next `length`."""
     paid = window_sums(np.array([r["paid_sgd"] for r in rows]), length)
+    lost = window_sums(np.array([r["lost_sgd"] for r in rows]), length)
     premium = premium_yearly_sgd * length
     worst = int(np.argmax(paid))
     days = {
@@ -243,6 +247,9 @@ def period_outlook(rows: list[dict], length: int, premium_yearly_sgd: float) -> 
         "highest_to_year": rows[min(worst + length - 1, len(rows) - 1)]["year"],
         "premium_sgd": round(premium, 2),
         "windows_paid_more_than_premium": int((paid > premium).sum()),
+        "typical_lost_sgd": round(float(np.median(lost)), 2),
+        "bad_lost_sgd": round(float(np.quantile(lost, BAD_YEAR_QUANTILE)), 2),
+        "highest_lost_sgd": round(float(lost.max()), 2),
         **{f"typical_{key}": round(float(np.median(values)), 1) for key, values in days.items()},
         **{f"highest_{key}": round(float(values.max()), 1) for key, values in days.items()},
     }
@@ -257,8 +264,14 @@ def centre_years(
     premium_yearly_sgd: float,
     el_nino_years: set[int],
     outlook_start: date,
+    takings_sgd: float,
 ) -> dict:
-    """One centre's payout in every year since 1980, at one tier, and what it says ahead."""
+    """One centre's payout in every year since 1980, at one tier, and what it says ahead.
+
+    takings_sgd is the business's normal daily sales; the sales lost to weather scale with it
+    (the tariff's loss share times the takings, as the ten-year replay counts them), the
+    payouts do not.
+    """
     tier = calculator.find(tariff.tiers, tier_key, "tier")
     row = np.array([history.row_of[centre]])
     combined, parts = day_losses(history, row, tariff, product_key)
@@ -286,6 +299,7 @@ def centre_years(
             "trigger_days": int(trigger_days[i]),
             **{f"{colour}_days": int(colours[colour][i]) for colour in COLOURS},
             "paid_sgd": round(float(paid_sgd[i]), 2),
+            "lost_sgd": round(float(loss_days[i] * takings_sgd), 2),
             "capped": bool(loss_days[i] > tier.max_paid_days_per_year),
             "by_hazard_sgd": {key: round(float(paid_sgd[i] * share[key]), 2) for key in HAZARDS},
             "measured_share": {key: round(float(measured[key][i] / days_in_year[i]), 2)

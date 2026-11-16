@@ -604,6 +604,11 @@ def region_burn_site(
     return where, calculator.quote(tariff, history, region, product)
 
 
+def checked_takings(takings: float) -> None:
+    if not 50 <= takings <= 20000:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "takings must be 50 to 20000")
+
+
 @app.get("/api/map/burn")
 def map_burn(
     request: Request,
@@ -626,8 +631,7 @@ def map_burn(
     is the business's own normal daily sales in SGD; every loss figure scales with it, the
     payouts not.
     """
-    if not 50 <= takings <= 20000:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "takings must be 50 to 20000")
+    checked_takings(takings)
     if centre is not None:
         site, priced = centre_burn_site(centre, request, tariff, history, product)
     elif lat is not None and lng is not None and region is not None:
@@ -689,13 +693,16 @@ def model_centre_history(
     lng: Annotated[float | None, Query(**SG_LNG)] = None,
     product: str = "cooked_food",
     tier: str = "tier_2",
+    takings: float = 500.0,
 ) -> dict:
     """One business's payouts in every year since 1980, with model-filled years, and the
     typical, bad and worst year that history implies.
 
     A centre reads its own history. A point (lat, lng) reads its nearest hawker centre's and
-    is priced at the point, as /api/map/burn prices it.
+    is priced at the point, as /api/map/burn prices it. takings is the business's normal daily
+    sales in SGD, which the sales lost to weather scale with.
     """
+    checked_takings(takings)
     centres = request.app.state.map_static["hawker_centres"]
     if centre is not None:
         place = next((c for c in centres if c["name"] == centre), None)
@@ -724,7 +731,7 @@ def model_centre_history(
         "weekly_premium_sgd": tier_quote.weekly_premium_sgd,
         **model_history.centre_years(
             filled, place["name"], tariff, product, tier, tier_quote.yearly_premium_sgd,
-            set(insights["haze"]["el_nino_years"]), outlook_start(),
+            set(insights["haze"]["el_nino_years"]), outlook_start(), takings,
         ),
         "haze_facts": insights["haze"],
         "data_to": insights["data_to"],

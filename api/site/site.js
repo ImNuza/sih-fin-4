@@ -648,25 +648,25 @@ function tenDaysText(h, todays) {
     <p class="fine card-foot">This is what these dates did in past years, not a weather forecast.</p>`;
 }
 
-function outlookYearsText(h) {
+function outlookYearsText(h, takings) {
   const e = h.el_nino;
   const first = h.outlooks[0];
   const rows = h.outlooks.map((o) => `<tr>
     <td>Next ${o.years} years</td>
-    <td class="num">${SGD(o.premium_sgd / (o.years * 12))}<span class="fine">/month</span></td>
     <td class="num">${SGD(o.typical_sgd)}</td>
     <td class="num">${SGD(o.bad_sgd)}</td>
     <td class="num">${SGD(o.highest_sgd)}<br><span class="fine">${o.highest_from_year} to ${o.highest_to_year}</span></td>
+    <td class="num">${SGD(o.typical_lost_sgd)}</td>
     <td>${colourDays(o, "typical_")}</td>
     <td class="num">${o.windows_paid_more_than_premium} of ${o.windows}</td>
   </tr>`).join("");
   return `
     <p class="burn-headline">Every stretch of the last ${first.basis_years} years (${first.basis_from_year} to ${first.basis_to_year})
-      at this stall, at ${h.tier_label}: what you pay each month, what a typical, a bad and the worst stretch paid back, and the
-      payout days to expect. These years run hotter and wetter than the decades before, so they are the best guide to what is coming.</p>
+      at this stall, at ${h.tier_label}: what a typical, a bad and the worst stretch paid back, what the weather would have cost
+      you in sales without cover (at ${SGD(takings)} a day, set in the replay above), and the payout days to expect. These years run hotter and wetter than the decades before, so they are the best guide to what is coming.</p>
     <div class="table-wrap"><table class="data">
-      <thead><tr><th>Period</th><th class="num">If you pay monthly</th><th class="num">Typical payout</th><th class="num">Bad stretch (1 in 10)</th>
-        <th class="num">Worst stretch</th><th>Payout days, typical (every colour pays)</th><th class="num">Stretches that paid back more than the premium</th></tr></thead>
+      <thead><tr><th>Period</th><th class="num">Typical payout</th><th class="num">Bad stretch (1 in 10)</th>
+        <th class="num">Worst stretch</th><th class="num">Sales lost without cover, typical</th><th>Payout days, typical (both colours pay)</th><th class="num">Stretches that paid back more than the premium</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
     ${kv(`El Niño years (${e.years.join(", ")})`, `<span class="num">${SGD(e.average_paid_sgd)}</span> a year on average`)}
@@ -678,7 +678,8 @@ function outlookYearsText(h) {
 }
 
 async function renderModelHistory(target, place, tier, todays) {
-  const h = await api(`/api/model/history?${place}&tier=${tier}`);
+  const takings = +el("burn-takings")?.value || 500;
+  const h = await api(`/api/model/history?${place}&tier=${tier}&takings=${takings}`);
   const all = h.since_1980;
   const recent = h.recent;
   const big = h.haze_year;
@@ -720,6 +721,7 @@ async function renderModelHistory(target, place, tier, todays) {
       </div>
       ${kv("Payout days in a typical year", colourDays(recent, "typical_"))}
       ${kv("In a bad year (1 in 10)", colourDays(recent, "bad_year_"))}
+      ${kv("Sales lost to weather without cover", `<span class="num">${SGD(recent.typical_lost_sgd)}</span> in a typical year, ${SGD(recent.bad_year_lost_sgd)} in a bad one, at ${SGD(takings)} a day`)}
       <p class="fine card-foot">In ${recent.years_paid_more_than_premium} of the last ${recent.years} years the cover paid
         back more than its premium.${big ? ` A year like ${big.year} would pay you ${SGD(big.paid_sgd)}:
         ${SGD(big.by_hazard_sgd.haze)} for haze, ${SGD(big.by_hazard_sgd.rain)} for rain and
@@ -731,7 +733,7 @@ async function renderModelHistory(target, place, tier, todays) {
     </section>
     <section class="card dash-section">
       <h2>The next 2, 5 and 10 years at your stall</h2>
-      ${outlookYearsText(h)}
+      ${outlookYearsText(h, takings)}
     </section>`;
   const pick = (year) => {
     picked = year;
@@ -744,6 +746,7 @@ async function renderModelHistory(target, place, tier, todays) {
     bar.addEventListener("click", () => pick(+bar.dataset.year)));
   el("model-year").addEventListener("change", (event) => pick(+event.target.value));
   wireBars();
+  el("burn-takings")?.addEventListener("change", () => renderModelHistory(target, place, tier, todays), { once: true });
 }
 
 /* The market figures at a premium of `m` times the tariff's. Payouts do not move; the premium does. */
