@@ -1,20 +1,12 @@
 /* Payung platform shell: auth, the login page and the two role dashboards.
    All pricing and access control happen in the API; this file only draws the answers.
-   The dashboard also needs tier-proof.js (proofLines, offeredTiers, bestValueLine). */
+   The dashboard also needs tier-proof.js (offeredTiers, tierDays, proofMoney). */
 "use strict";
 
 const el = (id) => document.getElementById(id);
 const SGD = (v) => "S$" + (v >= 1000 ? Math.round(v).toLocaleString("en-SG") : Number(v).toFixed(2));
 const SG_DATE = (value) => new Date(value).toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
 const MONTH = (ym) => ym ? new Date(ym + "-01").toLocaleDateString("en-SG", { month: "short", year: "numeric" }) : "";
-
-/* One sentence on where a centre's rent figure comes from. */
-function rentSource(rent, table) {
-  if (rent.estimated)
-    return `No NEA bid on record for this centre, so we use the median of all centres, ${SGD(table.all_centre_median_sgd)} a month.`;
-  const span = rent.first_month === rent.last_month ? MONTH(rent.first_month) : `${MONTH(rent.first_month)} to ${MONTH(rent.last_month)}`;
-  return `Median winning NEA bid for a cooked-food stall: ${SGD(rent.median_bid_sgd)} a month (${rent.bids} bid${rent.bids === 1 ? "" : "s"}, ${span}).`;
-}
 
 /* FastAPI sends a string, or a list of field errors for a bad request body. */
 function errorText(detail) {
@@ -322,26 +314,23 @@ function pricedPlace(user, application) {
   if (application?.business_class === "shop" && application.postcode) return { postcode: application.postcode };
   return { region: user.region };
 }
-function priceBasis(place) {
-  if (place.centre) return "priced from the NEA stations nearest your centre";
-  if (place.postcode) return "priced from the NEA stations nearest your postcode's area";
-  return "priced from your region's NEA history";
-}
 
 /* ---------- business owner dashboard ---------- */
+/* The owner sees their cover, today's readings against the trigger, what the cover is worth and
+   their payouts. The method, the replays and the market maths are on the insurer's desk. */
 function smeSkeleton() {
   return `<div class="dash-head"><span class="skeleton title"></span><span class="skeleton line note"></span></div>
-    <div class="kpis">${kpiSkeletons(["Today's loss score", "Payout due today", "Your weekly premium", "Expected trigger days"])}</div>
+    <div class="kpis">${kpiSkeletons(["Your cover", "Pays per bad day", "Weekly premium", "Today"])}</div>
     ${tableSkeleton(4)}`;
 }
 
 async function renderSme(user) {
   if (!el("sme-dash")) el("dash").innerHTML = smeSkeleton();
-  const [policies, staticData, rentTable, application] = await Promise.all([
+  const [policies, staticData, application, options] = await Promise.all([
     api("/api/policies"),
     api("/api/map/static"),
-    api("/api/rent"),
     api("/api/applications/mine").catch(() => null),
+    api("/api/options"),
   ]);
   const policy = policies[0] || null;
   const product = policy?.product || user.product || "cooked_food";
@@ -354,30 +343,33 @@ async function renderSme(user) {
   ]);
   const decision = application?.declined_before
     ? await api("/api/applications/mine/decision").catch(() => null) : null;
-  const rent = rentTable.centres[user.centre];
   const index = staticData.hawker_centres.findIndex((c) => c.name === user.centre);
   const todays = !live?.available ? null : site?.kind !== "centre" ? live : index >= 0 ? live.hawker_losses[index] : null;
   // The biggest tier that pays no more than the business loses on a day with no sales.
   const rec = quote.suggested_tier;
-  const kind = application?.business_class || (user.centre ? "hawker" : null);
-  const examples = policy ? {} : await partialExamples(quote.product, quote.product_factor, quote.tiers.map((t) => t.tier));
-  const view = { user, quote, policy, rent, rentTable, application, decision, site, place, todays, rec, live, kind, examples };
+  // The quote's tier for the policy, for its proof; the same tier at today's price if the price moved.
+  const policyQuote = policy ? quote.tiers.find((t) => t.tier === policy.tier) ?? null : null;
+  const triggers = Object.fromEntries(options.hazards.map((h) => [h.key, h.first_band]));
+  const view = { user, quote, policy, policyQuote, application, decision, site, todays, rec, live, triggers };
 
   el("dash").innerHTML = `<div id="sme-dash">
     ${smeHead(view)}
     <div class="kpis sme-kpis">${smeKpis(view)}</div>
-    <div class="sme-grid">
+    <div class="sme-grid${policy ? "" : " wide"}">
       <section class="card" id="cover-card">${coverCard(view)}</section>
-      <section class="card">${todayCard(view)}</section>
+      <div class="sme-stack">
+        <section class="card" id="today-card">${todayCard(view)}</section>
+        ${policyQuote?.proof ? worthCard(view) : ""}
+      </div>
     </div>
-    <section class="dash-section">
+    <div id="payouts-panel" class="dash-section"></div>
+    <section class="dash-section" aria-labelledby="sme-map-title">
+      <div class="section-head"><div><h2 id="sme-map-title">Your stall on the map</h2>
+        <p class="page-sub">The weather around you, live from NEA. Tap to open the full map.</p></div></div>
       ${user.centre
         ? mapPreview({ view: "owner", focus: user.centre, camera: "city" }, "Your stall on the risk atlas")
         : mapPreview({ view: "owner", camera: "city" }, `The ${titleCase(user.region)} region on the risk atlas`)}
     </section>
-    ${site ? burnCard(view) : ""}
-    <div id="model-history"></div>
-    <div id="payouts-panel" class="dash-section"></div>
   </div>`;
   wireCoverSms();
   renderSmePayouts(el("payouts-panel"), Boolean(policy)).catch((error) => {
@@ -386,51 +378,67 @@ async function renderSme(user) {
   wireSme(view);
 }
 
-function smeHead({ user, application, site, place }) {
+function smeHead({ user, application, site }) {
   const proof = businessProof(application);
-  const where = [user.centre || (site?.kind === "area" ? site.label : null), `${titleCase(user.region)} region`, priceBasis(place)];
+  const where = [user.centre || (site?.kind === "area" ? site.label : null), `${titleCase(user.region)} region`];
   return `<div class="dash-head">
     <h1 class="page-title">${escapeHtml(user.business_name || user.name)}</h1>
-    ${proof ? `<p class="proof">${escapeHtml(proof)}</p>` : ""}
-    <p class="page-sub">${where.filter(Boolean).join(" · ")}</p>
+    <p class="page-sub">${[escapeHtml(proof), ...where.filter(Boolean).map(escapeHtml)].filter(Boolean).join(" · ")}</p>
   </div>`;
 }
 
-function smeKpis({ quote, policy, rent, application, todays, rec, live }) {
-  const status = liveStatus(live);
+const LONG_DATE = (value) => new Date(value).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Singapore" });
+
+function smeKpis({ quote, policy, application, todays, rec, live }) {
   const waitingEnds = application?.waiting_ends;
-  const inWaitingPeriod = Boolean(policy && waitingEnds && TODAY() < waitingEnds);
-  const payoutToday = todays && policy ? (todays.loss_percent / 100) * policy.daily_payout_sgd : null;
-  const underReview = application?.status === "referred";
-  const declined = application?.status === "declined";
-  const payoutNote = policy ? `at ${policy.tier_label}` : underReview ? "after the underwriter replies"
-    : declined ? "the underwriter declined cover" : "pick a tier below";
+  const waiting = Boolean(policy && waitingEnds && TODAY() < waitingEnds);
+  const status = application?.status;
+  const [coverValue, coverNote] = policy
+    ? waiting ? ["Waiting period", `pays from ${LONG_DATE(waitingEnds)}`]
+      : ["Active", application?.cover_ends ? `until ${LONG_DATE(application.cover_ends)}` : policy.tier_label]
+    : status === "referred" ? ["Under review", "an underwriter replies soon"]
+      : status === "declined" ? ["Declined", "no cover started"] : ["Not covered", "pick a tier below"];
+  const shown = policy ?? quote.tiers.find((t) => t.tier === rec) ?? null;
+  const weekly = policy ? policy.weekly_total_sgd ?? policy.weekly_premium_sgd : shown?.weekly_premium_sgd;
+  const payoutToday = todays && policy && !waiting ? (todays.loss_percent / 100) * policy.daily_payout_sgd : 0;
+  const todayValue = !todays ? "–" : payoutToday > 0 ? `<span class="num">${SGD(payoutToday)}</span> due` : "No payout";
   return [
-    kpi("Today's loss score",
-      todays ? `<span class="num">${todays.loss_percent.toFixed(0)}%</span> ${dayChip(todays.loss_percent)}` : "–",
-      status.text, "How much of a normal day's sales today's NEA readings take, scored by the live tariff. A payout follows this score, with no claim."),
-    inWaitingPeriod
-      ? kpi("Payout due today", "None yet", `In the ${WAITING_PERIOD_DAYS}-day waiting period until ${dateValue(waitingEnds)}`)
-      : kpi("Payout due today", policy ? (payoutToday != null ? `<span class="num">${SGD(payoutToday)}</span>` : "–") : "No cover yet", payoutNote),
-    kpi("Your weekly premium",
-      policy || rec ? `<span class="num">${SGD(policy ? policy.weekly_total_sgd ?? policy.weekly_premium_sgd : quote.tiers.find((t) => t.tier === rec).weekly_premium_sgd)}</span>` : "–",
-      policy ? `${policy.tier_label}${policy.haze_bonus ? " and severe haze payout" : ""}` : rec ? "suggested for your sales" : "no tier suggested"),
-    kpi("Expected trigger days", `<span class="num">${quote.expected_loss_days.toFixed(1)}</span>&nbsp;/&nbsp;yr`, "full-loss-day equivalents",
-      "Days of full loss in an average year, from the NEA history where you are priced. Two half days count as one."),
-    rent ? kpi("Your rent per trading day", `<span class="num">${SGD(rent.rent_per_day_sgd)}</span>`,
-      `${rent.rent_class_label} centre${rent.estimated ? " · estimated" : ""}`) : "",
+    kpi("Your cover", coverValue, coverNote),
+    kpi("Pays per bad day", shown ? `<span class="num">${SGD(shown.daily_payout_sgd)}</span>` : "–",
+      shown ? `${shown.tier_label ?? shown.label}, up to ${tierDays(shown)} days a year` : "no tier fits yet"),
+    kpi("Weekly premium", weekly != null ? `<span class="num">${SGD(weekly)}</span>` : "–",
+      policy ? (policy.haze_bonus ? "with the severe haze payout" : "nothing else to pay") : shown ? "suggested for your sales" : ""),
+    kpi("Today", todayValue, escapeHtml(liveStatus(live).text)),
   ].join("");
 }
 
-function todayCard({ site, todays, live }) {
-  const title = `<h2>${site ? site.heading : "Today at your stall"}</h2>`;
-  if (!todays) return `${title}<p class="fine">${escapeHtml(liveStatus(live).text)}</p>
-    <button class="btn small" id="retry-live" type="button">Refresh</button>`;
-  return `${title}
-    ${kv("24-h PSI (your region)", `<span class="num">${Math.round(todays.readings.haze)}</span>`)}
-    ${kv("Wettest work hour (middle of the 3 nearest rain gauges that reported)", `<span class="num">${todays.readings.rain.toFixed(1)}</span>&nbsp;mm`)}
-    ${kv("Hours at WBGT ≥32 °C (nearest heat station that reported)", `<span class="num">${todays.readings.heat}</span>&nbsp;h`)}
-    <p class="fine card-foot">Readings refresh every 5 minutes from NEA. A payout needs no claim. It follows these numbers.</p>`;
+/* Today's three readings, each as a bar towards the level that pays. */
+const TODAY_READINGS = [
+  { key: "haze", label: "Haze", icon: "cloud-fog", unit: "PSI", value: (r) => Math.round(r.haze), pays: (t) => `pays above PSI ${Math.round(t) - 1}` },
+  { key: "rain", label: "Heavy rain", icon: "cloud-rain", unit: "mm in an hour", value: (r) => Number(r.rain.toFixed(1)), pays: (t) => `pays at ${t} mm` },
+  { key: "heat", label: "Extreme heat", icon: "thermometer-sun", unit: "hours", value: (r) => r.heat, pays: (t) => `pays at ${t} hours` },
+];
+
+function todayCard({ todays, live, triggers }) {
+  const head = (chip) => `<div class="card-head"><h2>Today at your stall</h2>${chip}</div>`;
+  if (!todays) return `${head("")}<p class="fine">${escapeHtml(liveStatus(live).text)}</p>
+    <div class="row-actions card-foot"><button class="btn small" id="retry-live" type="button">Refresh</button></div>`;
+  const rows = TODAY_READINGS.map((r) => {
+    const value = r.value(todays.readings);
+    const trigger = triggers[r.key];
+    const share = trigger ? Math.min(value / trigger, 1) : 0;
+    return `<div class="reading ${r.key}${share >= 1 ? " hit" : ""}">
+      <span class="reading-icon" aria-hidden="true">${SafeUI.icon(r.icon)}</span>
+      <div class="reading-body">
+        <div class="reading-line"><b>${r.label}</b><span><span class="num">${value}</span> ${r.unit}</span></div>
+        <div class="meter" role="img" aria-label="${r.label}: ${value} ${r.unit}, ${trigger ? r.pays(trigger) : ""}"><span style="transform:scaleX(${share.toFixed(3)})"></span></div>
+        <span class="fine">${trigger ? r.pays(trigger) : ""}</span>
+      </div>
+    </div>`;
+  }).join("");
+  return `${head(dayChip(todays.loss_percent))}
+    <div class="readings">${rows}</div>
+    <p class="fine card-foot">Live from NEA, every 5 minutes. When a bar fills, Payung pays you without a claim.</p>`;
 }
 
 function coverCard(view) {
@@ -452,11 +460,7 @@ function referralWhy(application) {
   return `${escapeHtml(application.referral_reason)}.`;
 }
 
-/* Proof sentences as fine print, one paragraph each. */
-const fineLines = (lines) => lines.map((line) => `<p class="fine">${line}</p>`).join("");
-
-/* The severe haze payout add-on on a policy: what it pays, its price, the weekly total and the
-   day its haze count starts. "" without it. */
+/* The severe haze payout add-on on a policy: what it pays and its price. "" without it. */
 function hazeBonusRows(policy, policyQuote) {
   const bonus = policy.haze_bonus;
   if (!bonus) return "";
@@ -464,8 +468,6 @@ function hazeBonusRows(policy, policyQuote) {
   return [
     kv("Severe haze payout", `<span class="num">${proofMoney(bonus.lump_sum_sgd)}</span> at once${days ? ` in a year with ${days} or more unhealthy-haze days` : ""}`),
     kv("Add-on weekly price", `<span class="num">${SGD(bonus.weekly_sgd)}</span>`),
-    kv("Weekly total", `<span class="num">${SGD(policy.weekly_total_sgd ?? policy.weekly_premium_sgd + bonus.weekly_sgd)}</span>`),
-    kv("Haze days counted from", dateValue(bonus.starts_on)),
   ].join("");
 }
 
@@ -475,114 +477,80 @@ function declinedCover({ application, decision }) {
     ${decision?.note ? `<p class="fine">Their note: ${escapeHtml(decision.note)}</p>` : ""}`;
 }
 
-function policyCover({ user, quote, policy, rent, application, decision, kind }) {
+function policyCover({ user, policy, policyQuote, application, decision }) {
   const waitingEnds = application?.waiting_ends;
-  // The quote's tier for the policy: its proof, and its daily price while the price is unchanged.
-  const policyQuote = quote.tiers.find((t) => t.tier === policy.tier && t.daily_payout_sgd === policy.daily_payout_sgd);
-  const samePrice = policyQuote && Math.abs(policyQuote.weekly_premium_sgd - policy.weekly_premium_sgd) < 0.005;
+  const days = tierDays(policy);
+  const dates = application?.cover_ends
+    ? `${LONG_DATE(policy.started_at)} to ${LONG_DATE(application.cover_ends)}` : LONG_DATE(policy.started_at);
   return `<div class="card-head"><h2>Your cover</h2>${pill("good", "Covered")}</div>
     ${waitingEnds && TODAY() < waitingEnds ? notice("warning", "clock",
-      `<b>Waiting period.</b> Cover starts paying ${WAITING_PERIOD_DAYS} days after the start date, from ${SG_DATE(waitingEnds)}.`) : ""}
-    ${kv("Tier", policy.tier_label)}
+      `<b>Waiting period.</b> Payouts start on ${LONG_DATE(waitingEnds)}, ${WAITING_PERIOD_DAYS} days after your cover began.`) : ""}
+    ${kv("Plan", policy.tier_label)}
     ${kv("Pays per bad day", `<span class="num">${SGD(policy.daily_payout_sgd)}</span>`)}
-    ${rent ? kv("A bad day pays", rentShare(policy.daily_payout_sgd, rent.rent_per_day_sgd)) : ""}
-    ${application?.daily_sales_sgd != null ? kv("Your normal weekday sales", `<span class="num">${SGD(application.daily_sales_sgd)}</span>`) : ""}
-    ${kv("Cap", `${policy.max_paid_days_per_year} days / yr`)}
+    ${kv("Paid days a year", `up to ${days}`)}
+    ${kv("Most in a year", `<span class="num">${SGD(policy.daily_payout_sgd * days)}</span>`)}
     ${kv("Weekly premium", `<span class="num">${SGD(policy.weekly_premium_sgd)}</span>`)}
-    ${samePrice ? kv("Price per day", `<span class="num">${proofMoney(policyQuote.price_per_day_sgd)}</span>`) : ""}
-    ${samePrice ? kv("Most it pays a year", coverLine(policyQuote)) : ""}
     ${hazeBonusRows(policy, policyQuote)}
-    ${kv("Started", dateValue(policy.started_at))}
-    ${application?.term_months ? kv("Term", `${application.term_months} months`) : ""}
-    ${waitingEnds ? kv("Payouts from", dateValue(waitingEnds)) : ""}
-    ${application?.cover_ends ? kv("Cover ends", dateValue(application.cover_ends)) : ""}
+    ${kv("Cover dates", dates)}
     ${decision?.decision === "approve" && decision.note ? `<p class="fine">Underwriter's note: ${escapeHtml(decision.note)}</p>` : ""}
-    ${policyQuote ? fineLines(proofLines(policyQuote, kind)) : ""}
-    <p class="fine card-foot">Pays when NEA shows PSI>100, rain ≥20 mm/h, WBGT ≥32 °C for 2 h+, or a PUB flood alert near ${escapeHtml(user.centre) || `you, in the ${titleCase(user.region)} region`}. Below those levels nothing is paid.</p>
+    <p class="fine card-foot">Pays when NEA shows PSI above 100, 20 mm of rain in a work hour, 2 hours at WBGT 32 °C, or a PUB flood alert near ${escapeHtml(user.centre) || `you, in the ${titleCase(user.region)} region`}. Below those levels nothing is paid.</p>
     <div class="cancel-row" id="cancel-row">
       <button class="btn small quiet" id="cancel-policy" type="button">Cancel cover</button>
     </div>`;
 }
 
-function chooseCover({ quote, rent, rentTable, rec, kind, examples }) {
+const worthFigure = (label, value) => `<div class="worth-fig"><span>${label}</span><b class="num">${value}</b></div>`;
+
+/* What the cover is worth here, in four figures from the last ten years at this place. */
+function worthCard({ policy, policyQuote }) {
+  const proof = policyQuote.proof;
+  const days = tierDays(policy);
+  const lockdown = Math.min(LOCKDOWN_EXAMPLE_DAYS, days) * policy.daily_payout_sgd;
+  const paidYears = proof.years_paid === proof.years_replayed
+    ? `A stall here would have been paid in every one of the last ${proof.years_replayed} years.`
+    : `A stall here would have been paid in ${proof.years_paid} of the last ${proof.years_replayed} years.`;
+  return `<section class="card" id="worth-card" aria-labelledby="worth-title">
+    <div class="card-head"><h2 id="worth-title">What your cover is worth</h2></div>
+    <div class="worth">
+      ${worthFigure("You pay a year", SGD(policy.weekly_premium_sgd * 52))}
+      ${worthFigure("A typical year pays", SGD(proof.typical_year_paid_sgd))}
+      ${worthFigure("A haze year like 2015", SGD(proof.haze_2015_like_sgd))}
+      ${worthFigure(`A ${LOCKDOWN_EXAMPLE_DAYS}-day lockdown`, SGD(lockdown))}
+    </div>
+    <p class="fine card-foot">${paidYears}</p>
+  </section>`;
+}
+
+function chooseCover({ quote, rec }) {
   const offered = offeredTiers(quote);
-  const lossLine = fullLossDayLine(quote);
   if (!offered.length) {
     const nothingFits = quote.tiers.every((t) => t.fits_business === false);
-    const why = [lossLine, quote.suggestion, nothingFits ? "" : notOfferedLine(quote)].filter(Boolean).join(" ");
+    const why = [fullLossDayLine(quote), quote.suggestion, nothingFits ? "" : notOfferedLine(quote)].filter(Boolean).join(" ");
     return `<h2>Choose your cover</h2><p class="fine">${escapeHtml(why)}</p>`;
   }
-  // The tier whose proof and SMS are shown: the suggested one, else the smallest offered.
   const shown = rec ?? offered[0].tier;
-  const cards = offered.map((t) => `
-    <div class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}">
-      <span class="t">${t.label}${t.tier === rec ? ` <span class="chip accent">Suggested for your sales</span>` : ""}${t.best_value ? ` <span class="chip good">Best value</span>` : ""}</span>
-      <span class="p">${SGD(monthlyPrice(t))}<small>/mo</small></span>
-      <span class="d">${[`${SGD(t.weekly_premium_sgd)} a week`, dayPrice(t)].filter(Boolean).join(" · ")}</span>
-      <span class="d">${fullLossLine(t, examples[t.tier])}</span>
-      <span class="d">${lockdownLine(t)}</span>
-      ${t.tier === shown ? `<span class="d">${lockdownExample(t)}</span>` : ""}
-      ${rent ? `<span class="d">A full bad day pays ${rentShare(t.daily_payout_sgd, rent.rent_per_day_sgd)} here.</span>` : ""}
-    </div>`).join("");
+  const cards = offered.map((t) => {
+    const days = tierDays(t);
+    return `<div class="tier-card ${t.tier === rec ? "rec" : ""}" data-tier="${t.tier}">
+      <span class="t">${t.label}${t.tier === rec ? ` <span class="chip accent">Suggested</span>` : ""}</span>
+      <span class="p">${SGD(t.weekly_premium_sgd)}<small>/week</small></span>
+      <span class="d"><b>${SGD(t.daily_payout_sgd)}</b> per bad day, up to ${days} days a year</span>
+      <span class="d">A ${LOCKDOWN_EXAMPLE_DAYS}-day lockdown pays ${SGD(Math.min(LOCKDOWN_EXAMPLE_DAYS, days) * t.daily_payout_sgd)}</span>
+    </div>`;
+  }).join("");
   const shownTier = quote.tiers.find((t) => t.tier === shown);
-  const proof = [coverLine(shownTier), centsBack(shownTier), ...proofLines(shownTier, kind)].filter(Boolean);
-  const hidden = notOfferedLine(quote);
-  const sales = quote.daily_sales_sgd == null ? "" : `You told us the business sells about ${SGD(quote.daily_sales_sgd)} on a normal weekday.`;
-  const rentNote = rent ? `Rent here is about ${SGD(rent.rent_per_day_sgd)} a trading day. ${rentSource(rent, rentTable)}` : "";
-  return `<h2>Payung prices for your stall</h2>
+  return `<div class="card-head"><div><h2>Payung prices for your stall</h2>
+      ${quote.suggestion ? `<p class="fine">${escapeHtml(quote.suggestion)}</p>` : ""}</div></div>
     <div class="tiers-row">${cards}</div>
-    <p class="fine"><b>What ${shownTier.label} gives you here</b></p>${fineLines(proof)}
-    <p class="fine">${escapeHtml([sales, lossLine, quote.suggestion, bestValueLine(quote, rec)].filter(Boolean).join(" "))}${hidden ? ` ${escapeHtml(hidden)}` : ""}</p>
-    ${rentNote ? `<p class="fine">${rentNote}</p>` : ""}
-    ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add Payung to your policy with you. Payung is not sold directly.")}
+    ${notice("info", "users", "<b>To start cover, ask your Income adviser or your hawker association.</b> They add Payung to your policy with you.")}
     <p class="fine">${shownTier.label} in one SMS, as we would text it to you:</p>
     <div class="cover-sms" data-cover-tier="${shown}" data-cover-weekly="${shownTier.weekly_premium_sgd ?? ""}"></div>`;
 }
 
-/* The replay's daily sales: the declared sales, within what the replay takes. */
-const BURN_SALES_SGD = { min: 50, max: 20000, fallback: 500 };
-function burnSales(application) {
-  const sales = application?.daily_sales_sgd;
-  if (sales == null) return BURN_SALES_SGD.fallback;
-  return Math.min(BURN_SALES_SGD.max, Math.max(BURN_SALES_SGD.min, sales));
-}
-
-function burnCard({ site, application }) {
-  return `<section class="card dash-section" id="burn-card">
-    <div class="card-head"><div><h2>Your last ten years, replayed</h2>
-      <p class="fine">Every NEA reading since 2017 ${site.label}, scored by the live tariff.
-        Set your normal daily sales; the losses scale with it, the payouts do not.</p></div></div>
-    <label class="burn-takings">My daily sales (S$)
-      <input type="number" id="burn-takings" min="${BURN_SALES_SGD.min}" max="${BURN_SALES_SGD.max}" step="50" value="${burnSales(application)}" inputmode="numeric" /></label>
-    <div id="burn-body" aria-live="polite">${burnSkeleton()}</div>
-  </section>`;
-}
-
-function burnSkeleton() {
-  return `<span class="skeleton line note"></span><div class="burn-chart" aria-hidden="true">${
-    `<div class="burn-year"><div class="burn-bars"><span class="skeleton burn-ghost"></span></div></div>`.repeat(10)}</div>`;
-}
-
 function wireSme(view) {
-  const { user, policy, site, rec } = view;
+  const { user, policy } = view;
   el("cancel-policy")?.addEventListener("click", () => confirmCancel(user, policy));
   el("retry-live")?.addEventListener("click", () => renderSme(user));
-  const burnTier = policy ? policy.tier : rec ?? offeredTiers(view.quote)[0]?.tier ?? view.quote.tiers[0].tier;
-  const loadBurn = async () => {
-    const takings = +el("burn-takings").value || burnSales(view.application);
-    try {
-      const burn = await api(`/api/map/burn?${site.burn}&tier=${burnTier}&takings=${takings}`);
-      el("burn-body").innerHTML = renderBurn(burn, policy);
-    } catch (error) {
-      el("burn-body").innerHTML = `<p class="error" role="alert">Could not replay the last ten years: ${escapeHtml(error.message)}</p>`;
-    }
-  };
-  if (!site) return;
-  renderModelHistory(el("model-history"), site.burn, burnTier, view.todays).catch((error) => {
-    el("model-history").innerHTML = loadError("your history since 1980", error);
-  });
-  el("burn-takings").addEventListener("change", loadBurn);
-  loadBurn();
 }
 
 /* Cancelling stops cover at once, so it asks once, in place, before it acts. */
@@ -608,34 +576,6 @@ function confirmCancel(user, policy) {
   });
 }
 
-const BURN_CHART_PX = 120;
-function renderBurn(burn, policy) {
-  const t = burn.totals;
-  const maxLost = Math.max(...burn.years.map((y) => Math.max(y.est_lost_sgd, y.paid_sgd)), 1);
-  const height = (value, floor) => Math.max((value / maxLost) * BURN_CHART_PX, floor);
-  const bars = burn.years.map((y) => {
-    const tip = `${y.year}: lost about ${SGD(y.est_lost_sgd)}, Payung would have paid ${SGD(y.paid_sgd)}`;
-    return `<div class="burn-year" data-tip="${tip}" aria-label="${tip}">
-      <div class="burn-bars">
-        <span class="burn-lost" style="height:${height(y.est_lost_sgd, 2)}px"></span>
-        <span class="burn-paid" style="height:${height(y.paid_sgd, y.paid_sgd ? 2 : 0)}px"></span>
-      </div>
-      <span class="burn-label">${String(y.year).slice(2)}</span>
-    </div>`;
-  }).join("");
-  const hz = t.by_hazard_sgd;
-  return `
-    <p class="burn-headline">Weather took about <b>${SGD(t.est_lost_sgd)}</b> from a business like
-      yours since ${t.from_year}. With ${burn.tier_label}, Payung would have paid you
-      <b>${SGD(t.paid_sgd)}</b> across <b>${t.trigger_days} bad days</b>, for
-      ${SGD(t.premium_sgd)} of premium${policy ? "" : " (you are not covered yet)"}.</p>
-    <div class="burn-chart" role="img" aria-label="Revenue lost and payouts per year since ${t.from_year}">${bars}</div>
-    <div class="burn-legend"><span><i class="burn-lost"></i>Estimated revenue lost</span><span><i class="burn-paid"></i>What this tier would have paid</span></div>
-    <p class="fine">Grey: estimated revenue lost each year. Blue: what this tier would have paid.
-      Of the payouts, ${SGD(hz.rain)} came from heavy rain, ${SGD(hz.haze)} from haze and
-      ${SGD(hz.heat)} from heat (heat readings exist from 2025).</p>`;
-}
-
 /* ---------- every year since 1980, filled in by the trained models (api/model_history.py) ---------- */
 const PCT = (share) => `${Math.round(share * 100)}%`;
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -656,213 +596,6 @@ function yearBars(years, value, describe, selected) {
       <span class="burn-label">${y.year % 5 === 0 ? String(y.year).slice(2) : ""}</span>
     </div>`;
   }).join("")}</div>`;
-}
-
-function hazeOutlook(haze) {
-  return `In El Niño years with haze data (${haze.haze_el_nino_years.join(", ")}) each region had about
-    ${haze.haze_days_el_nino} days above PSI 100, against ${haze.haze_days_other} in other years.
-    NOAA's latest El Niño index is ${haze.latest_oni} (${MONTH(haze.latest_oni_month)})${haze.el_nino_now
-      ? ", an El Niño, so expect more haze days than usual" : ", not an El Niño"}.
-    Once PSI passes 100, the next day is above 100 too in ${PCT(haze.next_day_bad_share)} of cases.`;
-}
-
-/* The filled-in history is measured where NEA measured it and model-filled before that. */
-function sourceNote(year) {
-  const m = year.measured_share;
-  const part = (share) => share >= 0.95 ? "measured" : share <= 0.05 ? "model-filled" : `${PCT(share)} measured`;
-  return `haze ${m.haze > 0 ? part(m.haze) : "no data"}, rain ${part(m.rain)}, heat ${part(m.heat)}`;
-}
-
-function yearDetail(h, year) {
-  const y = h.years.find((r) => r.year === year);
-  const hz = y.by_hazard_sgd;
-  return `
-    ${kv(`Paid in ${y.year}${y.complete ? "" : " so far"}`, `<b class="num">${SGD(y.paid_sgd)}</b>${y.capped ? " (yearly cap reached)" : ""}`)}
-    ${kv("Payout days", `<span class="num">${y.trigger_days}</span>: ${colourDays(y)}`)}
-    ${kv("From haze / rain / heat", `<span class="num">${SGD(hz.haze)} / ${SGD(hz.rain)} / ${SGD(hz.heat)}</span>`)}
-    ${kv("Premium at this tier", `<span class="num">${SGD(h.since_1980.premium_sgd)}</span> a year`)}
-    ${kv("Readings", `${sourceNote(y)}${y.el_nino ? " · El Niño year" : ""}`)}`;
-}
-
-function tenDaysText(h, todays) {
-  const w = h.next_10_days;
-  const a = w.all_years;
-  const r = w.recent;
-  const haze = h.haze_facts;
-  const psiNow = todays ? Math.round(todays.readings.haze) : null;
-  return `
-    <p class="burn-headline">${DAY_RANGE(w.from, w.to)}: in <b>${Math.round(a.share_years_with_payout * a.years_checked)} of the last
-      ${a.years_checked} years</b> these ten days brought at least one payout day here. On average they paid
-      <b>${SGD(a.average_paid_sgd)}</b> at ${h.tier_label} over ${ONE_DP(a.average_trigger_days)} payout days
-      (${colourDays(a, "average_")}). The most was ${SGD(a.highest_paid_sgd)} in ${a.highest_year}.</p>
-    <p class="fine">Over the last ${r.years_checked} years alone: ${SGD(r.average_paid_sgd)} on average, a payout day in
-      ${PCT(r.share_years_with_payout)} of them.</p>
-    ${psiNow != null && psiNow >= haze.trigger_psi
-      ? notice("warning", "clock", `<b>Today the 24-hour PSI in your region is ${psiNow}.</b> After a day above 100, the next day is above 100 too ${PCT(haze.next_day_bad_share)} of the time, so a haze payout tomorrow is likely.`)
-      : psiNow != null ? `<p class="fine">Today the 24-hour PSI in your region is ${psiNow}, below the payout level.</p>` : ""}
-    ${haze.el_nino_now ? notice("accent", "info", "An El Niño is under way. El Niño years bring far more haze days than other years.") : ""}
-    <p class="fine card-foot">This is what these dates did in past years, not a weather forecast.</p>`;
-}
-
-function outlookYearsText(h, takings) {
-  const e = h.el_nino;
-  const first = h.outlooks[0];
-  const rows = h.outlooks.map((o) => `<tr>
-    <td>Next ${o.years} years</td>
-    <td class="num">${SGD(o.typical_sgd)}</td>
-    <td class="num">${SGD(o.bad_sgd)}</td>
-    <td class="num">${SGD(o.highest_sgd)}<br><span class="fine">${o.highest_from_year} to ${o.highest_to_year}</span></td>
-    <td class="num">${SGD(o.typical_lost_sgd)}</td>
-    <td>${colourDays(o, "typical_")}</td>
-    <td class="num">${o.windows_paid_more_than_premium} of ${o.windows}</td>
-  </tr>`).join("");
-  return `
-    <p class="burn-headline">Every stretch of the last ${first.basis_years} years (${first.basis_from_year} to ${first.basis_to_year})
-      at this stall, at ${h.tier_label}: what a typical, a bad and the worst stretch paid back, what the weather would have cost
-      you in sales without cover (at ${SGD(takings)} a day, set in the replay above), and the payout days to expect. These years run hotter and wetter than the decades before, so they are the best guide to what is coming.</p>
-    <div class="table-wrap"><table class="data">
-      <thead><tr><th>Period</th><th class="num">Typical payout</th><th class="num">Bad stretch (1 in 10)</th>
-        <th class="num">Worst stretch</th><th class="num">Sales lost without cover, typical</th><th>Payout days, typical (both colours pay)</th><th class="num">Stretches that paid back more than the premium</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-    ${kv(`El Niño years (${e.years.join(", ")})`, `<span class="num">${SGD(e.average_paid_sgd)}</span> a year on average`)}
-    ${kv("Other years", `<span class="num">${SGD(e.average_paid_other_sgd)}</span> a year on average`)}
-    <p class="fine">Both colours pay: a yellow day lost under a third of the day's sales and pays that share of
-      ${SGD(h.daily_payout_sgd)}; a red day lost a third or more. ${hazeOutlook(h.haze_facts)}</p>
-    <p class="fine card-foot">Only this stall's location is used. This is history, not a promise: Payung pays only when the
-      readings reach a payout level, so a year can bring losses and no payout. The cover earns its keep in the bad stretches.</p>`;
-}
-
-
-/* "If the bad days come": the payout for a chosen number of red and yellow days a year, from what
-   each colour paid at this stall on average, capped by the tier's yearly cap. */
-const WHATIF_PERIODS = [1, 2, 5, 10];
-function whatIfResult(h, red, yellow) {
-  const perDay = h.payout_per_day_sgd;
-  const uncapped = red * perDay.red + yellow * perDay.yellow;
-  const yearly = Math.min(uncapped, h.max_payout_per_year_sgd);
-  const capped = uncapped > h.max_payout_per_year_sgd;
-  const premium = h.since_1980.premium_sgd;
-  return `
-    <p class="burn-headline">At this stall a red day paid <b>${SGD(perDay.red)}</b> on average and a yellow day <b>${SGD(perDay.yellow)}</b>
-      at ${h.tier_label}. With <b>${red} red</b> and <b>${yellow} yellow</b> days a year, Payung pays <b>${SGD(yearly)}</b> a year${capped
-        ? `, the yearly cap (${h.max_paid_days_per_year} full days)` : ""}.</p>
-    <div class="table-wrap"><table class="data">
-      <thead><tr><th>Over</th><th class="num">Payung pays</th><th class="num">You pay</th><th class="num">Paid back per S$1 of premium</th></tr></thead>
-      <tbody>${WHATIF_PERIODS.map((n) => `<tr><td>${n} year${n > 1 ? "s" : ""}</td>
-        <td class="num">${SGD(yearly * n)}</td><td class="num">${SGD(premium * n)}</td>
-        <td class="num">${(yearly / premium).toFixed(2)}</td></tr>`).join("")}</tbody>
-    </table></div>
-    <p class="fine card-foot">Payouts follow NEA's measured readings, so this is what the insurer pays if that many days come,
-      and less if fewer come. The presets are this stall's own record; "twice 2015" is worse than anything on record.</p>`;
-}
-
-function whatIfCard(h) {
-  const recent = h.recent;
-  const big = h.haze_year;
-  const presets = [
-    ["Typical year", recent.typical_red_days, recent.typical_yellow_days],
-    ["Bad year (1 in 10)", recent.bad_year_red_days, recent.bad_year_yellow_days],
-    big ? [`${big.year}, the big haze`, big.red_days, big.yellow_days] : null,
-    big ? [`Twice ${big.year}`, big.red_days * 2, big.yellow_days * 2] : null,
-  ].filter(Boolean);
-  return `
-    <div class="table-tools model-controls">
-      <label class="tool-select">Red days a year <input type="number" id="whatif-red" min="0" max="365" step="1" value="${Math.round(recent.typical_red_days)}" inputmode="numeric" /></label>
-      <label class="tool-select">Yellow days a year <input type="number" id="whatif-yellow" min="0" max="365" step="1" value="${Math.round(recent.typical_yellow_days)}" inputmode="numeric" /></label>
-    </div>
-    <div class="row-actions">${presets.map(([label, r, y]) =>
-      `<button class="btn small" type="button" data-whatif-red="${Math.round(r)}" data-whatif-yellow="${Math.round(y)}">${label}</button>`).join("")}</div>
-    <div id="whatif-result">${whatIfResult(h, Math.round(recent.typical_red_days), Math.round(recent.typical_yellow_days))}</div>`;
-}
-
-function wireWhatIf(target, h) {
-  const show = () => {
-    el("whatif-result").innerHTML = whatIfResult(h, +el("whatif-red").value || 0, +el("whatif-yellow").value || 0);
-  };
-  ["whatif-red", "whatif-yellow"].forEach((id) => el(id).addEventListener("input", show));
-  target.querySelectorAll("[data-whatif-red]").forEach((button) => button.addEventListener("click", () => {
-    el("whatif-red").value = button.dataset.whatifRed;
-    el("whatif-yellow").value = button.dataset.whatifYellow;
-    show();
-  }));
-}
-
-async function renderModelHistory(target, place, tier, todays) {
-  const takings = +el("burn-takings")?.value || 500;
-  const h = await api(`/api/model/history?${place}&tier=${tier}&takings=${takings}`);
-  const all = h.since_1980;
-  const recent = h.recent;
-  const big = h.haze_year;
-  const from = h.read_from_nearest_centre
-    ? `the readings at ${escapeHtml(h.centre)}, the hawker centre nearest you` : escapeHtml(h.centre);
-  const complete = h.years.filter((y) => y.complete);
-  let picked = complete[complete.length - 1].year;
-  const describe = (y) => `${SGD(y.paid_sgd)} paid over ${y.trigger_days} payout days`
-    + `${y.capped ? ", yearly cap reached" : ""}${y.complete ? "" : " (year so far)"}`;
-  target.innerHTML = `
-    <section class="card dash-section" id="model-years">
-      <div class="card-head"><div><h2>Every year since 1980 at your stall</h2>
-        <p class="fine">What ${h.tier_label} would have paid each year, from ${from}, scored by the live tariff. Only this location is used, never the whole market.</p></div></div>
-      <p class="burn-headline">With ${h.tier_label} (${SGD(h.daily_payout_sgd)} for a full bad day, up to
-        ${SGD(h.max_payout_per_year_sgd)} a year), Payung would have paid you about <b>${SGD(all.typical_sgd)}</b>
-        in a typical year since ${all.from_year}, and the full <b>${SGD(all.worst_sgd)}</b> in ${all.worst_year}.
-        ${all.years_without_payout ? `It paid nothing in ${all.years_without_payout} of ${all.years} years.`
-          : `It paid something in every one of the ${all.years} years.`}</p>
-      <div id="model-bars">${yearBars(h.years, (y) => y.paid_sgd, describe, picked)}</div>
-      <div class="burn-legend"><span><i class="burn-paid"></i>Paid that year</span><span><i class="burn-paid elnino"></i>El Niño year</span></div>
-      <div class="table-tools model-controls">
-        <label class="tool-select">Year <select id="model-year">${[...h.years].reverse().map((y) =>
-          `<option value="${y.year}"${y.year === picked ? " selected" : ""}>${y.year}${y.complete ? "" : " (so far)"}</option>`).join("")}</select></label>
-        <span class="count">or tap a bar</span>
-      </div>
-      <div id="model-year-detail">${yearDetail(h, picked)}</div>
-      ${notice("accent", "info", `<b>Measured</b> readings are used wherever they exist: haze from 2014, the wettest work hour of
-        rain from 2017, heat from 2025. <b>Older years are filled in by our models</b>: heat is rebuilt from ERA5
-        weather, and the wettest rain hour from each gauge's daily total, both matched to the measured years.
-        Heat before 2025 is the least certain part. The money follows today's tariff and the yearly cap.`)}
-    </section>
-    <section class="card dash-section">
-      <h2>What a year could look like for you</h2>
-      <div class="kpis">
-        ${kpi("Typical year", `<span class="num">${SGD(recent.typical_sgd)}</span>`, `paid, over the last ${recent.years} years`)}
-        ${kpi("Bad year (1 in 10)", `<span class="num">${SGD(recent.bad_year_sgd)}</span>`, "paid")}
-        ${kpi("Worst year", `<span class="num">${SGD(all.worst_sgd)}</span>`, `${all.worst_year}${big && big.year === all.worst_year ? ", the big haze" : ""}`)}
-        ${kpi("Your premium", `<span class="num">${SGD(recent.premium_sgd)}</span>`, `a year, ${SGD(h.weekly_premium_sgd)} a week`)}
-      </div>
-      ${kv("Payout days in a typical year", colourDays(recent, "typical_"))}
-      ${kv("In a bad year (1 in 10)", colourDays(recent, "bad_year_"))}
-      ${kv("Sales lost to weather without cover", `<span class="num">${SGD(recent.typical_lost_sgd)}</span> in a typical year, ${SGD(recent.bad_year_lost_sgd)} in a bad one, at ${SGD(takings)} a day`)}
-      <p class="fine card-foot">In ${recent.years_paid_more_than_premium} of the last ${recent.years} years the cover paid
-        back more than its premium.${big ? ` A year like ${big.year} would pay you ${SGD(big.paid_sgd)}:
-        ${SGD(big.by_hazard_sgd.haze)} for haze, ${SGD(big.by_hazard_sgd.rain)} for rain and
-        ${SGD(big.by_hazard_sgd.heat)} for heat, over ${big.trigger_days} payout days.` : ""}</p>
-    </section>
-    <section class="card dash-section">
-      <h2>The next 10 days</h2>
-      ${tenDaysText(h, todays)}
-    </section>
-    <section class="card dash-section">
-      <h2>The next 2, 5 and 10 years at your stall</h2>
-      ${outlookYearsText(h, takings)}
-    </section>
-    <section class="card dash-section" id="model-whatif">
-      <h2>If the bad days come</h2>
-      ${whatIfCard(h)}
-    </section>`;
-  const pick = (year) => {
-    picked = year;
-    el("model-year").value = String(year);
-    el("model-year-detail").innerHTML = yearDetail(h, year);
-    el("model-bars").innerHTML = yearBars(h.years, (y) => y.paid_sgd, describe, picked);
-    wireBars();
-  };
-  const wireBars = () => el("model-bars").querySelectorAll(".burn-year").forEach((bar) =>
-    bar.addEventListener("click", () => pick(+bar.dataset.year)));
-  el("model-year").addEventListener("change", (event) => pick(+event.target.value));
-  wireBars();
-  wireWhatIf(target, h);
-  el("burn-takings")?.addEventListener("change", () => renderModelHistory(target, place, tier, todays), { once: true });
 }
 
 /* The market figures at a premium of `m` times the tariff's. Payouts do not move; the premium does. */

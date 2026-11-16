@@ -73,8 +73,8 @@ function accountSummary(account) {
 }
 
 function smePayoutList(payouts) {
-  if (!payouts.length) return `<div class="card flush"><div class="empty">${SafeUI.icon("banknote")}
-    <h3>No payouts yet</h3><p>When NEA readings cross your trigger, the money comes here without a claim.</p></div></div>`;
+  if (!payouts.length) return `<div class="card empty-row">${SafeUI.icon("banknote")}
+    <div><b>No payouts yet</b><span class="fine">When NEA readings cross your trigger, the money comes here without a claim.</span></div></div>`;
   return `<ul class="payout-list card flush">${payouts.map((p) => `<li>
     <div><b>${dayLabel(p.loss_date)}</b><span class="fine">${causeLine(p)}</span>
       ${p.failure_reason ? `<span class="fine">${escapeHtml(p.failure_reason)}</span>` : ""}</div>
@@ -108,18 +108,18 @@ async function renderSmePayouts(slot, hasPolicy) {
   const editing = !account || slot.dataset.editing === "1";
   slot.innerHTML = `<div class="section-head"><div><h2>Payouts</h2>
       <p class="page-sub">When NEA readings cross your trigger, Payung pays by PayNow and sends you a text. There is no claim to make.</p></div></div>
-    <div class="sme-grid">
+    <div id="sme-payout-list">${smePayoutList(payouts)}</div>
+    <div class="sme-grid payout-grid">
       <div class="card"><h2>Get paid by PayNow</h2>
         ${editing ? accountForm(account, preference.language) : accountSummary(account)}
         ${hasPolicy ? "" : notice("", "info", "Pick a cover above too, or there is nothing to pay.")}
       </div>
       <div class="card"><h2>Texts on your phone</h2><div id="sme-inbox">${phoneInbox(texts)}</div></div>
     </div>
-    <h3 class="subhead">Your payouts</h3>
-    <div id="sme-payout-list">${smePayoutList(payouts)}</div>
-    ${hasPolicy ? `<h3 class="subhead">See the reading for any day</h3>
-    <p class="page-sub">There is no claim and no appeal: every day, paid or not, shows the reading and the rule that decided it.</p>
-    <div class="card" id="day-check"></div>` : ""}`;
+    ${hasPolicy ? `<details class="card disclosure" id="day-check-box">
+      <summary><span><b>Check any day's readings</b><span class="fine">Every day, paid or not, shows the reading and the rule that decided it.</span></span>${SafeUI.icon("chevron-down")}</summary>
+      <div id="day-check"></div>
+    </details>` : ""}`;
   if (!account) prefillPaynowMobile(application?.phone, demo.mobile);
   wireSmePayouts(slot, hasPolicy);
   if (hasPolicy) await renderDayCheck(el("day-check"), payouts[0]?.loss_date);
@@ -184,7 +184,8 @@ function wireSmePayouts(slot, hasPolicy) {
     const button = event.target.closest(".see-reading");
     if (!button) return;
     showDay(button.dataset.day);
-    el("day-check").scrollIntoView({ behavior: "smooth", block: "start" });
+    el("day-check-box").open = true;
+    el("day-check-box").scrollIntoView({ behavior: "smooth", block: "start" });
   });
   el("change-account")?.addEventListener("click", () => { slot.dataset.editing = "1"; rerender(); });
   el("send-code")?.addEventListener("click", (event) => busy(event.currentTarget, "verify-error", async () => {

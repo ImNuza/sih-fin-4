@@ -109,7 +109,65 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
 }
 
 /* ---------- business owner ---------- */
-.sme-grid { display: grid; gap: var(--s-5); align-items: start; }
+/* Side-by-side cards share one height, so their edges line up. */
+.sme-grid { display: grid; gap: var(--s-5); align-items: stretch; }
+.sme-grid > .card { display: flex; flex-direction: column; }
+.sme-grid > .card > .card-foot:last-child, .sme-grid > .card > .cancel-row { margin-top: auto; padding-top: var(--s-4); }
+.payout-grid { margin-top: var(--s-5); }
+
+/* Today's readings, each as a bar towards the level that pays */
+.readings { display: grid; gap: var(--s-4); }
+.reading { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: var(--s-3); align-items: start; }
+.reading-icon {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-md);
+  background: var(--sunken); color: var(--muted);
+}
+.reading.haze .reading-icon { color: var(--haze); }
+.reading.rain .reading-icon { color: var(--rain); }
+.reading.heat .reading-icon { color: var(--heat); }
+.reading-body { display: grid; gap: 6px; }
+.reading-line { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); }
+.reading-line > span { color: var(--ink-2); font-size: var(--t-sm); white-space: nowrap; }
+.reading-line .num { color: var(--ink); font-weight: var(--w-bold); font-size: var(--t-base); }
+.meter { height: 8px; border-radius: var(--r-pill); background: var(--sunken); overflow: hidden; }
+.meter > span {
+  display: block; height: 100%; border-radius: inherit; background: var(--ink-2);
+  transform-origin: left center; transition: transform var(--dur-drawer) var(--ease-out);
+}
+.reading.haze .meter > span { background: var(--haze); }
+.reading.rain .meter > span { background: var(--rain); }
+.reading.heat .meter > span { background: var(--heat); }
+.reading.hit .reading-line b::after { content: " · pays today"; color: var(--accent); }
+
+/* The right column: today's readings, then what the cover is worth, filling the cover card's height */
+.sme-stack { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+.sme-stack > .card { display: flex; flex-direction: column; }
+.sme-stack > .card:last-child { flex: 1; }
+.sme-stack > .card > .card-foot:last-child { margin-top: auto; padding-top: var(--s-4); }
+
+/* What the cover is worth: four figures, two by two */
+.worth { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+.worth-fig { display: grid; gap: 2px; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
+.worth-fig span { font-size: var(--t-sm); color: var(--muted); }
+.worth-fig b { font: var(--w-bold) var(--t-lg)/1.2 var(--sans); color: var(--ink); }
+
+/* An empty list, one line high */
+.empty-row { display: flex; align-items: center; gap: var(--s-4); }
+.empty-row > .i { flex: none; width: 24px; height: 24px; color: var(--faint); }
+.empty-row > div { display: grid; gap: 2px; }
+
+/* A section the owner opens when they need it */
+details.disclosure { margin-top: var(--s-5); padding: 0; }
+details.disclosure > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  padding: var(--s-4) var(--s-5); cursor: pointer; list-style: none;
+}
+details.disclosure > summary::-webkit-details-marker { display: none; }
+details.disclosure > summary > span { display: grid; gap: 2px; }
+details.disclosure > summary > .i { flex: none; color: var(--muted); transition: transform var(--dur-base) var(--ease-out); }
+details.disclosure[open] > summary > .i { transform: rotate(180deg); }
+details.disclosure > summary:focus-visible { outline-offset: -3px; }
+details.disclosure > :not(summary) { padding: 0 var(--s-5) var(--s-5); }
 .cancel-row { margin-top: var(--s-4); }
 .cancel-row .row-actions { margin-top: var(--s-2); }
 #cover-card .tiers-row { margin-top: 0; }
@@ -201,7 +259,10 @@ td.ref { font-size: var(--t-sm); color: var(--muted); }
 /* ---------- small screens ---------- */
 @media (min-width: 820px) {
   .sme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sme-grid.wide { grid-template-columns: minmax(0, 1fr); }
+  #cover-card .tiers-row { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 }
+
 /* Tablet: the insurer's five figures as 3 + 2 rather than five squeezed cells. */
 @media (min-width: 641px) and (max-width: 1100px) {
   #ins-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }

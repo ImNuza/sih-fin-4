@@ -114,3 +114,6 @@
     width: auto; height: auto;
   }
 }
+
+/* Room under the last content, so the assistant's button never covers it at the end of a page. */
+body:has(> .sd-widget:not(.sd-map)) { padding-bottom: 72px; }
