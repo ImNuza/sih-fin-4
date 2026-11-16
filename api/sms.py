@@ -136,8 +136,9 @@ HAZARD_LIST_SEPARATOR = {"en": ", ", "zh": "、", "ms": ", ", "ta": ", "}
 # The welcome SMS (16 Nov 2026): the price, when cover starts, the most a day pays for abnormal
 # weather, the mandatory "no alert, no pay", and a link to the site that explains the rest
 # (which alerts count, the tier, the yearly cap). The link carries https:// so every phone
-# makes it tappable. Payouts are graded, so it says "up to". welcome_text takes the first
-# wording that fits one SMS. Tamil leaves out the price and the wait to fit 70 characters with
+# makes it tappable; in Chinese it goes on its own line, as a phone does not see a link that
+# follows a Chinese character with no space. Payouts are graded, so it says "up to".
+# welcome_text takes the first wording that fits one SMS. Tamil leaves out the price and the wait to fit 70 characters with
 # the link; they are said at the sale and on the site.
 SITE_LINK = "https://payung.nuza.dev"
 WELCOME_PRICE = {"en": "S${price}/wk, ", "zh": "每周S${price}，", "ms": "S${price}/mgu, ", "ta": ""}
@@ -147,8 +148,8 @@ WELCOME = {
         "weather near your stall. No alert, no pay. Details: {link}",
     ),
     "zh": (
-        "Payung：{price}买后{wait}天起，摊位附近天气异常日赔最高S${daily}。无警报不赔。{link}",
-        "Payung：{price}{wait}天后生效。天气异常日赔最高S${daily}。无警报不赔。详情 {link}",
+        "Payung：{price}买后{wait}天起，摊位附近天气异常日赔最高S${daily}。无警报不赔。\n{link}",
+        "Payung：{price}{wait}天后生效。天气异常日赔最高S${daily}。无警报不赔。详情\n{link}",
     ),
     "ms": (
         "Payung: {price}lindungan dari hari ke-{wait}. Bayar hingga S${daily} sehari untuk "

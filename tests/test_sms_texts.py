@@ -28,7 +28,7 @@ APPROVED = {
     "en": "Payung: S$9.11/wk, covered from day 30. Pays up to S$40 a day for abnormal weather "
     "near your stall. No alert, no pay. Details: https://payung.nuza.dev",
     "zh": "Payung：每周S$9.11，买后30天起，摊位附近天气异常日赔最高S$40。无警报不赔。"
-    "https://payung.nuza.dev",
+    "\nhttps://payung.nuza.dev",
     "ms": "Payung: S$9.11/mgu, lindungan dari hari ke-30. Bayar hingga S$40 sehari untuk "
     "cuaca luar biasa. Tiada amaran, tiada bayaran. Info: https://payung.nuza.dev",
     "ta": "அசாதாரண வானிலை: ≤S$40/நாள். அலர்ட் இல்லையேல் 0 https://payung.nuza.dev",
@@ -87,6 +87,7 @@ def test_welcome_text_says_no_alert_no_pay_and_links_the_details(language, weekl
         body = welcome(language, tier, weekly)
         assert NO_ALERT_NO_PAY[language] in body
         assert body.endswith(LINK)
+        assert body[-len(LINK) - 1].isspace(), "a phone only makes the link tappable after a space"
 
 
 def test_malay_texts_use_malay_month_names():
