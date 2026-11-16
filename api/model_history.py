@@ -2,7 +2,9 @@
 
 Measured NEA readings are used wherever they exist: haze from April 2014, the wettest work
 hour of rain from December 2016, heat from 2025. Before that, ml/serving.py rebuilt rain and
-heat with the trained models and matched them to the measured readings. This module turns
+heat with the trained models and matched them to the measured readings, and gave each year
+before April 2014 the haze of the measured year with the nearest Aug-Oct El Nino index
+(source 4, resampled). This module turns
 those readings into money with the live tariff, so a tariff change reprices every year at
 once, and reads the history forward: what the same ten days, or the next two, five or ten
 years, brought in past years. It needs only numpy.

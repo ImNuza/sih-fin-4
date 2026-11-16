@@ -8,17 +8,23 @@ The API image has numpy but no pandas or ML libraries, so the models run here, o
                          gauge's daily total and ERA5 (MSS has only daily totals before 2014);
                          MSS and rebuilt values are then matched to the wettest work hour that
                          NEA gauges measure from December 2016, which is what the tariff reads
+    haze (resampled)     NEA's PSI record starts in April 2014. Each earlier year takes the
+                         daily PSI of the measured year (2015-2025) whose Aug-Oct El Nino
+                         index (ONI) is nearest its own, since El Nino drives Singapore's haze
+                         (see haze_history)
 Measured readings always win: a day uses the rebuilt value only when no station measured it.
 The API turns these readings into money with the live tariff (api/model_history.py), so a
 tariff change reprices every year without rerunning this script.
 
 Usage:
     uv run --group ml python -m ml.serving
+    uv run --group ml python -m ml.serving --haze-only   # redo haze in the existing file
 
 Reads  ml/results/ (models, leaderboard, confusion metrics), data/ (see ml/data.py),
        data/processed/map_static.json (the hawker centres)
 Writes data/processed/model_history.npz    per centre and day: haze, rain, heat and the source
-                                           of each (0 none, 1 measured, 2 rebuilt by a model)
+                                           of each (0 none, 1 measured, 2 rebuilt by a model,
+                                           3 matched, 4 resampled from a measured year)
        data/processed/model_insights.json  model scores against baselines, confusion counts,
                                            and the haze facts the dashboards quote
 """
@@ -45,12 +51,15 @@ FIRST_DAY = "1980-01-01"
 CENTRES_PER_BATCH = 10
 # Where a day's reading came from: nothing, measured as the tariff defines it, rebuilt by a
 # model, or measured by MSS as the whole day's wettest hour and matched to work hours.
-NONE, MEASURED, REBUILT, MATCHED = 0, 1, 2, 3
+NONE, MEASURED, REBUILT, MATCHED, RESAMPLED = 0, 1, 2, 3, 4
 # A gauge that sent under half its 12 work hours did not report (as build_day_readings.py).
 MIN_WORK_HOURS_REPORTED = 6
 # El Nino is strong when the Aug-Oct ONI averages this or more (NOAA's moderate threshold).
 EL_NINO_ONI = 1.0
 FIRST_FULL_HAZE_YEAR = 2015
+# The last year whose haze is wholly measured; later years may stop before the haze season.
+LAST_FULL_HAZE_YEAR = 2025
+HAZE_SEASON_MONTHS = (8, 9, 10)
 FIRST_HISTORY_YEAR = 1980
 QUANTILE_STEPS = 1001
 # np.interp needs strictly rising levels; equal quantiles get this much apart.
@@ -231,11 +240,66 @@ def quantile_mapped(values: np.ndarray, model_overlap: np.ndarray, measured_over
     return np.interp(values, model_levels, np.quantile(measured_overlap, shares))
 
 
+def season_oni() -> pd.Series:
+    """The Aug-Oct mean El Nino index (ONI) of each year."""
+    indices = data.climate_indices().dropna(subset=["oni"])
+    indices = indices[indices["month"].dt.month.isin(HAZE_SEASON_MONTHS)]
+    return indices.groupby(indices["month"].dt.year)["oni"].mean()
+
+
+def analog_years(years: list[int], oni: pd.Series) -> dict[int, int]:
+    """For each year, the fully measured haze year whose Aug-Oct ONI is nearest its own.
+
+    A year at or above the El Nino threshold only takes an El Nino year, and the other way
+    round, so a calm year never borrows 2015's haze and 1997 never borrows a calm year's.
+    """
+    measured = [y for y in range(FIRST_FULL_HAZE_YEAR, LAST_FULL_HAZE_YEAR + 1) if y in oni.index]
+    picks = {}
+    for year in years:
+        strong = oni[year] >= EL_NINO_ONI
+        same_kind = [y for y in measured if (oni[y] >= EL_NINO_ONI) == strong] or measured
+        picks[year] = min(same_kind, key=lambda y: abs(oni[y] - oni[year]))
+    return picks
+
+
+def analog_day(day: pd.Timestamp, analog: int) -> pd.Timestamp:
+    """The same calendar day in the analog year; 29 February becomes the 28th."""
+    return pd.Timestamp(analog, day.month, 28 if (day.month, day.day) == (2, 29) else day.day)
+
+
 def haze_history(centres: pd.DataFrame, days: pd.DatetimeIndex) -> tuple[np.ndarray, np.ndarray]:
+    """Highest 24-hour PSI per centre and day: measured from April 2014, resampled before.
+
+    A day with no PSI record before FIRST_FULL_HAZE_YEAR takes the same calendar day of its
+    year's analog (analog_years). Measured days are never replaced.
+    """
     psi = data.psi_region_days().pivot(index="region", columns="day", values="psi_max")
-    psi = psi.reindex(columns=days)
-    haze = psi.reindex(centres["region"]).to_numpy(dtype=np.float32)
-    return haze, np.where(np.isnan(haze), NONE, MEASURED).astype(np.int8)
+    measured = psi.reindex(columns=days)
+    unmeasured = measured.isna().all(axis=0).to_numpy()
+    oni = season_oni()
+    years = sorted({d.year for d in days[unmeasured] if d.year < FIRST_FULL_HAZE_YEAR and d.year in oni.index})
+    picks = analog_years(years, oni)
+    filled = measured.copy()
+    for year, analog in picks.items():
+        gap = days[(days.year == year) & unmeasured]
+        filled.loc[:, gap] = psi.reindex(columns=[analog_day(d, analog) for d in gap]).to_numpy()
+    haze = filled.reindex(centres["region"]).to_numpy(dtype=np.float32)
+    is_measured = ~np.isnan(measured.reindex(centres["region"]).to_numpy(dtype=np.float32))
+    source = np.where(is_measured, MEASURED, np.where(np.isnan(haze), NONE, RESAMPLED))
+    print("  haze analogs: " + ", ".join(f"{y}<-{a}" for y, a in picks.items()), flush=True)
+    return haze, source.astype(np.int8)
+
+
+def refill_haze() -> None:
+    """Redo only the haze rows of the existing model_history.npz."""
+    stored = dict(np.load(HISTORY_OUT))
+    days = pd.DatetimeIndex(pd.Timestamp("1970-01-01") + pd.to_timedelta(stored["days"], unit="D"))
+    centres = hawker_centres().set_index("name").loc[stored["centres"]].reset_index()
+    stored["haze"], stored["haze_source"] = haze_history(centres, days)
+    np.savez_compressed(HISTORY_OUT, **stored)
+    shares = {label: round(float(np.mean(stored["haze_source"] == code)), 3)
+              for label, code in (("none", NONE), ("measured", MEASURED), ("resampled", RESAMPLED))}
+    print(f"  haze: {shares}. Wrote {HISTORY_OUT.name}")
 
 
 def job_rows(board: pd.DataFrame, chosen: pd.DataFrame, metrics: pd.DataFrame) -> list[dict]:
@@ -343,11 +407,14 @@ def main() -> None:
     for name, source in (("haze", haze_source), ("rain", rain_source), ("heat", heat_source)):
         shares = {label: round(float(np.mean(source == code)), 3)
                   for label, code in (("none", NONE), ("measured", MEASURED),
-                                      ("rebuilt", REBUILT), ("matched", MATCHED))}
+                                      ("rebuilt", REBUILT), ("matched", MATCHED),
+                                      ("resampled", RESAMPLED))}
         print(f"  {name}: {shares}")
     print(f"Wrote {HISTORY_OUT.name} ({HISTORY_OUT.stat().st_size / 1e6:.1f} MB) and "
           f"{INSIGHTS_OUT.name}")
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    refill_haze() if "--haze-only" in sys.argv[1:] else main()
