@@ -18,7 +18,11 @@ function errorText(detail) {
 async function api(url, options) {
   const response = await fetch(url, options);
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(errorText(body.detail) || `${url}: HTTP ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(errorText(body.detail) || `${url}: HTTP ${response.status}`);
+    error.status = response.status;  // lets a caller tell a server hiccup (5xx) from a refusal
+    throw error;
+  }
   return body;
 }
 const post = (url, data) =>

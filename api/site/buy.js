@@ -1046,8 +1046,11 @@ async function submitBuy() {
    server. This page checks every POLL_MS and finishes the purchase once it is paid. No real
    PayNow code is made and no money moves. */
 const POLL_MS = 1000;
-const AUTO_PAY_MS = 20000;
-const paynowState = { payment: null, timer: null, autoPay: null, autoPayAt: 0, finishing: false };
+const AUTO_PAY_MS = 4000;  // demo: no money moves, so do not keep the buyer waiting
+const MAX_MISSES = 10;  // checks in a row that may fail before the page gives up: 10 s
+const paynowState = {
+  payment: null, timer: null, autoPay: null, autoPayAt: 0, finishing: false, misses: 0,
+};
 
 function paynowHtml(p) {
   return `<img class="paynow-qr" src="${p.qr_url}" width="180" height="180"
@@ -1076,8 +1079,16 @@ function stopPolling() {
 async function autoPay() {
   const payment = paynowState.payment;
   if (!payment) return;
-  // 409 means the phone already paid, or the payment ended; checkPayment reads which.
-  await post(`/api/premium-payments/${encodeURIComponent(payment.token)}/pay`, {}).catch(() => {});
+  try {
+    await post(`/api/premium-payments/${encodeURIComponent(payment.token)}/pay`, {});
+  } catch (error) {
+    // A dropped connection or a 5xx: try again shortly (stopPolling cancels this). A 409 means
+    // the phone already paid, or the payment ended; checkPayment reads which.
+    if (error instanceof TypeError || error.status >= 500) {
+      paynowState.autoPay = setTimeout(autoPay, 2 * POLL_MS);
+      return;
+    }
+  }
   await checkPayment();
 }
 
@@ -1098,6 +1109,7 @@ function resetPayNow() {
 async function startPayNow() {
   el("buy-next").setAttribute("aria-busy", "true");
   paynowState.finishing = false;
+  paynowState.misses = 0;
   try {
     const payment = await post("/api/premium-payments", {
       tier: buyState.tier, amount_sgd: buyState.dueSgd,
@@ -1135,9 +1147,17 @@ async function checkPayment() {
       el("buy-next").textContent = payLabel();
       el("buy-next").removeAttribute("aria-busy");
     }
+    paynowState.misses = 0;
   } catch (error) {
+    // A dropped connection or a 5xx (the host restarting, Cloudflare's 502) is usually over in
+    // seconds: keep checking, and keep the auto-pay, rather than end the payment on one miss.
+    const passing = error instanceof TypeError || error.status >= 500;
+    if (passing && ++paynowState.misses < MAX_MISSES) {
+      el("paynow-status").textContent = "Lost touch with Payung for a moment. Still checking…";
+      return;
+    }
     stopPolling();
-    showBuyError(problemText(error));
+    showBuyError(passing ? OFFLINE_PROBLEM : problemText(error));
     el("buy-next").removeAttribute("aria-busy");
   }
 }
