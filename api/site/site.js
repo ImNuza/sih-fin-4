@@ -732,8 +732,8 @@ function underwriterQueue(queue, quotes) {
   const decided = queue.recent_decisions;
   const waiting = queue.waiting.length
     ? `<div class="card referrals">${queue.waiting.map((a) => referralCard(a, quotes)).join("")}</div>`
-    : `<div class="card flush"><div class="empty">${SafeUI.icon("shield-check")}<h3>No applications are waiting</h3>
-        <p>When a business that an insurer declined before applies, it waits here until an underwriter approves or declines it.</p></div></div>`;
+    : `<div class="card empty-row">${SafeUI.icon("shield-check")}<div><b>No applications are waiting</b>
+        <span class="fine">When a business that an insurer declined before applies, it waits here until an underwriter approves or declines it.</span></div></div>`;
   return `${waiting}
     ${decided.length ? `<h3 class="subhead">Recent decisions</h3><div class="table-wrap"><table class="data">
       <thead><tr><th>Business</th><th>Decision</th><th>Note</th><th>By</th><th class="num">Date</th></tr></thead>
@@ -794,6 +794,10 @@ function insurerShell(user) {
         <span><b>Tariff desk (admin portal)</b><span>Change the weights, payouts and premium calculations. Every save is a new version.</span></span>${SafeUI.icon("external-link")}</a>
       <a href="/map/?view=insurer&amp;mode=live" target="_blank" rel="noopener">${SafeUI.icon("map", "i-lg")}
         <span><b>Risk atlas</b><span>Hazard, exposure and live NEA readings over Singapore.</span></span>${SafeUI.icon("external-link")}</a>
+    </nav>
+    <nav class="jumpnav" aria-label="Sections of the desk">
+      <a href="#tiers-title">Tiers</a><a href="#book-title">Policies</a><a href="#queue-title">Underwriting</a>
+      <a href="#payouts-title">Payouts</a><a href="#model-title">Back-test</a><a href="#map-title">Map</a>
     </nav>
     <section class="dash-section" aria-labelledby="tiers-title">
       <div class="section-head"><div><h2 id="tiers-title">Tiers in the live tariff</h2>

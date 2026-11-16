@@ -203,8 +203,8 @@ function wireSmePayouts(slot, hasPolicy) {
 
 /* ---------- insurer ---------- */
 function insurerPayoutTable(payouts, hazardLabels) {
-  if (!payouts.length) return `<div class="card flush"><div class="empty">${SafeUI.icon("banknote")}
-    <h3>No payouts yet</h3><p>Run a day above. Every policy past its waiting period is assessed against that day's NEA readings.</p></div></div>`;
+  if (!payouts.length) return `<div class="card empty-row">${SafeUI.icon("banknote")}
+    <div><b>No payouts yet</b><span class="fine">Run a day above. Every policy past its waiting period is assessed against that day's NEA readings.</span></div></div>`;
   return `<div class="table-wrap payouts-wrap"><table class="data" id="payouts-table">
     <thead><tr>
       ${sortHeader("Business")}${sortHeader("Centre or region")}${sortHeader("Day", { num: true })}${sortHeader("Cause")}
@@ -238,7 +238,7 @@ async function renderInsurerPayouts(slot) {
   const paid = payouts.filter((p) => p.status === "paid");
   const hazardLabels = Object.fromEntries(options.hazards.map((h) => [h.key, h.label]));
   const hazards = options.hazards.map((h) => `<option value="${h.key}">${escapeHtml(h.label)} (${escapeHtml(h.reading)})</option>`).join("");
-  slot.innerHTML = `<div class="section-head"><div><h2>Payouts</h2>
+  slot.innerHTML = `<div class="section-head"><div><h2 id="payouts-title">Payouts</h2>
       <p class="page-sub">Assesses every policy for that Singapore day and pays what the tariff gives, by PayNow, with an SMS. A day already run is never paid twice.</p></div>
       <p class="fine"><span class="num">${paid.length.toLocaleString("en-SG")}</span> paid · <span class="num">${SGD(paid.reduce((sum, p) => sum + p.amount_sgd, 0))}</span> sent in total</p></div>
     ${demoPayoutCard(holders, options.hazards)}
@@ -252,12 +252,13 @@ async function renderInsurerPayouts(slot) {
         </select></label>
       <label class="manual" hidden>Hazard <select name="hazard">${hazards}</select></label>
       <label class="manual" hidden>Reading <input name="reading" type="number" step="any" value="1" /></label>
-      <button class="btn primary" type="submit">Run payouts</button>
+      <div class="run-actions"><button class="btn primary" type="submit">Run payouts</button></div>
       <p class="fine run-note">History runs to ${dayLabel(latest)}.</p>
       <p class="run-result" id="run-result" aria-live="polite"></p><p class="error" id="run-error" role="alert"></p>
     </form>
     ${insurerPayoutTable(payouts, hazardLabels)}
-    <h3 class="subhead">Service requests: wrong reading or shop category</h3>
+    <h3 class="subhead">Service requests</h3>
+    <p class="page-sub">Customers who say a reading or their shop category is wrong.</p>
     ${serviceRequestTable(requests)}`;
   if (el("payouts-table")) SafeUI.sortable(el("payouts-table"));
   wireInsurerPayouts(slot);
@@ -265,7 +266,8 @@ async function renderInsurerPayouts(slot) {
 
 /* Customers' reports from the 'see the reading' card. They correct data, never a loss size. */
 function serviceRequestTable(requests) {
-  if (!requests.length) return `<p class="fine">No service requests. A customer files one from a day's readings on their dashboard.</p>`;
+  if (!requests.length) return `<div class="card empty-row">${SafeUI.icon("shield-check")}<div><b>No service requests</b>
+    <span class="fine">A customer files one from a day's readings on their dashboard.</span></div></div>`;
   const kinds = { wrong_reading: "Wrong reading", wrong_category: "Wrong shop category" };
   return `<div class="table-wrap"><table class="data">
     <thead><tr><th>Ref</th><th>Business</th><th class="num">Day</th><th>About</th><th>What they saw</th></tr></thead>
@@ -298,7 +300,7 @@ function demoPayoutCard(holders, hazards) {
     <label>Reading <input name="reading" type="number" step="any" value="${DEMO_READING.reading}" required /></label>
     <label>Pay and text mobile <input name="mobile" type="tel" placeholder="+6591234567" value="${escapeHtml(fallback || "")}" autocomplete="off" /></label>
     <label>SMS in <select name="sms_language">${languageOptions}</select></label>
-    <button class="btn primary" type="submit">Send payout and SMS</button>
+    <div class="run-actions"><button class="btn primary" type="submit">Send payout and SMS</button></div>
     <p class="fine run-note">Pays today, skipping the 30-day waiting period, by PayNow, and texts the payment notice in the language the customer chose at sign-up, unless you pick another. A mobile entered here becomes the customer's PayNow and texting mobile, with no code to verify. Left blank: the customer's own verified mobile${fallback ? `, or ${escapeHtml(fallback)} if they have none` : ""}. ${how}</p>
     <p class="run-result" id="demo-result" aria-live="polite"></p><p class="error" id="demo-error" role="alert"></p>
   </form>`;
@@ -318,8 +320,8 @@ function demoWarningCard(holders) {
     <label>Forecast for tomorrow <select name="hazard">${hazardOptions}</select></label>
     <label>Text mobile <input name="mobile" type="tel" placeholder="+6591234567" value="${escapeHtml(holders.fallback_mobile || "")}" autocomplete="off" /></label>
     <label>SMS in <select name="sms_language">${languageOptions}</select></label>
-    <button class="btn primary" type="submit">Send warning SMS</button>
-    <button class="btn" id="warn-from-nea" type="button">Warn everyone from NEA's forecast</button>
+    <div class="run-actions"><button class="btn primary" type="submit">Send warning SMS</button>
+      <button class="btn" id="warn-from-nea" type="button">Warn everyone from NEA's forecast</button></div>
     <p class="fine run-note">The evening before a forecast bad day, each customer in the region gets one text: what is forecast, one safety tip, and that a forecast is not a payout. "Warn everyone" reads NEA's latest 24-hour forecast and texts each customer at most once a day. The demo button skips that limit and pays nothing.</p>
     <p class="run-result" id="warning-result" aria-live="polite"></p><p class="error" id="warning-error" role="alert"></p>
   </form>`;
