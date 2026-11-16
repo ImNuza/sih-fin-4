@@ -104,26 +104,20 @@ function partialExamples(product, productFactor, tierKeys) {
   return partialExamples.cache[product];
 }
 
-/* The four proof numbers as sentences, in order. [] when there is no replay. */
+/* The proof numbers as sentences, in order. A typical year's payout and this year's total are left
+   out: owners read the most a tier can pay, not an average. [] when there is no replay. */
 function proofLines(tier, businessClass) {
   const proof = tier?.proof;
   if (!proof) return [];
   const who = proofWho(businessClass);
   const Who = who.charAt(0).toUpperCase() + who.slice(1);
   const years = proof.years_replayed;
-  const days = Math.round(proof.payout_days_per_year);
-  const spread = days >= 1 ? `about ${days} day${days === 1 ? "" : "s"}` : "less than one day";
   const lines = [];
-  if (proof.typical_year_paid_sgd > 0)
-    lines.push(`A typical year paid ${yearMoney(proof.typical_year_paid_sgd)}, spread over ${spread} with a part payout.`);
   lines.push(proof.years_paid === 0
     ? `${Who} would not have been paid in any of the last ${years} years.`
     : proof.years_paid === years
       ? `${Who} would have been paid in each of the last ${years} years.`
       : `${Who} would have been paid in ${proof.years_paid} of the last ${years} years.`);
-  lines.push(proof.paid_2026_sgd > 0
-    ? `In 2026, ${who} would have been paid ${yearMoney(proof.paid_2026_sgd)} in total.`
-    : `In 2026, ${who} would not have been paid.`);
   lines.push(`We estimate a year like 2015 would pay about ${yearMoney(proof.haze_2015_like_sgd)}. It does not run out before ${tierDays(tier)} bad days.`);
   return lines;
 }
@@ -155,16 +149,19 @@ function bestValueLine(quote, suggestedKey) {
 }
 
 const HAZE_RECORD_FROM = 2014; // the PSI history the add-on is priced on starts in April 2014
-const timesWord = (n) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+
+/* "It happened in 2015." or "It happened in 2015 and 2019.", from the years the add-on would
+   have paid; "" when it never would have. */
+function hazeBonusHistory(bonus) {
+  const years = bonus?.would_have_paid_years || [];
+  if (!years.length) return "";
+  const list = years.length === 1 ? years[0] : `${years.slice(0, -1).join(", ")} and ${years.at(-1)}`;
+  return `It happened in ${list}.`;
+}
 
 /* The severe haze payout add-on for a tier, in plain words, from tier.haze_bonus. "" without it. */
 function hazeBonusPitch(tier) {
   const bonus = tier?.haze_bonus;
   if (!bonus) return "";
-  const years = bonus.would_have_paid_years || [];
-  const span = new Date().getFullYear() - HAZE_RECORD_FROM + 1;
-  const history = years.length
-    ? `That happened ${timesWord(years.length)} in the last ${span} years (${years.join(", ")}).`
-    : `It has not happened here since ${HAZE_RECORD_FROM}, the start of the records.`;
-  return `Add ${proofMoney(bonus.weekly_sgd)} a week. If your area has ${bonus.trigger_days} or more unhealthy-haze days in a year, we pay ${proofMoney(bonus.lump_sum_sgd)} at once: ${Number(bonus.multiple)} times what the add-on costs. ${history}`;
+  return `Add ${proofMoney(bonus.weekly_sgd)} a week. If your area has ${bonus.trigger_days} or more unhealthy-haze days in a year, we pay ${proofMoney(bonus.lump_sum_sgd)} at once: ${Number(bonus.multiple)} times what the add-on costs. ${hazeBonusHistory(bonus)}`.trim();
 }

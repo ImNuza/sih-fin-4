@@ -305,12 +305,7 @@ def proof_lines(tier: TierQuote, who: str) -> list[str]:
     if proof is None:
         return []
     years = proof.years_replayed
-    days = int(proof.payout_days_per_year + 0.5)
-    spread = f"about {days} day{'' if days == 1 else 's'}" if days >= 1 else "less than one day"
     lines = []
-    if proof.typical_year_paid_sgd > 0:
-        lines.append(f"A typical year paid {year_money(proof.typical_year_paid_sgd)}, spread over "
-                     f"{spread} with a part payout.")
     if proof.years_paid == 0:
         lines.append(f"{who.capitalize()} would not have been paid in any of the last {years} "
                      "years.")
@@ -319,10 +314,6 @@ def proof_lines(tier: TierQuote, who: str) -> list[str]:
     else:
         lines.append(f"{who.capitalize()} would have been paid in {proof.years_paid} of the last "
                      f"{years} years.")
-    year = calculator.PROOF_YEAR
-    paid = proof.paid_2026_sgd
-    lines.append(f"In {year}, {who} would have been paid {year_money(paid)} in total." if paid > 0
-                 else f"In {year}, {who} would not have been paid.")
     lines.append(f"We estimate a year like {calculator.HAZE_YEAR} would pay about "
                  f"{year_money(proof.haze_2015_like_sgd)}. It does not run out before "
                  f"{paid_days_limit(tier)} bad days.")
@@ -413,8 +404,7 @@ def product_facts(tariff: Tariff) -> dict[str, str]:
                           f"tier starts the {wait}-day wait again; the same or a lower tier "
                           "keeps it.",
         "proof": "Each quote carries proof numbers from a replay at the customer's own place: "
-                 "'A typical year paid ...' with its payout days, 'In "
-                 f"{calculator.PROOF_YEAR} ... in total' (rain and heat as well as haze), and 'We "
+                 "how many of the last years would have paid, and 'We "
                  f"estimate a year like {calculator.HAZE_YEAR} ...' (an estimate).",
         "forecast": "The evening warning text uses NEA's own forecast, and a forecast is not a "
                     "payout. Payung's trained models only rebuild past years' readings; no "

@@ -525,7 +525,7 @@ function worthCard({ policy, policyQuote }) {
     <div class="card-head"><h2 id="worth-title">What your cover is worth</h2></div>
     <div class="worth">
       ${worthFigure("You pay a year", SGD(policy.weekly_premium_sgd * 52))}
-      ${worthFigure("A typical year pays", SGD(proof.typical_year_paid_sgd))}
+      ${worthFigure("Most in a year", SGD(policy.daily_payout_sgd * days))}
       ${worthFigure("A haze year like 2015", SGD(proof.haze_2015_like_sgd))}
       ${worthFigure(`A ${LOCKDOWN_EXAMPLE_DAYS}-day lockdown`, SGD(lockdown))}
     </div>
